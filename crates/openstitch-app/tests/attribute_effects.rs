@@ -110,7 +110,6 @@ const EXPECT: &[(&str, Expect)] = &[
     ("r:gradationMin", Expect::Changes),
     ("r:gradationPattern", Expect::Changes),
     ("r:gradationShape", Expect::Changes),
-    ("r:gradationSteps", Expect::Changes),
     ("r:halfStitch", Expect::Changes),
     ("r:handAmount", Expect::Changes),
     ("r:handSide", Expect::Changes),
@@ -158,14 +157,6 @@ const EXPECT: &[(&str, Expect)] = &[
 /// line and why, with the issue that tracks it (#1039-#1049). A problem not listed here fails,
 /// and so does an entry that no longer reproduces (remove it once its issue is fixed).
 const KNOWN: &[(&str, &str)] = &[
-    (
-        r#"r:fill gradationSteps"#,
-        "#1039: Gradation steps change nothing with a gradation pattern on (2-20 steps)",
-    ),
-    (
-        r#"r:satin gradationSteps"#,
-        "#1039: Gradation steps change nothing with a gradation pattern on (2-20 steps)",
-    ),
     (
         r#"r:satin cornerStyle (with {"autoDirection":true}): mitre and cap"#,
         "#1040: Auto-direction satin corners: mitre and cap sew the same",

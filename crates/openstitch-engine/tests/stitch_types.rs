@@ -282,17 +282,25 @@ fn gradation_pattern_options() {
         json!({"id": 1, "gradationPattern": true}),
     );
     assert_eq!(gradation(&s), Some(Gradation::PE_DEFAULT));
-    run(
+    // PE-DESIGN's pattern always has nine points (#1039): a step count from an older script
+    // is accepted, ignored, and answered with a hint.
+    let reply = run(
         &mut s,
         "object.setRegion",
         json!({"id": 1, "gradationMax": 80, "gradationSteps": 4}),
+    );
+    assert!(
+        reply["hints"][0]
+            .as_str()
+            .is_some_and(|h| h.contains("gradationSteps is ignored")),
+        "{reply}"
     );
     assert_eq!(
         gradation(&s),
         Some(Gradation {
             max: 80.0,
             min: 5.0,
-            steps: Some(4),
+            steps: Some(9),
             shape: Default::default(),
         })
     );
@@ -302,11 +310,18 @@ fn gradation_pattern_options() {
         "object.setRegion",
         json!({"id": 1, "gradationPattern": true}),
     );
-    assert_eq!(gradation(&s).and_then(|g| g.steps), Some(4));
+    assert_eq!(gradation(&s).map(|g| g.max), Some(80.0));
     run(
         &mut s,
         "object.setRegion",
         json!({"id": 1, "gradationPattern": false}),
+    );
+    assert_eq!(gradation(&s), None);
+    // A step count alone no longer turns a pattern on.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "gradationSteps": 15}),
     );
     assert_eq!(gradation(&s), None);
     // A continuous (old) gradation becomes PE's default pattern when a pattern option is set.
@@ -332,8 +347,6 @@ fn gradation_pattern_options() {
     for params in [
         json!({"id": 1, "gradationMax": 4}),
         json!({"id": 1, "gradationMin": 101}),
-        json!({"id": 1, "gradationSteps": 1}),
-        json!({"id": 1, "gradationSteps": 21}),
     ] {
         let reply = s.handle(&json!({"command": "object.setRegion", "params": params}));
         assert_eq!(reply["ok"], json!(false), "{params}");
@@ -583,6 +596,31 @@ fn a_satin_keeps_edge_and_zigzag_for_edge_and_fill() {
     assert_eq!(
         style(&s),
         Some((RegionType::Satin, UnderlayStyle::EdgeZigzag))
+    );
+}
+
+/// #1105: `object.setRegion`'s `underlayStyle` description (what command_describe and the
+/// per-command tools give) says that a satin stores edgeFill as edgeZigzag, so a model that
+/// reads back the other value knows why.
+#[test]
+fn the_underlay_style_description_says_a_satin_keeps_edge_and_zigzag() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion");
+    let style = spec
+        .params
+        .iter()
+        .find(|p| p.name == "underlayStyle")
+        .expect("underlayStyle");
+    assert!(
+        style
+            .summary
+            .contains("On a satin, edgeFill is stored as edgeZigzag"),
+        "{}",
+        style.summary
     );
 }
 
@@ -2363,6 +2401,131 @@ fn a_turned_zigzag_net_starts_where_pe_design_starts_it() {
     );
 }
 
+/// #1071: a plain square net starts from the shape as PE-DESIGN 11.50's does (round 13 part 4,
+/// net-switch-dir0 and net-dir90 on a 30 × 20 mm rectangle, Spacing 3.0): its lines half a
+/// spacing in from the left and top edges, 3 mm apart, the same at Direction 0 and 90, and the
+/// needle steps 2 mm along a line, through its crossings, not from crossing to crossing.
+#[test]
+fn a_plain_net_starts_half_a_spacing_inside_the_shape() {
+    let net = |angle: f64| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+        );
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "type": "netFill", "spacing": 3.0, "angle": angle}),
+        );
+        Compiler::for_design(s.design())
+            .compile(s.design())
+            .stitches
+    };
+    // The lines: x of the vertical stitches and y of the horizontal ones (0.1 mm from the
+    // rectangle's left and top) where five or more line up, off the outline.
+    let lines = |st: &[openstitch_core::Stitch]| {
+        let (mut xs, mut ys) = (
+            std::collections::BTreeMap::<i64, usize>::new(),
+            std::collections::BTreeMap::<i64, usize>::new(),
+        );
+        for w in st.windows(2) {
+            if w[0].command != Command::Stitch || w[1].command != Command::Stitch {
+                continue;
+            }
+            let (x, y) = (
+                (w[1].x - 350.0).round() as i64,
+                (w[1].y - 400.0).round() as i64,
+            );
+            if (w[1].x - w[0].x).abs() < 0.5 && x > 0 && x < 300 {
+                *xs.entry(x).or_default() += 1;
+            } else if (w[1].y - w[0].y).abs() < 0.5 && y > 0 && y < 200 {
+                *ys.entry(y).or_default() += 1;
+            }
+        }
+        let keep = |m: std::collections::BTreeMap<i64, usize>| -> Vec<i64> {
+            m.into_iter()
+                .filter(|&(_, n)| n >= 5)
+                .map(|(v, _)| v)
+                .collect()
+        };
+        (keep(xs), keep(ys))
+    };
+    let flat = net(0.0);
+    let want = (
+        (0..10).map(|k| 15 + 30 * k).collect::<Vec<i64>>(),
+        (0..7).map(|k| 15 + 30 * k).collect::<Vec<i64>>(),
+    );
+    assert_eq!(lines(&flat), want, "0°");
+    assert_eq!(lines(&net(90.0)), want, "90°: the same lines");
+    let steps = flat
+        .windows(2)
+        .filter(|w| w[0].command == Command::Stitch && w[1].command == Command::Stitch)
+        .filter(|w| ((w[1].x - w[0].x).hypot(w[1].y - w[0].y) - 20.0).abs() < 0.6)
+        .count();
+    assert!(steps >= 150, "2 mm steps along the lines: {steps}");
+}
+
+/// #1071: with a reference point (`object.setReferencePoint`), a plain net's lines run through
+/// that point instead of starting from the shape's bounds.
+#[test]
+fn a_plain_net_runs_through_its_reference_point() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "netFill", "spacing": 3.0}),
+    );
+    run(
+        &mut s,
+        "object.setReferencePoint",
+        json!({"id": 1, "point": [35.2, 40.7]}),
+    );
+    let st = Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches;
+    // x of the vertical stitches and y of the horizontal ones, 0.1 mm from the rectangle's left
+    // and top, where five or more line up off the outline.
+    let (mut xs, mut ys) = (
+        std::collections::BTreeMap::<i64, usize>::new(),
+        std::collections::BTreeMap::<i64, usize>::new(),
+    );
+    for w in st.windows(2) {
+        if w[0].command != Command::Stitch || w[1].command != Command::Stitch {
+            continue;
+        }
+        let (x, y) = (
+            (w[1].x - 350.0).round() as i64,
+            (w[1].y - 400.0).round() as i64,
+        );
+        if (w[1].x - w[0].x).abs() < 0.5 && x > 0 && x < 300 {
+            *xs.entry(x).or_default() += 1;
+        } else if (w[1].y - w[0].y).abs() < 0.5 && y > 0 && y < 200 {
+            *ys.entry(y).or_default() += 1;
+        }
+    }
+    let keep = |m: std::collections::BTreeMap<i64, usize>| -> Vec<i64> {
+        m.into_iter()
+            .filter(|&(_, n)| n >= 5)
+            .map(|(v, _)| v)
+            .collect()
+    };
+    // Through (35.2, 40.7) mm, 3 mm apart: 0.2 and 0.7 mm from the left and top edges.
+    assert_eq!(
+        (keep(xs), keep(ys)),
+        (
+            (0..10).map(|k| 2 + 30 * k).collect::<Vec<i64>>(),
+            (0..7).map(|k| 7 + 30 * k).collect::<Vec<i64>>(),
+        )
+    );
+}
+
 /// #1046: `object.setLine`'s description of `profile` (what command_describe and the per-command
 /// tools give the Assistant) says that linear, smoothstep and stairs need more than 3 passes.
 #[test]
@@ -2387,27 +2550,24 @@ fn the_profile_description_says_when_the_ramps_differ() {
     );
 }
 
-/// #1105: `object.setRegion`'s `underlayStyle` description (what command_describe and the
-/// per-command tools give) says that a satin stores edgeFill as edgeZigzag, so a model that
-/// reads back the other value knows why.
+/// #1039: `object.setRegion`'s `gradationSteps` description (what command_describe gives)
+/// says the value is ignored, so a model that passes one knows why it changes nothing.
 #[test]
-fn the_underlay_style_description_says_a_satin_keeps_edge_and_zigzag() {
+fn the_gradation_steps_description_says_it_is_ignored() {
     let session = Session::new(".");
     let spec = session
         .commands()
         .into_iter()
         .find(|c| c.id == "object.setRegion")
         .expect("object.setRegion");
-    let style = spec
+    let steps = spec
         .params
         .iter()
-        .find(|p| p.name == "underlayStyle")
-        .expect("underlayStyle");
+        .find(|p| p.name == "gradationSteps")
+        .expect("gradationSteps");
     assert!(
-        style
-            .summary
-            .contains("On a satin, edgeFill is stored as edgeZigzag"),
+        steps.summary.starts_with("Ignored (#1039)"),
         "{}",
-        style.summary
+        steps.summary
     );
 }
