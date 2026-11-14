@@ -14,9 +14,74 @@ pub(crate) fn read(path: &Path) -> io::Result<Vec<u8>> {
     std::fs::read(path)
 }
 
+/// Writes a whole file safely (#1093): the bytes go to a temporary file in the same folder,
+/// are flushed to the disk, and the temporary file is renamed over the target. A crash, a power
+/// cut or a full disk during the write leaves the earlier file whole; on an error the temporary
+/// file is removed. A rename within one folder works on every file system, FAT32 sticks too.
+///
+/// As `std::fs::write` did: a target that is a link is written where it points (the link
+/// stays), a read-only target is refused, the target keeps its permissions, and a missing or
+/// read-only folder gives the same error.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn write(path: &Path, bytes: impl AsRef<[u8]>) -> io::Result<()> {
-    std::fs::write(path, bytes)
+    write_with(path, bytes.as_ref(), |file, bytes| {
+        use std::io::Write;
+        file.write_all(bytes)
+    })
+}
+
+/// [`write`] with the step that fills the temporary file given, so a test can fail it half-way.
+#[cfg(not(target_arch = "wasm32"))]
+fn write_with(
+    path: &Path,
+    bytes: &[u8],
+    fill: impl FnOnce(&mut std::fs::File, &[u8]) -> io::Result<()>,
+) -> io::Result<()> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    // A link is followed: the file it points to is replaced, not the link.
+    let target = match std::fs::symlink_metadata(path) {
+        Ok(m) if m.file_type().is_symlink() => std::fs::canonicalize(path)?,
+        _ => path.to_path_buf(),
+    };
+    let old = std::fs::metadata(&target).ok();
+    if let Some(m) = &old {
+        if m.is_dir() {
+            // As `std::fs::write` reports it.
+            return std::fs::write(&target, bytes);
+        }
+        if m.permissions().readonly() {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("{} is read-only", target.display()),
+            ));
+        }
+    }
+    let name = target
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let tmp = target.with_file_name(format!(
+        ".{name}.{}-{}.openstitch-tmp",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)?;
+    let written = fill(&mut file, bytes)
+        .and_then(|()| file.sync_all())
+        .and_then(|()| match &old {
+            Some(m) => std::fs::set_permissions(&tmp, m.permissions()),
+            None => Ok(()),
+        });
+    drop(file);
+    let done = written.and_then(|()| std::fs::rename(&tmp, &target));
+    if done.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    done
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -85,6 +150,92 @@ mod native_tests {
             )
             .expect("open");
         });
+    }
+
+    /// #1093: a write that fails half-way leaves the earlier file byte for byte, and no
+    /// temporary file behind.
+    #[test]
+    fn a_write_that_fails_half_way_leaves_the_earlier_file_whole() {
+        let dir = openstitch_testutil::TempDir::new("fsio-safe");
+        let target = dir.path().join("design.osd");
+        let earlier = b"the good design".to_vec();
+        std::fs::write(&target, &earlier).expect("earlier");
+        let new = vec![7u8; 100_000];
+        let failed = super::write_with(&target, &new, |file, bytes| {
+            use std::io::Write;
+            file.write_all(&bytes[..bytes.len() / 2])?;
+            Err(std::io::Error::other("the disk is full"))
+        });
+        assert_eq!(
+            failed.map_err(|e| e.to_string()),
+            Err("the disk is full".into())
+        );
+        assert_eq!(std::fs::read(&target).expect("read"), earlier);
+        assert_eq!(names(dir.path()), ["design.osd"], "no temporary file left");
+        // A good write replaces it, and leaves nothing else either.
+        super::write(&target, &new).expect("write");
+        assert_eq!(std::fs::read(&target).expect("read"), new);
+        assert_eq!(names(dir.path()), ["design.osd"]);
+        // A new file too.
+        super::write(&dir.path().join("new.dst"), [1, 2, 3]).expect("new");
+        assert_eq!(names(dir.path()), ["design.osd", "new.dst"]);
+    }
+
+    /// #1093: the errors stay what `std::fs::write` gave: a missing folder, a read-only file
+    /// (left as it was), a folder in the way.
+    #[test]
+    fn safe_writing_reports_the_same_errors() {
+        let dir = openstitch_testutil::TempDir::new("fsio-safe-errors");
+        let missing = dir.path().join("no-such-folder").join("a.osd");
+        let plain = std::fs::write(&missing, b"x").expect_err("plain");
+        let safe = super::write(&missing, b"x").expect_err("safe");
+        assert_eq!(safe.kind(), plain.kind());
+        assert_eq!(safe.to_string(), plain.to_string());
+        let locked = dir.path().join("locked.osd");
+        std::fs::write(&locked, b"keep").expect("locked");
+        let mut perms = std::fs::metadata(&locked).expect("meta").permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&locked, perms.clone()).expect("read-only");
+        let refused = super::write(&locked, b"new").expect_err("read-only");
+        assert_eq!(refused.kind(), std::io::ErrorKind::PermissionDenied);
+        assert_eq!(std::fs::read(&locked).expect("read"), b"keep");
+        #[allow(clippy::permissions_set_readonly_false)]
+        perms.set_readonly(false);
+        std::fs::set_permissions(&locked, perms).expect("writable again");
+        let folder = dir.path().join("folder.osd");
+        std::fs::create_dir(&folder).expect("folder");
+        let plain = std::fs::write(&folder, b"x").expect_err("plain");
+        let safe = super::write(&folder, b"x").expect_err("safe");
+        assert_eq!(safe.kind(), plain.kind());
+        assert_eq!(names(dir.path()), ["folder.osd", "locked.osd"]);
+    }
+
+    /// #1093: writing through a link replaces the file it points to; the link stays.
+    #[cfg(unix)]
+    #[test]
+    fn a_link_stays_a_link() {
+        let dir = openstitch_testutil::TempDir::new("fsio-safe-link");
+        let real = dir.path().join("real.osd");
+        let link = dir.path().join("link.osd");
+        std::fs::write(&real, b"old").expect("real");
+        std::os::unix::fs::symlink(&real, &link).expect("link");
+        super::write(&link, b"new").expect("write");
+        assert!(
+            std::fs::symlink_metadata(&link)
+                .expect("meta")
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(std::fs::read(&real).expect("read"), b"new");
+    }
+
+    fn names(dir: &std::path::Path) -> Vec<String> {
+        let mut v: Vec<String> = std::fs::read_dir(dir)
+            .expect("dir")
+            .map(|e| e.expect("entry").file_name().to_string_lossy().into_owned())
+            .collect();
+        v.sort();
+        v
     }
 
     fn memfs_clear_and_check(f: impl FnOnce()) {
