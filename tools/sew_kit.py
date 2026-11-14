@@ -634,7 +634,7 @@ def lettering():
         {"command": "text.add", "params": {"text": "ARCH", "size": 9, "x": 50, "y": 48, "align": "center",
                                            "envelope": 1, "fill": 37}},
         {"command": "shape.ellipse", "params": {"cx": 50, "cy": 76, "rx": 16, "outline": 40}},
-        {"command": "text.add", "params": {"text": "ROUND AND ROUND", "size": 5, "fill": 7}},
+        {"command": "text.add", "params": {"text": "ROUND AND ROUND", "size": 6, "fill": 7}},
         {"command": "text.setPath", "params": {"id": 5, "path": 4, "align": "spaced"}},
         # The circle only guides the text: not sewn (a thin grey ring read as a stray line, #441).
         {"command": "object.setLine", "params": {"ids": [4], "type": "none"}},

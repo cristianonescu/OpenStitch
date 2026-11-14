@@ -735,7 +735,7 @@
    86.0,
    86.0
   ],
-  "stitches": 4658,
+  "stitches": 4727,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -748,10 +748,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 6.3,
+  "sewingMinutes": 6.4,
   "image": null,
   "preview": "previews/region-sew-types-2.png",
-  "sha256": "4a2a032b799f395b54375155851515bdf2eeab5c7154a51eb5f250111950898e",
+  "sha256": "cc136709e2441924bf711d17f86ea98a32361911fef6e634674ed174f719d6c6",
   "renderVersion": 3
  },
  "fills/fill-options.pes": {
@@ -1132,9 +1132,9 @@
   "hoop": "100 × 100 mm",
   "sizeMM": [
    71.0,
-   89.7
+   90.7
   ],
-  "stitches": 3980,
+  "stitches": 4176,
   "trims": 38,
   "threads": [
    "405 Blue",
@@ -1142,10 +1142,10 @@
    "509 Leaf Green",
    "620 Magenta"
   ],
-  "sewingMinutes": 6.9,
+  "sewingMinutes": 7.2,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "660798d969df277bad925b3fcf0ecb2ba795084a6018827af486c704c58016a6",
+  "sha256": "6a409f0c4eb0a0f9ad577079649abf26cdedfc4c14494ab433a41ced12a03f58",
   "renderVersion": 3
  },
  "lettering/monograms.pes": {
