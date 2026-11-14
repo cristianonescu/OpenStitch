@@ -2471,7 +2471,9 @@ impl RegionSewing {
         self.spacing.unwrap_or(match self.kind {
             RegionType::CrossStitch => 2.5,
             RegionType::Stippling => 2.0,
-            RegionType::NetFill => 4.0,
+            // PE-DESIGN 11.50's Net Fill: Spacing 3.0 mm, the line pitch (its field's reset
+            // button, #1110).
+            RegionType::NetFill => 3.0,
             // PE-DESIGN 11.50's zigzag net (o-region-zigzag-net): bands 8 mm apart.
             RegionType::ZigzagNetFill => 8.0,
             RegionType::FlexibleSpiral => 1.0,
