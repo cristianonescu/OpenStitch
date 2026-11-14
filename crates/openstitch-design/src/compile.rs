@@ -210,6 +210,19 @@ impl Writer {
         if tail.len() < 2 {
             return;
         }
+        // A run that ends in a lock meant as one, its return a few hundredths of a mm off its
+        // point, keeps that lock, made exact: in a stitch file the two points can land on
+        // neighbouring 0.1 mm grid points and the lock is gone (#1032). PE-DESIGN ends such runs
+        // with one exact lock (concentric-rect40x30, spiral-circle20-pitch3p0).
+        if self.open_ties.is_none()
+            && !crate::region::ends_locked(&tail)
+            && let Some(k) = crate::region::nearly_ends_locked(&tail)
+            && let Some(last) = self.out.stitches.last_mut()
+        {
+            (last.x, last.y) = (tail[k].x, tail[k].y);
+            self.thin_tail();
+            return;
+        }
         // The object's own ties lock every run (its generators' locks were left out, #548).
         if self.open_ties.is_some() || !crate::region::ends_locked(&tail) {
             let lock = match self.open_ties {
@@ -481,7 +494,12 @@ impl Writer {
                 }
                 None if element.lock && fresh && !crate::region::starts_tied(run) => {
                     let mut r = run.clone();
-                    crate::region::tie_in(&mut r);
+                    // A tie-in meant as one, its return a few hundredths of a mm off the start,
+                    // is made exact rather than given a second tie-in (#1032).
+                    match crate::region::nearly_starts_tied(&r) {
+                        Some(k) => r[k] = r[0],
+                        None => crate::region::tie_in(&mut r),
+                    }
                     tied = r;
                     &tied
                 }
