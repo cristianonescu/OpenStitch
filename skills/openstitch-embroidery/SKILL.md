@@ -29,6 +29,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.
 - `object.setRegion` `angle` (degrees, counter-clockwise) is a straight sewing direction: it turns
   `autoDirection` off unless you pass `autoDirection` in the same call.
+- A net fill (`netFill`, `zigzagNetFill`) lines up on the shape's bounds, its lines half a spacing
+  (a zigzag net: half a band) in from the top-left corner, as PE-DESIGN does; with
+  `object.setReferencePoint` its lines run through that point instead.
 - Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
   `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
   save PES version 6.
