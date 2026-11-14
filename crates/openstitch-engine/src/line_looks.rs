@@ -12,7 +12,7 @@ pub(crate) const LINE_PARAMS: [ParamDoc; 14] = [
     opt(
         "profile",
         "constant|linear|arc|sine|smoothstep|stairs|none|null",
-        "Running (beyond PE-DESIGN, #542): sew each stitch back and forth minPasses times where the profile is 0 and maxPasses where it is 1, passes side by side, so the line swells like a brush stroke (arc: thick in the middle; linear: thin to thick; stairs: in profileSteps steps). null: plain running stitch",
+        "Running (beyond PE-DESIGN, #542): sew each stitch back and forth minPasses times where the profile is 0 and maxPasses where it is 1, passes side by side, so the line swells like a brush stroke (arc: thick in the middle; linear: thin to thick; stairs: in profileSteps steps). Thin to thick (linear), smooth thin to thick (smoothstep) and stairs differ only with Most passes 5 or more: with 1 to 3 passes a line has two thicknesses, and all three turn from one to the other halfway along. null: plain running stitch",
     ),
     opt(
         "profilePoints",

@@ -218,7 +218,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    quilt outlines (two stitches forward, one back); `{type: scribble, width, runTimes,
    noiseScale, seed}` for sketchy doodles; on a running line `profile: arc` (or `linear`,
    `sine`, `smoothstep`, `stairs`, `profilePoints`) with `minPasses`/`maxPasses` (odd) and
-   `passSpacing` swells it like a brush stroke ("calligraphic", "brush" lines); `hand: true`
+   `passSpacing` swells it like a brush stroke ("calligraphic", "brush" lines; `linear`,
+   `smoothstep` and `stairs` differ only with `maxPasses` 5 or more, as 1 to 3 passes give two
+   thicknesses); `hand: true`
    (`handLength`, `handAngle`, `handPasses`, `handExtra`) on running or triple lines, or
    `object.setRegion {handSide: a|b|both, handAmount}` on a satin, gives the uneven
    hand-sewn look for "folk", "naive" or "hand-drawn" requests. The same `seed` always sews

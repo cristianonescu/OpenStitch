@@ -2302,3 +2302,27 @@ fn a_turned_zigzag_net_starts_where_pe_design_starts_it() {
         "180°"
     );
 }
+
+/// #1046: `object.setLine`'s description of `profile` (what command_describe and the per-command
+/// tools give the Assistant) says that linear, smoothstep and stairs need more than 3 passes.
+#[test]
+fn the_profile_description_says_when_the_ramps_differ() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setLine")
+        .expect("object.setLine");
+    let profile = spec
+        .params
+        .iter()
+        .find(|p| p.name == "profile")
+        .expect("profile");
+    assert!(
+        profile
+            .summary
+            .contains(openstitch_design::line_looks::PROFILE_PASSES_NOTE),
+        "{}",
+        profile.summary
+    );
+}

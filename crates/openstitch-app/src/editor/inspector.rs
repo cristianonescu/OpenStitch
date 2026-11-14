@@ -255,6 +255,14 @@ fn toggle(label: &'static str, param: &'static str, value: bool) -> Control {
     }
 }
 
+/// The hover hint of a control, by its parameter: what the control alone does not say.
+pub fn hint(param: &str) -> Option<&'static str> {
+    match param {
+        "profile" => Some(openstitch_design::line_looks::PROFILE_PASSES_NOTE),
+        _ => None,
+    }
+}
+
 fn choice(
     label: &'static str,
     param: &'static str,

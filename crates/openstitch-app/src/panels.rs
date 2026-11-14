@@ -1386,7 +1386,11 @@ fn control(app: &mut EditorApp, ui: &mut egui::Ui, c: &Control) -> Option<Value>
                         }
                     }
                 });
-            crate::a11y::name(&r.response, label);
+            let response = match inspector::hint(param) {
+                Some(h) => r.response.on_hover_text(h),
+                None => r.response,
+            };
+            crate::a11y::name(&response, label);
         }
         Control::Toggle { label, value, .. } => {
             ui.label("");
