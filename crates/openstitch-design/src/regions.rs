@@ -454,7 +454,7 @@ pub fn generate(
             if r.reference.is_none()
                 && let Some(b) = Rect::enclosing(closed.iter().flat_map(|c| c.outline_points()))
             {
-                let inset = pw.min(spacing * 0.8) / 2.0;
+                let inset = pw / 2.0;
                 shift = back.apply(v2(b.min_x, b.min_y)) + v2(inset, inset);
                 axis.reference = Some(v2(0.0, 0.0));
             }
@@ -478,7 +478,11 @@ pub fn generate(
             let id = r.pattern.as_deref().unwrap_or(NET_PATTERNS[0].id);
             // PE-DESIGN 11.50 (o-region-zigzag-net): a 3 mm satin band along every net line, a
             // rung straight across then a diagonal back, 0.44 mm apart, inside the outline.
-            let width = pw.min(spacing * 0.8);
+            // PE-DESIGN's Spacing is the gap between bands (round 15, zigzag-net-circle40 at
+            // widths 3, 6 and 10 on Spacing 5: lines 8, 11 and 15 mm apart, #1109): the lines are
+            // a band plus that gap apart, and the band is not limited by the gap.
+            let width = pw;
+            let spacing = width + spacing;
             let step = 10.0 / r.density.max(0.1);
             // PE-DESIGN 11.50 (o-region-zigzag-net) sews the net on the page axes at Direction 0,
             // its first lines half a band in from the shape's left and top edges; the lines start

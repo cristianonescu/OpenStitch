@@ -299,6 +299,17 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
             }
             r.times = CrossTimes::from_count(usize::from(s.cross_passes / 2));
         }
+        if kind == RegionType::ZigzagNetFill {
+            // PE-DESIGN's width and Spacing, the gap between bands, as OpenStitch keeps them
+            // (#1109); its defaults stay unset.
+            let [width, gap] = s.zigzag_net.map(f64::from);
+            if width > 0.0 && (width - r.pattern_size_mm().0).abs() > 0.01 {
+                r.pattern_width = Some(width);
+            }
+            if gap > 0.0 && (gap - r.spacing_mm()).abs() > 0.01 {
+                r.spacing = Some(gap);
+            }
+        }
         if kind == RegionType::Fill {
             r.frequency = Some(f64::from(s.frequency));
             r.running_stitch_path = Some(match s.running_path {

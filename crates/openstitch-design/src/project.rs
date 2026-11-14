@@ -15,7 +15,10 @@ pub const FORMAT: &str = "openstitch.design";
 /// page axes whatever their angle, get Direction 0 (see [`migrate_v3_zigzag_net`]).
 /// 5: a plain net's default Spacing is PE-DESIGN's 3.0 mm (#1110); nets of older files that
 /// left it unset keep the 4.0 mm they sewed with (see [`migrate_v4_net_spacing`]).
-pub const VERSION: u32 = 5;
+/// 6: a zigzag net's Spacing is the gap between bands, as PE-DESIGN's (#1109), and its band
+/// is no longer capped at 0.8 × the line pitch; nets of older files keep their lines and
+/// bands (see [`migrate_v5_zigzag_net_spacing`]).
+pub const VERSION: u32 = 6;
 pub const EXTENSION: &str = "osd";
 pub const MAX_SIZE: usize = 64 << 20;
 
@@ -71,7 +74,32 @@ pub fn decode(data: &[u8]) -> Result<Design, String> {
     if header.version < 5 {
         migrate_v4_net_spacing(&mut env.design);
     }
+    if header.version < 6 {
+        migrate_v5_zigzag_net_spacing(&mut env.design);
+    }
     Ok(env.design)
+}
+
+/// Before version 6 a zigzag net's Spacing was its line pitch (8.0 mm unset) and its band at
+/// most 0.8 × that pitch. Since then Spacing is the gap between bands, as in PE-DESIGN, and
+/// the band is the zigzag width whatever the gap (#1109). Those nets get the band they sewed
+/// and the gap that leaves the lines where they were: pitch − band. A net at both defaults
+/// (8.0 mm lines, 3.0 mm band) is the new defaults (5.0 mm gap) and stays unset.
+pub fn migrate_v5_zigzag_net_spacing(design: &mut Design) {
+    for r in design.objects.iter_mut().filter_map(|o| o.region.as_mut()) {
+        if r.kind != crate::model::RegionType::ZigzagNetFill
+            || (r.spacing.is_none() && r.pattern_width.is_none())
+        {
+            continue;
+        }
+        let pitch = r.spacing.unwrap_or(8.0);
+        let width = r.pattern_size_mm().0;
+        let band = width.min(pitch * 0.8);
+        if r.pattern_width.is_some() || band != width {
+            r.pattern_width = Some(band);
+        }
+        r.spacing = Some(pitch - band);
+    }
 }
 
 /// Before version 5 a plain net with no Spacing of its own sewed its lines 4.0 mm apart; the
@@ -337,6 +365,52 @@ mod tests {
             spacings(&v),
             vec![Some(4.0), Some(2.5)],
             "version 4 sewed 4 mm apart"
+        );
+    }
+
+    /// #1109: a version-5 zigzag net's Spacing was its line pitch and its band at most 0.8 of
+    /// it. It loads with the band it sewed and the gap that keeps its lines in place; one at
+    /// both defaults stays unset.
+    #[test]
+    fn version_5_zigzag_nets_keep_their_lines_and_bands() {
+        let net = |spacing: Option<f64>, width: Option<f64>| {
+            let mut d = Design::new("net", DesignPage::default());
+            let mut r = RegionSewing::new(RegionType::ZigzagNetFill, Thread::rgb(0xff0000));
+            (r.spacing, r.pattern_width) = (spacing, width);
+            d.add(DesignObject::shape(
+                vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)],
+                Some(r),
+                None,
+            ));
+            d
+        };
+        let as_v5 = |d: &Design| {
+            let mut v: serde_json::Value =
+                serde_json::from_slice(&encode(d).expect("encode")).expect("json");
+            v["version"] = serde_json::json!(5);
+            decode(&serde_json::to_vec(&v).expect("bytes")).expect("decode")
+        };
+        let kept = |d: &Design| {
+            let r = d.objects[0].region.as_ref().expect("region");
+            (r.spacing, r.pattern_width)
+        };
+        // (stored pitch, stored width) -> (gap, band): band + gap is the old pitch.
+        for (old, new) in [
+            ((None, None), (None, None)),
+            ((Some(8.0), None), (Some(5.0), None)),
+            ((Some(10.0), Some(4.0)), (Some(6.0), Some(4.0))),
+            // Capped: a 10 mm width on a 5 mm pitch sewed a 4 mm band.
+            ((Some(5.0), Some(10.0)), (Some(1.0), Some(4.0))),
+            // The default 3 mm band capped by a 3 mm pitch: 2.4 mm.
+            ((Some(3.0), None), (Some(3.0 - 3.0 * 0.8), Some(3.0 * 0.8))),
+        ] {
+            assert_eq!(kept(&as_v5(&net(old.0, old.1))), new, "{old:?}");
+        }
+        // A version-6 file keeps the gap as stored.
+        let d = net(Some(5.0), Some(10.0));
+        assert_eq!(
+            kept(&decode(&encode(&d).expect("encode")).expect("decode")),
+            kept(&d)
         );
     }
 

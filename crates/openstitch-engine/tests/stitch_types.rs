@@ -2232,7 +2232,7 @@ fn zigzag_net(angle: Option<f64>) -> Vec<openstitch_core::Stitch> {
         "shape.rectangle",
         json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
     );
-    let mut p = json!({"id": 1, "type": "zigzagNetFill", "spacing": 8.0, "density": 2.25,
+    let mut p = json!({"id": 1, "type": "zigzagNetFill", "spacing": 5.0, "density": 2.25,
         "patternWidth": 3.0, "underlay": true});
     if let Some(a) = angle {
         p["angle"] = json!(a);
@@ -2630,6 +2630,84 @@ fn a_plain_net_runs_through_its_reference_point() {
             (0..7).map(|k| 7 + 30 * k).collect::<Vec<i64>>(),
         )
     );
+}
+
+/// #1117: a plain net set by `object.setRegion` with no `spacing` sews its lines 3.0 mm apart,
+/// PE-DESIGN 11.50's default (#1110), both ways, measured in the compiled stitches.
+#[test]
+fn a_plain_net_without_spacing_sews_its_lines_three_millimetres_apart() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "netFill"}),
+    );
+    let st = Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches;
+    let (mut xs, mut ys) = (
+        std::collections::BTreeMap::<i64, usize>::new(),
+        std::collections::BTreeMap::<i64, usize>::new(),
+    );
+    for w in st.windows(2) {
+        if w[0].command != Command::Stitch || w[1].command != Command::Stitch {
+            continue;
+        }
+        let (x, y) = (
+            (w[1].x - 350.0).round() as i64,
+            (w[1].y - 400.0).round() as i64,
+        );
+        if (w[1].x - w[0].x).abs() < 0.5 && x > 0 && x < 300 {
+            *xs.entry(x).or_default() += 1;
+        } else if (w[1].y - w[0].y).abs() < 0.5 && y > 0 && y < 200 {
+            *ys.entry(y).or_default() += 1;
+        }
+    }
+    let gaps = |m: std::collections::BTreeMap<i64, usize>| -> Vec<i64> {
+        let lines: Vec<i64> = m
+            .into_iter()
+            .filter(|&(_, n)| n >= 5)
+            .map(|(v, _)| v)
+            .collect();
+        lines.windows(2).map(|w| w[1] - w[0]).collect()
+    };
+    let (gx, gy) = (gaps(xs), gaps(ys));
+    assert!(gx.len() >= 8 && gy.len() >= 5, "lines: {gx:?} {gy:?}");
+    assert!(
+        gx.iter().chain(&gy).all(|&g| g == 30),
+        "lines 3.0 mm apart: {gx:?} {gy:?}"
+    );
+}
+
+/// #1117: `object.setRegion`'s `spacing` description (what command_describe gives) names each
+/// type's default as `RegionSewing::spacing_mm` has it, and says what a zigzag net's is.
+#[test]
+fn the_spacing_description_names_each_types_default() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion");
+    let summary = spec
+        .params
+        .iter()
+        .find(|p| p.name == "spacing")
+        .expect("spacing")
+        .summary;
+    for kind in openstitch_engine::commands::SPACING_TYPES {
+        let mm = openstitch_design::RegionSewing::new(kind, openstitch_core::Thread::rgb(0))
+            .spacing_mm();
+        let named = format!("{} {mm}", kind.id());
+        assert!(summary.contains(&named), "{named} in {summary}");
+    }
+    assert!(summary.contains("netFill 3,") && summary.contains("zigzagNetFill 5,"));
+    assert!(summary.contains("the gap between bands"), "{summary}");
 }
 
 /// #1046: `object.setLine`'s description of `profile` (what command_describe and the per-command

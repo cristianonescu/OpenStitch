@@ -1,0 +1,118 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "zigzag-net-circle40-w10p0",
+  "area": "stitches",
+  "title": "Zigzag Net Fill on a 40 mm circle, zigzag width 10.0 mm, Spacing 5.0 mm",
+  "description": "PE-DESIGN 11.50's Zigzag Net Fill (round 15, #1109): Spacing is the gap between bands, so the lines are the zigzag width plus the Spacing apart (15.0 mm here), the first half a band in; the band is not limited by the Spacing. Count within 5 % and the bounds.",
+  "covers": {
+    "audit": [],
+    "featureMatrix": [
+      {
+        "area": "Region sew types",
+        "feature": "Zigzag net fill"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "compat/reference/stitches/zigzag-net-circle40-w10p0.pes (PE-DESIGN 11.50, 2026-11-14, round 15): 40,00 x 40,00 mm, 1453 stitches"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.ellipse",
+      "params": {
+        "cx": 50,
+        "cy": 50,
+        "rx": 20
+      }
+    },
+    {
+      "command": "object.setRegion",
+      "params": {
+        "id": 1,
+        "type": "zigzagNetFill",
+        "patternWidth": 10.0,
+        "spacing": 5.0,
+        "underlay": true,
+        "color": "Red"
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "id": 1,
+        "type": "none"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "region.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/zigzag-net-circle40-w10p0.pes",
+      "make": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region from Radial (at 7,0) to Zigzag Net Fill Stitch: the pane showed PE-DESIGN's defaults (Pattern first button, Under sewing on, Zigzag width 3,0, Density 4,5, Spacing 5,0, H-Offset 0,0, V-Offset 0,0, Direction 0); Zigzag width 10,0, Spacing 5,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 1453."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "region.pes"
+      },
+      "evidence": "PE-DESIGN 11.50's file: 1453 stitches; OpenStitch within 5 %",
+      "reference": {
+        "tolerance": {
+          "percent": 5
+        }
+      }
+    },
+    {
+      "id": "bounds-width",
+      "measure": {
+        "kind": "bounds",
+        "property": "width"
+      },
+      "source": {
+        "export": "region.pes"
+      },
+      "evidence": "PE-DESIGN 11.50's file",
+      "reference": {
+        "tolerance": {
+          "mm": 0.35
+        }
+      }
+    },
+    {
+      "id": "bounds-height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "region.pes"
+      },
+      "evidence": "PE-DESIGN 11.50's file",
+      "reference": {
+        "tolerance": {
+          "mm": 0.35
+        }
+      }
+    }
+  ]
+}

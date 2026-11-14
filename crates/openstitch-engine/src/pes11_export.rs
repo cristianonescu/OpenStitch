@@ -740,6 +740,10 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
     s.frequency = r.frequency.unwrap_or(30.0).round().clamp(0.0, 100.0) as u16;
     s.under_sewing = r.underlay;
     s.gradation = r.gradation.is_some();
+    if r.kind == RegionType::ZigzagNetFill {
+        // Both are PE-DESIGN's own fields: the width and the gap between bands (#1109).
+        s.zigzag_net = [r.pattern_size_mm().0 as f32, r.spacing_mm() as f32];
+    }
     if r.kind == RegionType::CrossStitch {
         s.cross_size = r.spacing_mm() as f32;
         s.cross_passes = 2 * r.cross_times().count() as u16;
