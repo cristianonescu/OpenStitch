@@ -566,22 +566,28 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
         }
         v.push(toggle("Underlay", "underlay", r.underlay));
         if r.underlay {
-            let style = r.underlay_style.id();
-            v.push(choice(
-                "Underlay style",
-                "underlayStyle",
-                style,
-                &[
-                    ("edge", "Edge"),
-                    ("zigzag", "Zigzag"),
-                    ("edgeZigzag", "Edge and zigzag"),
-                    ("double", "Double"),
-                    ("edgeFill", "Edge and fill"),
-                    ("cross", "Edge and cross-hatch (PE-DESIGN type 2)"),
-                    ("auto", "Automatic (by width)"),
-                    ("centreWalk", "Centre walk"),
-                ],
-            ));
+            // PE-DESIGN's first under sewing type is the edge run and rows: fill rows on a fill
+            // (`edgeFill`), zigzag rows on a satin (`edgeZigzag`). A satin has no separate edge
+            // and fill (#1041): one holding it shows, and sews, as edge and zigzag.
+            let satin = r.kind == RegionType::Satin;
+            let style = match r.underlay_style {
+                UnderlayStyle::EdgeFill if satin => "edgeZigzag",
+                s => s.id(),
+            };
+            let styles: Vec<(&str, &str)> = [
+                ("edge", "Edge"),
+                ("zigzag", "Zigzag"),
+                ("edgeZigzag", "Edge and zigzag"),
+                ("double", "Double"),
+                ("edgeFill", "Edge and fill"),
+                ("cross", "Edge and cross-hatch (PE-DESIGN type 2)"),
+                ("auto", "Automatic (by width)"),
+                ("centreWalk", "Centre walk"),
+            ]
+            .into_iter()
+            .filter(|(id, _)| !(satin && *id == "edgeFill"))
+            .collect();
+            v.push(choice("Underlay style", "underlayStyle", style, &styles));
             v.push(choice(
                 "Underlay density",
                 "underlayDensity",

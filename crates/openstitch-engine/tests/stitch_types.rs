@@ -526,6 +526,66 @@ fn fill_stitch_type_is_set_sewn_saved_and_undone() {
     assert_eq!(Compiler::default().compile(s.design()), flat);
 }
 
+/// #1041: PE-DESIGN's first under sewing type on a satin is the edge run and zigzag rows; its
+/// fill form, edge and fill, is the same button. A satin given edge and fill keeps edge and
+/// zigzag, and sews exactly what it sewed with edge and fill before.
+#[test]
+fn a_satin_keeps_edge_and_zigzag_for_edge_and_fill() {
+    use openstitch_design::{RegionType, UnderlayStyle};
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.ellipse",
+        json!({"cx": 50, "cy": 50, "rx": 30, "ry": 10, "fill": "Red"}),
+    );
+    let style = |s: &Session| {
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .map(|r| (r.kind, r.underlay_style))
+    };
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "satin", "underlay": true, "underlayStyle": "edgeZigzag"}),
+    );
+    let zigzag = Compiler::default().compile(s.design());
+    // Edge and fill as a design saved before held it on a satin: the same stitches.
+    let mut held = s.design().clone();
+    if let Some(r) = held.objects[0].region.as_mut() {
+        r.underlay_style = UnderlayStyle::EdgeFill;
+    }
+    assert_eq!(Compiler::default().compile(&held), zigzag);
+    // Asked for: stored as edge and zigzag, the stitches unchanged.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "underlayStyle": "edgeFill"}),
+    );
+    assert_eq!(
+        style(&s),
+        Some((RegionType::Satin, UnderlayStyle::EdgeZigzag))
+    );
+    assert_eq!(Compiler::default().compile(s.design()), zigzag);
+    // A fill (edge and fill by default) switched to a satin.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "fill", "underlayStyle": "edgeFill"}),
+    );
+    assert_eq!(style(&s), Some((RegionType::Fill, UnderlayStyle::EdgeFill)));
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "satin"}),
+    );
+    assert_eq!(
+        style(&s),
+        Some((RegionType::Satin, UnderlayStyle::EdgeZigzag))
+    );
+}
+
 #[test]
 fn bad_region_options_fail_cleanly() {
     let tmp = temp_dir();
