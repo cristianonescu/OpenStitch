@@ -479,12 +479,18 @@ impl Writer {
             self.cfg.max_stitch
         };
         let mut runs: Vec<Run> = element.runs.into_iter().filter(|r| !r.is_empty()).collect();
-        // A lone needle point first, then the next run: the move lands on it and the next run's
-        // first stitch leaves from it, so it starts that run, which ties in there. Sewn apart,
-        // the section opened untied, its first stitch the step to the next run (an Auto Punch
-        // satin piece of one point, the storybook's object 1160: 2.7 mm, #1076). Lone points
-        // further on (a pulled fill row's end) are stitched to as before.
-        if runs.len() > 1 && runs[0].len() == 1 {
+        // A lone needle point first, then the next run close enough to be stitched to (see
+        // [`Self::travel`]): the move lands on it and the next run's first stitch leaves from
+        // it, so it starts that run, which ties in there. Sewn apart, the section opened
+        // untied, its first stitch the step to the next run (an Auto Punch satin piece of one
+        // point, the storybook's object 1160: 2.7 mm, #1076). A lone point farther away stays a
+        // move's landing, trimmed from as before, and lone points further on (a pulled fill
+        // row's end) are stitched to as before.
+        if runs.len() > 1
+            && runs[0].len() == 1
+            && !element.pieces
+            && runs[0][0].distance(runs[1][0]) <= self.cfg.connect_distance
+        {
             let lone = runs.remove(0);
             runs[0].splice(0..0, lone);
         }
@@ -2909,6 +2915,8 @@ mod tie_off_tests {
             pieces: false,
             across: None,
             rule: Rule::Pe,
+            line: false,
+            letter: false,
         });
         let p = w.finish();
         assert!(
