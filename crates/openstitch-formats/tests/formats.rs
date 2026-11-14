@@ -1910,3 +1910,39 @@ fn shv_writes_pe_design_header_and_records() {
         a.len()
     );
 }
+
+/// #989: the SHV preview's size is PE-DESIGN's, twice the half extent in millimetres, rounded,
+/// plus a pixel each side (round 14: 59.0, 59.5 and 60.0 mm wide are all 62 px, where width
+/// in whole millimetres + 2 gave 61, 61 and 62; 69.4 mm is 72, not 71). The four exports of
+/// OpenStitch's ruler and rectangles agree with PE-DESIGN's up to the preview, and in the
+/// colour count and bounds after it. Their records differ by the stitches in place on each
+/// move's landing (the files are on a Hoop Size page, #1013): PE-DESIGN drops zero-length
+/// stitches when it opens a PES, before it exports.
+#[test]
+fn shv_preview_size_is_pe_designs() {
+    let dir = "pe11/captures-2026-11-14/machine";
+    for stem in [
+        "preview-ruler-2",
+        "preview-width-59p0",
+        "preview-width-59p5",
+        "preview-width-60p0",
+    ] {
+        let mut pattern = pes::read(&data(&format!("{dir}/{stem}.pes"))).expect("pes");
+        let label = format!("pe-{stem}");
+        pattern
+            .metadata
+            .insert(pec::LABEL_KEY.into(), label.clone());
+        let pe = data(&format!("{dir}/{label}.SHV"));
+        let ours = shv::write(&pattern).expect("write");
+        let at = 0x56 + 1 + label.len();
+        let (w, h) = (usize::from(pe[at]), usize::from(pe[at + 1]));
+        let preview = at + 6..at + 6 + w * h.div_ceil(2);
+        assert_eq!(ours[..preview.start], pe[..preview.start], "{stem}: size");
+        let table = preview.end;
+        assert_eq!(
+            ours[table..table + 15],
+            pe[table..table + 15],
+            "{stem}: colours, bounds"
+        );
+    }
+}

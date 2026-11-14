@@ -81,7 +81,7 @@ pub fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "machine.set",
-            "Change Design Settings: machine type, hoop (resizes the Design Page, keeping objects centred), rotation, custom size, sewing area, jump-stitch trimming, speed",
+            "Change Design Settings: machine type, hoop (resizes the Design Page, keeping objects centred), rotation, custom size, page mode, sewing area, jump-stitch trimming, speed",
             Effect::Edit,
             vec![
                 opt("machine", "single|multi", "Machine type"),
@@ -94,6 +94,11 @@ pub fn commands() -> Vec<CommandSpec> {
                     "rotate90",
                     "bool",
                     "Rotate the hoop 90° (not for user or round hoops)",
+                ),
+                opt(
+                    "pageMode",
+                    "hoop|custom",
+                    "PE-DESIGN's Design Page kind: hoop (Hoop Size: the chosen hoop, or a 100 x 100 mm page) or custom (Custom Size). Choosing a hoop sets hoop, hoop: custom or a width/height sets custom. On a Hoop Size page each run's one-step tie-in starts on a stitch in place, as PE-DESIGN sews it (#1056)",
                 ),
                 opt("width", "mm", "Custom Design Page width (hoop: custom)"),
                 opt("height", "mm", "Custom Design Page height (hoop: custom)"),
@@ -281,6 +286,15 @@ fn set(s: &mut EngineState, p: &Params) -> CommandResult {
         m.rotate90 = p.bool("rotate90", None)?;
     }
     let custom_size = p.has("width") || p.has("height");
+    let page_mode = if p.has("pageMode") {
+        match p.string("pageMode", None)?.as_str() {
+            "hoop" => Some(false),
+            "custom" => Some(true),
+            _ => return Err(p.invalid("pageMode", "must be hoop or custom")),
+        }
+    } else {
+        None
+    };
     if p.has("hoop") {
         let key = p.string("hoop", None)?;
         m.hoop = match key.as_str() {
@@ -309,6 +323,14 @@ fn set(s: &mut EngineState, p: &Params) -> CommandResult {
         // A custom page cannot rotate; its width and height are given directly.
         m.rotate90 = false;
     }
+    // PE-DESIGN's page mode (#1056): a hoop picked is a Hoop Size page, a custom size a Custom
+    // Size page, as its Design Settings offers them; pageMode says it outright.
+    if p.has("hoop") || custom_size {
+        m.custom_page = m.hoop.is_none();
+    }
+    if let Some(custom) = page_mode {
+        m.custom_page = custom;
+    }
     if p.has("minJumpTrim") {
         if m.machine != MachineType::MultiNeedle {
             return Err(p.invalid(
@@ -330,6 +352,12 @@ fn set(s: &mut EngineState, p: &Params) -> CommandResult {
             p.opt("height", s.design.page.height / MM, MIN_SIZE, MAX_SIZE)?,
         ),
     };
+    if page_mode == Some(false) && m.hoop.is_none() && (w.round(), h.round()) != (100.0, 100.0) {
+        return Err(p.invalid(
+            "pageMode",
+            "a Hoop Size page needs a hoop or a 100 x 100 mm page; choose a hoop",
+        ));
+    }
     resize_page(&mut s.design, w * MM, h * MM);
     s.design.machine = m;
     Ok(hoops(&s.design)["current"].clone())
@@ -395,6 +423,8 @@ fn hoops(d: &Design) -> Value {
             "sewingArea": m.sewing_area.as_str(),
             "minJumpTrimMM": m.trim_distance(openstitch_design::Compiler::default().trim_distance) / MM,
             "stitchesPerMinute": m.speed(),
+            // PE-DESIGN's page mode (#1056): hoop (Hoop Size) or custom (Custom Size).
+            "pageMode": if d.hoop_size_page() { "hoop" } else { "custom" },
         },
     })
 }

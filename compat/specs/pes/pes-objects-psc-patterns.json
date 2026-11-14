@@ -3,7 +3,7 @@
   "id": "pes-objects-psc-patterns",
   "area": "pes",
   "title": "Minimal owner-drawn Programmable Stitch Creator patterns (2-point line, 4-point square, two lines, motifs, decorative) and the PES designs that use them",
-  "description": "Six pattern sources drawn in PE-DESIGN 11.50's Programmable Stitch Creator with known grid coordinates (compat/reference/pes/psc-*.pas, .pmf, .plf): a 2-point diagonal line, a closed 4-point square (written with its closing point), two separate lines (a jump), the untouched 2-point motif, a 3-point zigzag motif, and a decorative-fill line. Four designs use them: programmable fill with the square and with the line, motif fill with the 2-point motif, and a 40 mm line with the zigzag motif; each is read by OpenStitch and written again (stitches and colours survive). Issues #130, #131 (the ASCII grammar: @VERSION 10000; @SYSENV 1 for .pas/.pmf, @SYSENV 10000 10000 1 for .plf; @TILE n + @TILELINE i npts x y ...; @LINE npts x y ...; cell 0..1024) and #134's request for owner-made container samples (fonts were not recordable: Font Creator access was declined). The motif captures (line-motif-zigzag-3pt.pes, motif-fill-2pt.pes) were withdrawn 2026-11-13: their header listed a PE-DESIGN built-in motif; a clean capture is pending.",
+  "description": "Six pattern sources drawn in PE-DESIGN 11.50's Programmable Stitch Creator with known grid coordinates (compat/reference/pes/psc-*.pas, .pmf, .plf): a 2-point diagonal line, a closed 4-point square (written with its closing point), two separate lines (a jump), the untouched 2-point motif, a 3-point zigzag motif, and a decorative-fill line. Four designs use them: programmable fill with the square and with the line, motif fill with the 2-point motif, and a 40 mm line with the zigzag motif; each is read by OpenStitch and written again (stitches and colours survive). Issues #130, #131 (the ASCII grammar: @VERSION 10000; @SYSENV 1 for .pas/.pmf, @SYSENV 10000 10000 1 for .plf; @TILE n + @TILELINE i npts x y ...; @LINE npts x y ...; cell 0..1024) and #134's request for owner-made container samples (fonts were not recordable: Font Creator access was declined). The motif captures (line-motif-zigzag-3pt.pes, motif-fill-2pt.pes) were withdrawn 2026-11-13: their header listed a PE-DESIGN built-in motif; specs line-motif-zigzag-5x5-spacing, line-motif-zigzag-5x8 and motif-fill-clean-p1 check the same motifs on clean captures.",
   "covers": {
     "audit": [],
     "featureMatrix": [
@@ -20,7 +20,7 @@
     },
     {
       "kind": "measured",
-      "note": "compat/reference/pes/prog-fill-square-4pt.pes 2355 stitches, prog-fill-line-2pt.pes 1638, motif-fill-2pt.pes 130, line-motif-zigzag-3pt.pes 23 (line-motif-zigzag-3pt, motif-fill-2pt: reference withdrawn 2026-11-13: the capture listed a PE-DESIGN built-in motif; a clean capture is pending)"
+      "note": "compat/reference/pes/prog-fill-square-4pt.pes 2355 stitches, prog-fill-line-2pt.pes 1638, motif-fill-2pt.pes 130, line-motif-zigzag-3pt.pes 23 (line-motif-zigzag-3pt, motif-fill-2pt: reference withdrawn 2026-11-13: the capture listed a PE-DESIGN built-in motif; replaced by line-motif-zigzag-5x5-spacing, line-motif-zigzag-5x8 and motif-fill-clean-p1)"
     }
   ],
   "inputs": [

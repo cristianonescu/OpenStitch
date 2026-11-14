@@ -975,7 +975,7 @@
   "sewingMinutes": 20.4,
   "image": null,
   "preview": "previews/gradients.png",
-  "sha256": "4e30b689db525469095699ba2a867833847a76ca6ee7fc7da78a29968a95df13",
+  "sha256": "44e18f3faf1663532da918525dedbd8e517891fbbf7276ea03d6b0a0aa12cb21",
   "renderVersion": 3
  },
  "fills/angle-lines.pes": {
@@ -1303,7 +1303,7 @@
   "sewingMinutes": 7.9,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-pe-compatible.png",
-  "sha256": "d345e9ba31fcbe1fb68cad3750d731d0b04e94c80689271011a2ee62a36f0a02",
+  "sha256": "3b4b99ec9add45a8359419ca83fa3aed3586fbc6c1bc1fe29775d40ea9b5a235",
   "renderVersion": 3
  },
  "image-tools/S-cross-stitch-strawberry-openstitch.pes": {
@@ -1570,7 +1570,7 @@
   "sewingMinutes": 174.3,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "bfabae31f85eaecdc2f75a589dcb80d9d5b21e5a4151a5636fe90403a00e6dc0",
+  "sha256": "0a2652dd236bd49f8b65d94c15b46dd8fc8833ded4f80febf4a2e536d3bfd962",
   "renderVersion": 3
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
@@ -1598,7 +1598,7 @@
   "sewingMinutes": 247.5,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "1ec91298ab24d159497c237c8ff32a09ce3cc8394541b7f919d41f674a804418",
+  "sha256": "c5d81d33c187a75a194ec64dbdf74decbfa88d6fd7ad6f2d8f8ee6c547be2a39",
   "renderVersion": 3
  }
 }

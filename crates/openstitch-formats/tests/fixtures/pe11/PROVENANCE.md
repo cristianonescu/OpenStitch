@@ -318,3 +318,20 @@ Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows on 2026-11-13 
 |---|---|---|
 | `moves.pes` | 2471 | `554a52d1d6db622c201a6aa960f5d6712eb3adaa658a5703629072f154deb754` |
 | `pe-moves.SHV` | 3154 | `3e0ba37103c3510dc25f4a964bb0c9ce265a62b58cae0f59445983515674c3d9` |
+
+## Captures of 2026-11-14 (`captures-2026-11-14/`, coordinator, black-box GUI use only)
+
+Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows on 2026-11-14 (capture round 14), for issue #989. The inputs are OpenStitch's own test designs (running stitches only); the outputs are PE-DESIGN's exports of them, kept here to check the SHV preview's size and drawing.
+
+**`machine/` (#989):** `preview-ruler-2.pes` has 15 horizontal running lines 2.1 mm apart (y 10.0 … 39.4 mm, x 10–40) and 15 vertical ones 2.1 mm apart (x 50.0 … 79.4, y 10–40); `preview-width-59p0.pes`, `-59p5.pes` and `-60p0.pes` are one running-stitch rectangle outline, 30 mm tall and 59.0, 59.5 and 60.0 mm wide. Each was opened in PE-DESIGN with no warning (status bar 69,40 × 30,00; 59,00, 59,50 and 60,00 × 30,00 mm), then App menu > Export > "Husqvarna/Viking (*.SHV)" as `pe-<name>.SHV`, with no dialog. Nothing else was changed or saved.
+
+| `machine/` file | bytes | SHA-256 |
+|---|---|---|
+| `preview-ruler-2.pes` | 4641 | `ae8432179f099084960f83f126119c07dfc8b082ff521f986f6efa5614f832a6` |
+| `pe-preview-ruler-2.SHV` | 2336 | `4221040d46b4b91b524e1ec55181e56bea9e02e96da710ee5f2d97df63f57820` |
+| `preview-width-59p0.pes` | 2090 | `4be7264a186228d7c456155253ad759fc10ce402116720eeeb62952a27b0c7b2` |
+| `pe-preview-width-59p0.SHV` | 1333 | `767047e8b2e71aa5592c7a0f00ee18124614cf6a5268cfd7cfb531c7e6f95bb0` |
+| `preview-width-59p5.pes` | 2090 | `a333b1dbbbee31cfd68323245be036c5543fb298e3954adb910c5c26254c674b` |
+| `pe-preview-width-59p5.SHV` | 1333 | `e9e74cdf3a4308d1c59ae99b5c0c2a48bc2fa2d9cf234d248bcfd87a5ed235de` |
+| `preview-width-60p0.pes` | 2090 | `0534a75021d9e04206ce2568aebc34b1de6f6516c585236a033c3450f7b5f0b8` |
+| `pe-preview-width-60p0.SHV` | 1333 | `8351354d27966549b686d46d8e25d39c0c5914c77f9180c241ffdabbab1f1f42` |
