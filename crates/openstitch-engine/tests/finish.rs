@@ -277,3 +277,56 @@ fn a_dst_export_carries_the_stitch_in_place_of_a_hoop_size_page() {
         "{custom:?}"
     );
 }
+
+/// A letter's needle points from its box's top-left, without stitches in place: (x, y) in 0.1 mm.
+fn from_corner(stitches: &[openstitch_core::Stitch]) -> Vec<(f64, f64)> {
+    let mut pts: Vec<(f64, f64)> = Vec::new();
+    for st in stitches.iter().filter(|st| st.command == Command::Stitch) {
+        if pts
+            .last()
+            .is_none_or(|&(x, y)| (x - st.x).hypot(y - st.y) > 0.05)
+        {
+            pts.push((st.x, st.y));
+        }
+    }
+    let x0 = pts.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
+    let y0 = pts.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
+    pts.into_iter().map(|(x, y)| (x - x0, y - y0)).collect()
+}
+
+#[test]
+fn satin_o_s_8_and_a_start_where_pe_design_starts_them_with_its_one_step_tie_in() {
+    // PE-DESIGN 11.50 starts a satin letter on the stroke's edge near the box's top-left, ties
+    // in with one step there and runs along the stroke under the satin to come (#1017):
+    // stroke-satin-O, -S, -8 and -A. OpenStitch started O at its bottom, S at its far
+    // terminal, 8 at its waist and A at its apex, each with a three-step tie-in on the satin.
+    let d = |a: (f64, f64), b: (f64, f64)| (a.0 - b.0).hypot(a.1 - b.1);
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for letter in ["O", "S", "8", "A"] {
+        let file = root.join(format!("compat/reference/text/stroke-satin-{letter}.pes"));
+        let pe = openstitch_formats::pes::read(&std::fs::read(&file).expect("reference"))
+            .expect("a PES");
+        let pe = from_corner(&pe.stitches);
+        let dir = TempDir::new("letter-start");
+        let mut s = Session::new(dir.path());
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        run(
+            &mut s,
+            "text.add",
+            json!({"text": letter, "font": "lato-bold", "size": 20, "x": 20, "y": 70, "fill": "Red"}),
+        );
+        let ours = from_corner(&Compiler::for_design(s.design()).compile(s.design()).stitches);
+        for (who, p) in [("PE-DESIGN", &pe), ("OpenStitch", &ours)] {
+            // One step: out, straight back, then the run's first stitch (1.4 to 2 mm).
+            assert!(d(p[0], p[1]) < 5.0, "{letter} {who}: {:?}", &p[..5]);
+            assert!(d(p[0], p[2]) < 0.5, "{letter} {who}: {:?}", &p[..5]);
+            assert!(d(p[2], p[3]) > 12.0, "{letter} {who}: {:?}", &p[..5]);
+        }
+        assert!(
+            d(pe[0], ours[0]) < 20.0,
+            "{letter}: PE-DESIGN starts at {:?}, OpenStitch at {:?}",
+            pe[0],
+            ours[0]
+        );
+    }
+}

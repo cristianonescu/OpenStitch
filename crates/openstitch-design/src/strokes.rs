@@ -1750,6 +1750,96 @@ pub enum Pairing {
     Length,
 }
 
+/// The letter's first block started where PE-DESIGN starts the letter (#1017): on the edge of
+/// the crossing nearest the box's top-left corner, run from there in to the block's centre and
+/// along it under the satin to its first rung, in stitches about 1.8 mm long, so the tie-in sits
+/// on a run stitch and takes PE-DESIGN's one step (stroke-satin-O, -S, -8, -e: the run starts on
+/// the upper left's edge, the satin sews back over it). A block already started at that crossing
+/// is left as it is.
+fn led_from_corner(block: &mut Block, corner: Vec2) {
+    let near = |r: &[Vec2; 2]| r[0].distance(corner).min(r[1].distance(corner));
+    let Some(k) = (0..block.rungs.len())
+        .min_by(|&i, &j| near(&block.rungs[i]).total_cmp(&near(&block.rungs[j])))
+    else {
+        return;
+    };
+    let mids: Vec<Vec2> = block.rungs.iter().map(|r| r[0].lerp(r[1], 0.5)).collect();
+    if k == 0 || mids[k].distance(mids[0]) < LEAD_MIN {
+        return;
+    }
+    let [a, b] = block.rungs[k];
+    let edge = if a.distance(corner) <= b.distance(corner) {
+        a
+    } else {
+        b
+    };
+    let path: Vec<Vec2> = std::iter::once(edge)
+        .chain(mids[..=k].iter().rev().copied())
+        .collect();
+    block.lead = Some(edge);
+    block.lead_via = resampled(&path, LEAD_STEP);
+}
+
+/// Points `step` or a little less apart along `path`, without its two ends.
+fn resampled(path: &[Vec2], step: f64) -> Vec<Vec2> {
+    let len: f64 = path.windows(2).map(|w| w[0].distance(w[1])).sum();
+    let n = (len / step).ceil() as usize;
+    if n < 2 {
+        return Vec::new();
+    }
+    let step = len / n as f64;
+    let mut out = Vec::new();
+    let (mut want, mut walked) = (step, 0.0);
+    for w in path.windows(2) {
+        let d = w[0].distance(w[1]);
+        while out.len() < n - 1 && want <= walked + d {
+            out.push(w[0].lerp(w[1], if d > 0.0 { (want - walked) / d } else { 0.0 }));
+            want += step;
+        }
+        walked += d;
+    }
+    out
+}
+
+/// The shortest run worth leading in by (2 mm).
+const LEAD_MIN: f64 = 20.0;
+/// The run's stitches (PE-DESIGN's 1.6 to 1.9 mm, stroke-satin-O, -S, -8).
+const LEAD_STEP: f64 = 19.0;
+
+/// A ring's rungs (closed: the last repeats the first) started at its top and sewn towards the rung
+/// nearest `at` (#1017). PE-DESIGN starts satin O on its upper left, runs over the top under the
+/// satin to come and sews the ring from there back over the run (stroke-satin-O: the run from 140
+/// degrees, the satin from the top); the ring's own first rung is wherever its centre line begins
+/// (OpenStitch's O started at the bottom, 283 degrees).
+fn ring_from(rungs: &[[Vec2; 2]], at: Vec2) -> Vec<[Vec2; 2]> {
+    let n = rungs.len();
+    if n < 3 {
+        return rungs.to_vec();
+    }
+    let closed = rungs[0][0].distance(rungs[n - 1][0]) < 1e-6
+        && rungs[0][1].distance(rungs[n - 1][1]) < 1e-6;
+    let body = if closed { &rungs[..n - 1] } else { rungs };
+    let m = body.len();
+    let near = |r: &[Vec2; 2]| r[0].distance(at).min(r[1].distance(at));
+    let mid_y = |r: &[Vec2; 2]| 0.5 * (r[0].y + r[1].y);
+    // From the ring's top, sewn towards the rung nearest `at`, so the run in from there lies under
+    // the satin's start (stroke-satin-O: the run from 140 degrees over the top, the satin back).
+    let top = (0..m)
+        .min_by(|&i, &j| mid_y(&body[i]).total_cmp(&mid_y(&body[j])))
+        .unwrap_or(0);
+    let mut out: Vec<[Vec2; 2]> = body[top..].iter().chain(&body[..top]).copied().collect();
+    let k = (0..m)
+        .min_by(|&i, &j| near(&out[i]).total_cmp(&near(&out[j])))
+        .unwrap_or(0);
+    if k > m / 2 {
+        out[1..].reverse();
+    }
+    if closed {
+        out.push(out[0]);
+    }
+    out
+}
+
 /// Two strokes through a junction whose directions out of it differ from straight by at most
 /// this (degrees) are one column through it (H's stems, A's legs, T's bar).
 const THROUGH: f64 = 40.0;
@@ -1768,6 +1858,10 @@ pub struct Block {
     /// of along the outline: X's arms are sewn from their free ends in to the crossing, and
     /// PE-DESIGN runs out along each arm first (stroke-satin-X). A new run starts there.
     pub lead: Option<Vec2>,
+    /// Points the run from [`Self::lead`] passes on its way to the first rung, along the
+    /// block's centre: the letter's start on O, S and 8 is where PE-DESIGN starts it, near the
+    /// box's top-left, and the run from there lies under the satin (#1017).
+    pub lead_via: Vec<Vec2>,
 }
 
 /// A stroke's end: `(stroke, 0 or 1)`.
@@ -1996,6 +2090,14 @@ impl GlyphStrokes {
                 at: v2(b.min_x, b.min_y),
                 seq: Vec::new(),
             };
+            // The letter's own box, its outline's: the centre lines' box sits half a stroke in.
+            let corner = Rect::enclosing(
+                contours
+                    .iter()
+                    .filter(|c| c.closed)
+                    .flat_map(Contour::outline_points),
+            )
+            .map_or(order.at, |o| v2(o.min_x, o.min_y));
             // Each piece of the letter from the column end nearest where the sewing is.
             while let Some((c, nearest)) = order.nearest_end() {
                 let end = order.leading_end(c, nearest);
@@ -2023,6 +2125,12 @@ impl GlyphStrokes {
                         s.centre[s.centre.len() - 1]
                     };
                     block.lead = Some(tip);
+                }
+                if first == 0
+                    && let Some(block) = order.out.get_mut(0)
+                    && block.lead.is_none()
+                {
+                    led_from_corner(block, corner);
                 }
             }
             (order.out, order.seq)
@@ -2355,6 +2463,7 @@ impl Order<'_> {
                 junction,
                 new_run: false,
                 lead: None,
+                lead_via: Vec::new(),
             });
         }
     }
@@ -2376,7 +2485,7 @@ impl Order<'_> {
         self.seq.push(c);
         // A ring (an O): one block round it.
         if self.strokes[c].closed {
-            let ring = self.rungs[c].clone();
+            let ring = ring_from(&self.rungs[c], self.at);
             self.emit(ring, false);
             return;
         }
@@ -3116,8 +3225,9 @@ mod tests {
                 "{ch} {size}"
             );
         }
-        // A letter whose first piece is sewn from the end nearest its start keeps no lead.
-        for ch in ["I", "L", "O"] {
+        // A letter whose first piece is sewn from the end nearest its start keeps no lead (O is
+        // led into along its top since #1017).
+        for ch in ["I", "L"] {
             let spec = TextSpec::new(ch, DEFAULT_FONT, 20.0);
             let contours = layout(&spec, None).expect("layout").contours();
             let blocks = strokes(&contours).expect("strokes").blocks(&contours, 30.0);
