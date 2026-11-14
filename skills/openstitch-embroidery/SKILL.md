@@ -72,7 +72,11 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.
 - Wave fill (beyond PE-DESIGN): `object.setRegion` on a fill with `waveHeight` (crest to trough,
-  mm, 0 = off) and `waveLength` (mm, default 16). PES 0110 refuses it; save PES version 6.
+  mm, 0 = off) and `waveLength` (mm, default 16). A `waveHeight` above 0.267 x `waveLength`
+  (4.27 mm at 16) sews the same wave: raise `waveLength` for a higher one. PES 0110 refuses it;
+  save PES version 6.
+- Radial Stitch: `object.setRegion` with `type: "radial"`, `density` 0.2-7.0 lines/mm (default 2.0)
+  (PE-DESIGN's range): the lines are 1/density apart at the outline, in pairs to the centre.
 - Travel hidden under later parts (beyond PE-DESIGN): `object.setRegion` on a fill with
   `runningStitchPath: "insideHidden"` sews its parts in the order that leaves the least travel
   on thread already sewn (a stem between leaves after them; a ring gone round, branches
@@ -162,7 +166,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.setLine`; on text a corner style shapes the corners where two strokes are sewn one
    after the other, as Z's, V's and W's, while stems and junctions stay as they are):
    `cornerStyle: auto` for stars, chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
-   `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
+   `cornerOverlap`, `capMaxLength`; a satin line or auto-direction satin reads a corner from its
+   centre line a leg's length either side, so it reads blunter than drawn: a 36° star tip still
+   mitres at the default 45°, and its corners cap only with `capBelow` raised, or with
+   `cornerStyle: cap`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
    thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
    `pullPercent` (3 for tapered columns; `pullMax` caps it) compensate per side and by width;
    on a satin `underlayStyle: edgeFill` reads back as `edgeZigzag` (the same PE-DESIGN type);
@@ -244,7 +251,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors;
    warnings include `untied` thread ends, whose fix adds ties, `tinySection` and
-   `shortStitch`; `moreColoursThanNeedles` is a note, not a problem).
+   `shortStitch`, and `textTooSmall` against the text's own font's smallest size (`fonts.list`
+   `sizeRange`; its fix switches to the Small Text font where it fits); `moreColoursThanNeedles`
+   is a note, not a problem).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
    (untrimmed jumps, long moves), `design.density` shows where thread piles up; it and

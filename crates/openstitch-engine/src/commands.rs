@@ -1345,7 +1345,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "density",
                     "rows/mm",
-                    "Row density (fill and satin 0.1-14, others 0.5-10)",
+                    "Row density (fill and satin 0.1-14, radial 0.2-7, others 0.5-10)",
                 ),
                 opt(
                     "stitchLength",

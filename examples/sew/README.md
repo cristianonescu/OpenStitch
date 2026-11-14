@@ -345,7 +345,7 @@ Every region sew type and the fill, satin and underlay options.
 
 #### Region sew types (1 of 2)
 
-[`fills/region-sew-types-1.pes`](fills/region-sew-types-1.pes) · 100 × 100 mm hoop · 86 × 86 mm · 7,130 stitches · 11 trims · about 9.5 min
+[`fills/region-sew-types-1.pes`](fills/region-sew-types-1.pes) · 100 × 100 mm hoop · 86 × 86 mm · 7,173 stitches · 11 trims · about 9.5 min
 
 Nine region sew types, left to right, top to bottom: fill, satin, programmable fill (diamonds), motif fill (heart), piping, cross stitch, concentric circle, radial, spiral.
 
@@ -527,7 +527,7 @@ The fonts, Text Transform, text on a path and monograms.
 
 #### Lettering
 
-[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,980 stitches · 38 trims · about 6.9 min
+[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 90.7 mm · 4,176 stitches · 38 trims · about 7.2 min
 
 Lato Bold and Pacifico, a Text Transform arch, and text spaced around a circle (text on a path).
 

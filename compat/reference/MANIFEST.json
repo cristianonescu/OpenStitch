@@ -854,6 +854,54 @@
       "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-concentric.pes.) Pattern blocks redacted 2026-11-14 (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN b5b36250eeb59748054f67feabdf82f9429f5f7db0ab190842cdd6849c35a74e."
     },
     {
+      "file": "stitches/radial-circle40-default.pes",
+      "spec": "radial-circle40-default",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; Concentric Circle density 2,0, run pitch 2,0; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region to Radial Stitch (the pane shows only Density and Run pitch, 2,0 and 2,0), Density (none: 2,0 as the pane showed it after the switch); Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 2311.",
+      "sha256": "19cf8c43526e8374302a460552d56ed2b753a165859f22cd0f37bc04c9cbb70a",
+      "notes": "Round 15 (#1050), the owner's round-15 capture notes, part 2; the field range: 0,1 kept as 0,2 and 10,0 or 99 as 7,0. Pattern blocks redacted 2026-11-14 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN a5dd387be2162838d8fe617234ee60f737c59b789d21c754528ccfbcc3a93798."
+    },
+    {
+      "file": "stitches/radial-circle40-d3p0.pes",
+      "spec": "radial-circle40-d3p0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; Concentric Circle density 2,0, run pitch 2,0; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region to Radial Stitch (the pane shows only Density and Run pitch, 2,0 and 2,0), Density 3,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 3423.",
+      "sha256": "56e8685dd313646850100ab9307f950f60174ad22e722e31062ad7f76776dddc",
+      "notes": "Round 15 (#1050), the owner's round-15 capture notes, part 2; the field range: 0,1 kept as 0,2 and 10,0 or 99 as 7,0. Pattern blocks redacted 2026-11-14 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN f88eb91b0a487f29e967ed37c7615e658508563eed27496aaef00724284a3edd."
+    },
+    {
+      "file": "stitches/radial-circle40-d5p0.pes",
+      "spec": "radial-circle40-d5p0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; Concentric Circle density 2,0, run pitch 2,0; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region to Radial Stitch (the pane shows only Density and Run pitch, 2,0 and 2,0), Density 5,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 5717.",
+      "sha256": "3ab3c329bc265facb00df99979208c7fd37cede067260fed5a84ac74edbf7f0b",
+      "notes": "Round 15 (#1050), the owner's round-15 capture notes, part 2; the field range: 0,1 kept as 0,2 and 10,0 or 99 as 7,0. Pattern blocks redacted 2026-11-14 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 9a45cace42558e3677ace87a64965d0af940128a226af375583d3b44c79e3897."
+    },
+    {
+      "file": "stitches/radial-circle40-dmax.pes",
+      "spec": "radial-circle40-dmax",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; Concentric Circle density 2,0, run pitch 2,0; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region to Radial Stitch (the pane shows only Density and Run pitch, 2,0 and 2,0), Density 10,0 typed, kept as 7,0 (the field's maximum); Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 7988.",
+      "sha256": "ecf9132cbbeaec652c13a77b1b93abac9dc5b99b9cc0c5d937646d5c454c302e",
+      "notes": "Round 15 (#1050), the owner's round-15 capture notes, part 2; the field range: 0,1 kept as 0,2 and 10,0 or 99 as 7,0. Pattern blocks redacted 2026-11-14 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN f7db22d934543045f3a776988c7c4c4a31de86fc52b0e6008924520b79e7e154."
+    },
+    {
       "file": "stitches/concentric-ellipse30x40.pes",
       "spec": "concentric-ellipse30x40",
       "reference": "pe-design",
