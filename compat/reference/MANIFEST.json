@@ -6302,6 +6302,18 @@
       "settings": "100 x 100 mm Hoop Size page. Home > Shapes > Rectangle dragged to 40,00 x 40,00 mm with its top-left near (10 ; 10) mm. Line Not Sewn. Region Prog. Fill Stitch; Pattern: the folder button (Browse) > the project's psc-square-4pt.pas (compat/reference/pes, round 4); nothing chosen from a PE-DESIGN list. Left as PE-DESIGN set them: Under sewing on (first type, Density Medium), Density 4,5, Direction Manual straight line 45, Running Stitch Path first, Pull compensation 0,0; tile 7,5 x 7,5 mm, pattern Direction 0, Offset row 0 %, Base Sewing off, Feathered edge off. Optimize Entry/Exit Points off. Save As PES (default type). 40,00 x 40,00 mm, 2686 stitches in the status bar.",
       "sha256": "9cf92f47e62561725f3b0c0f824ae933fefbeb7bf69c88f9726c869488933328",
       "notes": "Header #PES0110. The coordinator's round 15 capture (#1075). Its fill list holds one pattern, the project's square (128,128) (896,128) (896,896) (128,896). Pattern blocks redacted (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 5d6228c2f695010cf03de2f6eb8d426d02b1f97bcc611f7af631e8b747e5f489."
+    },
+    {
+      "file": "stitches/shape-start-points-outline.pes",
+      "spec": "shape-start-points-outline",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "100 x 100 mm page, Options > Optimize Entry/Exit Points off. Drawn with PE-DESIGN's drawing tools only, no Shapes gallery: Rectangle tool (2,2)-(22,22) and (26,2)-(46,12) mm, the Circle/Ellipse tool in (50,2)-(70,12), and Shapes > Outline closed straight lines: a diamond (12,26) (22,36) (12,46) (2,36), a four-point star (36,26) (39,33) (46,36) (39,39) (36,46) (33,39) (26,36) (33,33) and a triangle (60,26) (70,46) (50,46), by screen clicks 0,1 to 0,5 mm off (the spec scripts the points read from the file). One thread colour for all six. Line Not Sewn, region Fill Stitch with Under sewing off, every other attribute at its default. Save As PES (default type). 68,00 x 44,00 mm, 2086 stitches.",
+      "sha256": "cfbc2598001e35655ef93ee7ecd3d6b983cc434b746e4a0c5cc8131dc4666a6c",
+      "notes": "Header #PES0110, no pattern list. The coordinator's round 15 capture (#1075), replacing the withdrawn gallery-shape reference of shape-start-points. Pattern blocks redacted (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 8fca630cb276e4c13a2b6e456e41410bf85c247a5855b4165711f74695ebe98b."
     }
   ]
 }
