@@ -416,12 +416,12 @@ pub fn generate(
             // reference point. With a reference point the net starts at the point itself.
             let mut shift = v2(0.0, 0.0);
             let mut axis = r.clone();
-            if r.reference.is_none() {
-                if let Some(b) = Rect::enclosing(closed.iter().flat_map(|c| c.outline_points())) {
-                    let inset = pw.min(spacing * 0.8) / 2.0;
-                    shift = back.apply(v2(b.min_x, b.min_y)) + v2(inset, inset);
-                    axis.reference = Some(v2(0.0, 0.0));
-                }
+            if r.reference.is_none()
+                && let Some(b) = Rect::enclosing(closed.iter().flat_map(|c| c.outline_points()))
+            {
+                let inset = pw.min(spacing * 0.8) / 2.0;
+                shift = back.apply(v2(b.min_x, b.min_y)) + v2(inset, inset);
+                axis.reference = Some(v2(0.0, 0.0));
             }
             let to_origin = crate::geometry::Transform::translation(-shift.x, -shift.y);
             let turned = |cs: &[Contour]| -> Vec<Contour> {
