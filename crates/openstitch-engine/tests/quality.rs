@@ -705,6 +705,91 @@ fn a_stitch_in_place_tie_in_is_not_reported() {
     assert_eq!(c["findings"], json!([]), "{c}");
 }
 
+/// #1032 through `design.check` itself: a lock counts only when it comes back exactly to its
+/// point. A lock 0.02 mm off (what Auto Punch rows did, and what a 0.1 mm stitch file can turn
+/// into no lock at all) is an untied end; the same lock made exact, as the compiler now snaps
+/// it, is not.
+#[test]
+fn a_lock_a_few_hundredths_off_is_untied_until_it_is_made_exact() {
+    let dir = TempDir::new("check-near-lock");
+    let mut s = Session::new(&dir);
+    sections(
+        &mut s,
+        &dir,
+        "near.pes",
+        &[row(0.0, 0.0, 10, true), row(0.0, 100.0, 10, true)],
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["untied"]}));
+    assert!(found(&c, "untied").is_none(), "{c}");
+    let exact = s.design().clone();
+    // The first row's lock: its last needle point, just before the trim, moved 0.02 mm.
+    let mut near = exact.clone();
+    let block = near
+        .objects
+        .iter_mut()
+        .find_map(|o| o.stitch_block.as_mut())
+        .expect("the stitch object");
+    let trim = block
+        .stitches
+        .iter()
+        .position(|st| st.command == Command::Trim)
+        .expect("a trim");
+    let last = block.stitches[..trim]
+        .iter()
+        .rposition(|st| st.command == Command::Stitch)
+        .expect("the lock's last point");
+    block.stitches[last].x += 0.2;
+    assert!(s.adopt_design(near));
+    let c = run(&mut s, "design.check", json!({"rules": ["untied"]}));
+    let f = found(&c, "untied").unwrap_or_else(|| panic!("a lock 0.02 mm off: {c}"));
+    assert_eq!(f["value"], json!(1.0), "{f}");
+    // Made exact again: tied.
+    assert!(s.adopt_design(exact));
+    let c = run(&mut s, "design.check", json!({"rules": ["untied"]}));
+    assert!(found(&c, "untied").is_none(), "the exact lock: {c}");
+}
+
+/// #1032 through `design.check`: a stitch in place at a start is a tie only with its tie-in
+/// after it (PE-DESIGN's one-step tie on a Hoop Size page, #1013). Alone it is an untied start.
+#[test]
+fn a_stitch_in_place_without_a_tie_in_is_an_untied_start() {
+    let dir = TempDir::new("check-in-place-start");
+    // Row ends locked; the second row starts on a stitch in place, then its 0.3 mm tie-in.
+    let locked_end = |mut r: Vec<(f64, f64)>| {
+        let b = r[r.len() - 1];
+        r.extend([(b.0 - 3.0, b.1), b]);
+        r
+    };
+    let tied = row(0.0, 0.0, 10, true);
+    let plain = row(0.0, 100.0, 10, false);
+    let mut with_tie_in = plain.clone();
+    with_tie_in.splice(1..1, [(0.0, 100.0), (3.0, 100.0), (0.0, 100.0)]);
+    let mut alone = plain.clone();
+    alone.insert(1, (0.0, 100.0));
+    let mut s = Session::new(&dir);
+    sections(
+        &mut s,
+        &dir,
+        "in-place-tie-in.pes",
+        &[tied.clone(), locked_end(with_tie_in)],
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["untied"]}));
+    assert!(
+        found(&c, "untied").is_none(),
+        "a stitch in place with its tie-in: {c}"
+    );
+    let mut s = Session::new(&dir);
+    sections(
+        &mut s,
+        &dir,
+        "in-place-alone.pes",
+        &[tied, locked_end(alone)],
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["untied"]}));
+    let f = found(&c, "untied").unwrap_or_else(|| panic!("a stitch in place alone: {c}"));
+    assert_eq!(f["value"], json!(1.0), "{f}");
+}
+
 /// #866: fewer than 3 needle drops between two thread cuts is `tinySection`; 3 is not.
 #[test]
 fn sections_of_fewer_than_three_stitches_are_found() {

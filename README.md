@@ -680,6 +680,9 @@ See also [New: the Assistant](#new-the-assistant).
   [Updates](#updates)).
 - (+) **Ready-to-sew kit** in every package except the Flatpak (see
   [Ready-to-sew designs](#ready-to-sew-designs)): Help ▸ Ready-to-Sew Designs opens it.
+- (+) **Tested with random input:** a test checks that every sewing setting changes the
+  stitches, and a seeded random-input test drives the whole editor window on every change,
+  and longer every week ([#880]).
 
 [#119]: https://github.com/cristianonescu/OpenStitch/issues/119
 [#127]: https://github.com/cristianonescu/OpenStitch/issues/127
@@ -748,6 +751,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#514]: https://github.com/cristianonescu/OpenStitch/issues/514
 [#515]: https://github.com/cristianonescu/OpenStitch/issues/515
 [#879]: https://github.com/cristianonescu/OpenStitch/issues/879
+[#880]: https://github.com/cristianonescu/OpenStitch/issues/880
 [#516]: https://github.com/cristianonescu/OpenStitch/issues/516
 [#517]: https://github.com/cristianonescu/OpenStitch/issues/517
 [#518]: https://github.com/cristianonescu/OpenStitch/issues/518
