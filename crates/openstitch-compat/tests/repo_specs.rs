@@ -22,11 +22,9 @@ fn repository_specs_pass_and_the_status_table_is_current() {
     // Every spec passes, except the specs listed here, whose reference was withdrawn because the
     // capture held Brother content: they are skipped until a clean capture replaces it, and the
     // entry goes when it does (a listed spec that is no longer skipped fails here too).
-    const WITHDRAWN: [(&str, u32); 3] = [
-        ("line-motif-zigzag-3pt", 1060),
-        ("motif-fill-2pt", 1060),
-        ("programmable-fill-45", 1060),
-    ];
+    // line-motif-zigzag-3pt and motif-fill-2pt were replaced by line-motif-zigzag-5x5-spacing,
+    // line-motif-zigzag-5x8 and motif-fill-clean-p1 on clean captures and removed.
+    const WITHDRAWN: [(&str, u32); 1] = [("programmable-fill-45", 1060)];
     for s in &report.specs {
         match WITHDRAWN.iter().find(|(id, _)| *id == s.id) {
             Some((id, issue)) => assert!(

@@ -282,8 +282,8 @@ below is pinned by a test in `tests/pes11.rs`.
   locates the table as the one that parses to exactly where the object list starts.
 - **Coordinates** are 0.1 mm with the page's top-left corner at (500, 500), y down, in every
   file so far (all on a 100 × 100 mm page).
-- `CEmbSpecialShape` (a Shapes-gallery shape: o-gallery-heart, the five gallery shapes of
-  shape-start-points, the appliqué's heart) is a `CEmbLine` record byte for byte under its own
+- `CEmbSpecialShape` (a Shapes-gallery shape: the isosceles triangles of concentric-triangle and
+  spiral-triangle*; the heart captures were withdrawn for #1060) is a `CEmbLine` record byte for byte under its own
   class name: the same 4432-byte body, geometry header and vertices, and no gallery id. The
   reader reads it as a shape (`Shape::gallery`) and the writer writes it back under its class.
 - `CEmbOne` (a stitch group: PE-DESIGN's re-saves of OpenStitch's version 6 files,
@@ -687,10 +687,14 @@ text fitted to an outline, 3 with a stitch group; two of them with gallery shape
 byte-identical to PE-DESIGN's outside these documented differences
 (`written_object_sections_match_pe_designs_bytes_outside_the_documented_differences`):
 
-- **Pattern block** (from body 386): OpenStitch writes its own placeholder of the default
-  pattern's layout and size (the baseline's 53 point counts, drawn as evenly spaced horizontal
-  lines) instead of copying PE-DESIGN's pattern, which is Brother content; a file whose block
-  holds another pattern (m01 …) is compared with its block swapped for the placeholder.
+- **Pattern block** (from body 386): OpenStitch writes its own placeholder, size 10000 and one
+  two-point polyline (0, 512)-(1024, 512) (22 bytes, so a body is 480 bytes; the tail's offsets
+  in the table above are the 53-polyline baseline's, 4360 on), instead of copying PE-DESIGN's
+  default pattern, which is Brother content. PE-DESIGN 11.50 opens and edits a shape with this
+  block, and a Decorative Fill chosen on it proposes PE-DESIGN's own default pattern from the
+  program (round 14, #1060). Every file is compared with its blocks swapped for the
+  placeholder. Committed captures hold OpenStitch's placeholder rows at the same point counts
+  as PE-DESIGN's block (`tools/redact_pattern_blocks.py`, #1060).
 - **Geometry header:** the closed-shape rule for the marks' coordinates, rounded to whole
   units (a05's 210-unit square: 595 + 52.5 → 648), and r01's segment and parameter fields (open
   lines: r11's), so the curved and open owner files differ there (the Applique Wizard's offset
@@ -1093,7 +1097,7 @@ pyembroidery nor libembroidery (`writeShv` is a stub) writes SHV.
 |---|---|
 | header text | `Embroidery disk created using software licensed from Viking Sewing Machines AB, Sweden` (0x56 bytes) |
 | name | the design name (PE: the file name without extension) |
-| preview size | `w`, `h`, then `w / 2`, `h / 2` twice; `w` = width in whole millimetres + 2 (26.9 mm: 28; 38.9 mm: 40) |
+| preview size | `w`, `h`, then `w / 2`, `h / 2` twice; `w` = 2 × the half-width in millimetres, rounded, + 2, `h` alike (26.9 mm: 28; 38.9 mm: 40; 59.0, 59.5 and 60.0 mm: 62; 69.4 mm: 72; #989) |
 | preview | 4 bits a pixel, column by column from the left, each column bottom to top (`⌈h/2⌉` bytes a column) |
 | the 18 bytes after the colour count | `C4 28 00 30 00 00` (meaning unknown, copied), then i16 right, bottom, left, top of the needle points (centred stream), then u32 total words |
 | per colour (9 bytes after the chart index) | five zero bytes, then i16 x, y of the point the block starts at (the previous block's last needle point; 0, 0 for the first) |
@@ -1107,7 +1111,11 @@ chart entry, a small palette of its own where similar colours share a value (#98
 Yellow → 12, 10 Pink and 42 Dark Pink → 13. Another entry takes the value of the measured entry
 whose colour is nearest (`shv_preview_values_match_pe_design_block_for_block`). OpenStitch draws straight lines between the needle points at one pixel a
 millimetre with a one-pixel margin on the left; PE-DESIGN's pixels differ in about one in
-ten places (its drawing rule is not known), which a machine only uses as the thumbnail.
+ten places, which a machine only uses as the thumbnail. PE-DESIGN's rows and columns follow
+no affine rule of the needle points (#989, `captures-2026-11-14/machine/pe-preview-ruler-2.SHV`:
+15 lines 2.1 mm apart each way land 1, 2 or 3 px apart; the best scale and offset under
+floor, round or ceil places 13 of 16 rows and 15 of 16 columns), so the drawing stays
+approximate. The preview's size is PE-DESIGN's (`shv_preview_size_is_pe_designs`).
 `shv_writes_pe_design_header_and_records` reads PE's file, writes it again and compares
 everything but the preview's pixels byte for byte; `shv_writes_pe_designs_moves_and_long_move_marks`
 writes OpenStitch's `moves.pes` and compares it the same way with PE-DESIGN's export of it

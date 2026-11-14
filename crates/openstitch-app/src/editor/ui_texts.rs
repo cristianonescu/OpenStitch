@@ -957,6 +957,21 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ),
     ("ui-design", "Design"),
     ("ui-design-page", "Design Page"),
+    ("ui-page-mode", "Page"),
+    ("ui-page-mode-hoop", "Hoop Size"),
+    (
+        "ui-page-mode-hoop-tip",
+        "PE-DESIGN's Hoop Size page: the chosen hoop. PE-DESIGN starts each run's short tie-in on a stitch in place here.",
+    ),
+    (
+        "ui-page-mode-hoop-needs",
+        "A Hoop Size page needs a hoop (or a 100 × 100 mm page): choose one under Hoop.",
+    ),
+    ("ui-page-mode-custom", "Custom Size"),
+    (
+        "ui-page-mode-custom-tip",
+        "PE-DESIGN's Custom Size page: the size you type. Tie-ins start on the move's landing, with no stitch in place.",
+    ),
     ("ui-objects", "Objects"),
     ("ui-machine", "Machine"),
     ("ui-estimate", "Estimate"),

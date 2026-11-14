@@ -1,5 +1,7 @@
 # PE-DESIGN 11 minimal designs (`pes11` tests)
 
+**Pattern blocks redacted (2026-11-14, #1060).** PE-DESIGN writes its default decorative pattern into the pattern block of every shape it saves; that is Brother content, so every such block in these files was rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged (`tools/redact_pattern_blocks.py`). The SHA-256 values here are the redacted files'; the hashes as PE-DESIGN saved them are in `docs/research/2026-11-14/pattern-block-redaction-table.md`.
+
 Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows 11 Pro 10.0.26200, on
 2026-10-27, by black-box GUI use only (track `pe-gui`), for mapping the `#PES0110` object list
 (docs/FILE_FORMATS.md, "PES 0110 object list"). Studying these files is allowed as project
@@ -15,29 +17,29 @@ policy: docs/LEGAL_AND_LICENSING.md. Each rN file is the baseline B with one pro
 
 | File | SHA-256 | Made as |
 |---|---|---|
-| `r01-rect.pes` | `97acefa9c7e11b1966093e067444dcb0b1934a0fd9e5808007c3730c7b466c38` | B. 12,00 x 12,00 mm, 471 st. |
+| `r01-rect.pes` | `4f8d070fee21798d3ab3e89fbfe0c4ab7da7ae79726470c3008bd2caf5eadd18` | B. 12,00 x 12,00 mm, 471 st. |
 | `r01-rect-v6.pes` | `7e06d9f3bfedce86d05f7f1998582f72738c5f5d462a24240eeb59850229056e` | B, saved as type Ver.6.0 (`#PES0060`; PE-DESIGN warns that the data is saved as stitch data). Its thread table writes the two Brother colours as PE-DESIGN writes them in `#PES0110`: `005` / `16` / `EMBROIDERY` and `800` / `5` / `EMBROIDERY` (added 2026-11-04 for #375). |
-| `r02-rect-w20.pes` | `2b934d9489a142bc7296ef19d53bd76f8ac26e56c02c908db589045da7414697` | B but (10,10)-(30,20). 22,00 x 12,00 mm, 745 st. |
-| `r03-rect-moved.pes` | `f7063e489ff4bc34c5160414b44141ec9a41611891aac05ee9a0f30240922114` | B but (30,30)-(40,40). 12,00 x 12,00 mm, 473 st. |
-| `r04-rect-satin.pes` | `6b8809fa0873f9e26d09563704cff29b3a278abd8c9bb5363099ffdfbe6002d7` | B, then (shape selected) Shapes tab > Sew > region type Satin Stitch (satin defaults: Under sewing on Medium, Density 4.5, Direction 45). 12,00 x 12,00 mm, 370 st. |
-| `r05-rect-blue.pes` | `dbc2885ad9d9513819c3f35a925bcbd73513c665e94a3fbcf7ea20f59eb3b30d` | B, then Color pane, Region, BROTHER EMBROIDERY 007 PRUSSIAN BLUE. 12,00 x 12,00 mm, 471 st. |
-| `r06-rect-nounder.pes` | `59bbed3f276f34fa158f1b8f80b6cab5efa9e0c71840d3e3df6ebd7c6f567021` | B, then Sewing Attributes > Region sew > Under sewing unticked. 12,00 x 12,00 mm, 423 st. |
-| `r07-rect-noline.pes` | `a70cd1de6427d49f57fc7bf09a1a60226ab6b1c896fcb7df65715a6e4086486c` | B, then line type Not Sewn (Line). 10,00 x 10,00 mm, 230 st. |
-| `r08-rect-dir90.pes` | `61e49a05e2639cccf817a569e4df4d0e020d7f2fdfb26ca6b0e4bd9ff49fd8fb` | PE's default fill Direction is already 45 degrees, so a 45-degree file would equal r01; made with Direction Manual straight line 90 degrees instead. 12,00 x 12,00 mm, 462 st. |
-| `r09-rect-density.pes` | `91031276d49066f181f88b7f16b64177b02638a159087c333dca2e4e8973fbd5` | B, region Density 6.0 line/mm. 12,00 x 12,00 mm, 530 st. |
-| `r10-circle.pes` | `4fda5676bbbf02151b825fef23c46b251754c83768a0a887cd3f6a8777c4dbe0` | Shapes > Ellipse (Rectangle/Circle/Arc row, 2nd) dragged (10,10)-(20,20), same default attributes as B (Zigzag red / Fill silver, values as above). 12,00 x 12,00 mm, 400 st. |
-| `r11-line.pes` | `bad5682da96054a4d82a2d3da2949c29e3949720c5f97c1246936ae86ca9bd30` | Shapes > Outline > open straight line, click (10,10), double-click (30,10); Select tool. Line Zigzag Stitch 800 RED, defaults (under sewing on, width 2.0, density 4.5, half stitch on). 20,00 x 2,00 mm, 118 st. |
+| `r02-rect-w20.pes` | `05e2e4d4688552b00ecaf0d6b55824ca254ac2337bcd91226a52ea0b215ad934` | B but (10,10)-(30,20). 22,00 x 12,00 mm, 745 st. |
+| `r03-rect-moved.pes` | `e6bc51794f88c04796e6769d514eff4acbece2d0b3e3b6195abe2a112ca0ff6f` | B but (30,30)-(40,40). 12,00 x 12,00 mm, 473 st. |
+| `r04-rect-satin.pes` | `00941ea312b33a1930585750fdce88fe39138d1834d2b8f232966a10de4e9f37` | B, then (shape selected) Shapes tab > Sew > region type Satin Stitch (satin defaults: Under sewing on Medium, Density 4.5, Direction 45). 12,00 x 12,00 mm, 370 st. |
+| `r05-rect-blue.pes` | `fcc9bbcff955a4129e17730749db0f1303c7225ae3be0d1c05268f6e670285c1` | B, then Color pane, Region, BROTHER EMBROIDERY 007 PRUSSIAN BLUE. 12,00 x 12,00 mm, 471 st. |
+| `r06-rect-nounder.pes` | `d48d6e45f33d708cfc86a181be265be3aded26eb3716893e9c3d71d176190825` | B, then Sewing Attributes > Region sew > Under sewing unticked. 12,00 x 12,00 mm, 423 st. |
+| `r07-rect-noline.pes` | `dcd764c8132a162b4b5070e7c29fa293c8f75030986a7b32c8da5b6f7194fc40` | B, then line type Not Sewn (Line). 10,00 x 10,00 mm, 230 st. |
+| `r08-rect-dir90.pes` | `ad76adc642916be5505279f44a29a6217552d909d88d4cb263c3ce2911aba591` | PE's default fill Direction is already 45 degrees, so a 45-degree file would equal r01; made with Direction Manual straight line 90 degrees instead. 12,00 x 12,00 mm, 462 st. |
+| `r09-rect-density.pes` | `7a7718c53b2cdf42f4a758a9744ff90dfbe5898126f92a95b0c11a3855caad41` | B, region Density 6.0 line/mm. 12,00 x 12,00 mm, 530 st. |
+| `r10-circle.pes` | `30aa1800fe74ee2a5ec4012357fa55c1ad1eb0bce3579be231fd61ab2c6a8891` | Shapes > Ellipse (Rectangle/Circle/Arc row, 2nd) dragged (10,10)-(20,20), same default attributes as B (Zigzag red / Fill silver, values as above). 12,00 x 12,00 mm, 400 st. |
+| `r11-line.pes` | `d07ea120183432aa03979fab78f7ba6aa4295e6a743a9c7a8c682b0247dc1c74` | Shapes > Outline > open straight line, click (10,10), double-click (30,10); Select tool. Line Zigzag Stitch 800 RED, defaults (under sewing on, width 2.0, density 4.5, half stitch on). 20,00 x 2,00 mm, 118 st. |
 | `r12-text-a.pes` | `505ed96e7340d306a55b6b2b3836e0a5f1356959c46d1e31a1feed6bf773d047` | "A", click (10,20). 10,10 x 10,30 mm, 155 st; box about (10,9.7)-(20.1,20). |
 | `r13-text-a-20.pes` | `3afdeeec119e211c82084c8cb77163fc9134843f9fb7dd6b881904f236c09ebb` | r12, then (text selected) size 20.0: the letter grows upward past the page top, so it was dragged down 10 mm (snap) to stay on the page: box about (10,9.4)-(30.1,30), baseline y 30. 20,10 x 20,60 mm, 290 st. |
 | `r14-text-ab.pes` | `a1e941016670496f251799e46bdee13243cf305698a66f0f7545a3dba4f990a9` | "AB" (size set back to 10.0 on the tool), click (10,20). 18,80 x 10,30 mm, 363 st. |
-| `r15-rect-text.pes` | `e06980cb3a1fec55ece376f50897a430d68a6dd04f9cfc1b52d50857846a0b63` | B, then Text tool "A" size 10 with the click at (40,50) (top-left about (40,40)). Whole design 41,00 x 41,00 mm, 626 st; Sewing Order: 1 fill silver; 2 red = zigzag + A (same colour, one block). |
-| `r16-two-rects.pes` | `c79ddb9b51d78a7337fce6b4fe70a3c2e22ef14b15945e74490bced9633b7827` | B, then a second Rectangle (40,10)-(50,20), same attributes. 42,00 x 12,00 mm, 944 st; Sewing Order 1 silver, 2 red, 3 silver, 4 red. |
-| `r17-line-silver.pes` | `d5d9ce74499647568d12ef8d45e2d7fa144305338bb80227f1aa800b394bf361` | B, Color pane > Line > 005 EMBROIDERY SILVER (same as the region). PE then shows ONE colour block (Sewing Order 1 item with both). 12,00 x 12,00 mm, 467 st. |
-| `r18-colours-swapped.pes` | `9f656206e6884199bbdbd01e2eda39135435a9f1dfc48a985cba8710091fa007` | B, region 800 EMBROIDERY RED and line 005 EMBROIDERY SILVER. 12,00 x 12,00 mm, 471 st (blocks: 1 red fill, 2 silver zigzag). |
-| `r19-line-running.pes` | `13c8942d2ef77b97399d87d52d97ee118b5ccfcbc9b1573e13a2930407114c33` | B, Shapes tab > Sew > line type Running Stitch (defaults Run pitch 2.0 mm, Run time(s) 1). 10,00 x 10,00 mm, 256 st. |
-| `r20-line-running-pitch.pes` | `87ee85d649052fc934e9e019e5e1b64eb8df5720f155c3f6a11f7f4f5b78e1b6` | r19 (same design), Run pitch 3.0 mm. 10,00 x 10,00 mm, 251 st. |
-| `r21-zigzag-width.pes` | `4217cc26142986c7a81a40b69befdc0995ca8a6d538a14f0cbec2c73f85242ce` | B, line Zigzag width 3.0 mm (default 2.0). 13,00 x 13,00 mm, 484 st. |
-| `r22-line-noUnder.pes` | `84a72272dd2b3d7fefa688f7e453822c121e478721460d0ce2c36e3570259b0e` | B, Sewing Attributes > Line sew > Under sewing unticked. 12,00 x 12,00 mm, 426 st. |
+| `r15-rect-text.pes` | `c7795f1f360c0e31fee246afafe36dda0f5650d7f67dcb40be567a45acb06aaa` | B, then Text tool "A" size 10 with the click at (40,50) (top-left about (40,40)). Whole design 41,00 x 41,00 mm, 626 st; Sewing Order: 1 fill silver; 2 red = zigzag + A (same colour, one block). |
+| `r16-two-rects.pes` | `a0b4878bdbdb01f1b9f36f9499643e47c764ca234332e70394116cd8589a98a5` | B, then a second Rectangle (40,10)-(50,20), same attributes. 42,00 x 12,00 mm, 944 st; Sewing Order 1 silver, 2 red, 3 silver, 4 red. |
+| `r17-line-silver.pes` | `1e71589326dcd590f7ecce665be348016f3ea9a5006dbb3c83378c58c7f4b262` | B, Color pane > Line > 005 EMBROIDERY SILVER (same as the region). PE then shows ONE colour block (Sewing Order 1 item with both). 12,00 x 12,00 mm, 467 st. |
+| `r18-colours-swapped.pes` | `85835bdfb3eacde11c2e406657f3416f79095d4a8fd12ee432f901b7d7ae2788` | B, region 800 EMBROIDERY RED and line 005 EMBROIDERY SILVER. 12,00 x 12,00 mm, 471 st (blocks: 1 red fill, 2 silver zigzag). |
+| `r19-line-running.pes` | `ffe5d875bef845d321ff03a3890f8a0d46d93ca4d6b668a233b58de72089970a` | B, Shapes tab > Sew > line type Running Stitch (defaults Run pitch 2.0 mm, Run time(s) 1). 10,00 x 10,00 mm, 256 st. |
+| `r20-line-running-pitch.pes` | `f82135f6704f19eea6cdc8c7c7502f5d86a67f6745f8486258eb6c0926ee8628` | r19 (same design), Run pitch 3.0 mm. 10,00 x 10,00 mm, 251 st. |
+| `r21-zigzag-width.pes` | `65c1cb6310d5c34b89d6c9306005b6d5a8d9469128893ec237646b04733851af` | B, line Zigzag width 3.0 mm (default 2.0). 13,00 x 13,00 mm, 484 st. |
+| `r22-line-noUnder.pes` | `17d8c20304e97b1f4fbe2d248a51ed913ebf15270dc1d3400821fe49ce93d3d2` | B, Sewing Attributes > Line sew > Under sewing unticked. 12,00 x 12,00 mm, 426 st. |
 | `r23-text-fill.pes` | `f7e7e2b6d7799c46139981403bd4db7b0dd7081472c5bf2b020d80d1c0e27e61` | r12's text `A` (Text tool, Lato, size 10, click (10,20)), region Fill Stitch (the text fill defaults: under sewing off, density 5.0). 187 st. Copied into the repo 2026-10-29 for the `#PES0110` text writer (#120). |
 | `r24-text-blue.pes` | `8c8c7fef1f2d2d1a69300b7fb484a9f8c7e431e5c27bd84db96319528dc0914c` | r12's text `A`, region Satin, region colour 007 EMBROIDERY PRUSSIAN BLUE. 155 st. |
 | `r25-text-b.pes` | `e5e0bc6b7e8b545e3bde1944852c661789279882ad5032b7c6f9d399d5203063` | r12 but the letter `B`. 7,70 x 10,30 mm, 207 st. |
@@ -50,33 +52,33 @@ Made by the owner's PE-DESIGN 11.50 (Layout & Editing, restarted at 14:26) on Wi
 
 | File | SHA-256 | Made as |
 |---|---|---|
-| `o-applique-heart.pes` | `183c343363828033d2f8d030a27c88b9149ef3bd02d821a9e015358dde3569a5` | New; Shapes gallery heart dragged (10,10)-(40,40) (the tool kept the last attributes: line Running Stitch, region Zigzag Net Fill Stitch; 30,00 x 30,00 mm, 1081 st); Ctrl+A; Home > Wizards > Applique Wizard, dialog defaults: Applique Material Yes / Running Stitch (Cutting is the other choice), Applique Position (picture only), Tack down Yes / V Stitch, Covering Stitch Zigzag Stitch Width 3.0 mm Density 4.5 line/mm, Output Pattern Add (Replace is the other), Distance from original pattern 3.0 mm; OK. Sewing Order after: 1 the heart, 2 material outline, 3 position/tack-down outline, 4 covering zigzag (group). Whole design 42,60 x 42,60 mm, 2019 st. |
-| `o-arc-string.pes` | `4b33d7075c8edc6ab0e145f2705a853c90fb866c28aa95b854d5a1e14d420048` | Arc and String tool, circle dragged (10,10)-(40,40) mm, then "Choose Arc start point" click at 3 o'clock (40,25), end point at 12 o'clock (25,10). Line Running Stitch (red), region Not Sewn (Region) (the tool's attributes). 30,00 x 30,00 mm, 65 st. |
-| `o-arc.pes` | `886ddb7c23a9571ef7f527723b5875e582700ca171a81a7371dc37c462f8e2fe` | Arc tool, circle (10,10)-(40,40), start 3 o'clock, end 12 o'clock. Line Running Stitch (open arc, region greyed). 30,00 x 30,00 mm, 53 st. |
-| `o-closed-curve.pes` | `44f9fd64f9ae6d4eb29ece237580c7151d7dcaabe185712714d50c626ecf5d54` | Closed Curve tool, clicks (10,10) (40,10) (40,40), double-click (10,40) (the curve bulges outside the points). Line Running Stitch, region Not Sewn (as the tool showed). Total 42,00 x 42,60 mm. |
-| `o-closed-freehand.pes` | `2ba0cdc0554c17abf9581603ec71b75ffc02a0865d41c565750634602acbaa3a` | Pencil(Closed Curve), one stroke (10,10)->(20,8)->(30,10)->(40,14)->(44,24)->(38,34)->(26,38)->(14,32)->(10,22). Line Running Stitch, region Not Sewn. 33,20 x 29,80 mm, 97 st. |
-| `o-fan.pes` | `82bba468cfcb728847970f6015fdf605f643bbf6baaf899aa83eccdbf1ddb33a` | Fan tool, same circle and points. Line Running Stitch, region Not Sewn. 30,00 x 30,00 mm, 69 st. |
-| `o-gallery-heart.pes` | `e03bd1d06d31205fade6ab5dd7225f841bb7896a088418089108603d2595df5e` | Shapes gallery, row 1 second icon (heart), dragged (10,10)-(40,40). Line Running Stitch, region Not Sewn. 30,00 x 30,00 mm, 74 st. |
-| `o-group-two-rects.pes` | `272151ab267fe12900369e93eafe34678f4a95cf1f25ff27316fb8a7ae68968f` | Rectangle tool (its attributes now line Running Stitch red, region Not Sewn) dragged (10,10)-(30,30) and (40,10)-(60,30) (the second needs the tool picked again); Ctrl+A; Home > Edit > Group > Group. 50,00 x 20,00 mm, 90 st. |
-| `o-hoop-100x100-s.pes` | `d55099ad0a87ef4baa9a31fca31a5b8f04cc20a0c405e38f957220721d57de76` | Page Size = Hoop Size, list (multi-needle hoops: 360x60 Wide Cap Frame, 90x80 Cylinder, 180x100 Border, 300x100 Border, 70x200 Sleeve, 44x38/50x50/70x41/33x75 Compact, diam. 100/130/160 Round, 260x160 nv880e-L, 150x150 nv880e-M, 100x100 nv880e-S) -> "100 x 100 mm nv880e-S". 767 st. |
-| `o-hoop-130x180-single.pes` | `e70179fd9a452e11d11743c91169a2d511702289d1274aa6a8f7e08243bdba10` | Machine Type = first radio (single-needle icon); Hoop Size list then shows 100x100, 100x180, 130x180, 150x150 (Quilt Frame), 160x260 (Color LCD), 160x260 (Monochrome LCD), 180x300, 180x360, 200x200 (Quilt Frame), 200x300, 240x240 (Quilt Frame L), 240x360, 254x254, 272x272 (Quilt Frame LL), 272x408 -> "130 x 180 mm". 767 st. |
-| `o-machine-single-100x100.pes` | `d75d240ce0f326a82f89f9da8ceb8788f2b54a0d5f47fc1a106f44f076e09909` | single-needle, Custom Size 100 x 100 mm. 767 st. |
-| `o-manual-curve.pes` | `868693d1dc9dbad7de458782abed777dd61ae58ffd28bdb97ad508a4cb332688` | Manual Punch > Curve Block, the same six points. 40,00 x 20,00 mm, 379 st. |
-| `o-manual-running.pes` | `c03ca0bf406c5298074ae7094914b7ac5fb3660b1af47c08488e03c2133107fe` | Manual Punch > Running: clicks (10,10) (30,20), double-click (50,10). Running Stitch (red). 40,00 x 10,00 mm, 29 st. |
-| `o-manual-straight.pes` | `3dfed0fd985de5b2badef1bf798b5c76fefdfba72012f98f22c6ebbfb73ca08e` | Manual Punch > Straight Block: clicks (10,10) (10,30) (30,10) (30,30) (50,10), double-click (50,30). Manual Punch tab shows Straight/Curve/Running/Feed; block = Satin Stitch (red, tool default), line Not Sewn. 40,00 x 20,00 mm, 379 st. |
-| `o-open-curve.pes` | `5ee5d3ad1d3b83c5ac68d29ff4c6fa864369091a19525dd565e186b2bf8da016` | Open Curve tool, clicks (10,20) (30,10), double-click (50,20). Line Running Stitch. 40,00 x 10,00 mm, 37 st. |
-| `o-open-freehand.pes` | `36a68a6d01e0ca2fb9063805abd967496ee5e9901a8cf4cee1fa9127ff2a67fc` | Pencil(Open Curve), one stroke (10,20)->(20,12)->(30,10)->(40,14)->(50,22)->(60,20). Line Running Stitch. 42,70 x 11,80 mm, 55 st. |
-| `o-page-200x200.pes` | `9e96834ec6543149ca80f889a768d819022217dba4922fef9088bffb9d431c3c` | Custom Size Width 200, Height 200 mm. (The view re-zoomed to 55 %; the rectangle stays at the same page coordinates (10,10)-(30,30) of the larger page.) 767 st. |
-| `o-region-concentric.pes` | `93e15d8013ddcec5d2e1cd9c92900577be0fe004acbdd7e1c1be5ac1b4f24674` | Concentric Circle Stitch. 20,00 x 20,00 mm, 729 st. |
-| `o-region-cross.pes` | `56be95108f92b69978d7cb87d14d7aadb2173a5fc26fd62128a5d14c130db915` | Cross Stitch. 20,00 x 20,00 mm, 450 st. |
-| `o-region-flexible-spiral.pes` | `36fc316bf3d2efeedb7cb158d39a8d4b5852876c6af225867375501efaf3ad69` | Flexible Spiral Stitch. 20,00 x 20,00 mm, 175 st. |
-| `o-region-net-fill.pes` | `bd8cfff018fccb9f823aa3e419e8c92d3a8339790a80e818a1a2825922fe379b` | Net Fill Stitch. 20,00 x 20,00 mm, 251 st. |
-| `o-region-piping.pes` | `be5f1877b296c8f26235a62a358f9c90ed3a454fddd44348fe005cf6b7acd22f` | Piping Stitch. 20,00 x 20,00 mm, 203 st. |
-| `o-region-radial.pes` | `e7659eb22e642ed7ab68d3e12758e2143335511762e321ac9dba5c5c32f0c93a` | Radial Stitch. 20,00 x 20,00 mm, 994 st. |
-| `o-region-spiral.pes` | `97577498fb4e37142d806b63a68cf43c3797a7d7fc7a8830d61ec57b091cd187` | Spiral Stitch. 20,00 x 20,00 mm, 500 st. |
-| `o-region-stippling.pes` | `0f74f7c9098f987acdd9b134e57990a826c7cb1e9086977c7cac09330d7cbfc7` | Stippling Stitch. 20,00 x 20,00 mm, 108 st. |
-| `o-region-zigzag-net.pes` | `051274cc60a2ab8171d26c17475a1e862c1daaceb3066417bde0ee43bb64220f` | Zigzag Net Fill Stitch. 20,00 x 20,00 mm, 767 st. |
-| `o-rounded-rect.pes` | `393e7e0fa7e52f53279193593d6b49852e2b521544c695a87029f60a408c03de` | Round Rectangle tool dragged (10,10)-(40,30). Line Running Stitch, region Not Sewn. 30,00 x 20,00 mm, 56 st. |
+| ~~`o-applique-heart.pes`~~ | withdrawn 2026-11-14 | Removed (#1060): its heart came from PE-DESIGN's Shapes gallery, PE-DESIGN library geometry. |
+| `o-arc-string.pes` | `b58402095d128cba8799e974d75823d1676df7bb969a9ce64e99456f82e60400` | Arc and String tool, circle dragged (10,10)-(40,40) mm, then "Choose Arc start point" click at 3 o'clock (40,25), end point at 12 o'clock (25,10). Line Running Stitch (red), region Not Sewn (Region) (the tool's attributes). 30,00 x 30,00 mm, 65 st. |
+| `o-arc.pes` | `ef3d92b0c054dcf5deda04437060fa1d7b2a7c81313b25d4ffea620e7f57367a` | Arc tool, circle (10,10)-(40,40), start 3 o'clock, end 12 o'clock. Line Running Stitch (open arc, region greyed). 30,00 x 30,00 mm, 53 st. |
+| `o-closed-curve.pes` | `71a4578f887efb09cea84177c098179aea005c4f05bf63d697c8a5f18d390f1d` | Closed Curve tool, clicks (10,10) (40,10) (40,40), double-click (10,40) (the curve bulges outside the points). Line Running Stitch, region Not Sewn (as the tool showed). Total 42,00 x 42,60 mm. |
+| `o-closed-freehand.pes` | `4ee4413128a20f318cef8e3eeabc8b608840e4799525e0a58732330e581f20ff` | Pencil(Closed Curve), one stroke (10,10)->(20,8)->(30,10)->(40,14)->(44,24)->(38,34)->(26,38)->(14,32)->(10,22). Line Running Stitch, region Not Sewn. 33,20 x 29,80 mm, 97 st. |
+| `o-fan.pes` | `b3bffac0bd71596f6b02dd547e7131974b1a9a2cde99fd6155ae5b58196ca8b4` | Fan tool, same circle and points. Line Running Stitch, region Not Sewn. 30,00 x 30,00 mm, 69 st. |
+| ~~`o-gallery-heart.pes`~~ | withdrawn 2026-11-14 | Removed (#1060): its heart came from PE-DESIGN's Shapes gallery, PE-DESIGN library geometry. |
+| `o-group-two-rects.pes` | `72107115b1342ed0a91f5d22ef9caf818d8b351615c2aee0ef9cef410272eb37` | Rectangle tool (its attributes now line Running Stitch red, region Not Sewn) dragged (10,10)-(30,30) and (40,10)-(60,30) (the second needs the tool picked again); Ctrl+A; Home > Edit > Group > Group. 50,00 x 20,00 mm, 90 st. |
+| `o-hoop-100x100-s.pes` | `696e3f7651518f0da5460f0fd9fc24a9cad18e1a985b8ffcb46d919cf35e4482` | Page Size = Hoop Size, list (multi-needle hoops: 360x60 Wide Cap Frame, 90x80 Cylinder, 180x100 Border, 300x100 Border, 70x200 Sleeve, 44x38/50x50/70x41/33x75 Compact, diam. 100/130/160 Round, 260x160 nv880e-L, 150x150 nv880e-M, 100x100 nv880e-S) -> "100 x 100 mm nv880e-S". 767 st. |
+| `o-hoop-130x180-single.pes` | `b072832a341530431e10cfae3b17b1cc223f1e4f22cc1ffa74fc564a7728054e` | Machine Type = first radio (single-needle icon); Hoop Size list then shows 100x100, 100x180, 130x180, 150x150 (Quilt Frame), 160x260 (Color LCD), 160x260 (Monochrome LCD), 180x300, 180x360, 200x200 (Quilt Frame), 200x300, 240x240 (Quilt Frame L), 240x360, 254x254, 272x272 (Quilt Frame LL), 272x408 -> "130 x 180 mm". 767 st. |
+| `o-machine-single-100x100.pes` | `080a9843cdc22c076dae4c94b706da4b134b225c68196c10a0b05fbd440dccbf` | single-needle, Custom Size 100 x 100 mm. 767 st. |
+| `o-manual-curve.pes` | `666a4204291deb3bde75cd7f7ae8a6c09695c15a8dca06001925d1e2dbbbdf25` | Manual Punch > Curve Block, the same six points. 40,00 x 20,00 mm, 379 st. |
+| `o-manual-running.pes` | `81669eff727294184103262367f17e9f9c5bf74ce4e1167e7d8792fb4dc1cae8` | Manual Punch > Running: clicks (10,10) (30,20), double-click (50,10). Running Stitch (red). 40,00 x 10,00 mm, 29 st. |
+| `o-manual-straight.pes` | `eca2d7c46edddaa6fe4b28c610aa7e82a13c5f5eb9b99799e838435183d1501d` | Manual Punch > Straight Block: clicks (10,10) (10,30) (30,10) (30,30) (50,10), double-click (50,30). Manual Punch tab shows Straight/Curve/Running/Feed; block = Satin Stitch (red, tool default), line Not Sewn. 40,00 x 20,00 mm, 379 st. |
+| `o-open-curve.pes` | `1a1a2f91361fd9a5a2b933bc8d6be71f8bb37d5d044222437ec06b73d3d3c5ac` | Open Curve tool, clicks (10,20) (30,10), double-click (50,20). Line Running Stitch. 40,00 x 10,00 mm, 37 st. |
+| `o-open-freehand.pes` | `8529eae490348821f90bf92ae5d20591d2484d6c44fc18c143706f6af94eafa2` | Pencil(Open Curve), one stroke (10,20)->(20,12)->(30,10)->(40,14)->(50,22)->(60,20). Line Running Stitch. 42,70 x 11,80 mm, 55 st. |
+| `o-page-200x200.pes` | `de0109721f5d7cb40ee972183fe70b52eed256a8d85938cc4adea8e87091b357` | Custom Size Width 200, Height 200 mm. (The view re-zoomed to 55 %; the rectangle stays at the same page coordinates (10,10)-(30,30) of the larger page.) 767 st. |
+| `o-region-concentric.pes` | `8cf5b99b1bf5b287709ebcd026b35572b795a5ca95bb2b8cb26e7473721f95d4` | Concentric Circle Stitch. 20,00 x 20,00 mm, 729 st. |
+| `o-region-cross.pes` | `6482fbc1f7c1fdfaf5c9d51a384b48c6e5e6bed9bce27cd5d29b307310ee3f33` | Cross Stitch. 20,00 x 20,00 mm, 450 st. |
+| `o-region-flexible-spiral.pes` | `69c21652f3ef948bcb24c5e31ccbcacfb56e5437ddcde36a03c0f739cbd8aeba` | Flexible Spiral Stitch. 20,00 x 20,00 mm, 175 st. |
+| `o-region-net-fill.pes` | `d7a0623ea71e9888d6b6aca0b51446ed7c05e0b3ab5fe4f93036a00130182692` | Net Fill Stitch. 20,00 x 20,00 mm, 251 st. |
+| `o-region-piping.pes` | `9b94598a1e672cd0dc4b7cdeddfe2ba7db5d6af45ddf9fc9f6297f46195aea96` | Piping Stitch. 20,00 x 20,00 mm, 203 st. |
+| `o-region-radial.pes` | `a5f48eea40e075637cab26682beff921f210bca1f7a91432d4b52a262bd6a0c8` | Radial Stitch. 20,00 x 20,00 mm, 994 st. |
+| `o-region-spiral.pes` | `8d0ffa08cf6d6972ac455098ef296862844682775e75cf08e2f57175957a6cc9` | Spiral Stitch. 20,00 x 20,00 mm, 500 st. |
+| `o-region-stippling.pes` | `51d9bd2f74fcf358fbc02a9f54b14b52ed860b8fe0f6a61812dfdb1e2926bdf7` | Stippling Stitch. 20,00 x 20,00 mm, 108 st. |
+| `o-region-zigzag-net.pes` | `669f6dc460ec56fea9fc43aba50a41dbad9cc67f210318dcd23c103b5146f935` | Zigzag Net Fill Stitch. 20,00 x 20,00 mm, 767 st. |
+| `o-rounded-rect.pes` | `5c4094062c3ca2c23ed374c63fbd24645b8436fd7df30b549a390ab9d7887ca6` | Round Rectangle tool dragged (10,10)-(40,30). Line Running Stitch, region Not Sewn. 30,00 x 20,00 mm, 56 st. |
 | `o-text-transform-1.pes` | `4e7d824f7dc8840d27bd32f6db2074d571ac9d1cc15ac3df8c6e5688c8c7600e` | that text, Text Attributes > Transform ticked, first preset (row 1 left, the arched "ABC"). 23,00 x 8,00 mm, 348 st. |
 | `o-text-vertical.pes` | `f72efd958c8b031c44fd3314fbafd62669abb41fcec2d56511fcc7fe0a6b2e45` | the same text, Transform unticked again, Direction = vertical button (second). 8,00 x 24,40 mm, 407 st. |
 | `o-text-10-letters.pes` | `b873248689736452a1a09915048a5635c38c7d1feb329cb0c607a691853a2e3b` | Home > Text > first tool "A" (Lato, size 8.0, line Not Sewn, region Satin Stitch, 800 RED), click (10,50) mm, ABCDEFGHIJ, Direction horizontal; ten letter records in one text. 69,30 x 8,40 mm, 1141 st. |
@@ -87,11 +89,11 @@ Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows 11 Pro 10.0.26
 
 | File | SHA-256 | Made as |
 |---|---|---|
-| `obj-progfill-owner-v.pes` | `5adffe08327bccf391412e2ecf4264f3ec40258658685f239e7b554b6b7db4b3` | Rectangle tool dragged (20,20)-(50,40) mm, line Running Stitch (red, pitch 2.0), region Prog. Fill Stitch with the owner-drawn pattern owner-v.pas (compat/reference/pes; a V across the 8 x 8 cell, made in Programmable Stitch Creator), 7.5 x 7.5 mm, Direction 0, Offset row 0 %, Base Sewing off; region density 4.5, direction 45, under sewing off, 007 PRUSSIAN BLUE. 30,00 x 20,00 mm, 641 st. |
+| `obj-progfill-owner-v.pes` | `18b1f690af97c749f05b0a436f9f13aecf62555f255f1a96d6d2f768b4ec0e28` | Rectangle tool dragged (20,20)-(50,40) mm, line Running Stitch (red, pitch 2.0), region Prog. Fill Stitch with the owner-drawn pattern owner-v.pas (compat/reference/pes; a V across the 8 x 8 cell, made in Programmable Stitch Creator), 7.5 x 7.5 mm, Direction 0, Offset row 0 %, Base Sewing off; region density 4.5, direction 45, under sewing off, 007 PRUSSIAN BLUE. 30,00 x 20,00 mm, 641 st. |
 | ~~`obj-motif-fill-owner-v.pes`~~ | withdrawn 2026-11-13 | Removed from the repository: the capture's header motif list also held a PE-DESIGN built-in motif, which is Brother content (PE-DESIGN keeps a Pattern2 for every motif fill and fills it with its built-in motif, even under "Pattern1 only"). Replaced by the two clean captures below. |
-| `motif-fill-clean-p1.pes` | `9f3feffdca5994b76da4ac760733e96549ca6071f8a44e4d34a2d77462709c9f` | Round 13 (the coordinator's capture, 2026-11-13, PE-DESIGN 11.50, Windows 11 Pro): a 40 x 40 mm square (Rectangle tool); line Motif Stitch with the project's `psc-motif-zigzag-3pt.pmf` at 5,0 x 8,0 mm, Spacing 2,0; region Motif Stitch, Pattern1 the same motif at 8,0 x 8,0 mm, Pattern2 replaced by the project's `psc-motif-2pt.pmf` (so no built-in motif is listed), arrangement "Pattern1 only". 186 st in PE-DESIGN. The header lists only the project's two motifs. |
-| `motif-fill-clean-p1p2.pes` | `d23fce6809b4a0dbcbd9147e6d87307d364f676a0bacbfc3420d468e2acb7e89` | Round 13, the same with the arrangement "Pattern1 and 2". 194 st. |
-| `obj-motif-line-owner-v.pes` | `fc5acdc25795d540f46b9b7353b64203420057f69ae41d38129b6611e29f7082` | The same rectangle, region Not Sewn, line Motif Stitch with owner-v.pmf, 5.0 x 5.0 mm, H/V-Arrange first buttons, Offset 0.0, Spacing 0.0, Run pitch 5.0, Start/End Type Feed. 30,00 x 20,00 mm, 47 st. |
+| `motif-fill-clean-p1.pes` | `582bd05cf3045040a8f16c256dc50c1a37828a5d206c83f48e9c1f37aba5ca50` | Round 13 (the coordinator's capture, 2026-11-13, PE-DESIGN 11.50, Windows 11 Pro): a 40 x 40 mm square (Rectangle tool); line Motif Stitch with the project's `psc-motif-zigzag-3pt.pmf` at 5,0 x 8,0 mm, Spacing 2,0; region Motif Stitch, Pattern1 the same motif at 8,0 x 8,0 mm, Pattern2 replaced by the project's `psc-motif-2pt.pmf` (so no built-in motif is listed), arrangement "Pattern1 only". 186 st in PE-DESIGN. The header lists only the project's two motifs. |
+| `motif-fill-clean-p1p2.pes` | `1d16c0309eec8f6fd25ac3fd591d8974de247b67c5671515c7df3dee4aacd8ad` | Round 13, the same with the arrangement "Pattern1 and 2". 194 st. |
+| `obj-motif-line-owner-v.pes` | `60cfe1373c22f310f7b467a514f6029a639618984d92f94ab5ad5394cdbef22b` | The same rectangle, region Not Sewn, line Motif Stitch with owner-v.pmf, 5.0 x 5.0 mm, H/V-Arrange first buttons, Offset 0.0, Spacing 0.0, Run pitch 5.0, Start/End Type Feed. 30,00 x 20,00 mm, 47 st. |
 
 **Round 4 machine exports (#135):** made by the owner's PE-DESIGN 11.50 (Layout & Editing) on
 Windows 11 Pro 10.0.26300, 2026-10-29 11:43-11:47, by black-box GUI use only (track
@@ -127,7 +129,7 @@ not kept.
 | `m05-straight-1-density.pes` | `23ebb6122a4c4778f742461ccbb2d5b4bd83d4865070a44cf57cc00c49a271f5` | m01 (Satin), then density 6,0. 238 st. (Saved as "4,5.pes" by a missed click and renamed; content unchanged.) |
 | `m07-curve-1.pes` | `b970e05335f2d22649b139b7491ba5370b25209e7eed9bec5f04ccb631cab6c2` | Curve Block, the same four clicks as m01. 20,00 x 20,00 mm, 208 st. |
 | `m08-straight-1-line.pes` | `4f46a7198c97f11a443e139eae84b6316ea600a5e870a7bb31de6f441443a553` | m01, then line Running Stitch (run pitch 2,0 mm, run time 1, 007). 253 st. |
-| `m09-curve-bent.pes` | `9cc2dee22b3f5821ec5671751016e35cd6d580d4fc296a903fb991b5a3189f66` | Curve Block: clicks (10,10) (10,30) (30,20) (30,40) (50,10), double-click (50,30); the block sags through the middle pair. 40,00 x 30,00 mm, 421 st. |
+| `m09-curve-bent.pes` | `b7ddf48a62724dd7e5d636eea213a431d5236195e79c6d9b43953d45afc69a75` | Curve Block: clicks (10,10) (10,30) (30,20) (30,40) (50,10), double-click (50,30); the block sags through the middle pair. 40,00 x 30,00 mm, 421 st. |
 | `m10-curve-uneven.pes` | `ba4087375f473715217951a32b1b1f54f9cdcaac387e76dcb96c213c06124142` | Curve Block: clicks (10,10) (10,30) (20,25) (20,45) (60,10), double-click (60,30); unequal chords. 50,80 x 35,00 mm, 529 st. |
 | `m11-curve-4.pes` | `ce26049eadee96817d4bb716df8dc7bc2af4597a7762e7afc934820cef72d837` | Curve Block: clicks (10,10) (10,30) (25,25) (25,45) (45,25) (45,45) (60,10), double-click (60,30); four lines. 50,00 x 37,00 mm, 537 st. |
 
@@ -159,7 +161,7 @@ The PEC section is the empty form: no colours, a 13-byte stitch block with the d
 
 | File | SHA-256 | Made as |
 |---|---|---|
-| `oversize-hoop100.pes` | `492bdbcbf6a1a3c7894104320d84cd80790e2bdb99d5f5dade593399d201a1fc` | as above |
+| `oversize-hoop100.pes` | `09f0af888e86dbce3a4e7ff79a9010434dcc6b48c27bb06669a1b38b499a17c5` | as above |
 **Linen thread sample (#119/#136):** made by the owner's PE-DESIGN 11.50 (Layout & Editing),
 Windows 11 Pro 10.0.26300, 2026-10-30, black-box GUI use only (reference session). New (Hoop
 100 x 100), Rectangle (40,40)-(60,60) mm, line Not Sewn; Color tab, BROTHER EMBROIDERY, row
@@ -169,7 +171,7 @@ step 4.0, frequency 30 %); 20,00 x 20,00 mm, 707 st; Save As PES (#PES0110). Thr
 
 | File | SHA-256 | Made as |
 |---|---|---|
-| `thread-307-linen.pes` | `66ddd37bf00d39e984486a8368ad8cc2178575407c4cfecc068ce832590b7422` | as above |
+| `thread-307-linen.pes` | `11d775bda5f1696257c8ec2ee2a6dab5b9853118c2c3c4a349aeff9238ca8ef2` | as above |
 ## Round 5 (2026-10-30): Convert to Blocks
 
 Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows 11 Pro 10.0.26300,
@@ -182,8 +184,8 @@ Blocks; Save As "Layout & Editing Ver.11.0 File" (#PES0110).
 
 | File | SHA-256 | Made as |
 |---|---|---|
-| `stroke-blocks-H.pes` | `f687c993943d9f3323713a8f1bfa1bc696ec48e69834c28d42e1e574066b59f0` | H converted to blocks: one group of five blocks and three running pieces; 285 st (as the text). |
-| `stroke-blocks-A.pes` | `01e8ebc43e92ce52a5bc97659dbbf37bdd367473799bc67ede5bd4946218b2b7` | A converted to blocks: one group of five blocks and four running pieces; 293 st (the text: 290). |
+| `stroke-blocks-H.pes` | `94999fe43ef0a5e76196f0d3f37d5092fc5aedd80dcfe0fb1781248b5b03dbe1` | H converted to blocks: one group of five blocks and three running pieces; 285 st (as the text). |
+| `stroke-blocks-A.pes` | `cf6684d3ffbeb6d04d3b795a257fc8a3263f3bfa00cb0438b810b94dbf1e3831` | A converted to blocks: one group of five blocks and four running pieces; 293 st (the text: 290). |
 
 **Ver4 Option Color (#136):** made by the owner's PE-DESIGN 11.50 (Layout & Editing), Windows
 11 Pro 10.0.26300, 2026-10-30, black-box GUI use only (reference session; owner's round-4 log,
@@ -195,7 +197,7 @@ empty code, RGB on a 0/85/170/255 grid, type 0x0B, id string 66-94 (row n = 65 +
 
 | File | SHA-256 | Made as |
 |---|---|---|
-| `ver4-option-color-29.pes` | `ef52278a045822f4a7e97d1e687e55cf98bd76fc49464657cd3ce4160b3b79ff` | as above |
+| `ver4-option-color-29.pes` | `d61a1be3dcb661807da5c42e87752263a0c0b88431b8488117957a8e07829ffd` | as above |
 
 ## Round 6 (2026-10-31): groups
 
@@ -207,10 +209,10 @@ each 12 x 12 mm with its zigzag; a pair selected with a drag box, Home > Group >
 
 | File | SHA-256 | Made as |
 |---|---|---|
-| `group-partial.pes` | `f19726f9bfdd56a3b9a8685b490f4d23ab3150750541255fef8dd02f2265b4b6` | Squares at (10,10), (30,10), (50,10) mm; the first two grouped. 52 x 12 mm, 1257 st (the group 32 x 12 mm, 838 st). |
-| `group-two.pes` | `ff88f4d44d6f9cdc62fbbd6ebb6f2706c3dfa52c7b2cd0637d4858fb7c69a654` | group-partial with a fourth square at (70,10) mm; the last two grouped as well. 72 x 12 mm, 1676 st. |
-| `608-groups-three.pes` | `ef763695912398e9158eba548e7ede7756e975690a4e58f70eb958ace002220c` | Round 12 (2026-11-13, the coordinator's capture for #608, same PE-DESIGN and OS): a new page (the hoop page about 180 x 130 mm), six squares drawn with the Rectangle tool, about 10 mm each and about 15 mm apart in a row, at that PC's defaults (region Fill, line Zigzag); grouped 1+2, then 3+4, then 5+6 (each pair with a selection box, Home > Group > Group). |
-| `608-groups-3-and-2.pes` | `9633bab3ecfffdb558124621c8630718731a4a0d9f7143bab71e5a60ab0f2d87` | Round 12, the same way: five squares; 4+5 grouped first, then 1+2+3. |
+| `group-partial.pes` | `2013163b265da93528f741bfc576b6b66bbc6f42a040fc6959031c60d2d4361d` | Squares at (10,10), (30,10), (50,10) mm; the first two grouped. 52 x 12 mm, 1257 st (the group 32 x 12 mm, 838 st). |
+| `group-two.pes` | `cbb8d591820f18acbdd93c4863a8fda2acb985e108df7e8abf96dced5756b482` | group-partial with a fourth square at (70,10) mm; the last two grouped as well. 72 x 12 mm, 1676 st. |
+| `608-groups-three.pes` | `99b642266081038d659d6deb0fd6b2efa2f9c3ccdd661170d1d60078a939ff2e` | Round 12 (2026-11-13, the coordinator's capture for #608, same PE-DESIGN and OS): a new page (the hoop page about 180 x 130 mm), six squares drawn with the Rectangle tool, about 10 mm each and about 15 mm apart in a row, at that PC's defaults (region Fill, line Zigzag); grouped 1+2, then 3+4, then 5+6 (each pair with a selection box, Home > Group > Group). |
+| `608-groups-3-and-2.pes` | `44ba625b791eda30ebffa890e4cba689e5733bd94a13ac288a75caa308909de0` | Round 12, the same way: five squares; 4+5 grouped first, then 1+2+3. |
 | `608-motif-size-spacing.pes` | `20a30e3dc1588fb3b94ce5fd5126bff076126f8519babd99ec40888e56d45c76` | Round 12: a 40 x 40 mm square (Rectangle tool); region Not Sewn; line Motif Stitch with the project's own `psc-motif-zigzag-3pt.pmf` (drawn in Programmable Stitch Creator in round 4, `compat/reference/pes/`), motif 5,0 x 5,0 mm (Maintain aspect ratio off), H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Start/End Type Feed. 75 st. |
 | `608-motif-5x8.pes` | `93c51c89ad0d85022edd0d30414607c6d51269c5d658b5c3ea4b741fda2b890a` | Round 13 (2026-11-13): as 608-motif-size-spacing with the motif 5,0 mm wide (the lower field, horizontal arrow) and 8,0 mm high (the upper field, vertical arrow). 75 st. |
 
@@ -228,21 +230,21 @@ Custom Size pages ("Use smaller section sizes" off) the greyed hoop is the last 
 
 | File | SHA-256 | Made as |
 |---|---|---|
-| `hoops/s-100x100.pes` | `bfab06be36d1e03ede2a92d4b0e34c414a891df0b044e3c8548e9420b244e8ca` | single-needle, Hoop Size 100 x 100 mm |
-| `hoops/s-130x180.pes` | `f7d65d78021031a9e245700364f69595999f8f065df3168d67f34c64cffea3c0` | single-needle, Hoop Size 130 x 180 mm |
-| `hoops/s-130x180-rot90.pes` | `f2d0865f8ed706ef735f684883c73ebc5df8ac4a41f15cc6861725001090850c` | single-needle, Hoop Size 130 x 180 mm, Rotate 90 Degrees |
-| `hoops/s-160x260-color.pes` | `80db94f6a17ad7d566adc3c071ee873e46585e57e918cdf33875bc071f7d19a6` | single-needle, Hoop Size 160 x 260 mm (Color LCD) |
-| `hoops/s-200x300.pes` | `d5246e7e8a76ff1a7e4427d114eefaf5368d92f03c1a9b4fceaf828f617fed70` | single-needle, Hoop Size 200 x 300 mm |
-| `hoops/s-240x360.pes` | `87fcfc688322ebf30786846d50b269e90baf1193310e36b7b33d7e7eec0d985f` | single-needle, Hoop Size 240 x 360 mm |
-| `hoops/m-100x100-S.pes` | `dc16a00322a7f93d63f2aa0a05ed3bd9d353a42a05b59e38bbec52399ee2167b` | multi-needle, Hoop Size 100 x 100 mm nv880e-S |
-| `hoops/s-180x300.pes` | `51dce2e700f992cfd1264263f8ad14af44b222b7ae06688ad1c991b657a06dba` | single-needle, Hoop Size 180 x 300 mm |
-| `hoops/s-150x150-quilt.pes` | `7b213e5224820707f508162491078d68527dad29e1a0dfd628c6078ce20e181c` | single-needle, Hoop Size 150 x 150 mm (Quilt Frame) |
-| `hoops/m-150x150-M.pes` | `c1ab7017adf7e8c5a4ea52963c10103e3802b03d84188f406bf5858257b5e90f` | multi-needle, Hoop Size 150 x 150 mm nv880e-M |
-| `hoops/m-260x160-L.pes` | `dca0287ac48fcfda27c5ff19722205a3a480e65e45bf07280166ea5f4287ba86` | multi-needle, Hoop Size 260 x 160 mm nv880e-L |
-| `hoops/m-180x100-border.pes` | `76443b08a55fbfd1357880dd91f676dd55bce6a77e5c98c70fb2804df66f002b` | multi-needle, Hoop Size 180 x 100 mm (Border Frame) |
-| `hoops/m-round-100.pes` | `097e33aabbb08bbf1906205373cdefce5a14375692a1ce9bd104f370b3137c13` | multi-needle, Hoop Size ø100 mm (Round Frame) |
-| `hoops/s-custom-300x200.pes` | `15d73c6aaa7eec8529cfd264658d979c15904efc9708341e3b8d622a90ae49c3` | single-needle, Custom Size 300 x 200 mm, Section Size 90 x 90 (100 x 100); preview 4 x 3 sections |
-| `hoops/m-custom-300x200.pes` | `d480cb1290bf8b10824c9a53e9bacb4b611cf270e6067cfca46ae271e56a27c6` | multi-needle, Custom Size 300 x 200 mm, Section Size 290 x 190 (300 x 200); preview 2 x 2 sections; greyed hoop ø100 Round |
+| `hoops/s-100x100.pes` | `6d70322c9d71e9e5cb3d4c881b1c9dd12ff2703bd6fbcce5025b0fb190dc144d` | single-needle, Hoop Size 100 x 100 mm |
+| `hoops/s-130x180.pes` | `1344a1239f44a3d582e11d352d02f705cbe2fe964c3381793b930109b8a91ee2` | single-needle, Hoop Size 130 x 180 mm |
+| `hoops/s-130x180-rot90.pes` | `6bcd6bd198a407124539fbf3c2ebef40c47743097bc2e2ad97a9df3f973499e7` | single-needle, Hoop Size 130 x 180 mm, Rotate 90 Degrees |
+| `hoops/s-160x260-color.pes` | `64abe7460e03a8941f68b3e94385f89e9e66aeb1b6bf02f0e267d161c8ce2476` | single-needle, Hoop Size 160 x 260 mm (Color LCD) |
+| `hoops/s-200x300.pes` | `d805489869cb964aae208e5ec2a6a7c44829854846966d398367c28568f1c90e` | single-needle, Hoop Size 200 x 300 mm |
+| `hoops/s-240x360.pes` | `04fc458681e36cc41e75ac9f57ed4854486fb8bfcb08f1940a50107f6c1bbdb3` | single-needle, Hoop Size 240 x 360 mm |
+| `hoops/m-100x100-S.pes` | `4147ad67abb073f9314c585a099e2090854102f2c6bbaa4fd1201fa79156da09` | multi-needle, Hoop Size 100 x 100 mm nv880e-S |
+| `hoops/s-180x300.pes` | `db77047a0ea93e2502783a639c66465c94f6ba0d6d99122d651d6de8f2b47622` | single-needle, Hoop Size 180 x 300 mm |
+| `hoops/s-150x150-quilt.pes` | `ab2df7c003661a82ba3529bf00e8f6fb247a77e438bffa82334ec0a142b4ed50` | single-needle, Hoop Size 150 x 150 mm (Quilt Frame) |
+| `hoops/m-150x150-M.pes` | `e753d2ddf09aa3b8b5c2dd798800b35189d6082cc1a746ae9a9732ad44d060ec` | multi-needle, Hoop Size 150 x 150 mm nv880e-M |
+| `hoops/m-260x160-L.pes` | `889f7cc916edec3aea1f3f76a77cad96e7590c81cc77ee1b6e07c8a2656552d0` | multi-needle, Hoop Size 260 x 160 mm nv880e-L |
+| `hoops/m-180x100-border.pes` | `d14d311021a9f83756b318d97d90cd3f93f6208ca0be686e825e095dfab469d0` | multi-needle, Hoop Size 180 x 100 mm (Border Frame) |
+| `hoops/m-round-100.pes` | `f42775fed6d6371d895a8ad6a66fb02aa7340065f5ca4c629a1c4d45aa9304a2` | multi-needle, Hoop Size ø100 mm (Round Frame) |
+| `hoops/s-custom-300x200.pes` | `b3cd7307bfc8435bc75fadd5b8202b69024b0ecc5b3e38efe4afd68dcf3e0d01` | single-needle, Custom Size 300 x 200 mm, Section Size 90 x 90 (100 x 100); preview 4 x 3 sections |
+| `hoops/m-custom-300x200.pes` | `35047b0339cae36f6b6ab5dd3e84cb86f0b416d5f4c232121b5b57a08e1539e9` | multi-needle, Custom Size 300 x 200 mm, Section Size 290 x 190 (300 x 200); preview 2 x 2 sections; greyed hoop ø100 Round |
 
 
 ## Captures of 2026-11-07 (`captures-2026-11-07/`, coordinator, black-box GUI use only)
@@ -295,16 +297,16 @@ Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows 11 Pro on 2026
 
 | `miter/` file | bytes | SHA-256 |
 |---|---|---|
-| `miter-a-sc1-m0.pes` | 22007 | `659b52c0c85210d903200c8f7570e57d1e52110386c1c9c028ad070a3be347fb` |
-| `miter-a-sc2-m0.pes` | 22007 | `beafd6bc5cfc628863488b08f691da7db057a8ec39ff2b3eb48d80ce21ab6020` |
-| `miter-a-sc2-m7auto.pes` | 22007 | `b226414dfed9400f2e1f7b871b219fcaf6e6e796d01636238be5d0133c932edd` |
-| `miter-b-sc1-m0.pes` | 7048 | `26a33bada5c52923a3b4752b1dae225d816c9ef7e4240e452f3e374ceedb3757` |
-| `miter-b-sc1-m1.pes` | 7066 | `1ed35809f43a3f985b8c7660261db2c11e37da0328a59e0e15a2fe49bac76820` |
-| `miter-b-sc1-m3.pes` | 7086 | `177991f08aee83d21939efa1a457dac2bad04b62afd2558d3a6f3a024e282d28` |
-| `miter-b-sc1-max50.pes` | 7090 | `26c2669a1559c08407928768fb8c225ce6b832d1a48d85e79f39c53aac052c40` |
-| `miter-b-sc2-m0.pes` | 7058 | `426c039d279a8db1f732e4fb6a0c7261ab9fb6a294781205317e6ac1d9f92543` |
-| `miter-b-sc2-m3.pes` | 7118 | `cccffad8e96657fd86fc64557396bd93e13fc7ebd16a30d69740d513654c7082` |
-| `miter-b-sc2-m50.pes` | 7118 | `62de0afa94d62a0cd1cb0210d199ae18548525649749e488f2007a9531533728` |
+| `miter-a-sc1-m0.pes` | 22007 | `fe6f6bba47419b99050c448c99b39b46ab817f9c7256f4c68720386e54aafa3c` |
+| `miter-a-sc2-m0.pes` | 22007 | `5025a915973e7e6c310c198e4354edf3df3493d5d5a4f3bb44f9e0888b186443` |
+| `miter-a-sc2-m7auto.pes` | 22007 | `07948534e6fbb08990d3cb84305954185299f0af6e80bdadaf4bac29199ab940` |
+| `miter-b-sc1-m0.pes` | 7048 | `ac24934929e35759028f1718d92ee226022fe6bc1853ec82b2bbf40a59a7dafd` |
+| `miter-b-sc1-m1.pes` | 7066 | `1f6d4473f35c07be4f35ddf9714ae292da78349ef600431e4b94a4628bb6bdf6` |
+| `miter-b-sc1-m3.pes` | 7086 | `da775297d88f8adf11d3fafc09768f0378c266d42df314244fe9b782009efed5` |
+| `miter-b-sc1-max50.pes` | 7090 | `d9e3a00e3a687a63302ee820ae1e42b97ff0fa3fdff9dcfea8b7f45ad8c68811` |
+| `miter-b-sc2-m0.pes` | 7058 | `4037f3ee2198c54dc0238a49cea2de63dda4675121af35e545c7363a56fc04ac` |
+| `miter-b-sc2-m3.pes` | 7118 | `790e55c4b8080cdd8ccc5ad8aa5007f16431118c888ee0ed883039d19ee65763` |
+| `miter-b-sc2-m50.pes` | 7118 | `549457799cc5f6f9c8405b0e4b1d4c8c7d0d1165c1b047930a717ad6e28958c5` |
 
 ## Captures of 2026-11-13 (`captures-2026-11-13/`, coordinator, black-box GUI use only)
 
@@ -316,3 +318,20 @@ Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows on 2026-11-13 
 |---|---|---|
 | `moves.pes` | 2471 | `554a52d1d6db622c201a6aa960f5d6712eb3adaa658a5703629072f154deb754` |
 | `pe-moves.SHV` | 3154 | `3e0ba37103c3510dc25f4a964bb0c9ce265a62b58cae0f59445983515674c3d9` |
+
+## Captures of 2026-11-14 (`captures-2026-11-14/`, coordinator, black-box GUI use only)
+
+Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows on 2026-11-14 (capture round 14), for issue #989. The inputs are OpenStitch's own test designs (running stitches only); the outputs are PE-DESIGN's exports of them, kept here to check the SHV preview's size and drawing.
+
+**`machine/` (#989):** `preview-ruler-2.pes` has 15 horizontal running lines 2.1 mm apart (y 10.0 … 39.4 mm, x 10–40) and 15 vertical ones 2.1 mm apart (x 50.0 … 79.4, y 10–40); `preview-width-59p0.pes`, `-59p5.pes` and `-60p0.pes` are one running-stitch rectangle outline, 30 mm tall and 59.0, 59.5 and 60.0 mm wide. Each was opened in PE-DESIGN with no warning (status bar 69,40 × 30,00; 59,00, 59,50 and 60,00 × 30,00 mm), then App menu > Export > "Husqvarna/Viking (*.SHV)" as `pe-<name>.SHV`, with no dialog. Nothing else was changed or saved.
+
+| `machine/` file | bytes | SHA-256 |
+|---|---|---|
+| `preview-ruler-2.pes` | 4641 | `ae8432179f099084960f83f126119c07dfc8b082ff521f986f6efa5614f832a6` |
+| `pe-preview-ruler-2.SHV` | 2336 | `4221040d46b4b91b524e1ec55181e56bea9e02e96da710ee5f2d97df63f57820` |
+| `preview-width-59p0.pes` | 2090 | `4be7264a186228d7c456155253ad759fc10ce402116720eeeb62952a27b0c7b2` |
+| `pe-preview-width-59p0.SHV` | 1333 | `767047e8b2e71aa5592c7a0f00ee18124614cf6a5268cfd7cfb531c7e6f95bb0` |
+| `preview-width-59p5.pes` | 2090 | `a333b1dbbbee31cfd68323245be036c5543fb298e3954adb910c5c26254c674b` |
+| `pe-preview-width-59p5.SHV` | 1333 | `e9e74cdf3a4308d1c59ae99b5c0c2a48bc2fa2d9cf234d248bcfd87a5ed235de` |
+| `preview-width-60p0.pes` | 2090 | `0534a75021d9e04206ce2568aebc34b1de6f6516c585236a033c3450f7b5f0b8` |
+| `pe-preview-width-60p0.SHV` | 1333 | `8351354d27966549b686d46d8e25d39c0c5914c77f9180c241ffdabbab1f1f42` |
