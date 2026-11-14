@@ -206,8 +206,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `bandTile` (mm per copy), `bandMirror`; `motifBand: "none"` back to satin.
    Borders, quilting and crazy-quilt seams (beyond PE-DESIGN): `object.setLine {type: chevron |
    cretan | feather | overlock | alternatingTriangles | doubleZigzag | lattice | stripes, width,
-   spacing}` (`height` sets the chevron bar or Cretan/feather side stitch, `strands` a lattice's
-   or the stripes' count, `gaps: [1, 2, 1]` pinstripes); overlock edges a patch or appliqué,
+   spacing}` (`spacing` the zigzag period, except stripes, which have none; `height` sets the
+   chevron bar or Cretan/feather side stitch, `strands` a lattice's or the stripes' count,
+   `gaps: [1, 2, 1]` pinstripes); overlock edges a patch or appliqué,
    feather and Cretan suit crazy quilts, a lattice or double zigzag reads as a braid or lace;
    an E stitch's `prongAngle: 45` slants its prongs.
    Hand-made lines (beyond PE-DESIGN): `object.setLine {type: backStitch}` for redwork and

@@ -665,15 +665,38 @@ fn untied_thread_ends_are_found_and_the_fix_ties_them() {
 }
 
 /// #866 with #1013: PE-DESIGN's stitch in place at a one-step tie-in on a Hoop Size page is
-/// intended, so `inPlace`, `stacked`, `shortStitch` and `untied` must not report it. A stitch
-/// file cannot carry it (the importer drops zero-length stitches, as PE-DESIGN does), so this
-/// runs on the compiled design once #1013 lands.
+/// intended (#1055), so `inPlace`, `stacked`, `shortStitch` and `untied` must not report it.
+/// PE-DESIGN's default 100 × 100 mm Hoop Size page with an 8 mm Lato Bold K, as #1055's own test
+/// (`a_one_step_tie_in_starts_on_a_stitch_in_place_on_a_hoop_size_page`): its strokes start
+/// with one-step tie-ins, each on a stitch in place.
 #[test]
-#[ignore = "after #1013 merges: a design on a Hoop Size page whose tie-in stitches in place"]
 fn a_stitch_in_place_tie_in_is_not_reported() {
     let mut s = Session::new(std::env::temp_dir());
-    run(&mut s, "machine.set", json!({"hoop": "100x100"}));
-    tatami(&mut s, 10.0);
+    run(
+        &mut s,
+        "design.new",
+        json!({"width": 100, "height": 100, "pageMode": "hoop"}),
+    );
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "K", "font": "lato-bold", "size": 8, "x": 20, "y": 70, "fill": "Red"}),
+    );
+    assert!(s.design().hoop_size_page());
+    // The stitch in place is there: a needle drop within 0.05 mm of the point the frame just
+    // moved to.
+    let st = openstitch_design::Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches;
+    let in_place = st.windows(2).any(|w| {
+        matches!(w[0].command, Command::Jump | Command::Trim)
+            && w[1].command == Command::Stitch
+            && (w[0].x - w[1].x).hypot(w[0].y - w[1].y) < 0.5
+    });
+    assert!(
+        in_place,
+        "a Hoop Size page sews the stitch in place (#1055)"
+    );
     let c = run(
         &mut s,
         "design.check",

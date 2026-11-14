@@ -1,8 +1,8 @@
 //! Every sewing setting must change the stitches (#880, part 1). For every region and line type
 //! the inspector offers, each control it shows (the same `inspector::region_controls` /
 //! `line_controls` table, so a new setting is tested as soon as the inspector shows it) is set
-//! on three small fixtures (a rectangle, a concave U and a five-point star, so corner, travel and
-//! path settings have something to act on) and the compiled stitches are compared; a setting
+//! on six small fixtures ([`fixture_shape`]: straight, concave, pointed, split, curved and, for
+//! lines, open, so corner, travel, curve and open-line settings have something to act on) and the compiled stitches are compared; a setting
 //! passes when it changes them on at least one:
 //!
 //! - a number at 30 % and at 70 % of its range must give different stitches, and where
@@ -166,60 +166,12 @@ const KNOWN: &[(&str, &str)] = &[
         "#1039: Gradation steps change nothing with a gradation pattern on (2-20 steps)",
     ),
     (
-        r#"r:satin spacingAt (with {"autoDirection":true})"#,
-        "#1040: Auto-direction satin ignores the column spacing profile",
-    ),
-    (
-        r#"r:satin pullLeft (with {"autoDirection":true})"#,
-        "#1040: Auto-direction satin ignores pull left",
-    ),
-    (
-        r#"r:satin pullRight (with {"autoDirection":true})"#,
-        "#1040: Auto-direction satin ignores pull right",
-    ),
-    (
-        r#"r:satin pullPercent (with {"autoDirection":true})"#,
-        "#1040: Auto-direction satin ignores pull % of width",
-    ),
-    (
-        r#"r:satin halfStitch (with {"autoDirection":true})"#,
-        "#1040: Half Stitch changes nothing on these auto-direction satins",
-    ),
-    (
-        r#"r:satin cornerStyle (with {"autoDirection":true}): turn and mitre"#,
-        "#1040: Auto-direction satin corners: turn, mitre and cap sew the same",
-    ),
-    (
-        r#"r:satin cornerStyle (with {"autoDirection":true}): turn and cap"#,
-        "#1040: Auto-direction satin corners: turn, mitre and cap sew the same",
-    ),
-    (
         r#"r:satin cornerStyle (with {"autoDirection":true}): mitre and cap"#,
-        "#1040: Auto-direction satin corners: turn, mitre and cap sew the same",
+        "#1040: Auto-direction satin corners: mitre and cap sew the same",
     ),
     (
         r#"r:satin underlayStyle: edgeZigzag and edgeFill"#,
         "#1041: Satin region: edge-fill under sewing sews as edge zigzag",
-    ),
-    (
-        r#"r:programmableFill frequency"#,
-        "#1042: Programmable fill frequency changes nothing (0-50 %)",
-    ),
-    (
-        r#"r:zigzagNetFill angle"#,
-        "#1043: Zigzag net fill direction changes nothing (-360 to 360)",
-    ),
-    (
-        r#"r:fill stitchType"#,
-        "#1044: Fill stitch type 1 (flat rows) and 2 (sloped rows) sew the same on these shapes",
-    ),
-    (
-        r#"r:crossStitch travel"#,
-        "#1045: Cross stitch travel on and off sew the same on these shapes",
-    ),
-    (
-        r#"r:fill runningStitchPath: inside and insideHidden"#,
-        "Not a bug: insideHidden differs from inside only on an open fill (low density, #628)",
     ),
     (
         r#"r:satin runningStitchPath: inside and insideHidden"#,
@@ -238,10 +190,6 @@ const KNOWN: &[(&str, &str)] = &[
         "#1046: Thickness profiles other than arc sew the same with the default passes",
     ),
     (
-        r#"l:zigzag halfStitch"#,
-        "#1047: Half stitch on a zigzag line changes nothing on these shapes",
-    ),
-    (
         r#"l:satin cornerStyle: mitre and cap"#,
         "#1048: Satin line corners: mitre and cap sew the same",
     ),
@@ -252,14 +200,6 @@ const KNOWN: &[(&str, &str)] = &[
     (
         r#"l:satin capMaxLength (with {"cornerStyle":"auto"})"#,
         "#1048: Satin line: cap max length changes nothing with auto corners",
-    ),
-    (
-        r#"l:stripes spacing"#,
-        "#1049: Stripes line: spacing changes nothing (0.5-20 mm)",
-    ),
-    (
-        r#"l:ripple spacing"#,
-        "#1049: Ripple line: spacing changes nothing (0.5-20 mm)",
     ),
 ];
 
@@ -282,9 +222,10 @@ impl Side {
     }
 }
 
-/// The compiled stitches, as comparable values (0.01 mm).
+/// The compiled stitches, as comparable values (0.01 mm), with the design's own settings (trim
+/// and travel distances) as an export compiles them.
 fn stitches(d: &Design) -> Vec<(i64, i64, u8)> {
-    Compiler::default()
+    Compiler::for_design(d)
         .compile(d)
         .stitches
         .iter()
@@ -304,8 +245,37 @@ struct Fixture {
     side: Side,
 }
 
-/// The fixtures' outlines, mm: a 20 × 14 mm rectangle, a concave U (two arms, so a fill splits
-/// and travels) and a five-point star (acute and reflex corners).
+/// The fixtures, mm: a 20 × 14 mm rectangle, a concave U (two arms, so a fill splits and
+/// travels), a five-point star (acute and reflex corners), a C (a cross-stitch grid splits into
+/// pieces), an ellipse (curved, for settings that act only on curves, #1047), for lines only
+/// an open line (for settings of open lines, #1049) and a dumbbell (a cross-stitch grid in two
+/// pieces, which its travel joins, #1045).
+fn fixture_shape(shape: usize) -> (&'static str, Value) {
+    match shape {
+        3 => (
+            "shape.polygon",
+            json!({"points": [[10, 10], [50, 10], [50, 18], [18, 18], [18, 42], [50, 42], [50, 50], [10, 50]]}),
+        ),
+        // Tight enough at its ends (2 mm radius) to crowd a zigzag's inner side.
+        4 => (
+            "shape.ellipse",
+            json!({"cx": 30, "cy": 25, "rx": 9, "ry": 4}),
+        ),
+        5 => (
+            "shape.polygon",
+            json!({"points": [[10, 30], [20, 15], [32, 28], [44, 12], [56, 26]], "closed": false}),
+        ),
+        // Two 20 mm squares joined by a 1 mm neck, narrower than a cross-stitch cell: the grid
+        // is two pieces, which travel joins inside instead of a trim (#1045).
+        6 => (
+            "shape.polygon",
+            json!({"points": [[10, 10], [30, 10], [30, 19.5], [45, 19.5], [45, 10], [65, 10], [65, 30], [45, 30], [45, 20.5], [30, 20.5], [30, 30], [10, 30]]}),
+        ),
+        k => ("shape.polygon", json!({ "points": outline(k) })),
+    }
+}
+
+/// The polygon fixtures' outlines.
 fn outline(shape: usize) -> Vec<[f64; 2]> {
     match shape {
         0 => vec![[10.0, 10.0], [30.0, 10.0], [30.0, 24.0], [10.0, 24.0]],
@@ -329,17 +299,22 @@ fn outline(shape: usize) -> Vec<[f64; 2]> {
     }
 }
 
-const SHAPES: usize = 3;
+const SHAPES: usize = 7;
 
 impl Fixture {
     /// Fixture `shape` sewn only as `side`, of type `kind` (an inspector type id).
     fn new(side: Side, kind: &str, shape: usize) -> Option<Self> {
         let mut session = Session::new(std::env::temp_dir());
-        let params = match side {
-            Side::Region => json!({"points": outline(shape), "fill": "Red"}),
-            Side::Line => json!({"points": outline(shape), "outline": "Black"}),
-        };
-        let id = session.execute("shape.polygon", Some(&params)).ok()?["id"].as_u64()?;
+        let (command, mut params) = fixture_shape(shape);
+        if side == Side::Region && params["closed"] == json!(false) {
+            // An open line has no region.
+            return None;
+        }
+        match side {
+            Side::Region => params["fill"] = json!("Red"),
+            Side::Line => params["outline"] = json!("Black"),
+        }
+        let id = session.execute(command, Some(&params)).ok()?["id"].as_u64()?;
         let mut f = Fixture { session, id, side };
         f.set(&json!({ "type": kind })).ok()?;
         Some(f)
@@ -369,13 +344,13 @@ impl Fixture {
 }
 
 /// A fresh fixture of `kind` with `state` (a control's parameters) applied first.
-fn fixture(side: Side, kind: &str, shape: usize, state: &Value) -> Fixture {
-    let mut f = Fixture::new(side, kind, shape).unwrap_or_else(|| panic!("{kind}: no fixture"));
+fn fixture(side: Side, kind: &str, shape: usize, state: &Value) -> Option<Fixture> {
+    let mut f = Fixture::new(side, kind, shape)?;
     if !state.as_object().is_some_and(|o| o.is_empty()) {
         f.set(state)
             .unwrap_or_else(|e| panic!("{kind} {state}: {e}"));
     }
-    f
+    Some(f)
 }
 
 type Stitches = Vec<(i64, i64, u8)>;
@@ -387,16 +362,15 @@ fn with(
     shape: usize,
     state: &Value,
     params: &Value,
-) -> Result<Stitches, String> {
-    let mut f = fixture(side, kind, shape, state);
-    f.set(params)?;
-    Ok(stitches(f.session.design()))
+) -> Option<Result<Stitches, String>> {
+    let mut f = fixture(side, kind, shape, state)?;
+    Some(f.set(params).map(|()| stitches(f.session.design())))
 }
 
-/// The stitches on every fixture.
+/// The stitches on every fixture that takes this type (an open line has no region).
 fn on_all(side: Side, kind: &str, state: &Value, params: &Value) -> Result<Vec<Stitches>, String> {
     (0..SHAPES)
-        .map(|k| with(side, kind, k, state, params))
+        .filter_map(|k| with(side, kind, k, state, params))
         .collect()
 }
 

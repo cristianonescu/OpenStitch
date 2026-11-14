@@ -1199,7 +1199,9 @@ Desktop, IDEs) take the same command and arguments in their MCP server configura
 
 - Work on a branch and open a pull request to `main`; nobody pushes to `main` directly.
 - A PR is merged once it is mergeable, its light local checks pass and the private-details
-  scan is clean, without waiting for its CI run; CI runs on every PR and on `main`, and must
+  scan is clean (`python3 -I tools/private_scan.py --diff main` before a push: no local folder
+  paths, user folders or personal e-mail addresses; CI's `secrets` job scans the whole tree,
+  #1057), without waiting for its CI run; CI runs on every PR and on `main`, and must
   be green on all three operating systems before a release. Scripts that wait for CI must
   treat a cancelled (superseded) run as pending; see
   [docs/RELEASING.md](docs/RELEASING.md#merging-pull-requests).

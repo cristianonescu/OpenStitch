@@ -967,8 +967,10 @@ fn a_moved_node_leaves_no_needle_drop_at_the_old_start_point() {
 }
 
 /// #616: PE-DESIGN 11.50's zigzag net (`o-region-zigzag-net.pes`: a 20 mm square drawn with the
-/// Rectangle tool, whose region Direction is 45°) sews its square net on the page axes, the
-/// lines 8 mm apart from half a band (1.5 mm) inside the left and top edges. OpenStitch's
+/// Rectangle tool, its region switched to Zigzag Net Fill) sews its square net on the page axes,
+/// the lines 8 mm apart from half a band (1.5 mm) inside the left and top edges. The switch
+/// sets the Direction to 0, PE-DESIGN's default for the type (round 13: a 45° fill switched to
+/// zigzag net shows Direction 0, #1043). OpenStitch's
 /// needle points lie on PE-DESIGN's: on average within 0.2 mm both ways, with the shapes'
 /// corners aligned (PES stores stitches around the design's centre).
 #[cfg(feature = "formats")]
@@ -988,8 +990,8 @@ fn zigzag_net_sews_on_the_page_axes_as_pe_design_does() {
     );
     let angle = s.design().objects[0].region.as_ref().expect("region").angle;
     assert!(
-        (angle - 45.0).abs() < 1e-9,
-        "the Direction stays 45°: {angle}"
+        angle.abs() < 1e-9,
+        "the switch sets PE-DESIGN's default Direction 0: {angle}"
     );
     let points = |stitches: &[openstitch_core::Stitch]| -> Vec<(f64, f64)> {
         let pts: Vec<(f64, f64)> = stitches
@@ -2087,4 +2089,117 @@ fn flow_fill_goes_through_the_command() {
         .is_err(),
         "only fills"
     );
+}
+
+/// A 30 × 20 mm zigzag net at `angle` with PE-DESIGN's round-13 settings (Spacing 5.0 and
+/// Density 4.5 there, OpenStitch's band pitch 8.0 mm and 2.25 rung pairs per mm; width 3.0 mm,
+/// under sewing on), compiled.
+fn zigzag_net(angle: Option<f64>) -> Vec<openstitch_core::Stitch> {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+    );
+    let mut p = json!({"id": 1, "type": "zigzagNetFill", "spacing": 8.0, "density": 2.25,
+        "patternWidth": 3.0, "underlay": true});
+    if let Some(a) = angle {
+        p["angle"] = json!(a);
+    }
+    run(&mut s, "object.setRegion", p);
+    Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches
+}
+
+/// The net's main stitch direction, degrees modulo 90 on screen (y down): the peak of the
+/// stitch angles over stitches of 1 mm and longer, counted in 5° windows (a turned line's
+/// stitches spread over neighbouring 1° bins).
+fn main_direction(st: &[openstitch_core::Stitch]) -> f64 {
+    let mut bins = [0usize; 90];
+    for w in st.windows(2) {
+        if w[0].command == Command::Stitch && w[1].command == Command::Stitch {
+            let (dx, dy) = (w[1].x - w[0].x, w[1].y - w[0].y);
+            if dx.hypot(dy) >= 10.0 {
+                bins[(dy.atan2(dx).to_degrees().rem_euclid(90.0) as usize) % 90] += 1;
+            }
+        }
+    }
+    let window = |k: usize| (0..5).map(|d| bins[(k + 88 + d) % 90]).sum::<usize>();
+    (0..90).max_by_key(|&k| window(k)).expect("bins") as f64
+}
+
+/// #1043: Direction turns the zigzag net, as PE-DESIGN 11.50 does (round 13,
+/// zigzag-net-dir30/45/90: main stitch directions 155°/65°, 50°/140° and 0°/90° on screen, from
+/// a net counter-clockwise by the Direction), within 6°; 0° is the net as before (its stitches
+/// pinned by their hash).
+#[test]
+fn direction_turns_the_zigzag_net() {
+    let dist = |a: f64, b: f64| {
+        let d = (a - b).rem_euclid(90.0);
+        d.min(90.0 - d)
+    };
+    for angle in [30.0, 45.0, 90.0] {
+        let got = main_direction(&zigzag_net(Some(angle)));
+        // Counter-clockwise on screen with y down: −angle, modulo 90.
+        let want = (-angle).rem_euclid(90.0);
+        assert!(
+            dist(got, want) <= 6.0,
+            "{angle}°: main direction {got}°, expected {want}° ± 6"
+        );
+    }
+    // 0°: the net on the axes, stitch for stitch as before #1043.
+    let st = zigzag_net(Some(0.0));
+    assert!(dist(main_direction(&st), 0.0) <= 6.0, "0°: on the axes");
+    let hash = st.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, q| {
+        let v = [
+            (q.x * 100.0).round() as i64,
+            (q.y * 100.0).round() as i64,
+            q.command as i64,
+        ];
+        v.iter()
+            .fold(h, |h, x| (h ^ (*x as u64)).wrapping_mul(0x0100_0000_01b3))
+    });
+    assert_eq!((st.len(), hash), ZIGZAG_NET_0, "the 0° zigzag net changed");
+}
+
+/// The 0° zigzag net of [`zigzag_net`] as main sews it without #1043 (with #1055's stitch in
+/// place before the one-step tie-in, as the page is a Hoop Size one): stitch count and hash.
+const ZIGZAG_NET_0: (usize, u64) = (972, 6_462_209_893_352_527_947);
+
+/// #1043: a switch to zigzag net sets Direction 0 (PE-DESIGN's default for the type, round 13);
+/// an angle given with the switch is kept; other types keep the previous Direction.
+#[test]
+fn a_switch_to_zigzag_net_starts_at_direction_zero() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 20, "height": 20, "fill": "Red"}),
+    );
+    let angle = |s: &Session| s.design().objects[0].region.as_ref().expect("region").angle;
+    assert_eq!(angle(&s), 45.0, "a new fill starts at 45°");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "zigzagNetFill"}),
+    );
+    assert_eq!(angle(&s), 0.0);
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "fill", "angle": 30}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "zigzagNetFill", "angle": 30}),
+    );
+    assert_eq!(angle(&s), 30.0, "an explicit angle is kept");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "satin"}),
+    );
+    assert_eq!(angle(&s), 30.0, "other switches keep the Direction");
 }

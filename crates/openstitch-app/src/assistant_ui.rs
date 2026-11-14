@@ -1450,6 +1450,19 @@ mod tests {
         let (errors, warnings) = (check["errors"].as_u64(), check["warnings"].as_u64());
         let (errors, warnings) = (errors.expect("errors"), warnings.expect("warnings"));
         assert_eq!(check["ready"], json!(errors + warnings == 0), "{check}");
+        // Notes (#1034), through the command: none without a needle count, one with a
+        // one-needle profile (the demo has several colours), and still no problem.
+        assert_eq!(check["notes"], json!(0), "{check}");
+        app.session
+            .execute(
+                "machine.setProfile",
+                Some(&json!({"brand": "Brother", "needles": 1})),
+            )
+            .expect("profile");
+        let noted = app.ui_command("ui.state", None).expect("state");
+        assert_eq!(noted["check"]["notes"], json!(1), "{}", noted["check"]);
+        assert_eq!(noted["check"]["errors"], json!(errors));
+        assert_eq!(noted["check"]["warnings"], json!(warnings));
 
         let r = run(&mut app, "checkDesign");
         assert_eq!(r["state"]["check"]["window"], json!("problems"));
