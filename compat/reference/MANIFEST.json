@@ -6182,6 +6182,78 @@
       "settings": "On a 180 x 130 mm Design Page draw a square with Home > Shapes > Rectangle, 42.00 x 42.00 mm with its line (a 40 mm outline from 30 to 70 mm), PE-DESIGN's defaults kept: line Zigzag Stitch 2.0 mm, 4.5 line/mm, Half Stitch on; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on. Draw a circle in its middle with Home > Shapes > circle, 16.50 x 16.00 mm with its 2 mm zigzag line (a 14.5 x 14.0 mm outline), defaults kept. Select both (Ctrl+A) and choose Home > Stamp/Emboss > Convert from Outline > Engraved Region: the circle becomes a stamp in the square's fill. Save As 'Layout & Editing Ver 11.0 File (*.PES)'. Status bar 3531 st.",
       "sha256": "f848ee985f7fcebdfdf213029c41e4f92d76e27160f8c059d7dab53a5ab6b8ee",
       "notes": "Black-box capture 471-engraved-region-circle.pes from the coordinator's round-10 notes (#471); the project's own geometry. Kept out of the repository until PES 0110 import read a shape that carries a stamp (#959). Pattern blocks redacted 2026-11-14 (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN e76ec38316080f9fadcdeaa02eec9f075a6baad40609664aed689f3ac1228e8f."
+    },
+    {
+      "file": "stitches/987-two-running-lines-2mm.pes",
+      "spec": "sew-across-running-lines-2mm",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-13",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Layout & Editing, PE-DESIGN 11.50's page and machine type as in round 12. Home > Shapes > Open Straight Line with Snap to Grid: line A 40 mm drawn left to right, line B 40 mm drawn right to left below it, both Running Stitch, Run time(s) 1, 800 RED, one thread, Sewing Order A then B. Run pitch 2,0. B nudged with the arrow keys (0,5 mm a press) to 2,0 mm below A. Status 40,00 x 2,00 mm, 50 stitches. Save As PES (default type).",
+      "sha256": "57106f3b8f87e296a456050994a0f223dff7c8ed072d09a8f5114471f1bf532f",
+      "notes": "Header #PES0110. The coordinator's capture for #987. Pattern blocks redacted (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 21a0a8122c9149eedd0a9fba724b20a8e8eafd3ed63208de1999b8cca0ff7296."
+    },
+    {
+      "file": "stitches/987-two-running-lines-3mm.pes",
+      "spec": "sew-across-running-lines-3mm",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-13",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Layout & Editing, PE-DESIGN 11.50's page and machine type as in round 12. Home > Shapes > Open Straight Line with Snap to Grid: line A 40 mm drawn left to right, line B 40 mm drawn right to left below it, both Running Stitch, Run time(s) 1, 800 RED, one thread, Sewing Order A then B. Run pitch 2,0. B 3,0 mm below A. Status 40,00 x 3,00 mm, 50 stitches. Save As PES (default type).",
+      "sha256": "3d41356677eb443d1511e861aa6ca48beaf1823ea466a3e58ab2621965d718b9",
+      "notes": "Header #PES0110. The coordinator's capture for #987. Pattern blocks redacted (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN ba267850ab9202d0bbdaaf1eb46afe2c09d0340bb38e71506399eac92958f093."
+    },
+    {
+      "file": "stitches/987-two-running-lines-0.5mm.pes",
+      "spec": "sew-across-running-lines-0p5mm",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-13",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 987-two-running-lines-2mm.pes, selected B and nudged it 3 x up (1,5 mm): 40,00 x 0,50 mm, 46 stitches. Save As PES (default type).",
+      "sha256": "eb59911c2475e370c41c583432078db7dc28cc4b88d1f9b049dc5f36c4039d0a",
+      "notes": "Header #PES0110. The coordinator's capture for #987. Pattern blocks redacted (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 00228dd7ab88c1e55b05e35be6069fe7528d2bf271f065a012198ee20bcb8f3d."
+    },
+    {
+      "file": "stitches/987-two-running-lines-1.0mm.pes",
+      "spec": "sew-across-running-lines-1p0mm",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 987-two-running-lines-2mm.pes, selected B and nudged it 2 x up (1,0 mm): 40,00 x 1,00 mm, 46 stitches. Save As PES (default type).",
+      "sha256": "3be1a81b3facef5ff8934dd52eade217c15364c5d5941479a9e074a2aeb7d600",
+      "notes": "Header #PES0110. The coordinator's capture for #987. Pattern blocks redacted (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 60a9f97770f0c5498f92c80e4accc181df1c21752ae0d8b5cfb714ada5139f0f."
+    },
+    {
+      "file": "stitches/987-two-running-lines-1.5mm.pes",
+      "spec": "sew-across-running-lines-1p5mm",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 987-two-running-lines-2mm.pes, selected B and nudged it 1 x up (0,5 mm): 40,00 x 1,50 mm, 50 stitches. Save As PES (default type).",
+      "sha256": "07ecd6c2ebe371209e54caa887650e90c307efa13a60bd513911fe8eec5b6457",
+      "notes": "Header #PES0110. The coordinator's capture for #987. Pattern blocks redacted (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 9a9a7c97bf3cca097c07074b2e0c7b0f415541317fbd405aa1e3889eecc415d7."
+    },
+    {
+      "file": "stitches/987-two-running-lines-2mm-pitch3.pes",
+      "spec": "sew-across-running-lines-2mm-pitch3",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 987-two-running-lines-2mm.pes, selected both lines and set Run pitch 3,0, nothing else changed: 40,00 x 2,00 mm, 42 stitches. Save As PES (default type).",
+      "sha256": "4f4626ee606b7b772ef9e8db3ed04928b1d6562c233167182c296ec74c76daa3",
+      "notes": "Header #PES0110. The coordinator's capture for #987. Pattern blocks redacted (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 419f1308658e367aadb4a1b017939373cb5c361dd95484195be923846dfe6e88."
     }
   ]
 }
