@@ -662,15 +662,6 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
                         1.0,
                         " %",
                     ));
-                    v.push(num(
-                        "Gradation steps",
-                        "region.gradationSteps",
-                        "gradationSteps",
-                        g.steps.unwrap_or(9) as f64,
-                        (2.0, 20.0),
-                        1.0,
-                        "",
-                    ));
                     // Named density profiles (#532, beyond PE-DESIGN).
                     let shapes: Vec<(&str, &str)> = openstitch_design::GradationShape::ALL
                         .iter()

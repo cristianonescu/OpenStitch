@@ -282,17 +282,25 @@ fn gradation_pattern_options() {
         json!({"id": 1, "gradationPattern": true}),
     );
     assert_eq!(gradation(&s), Some(Gradation::PE_DEFAULT));
-    run(
+    // PE-DESIGN's pattern always has nine points (#1039): a step count from an older script
+    // is accepted, ignored, and answered with a hint.
+    let reply = run(
         &mut s,
         "object.setRegion",
         json!({"id": 1, "gradationMax": 80, "gradationSteps": 4}),
+    );
+    assert!(
+        reply["hints"][0]
+            .as_str()
+            .is_some_and(|h| h.contains("gradationSteps is ignored")),
+        "{reply}"
     );
     assert_eq!(
         gradation(&s),
         Some(Gradation {
             max: 80.0,
             min: 5.0,
-            steps: Some(4),
+            steps: Some(9),
             shape: Default::default(),
         })
     );
@@ -302,11 +310,18 @@ fn gradation_pattern_options() {
         "object.setRegion",
         json!({"id": 1, "gradationPattern": true}),
     );
-    assert_eq!(gradation(&s).and_then(|g| g.steps), Some(4));
+    assert_eq!(gradation(&s).map(|g| g.max), Some(80.0));
     run(
         &mut s,
         "object.setRegion",
         json!({"id": 1, "gradationPattern": false}),
+    );
+    assert_eq!(gradation(&s), None);
+    // A step count alone no longer turns a pattern on.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "gradationSteps": 15}),
     );
     assert_eq!(gradation(&s), None);
     // A continuous (old) gradation becomes PE's default pattern when a pattern option is set.
@@ -332,8 +347,6 @@ fn gradation_pattern_options() {
     for params in [
         json!({"id": 1, "gradationMax": 4}),
         json!({"id": 1, "gradationMin": 101}),
-        json!({"id": 1, "gradationSteps": 1}),
-        json!({"id": 1, "gradationSteps": 21}),
     ] {
         let reply = s.handle(&json!({"command": "object.setRegion", "params": params}));
         assert_eq!(reply["ok"], json!(false), "{params}");
