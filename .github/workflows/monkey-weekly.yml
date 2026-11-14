@@ -5,8 +5,7 @@ name: Weekly monkey run
 # OPENSTITCH_MONKEY_RUNS seeds of OPENSTITCH_MONKEY_STEPS steps each, from a new first seed every
 # week, so the weekly runs cover new ground. Release build: a step over 30 s is a freeze a user
 # would see (debug steps run about 1.6x slower). The test prints its seed range first; on a
-# failure it prints the seed, the step and the last 20 actions. Known failure: a Paste Attributes
-# over 30 s is #1084 (seed 5000, step 292), not a new bug. To replay one seed locally:
+# failure it prints the seed, the step and the last 20 actions. To replay one seed locally:
 #   OPENSTITCH_MONKEY_SEED=<seed> OPENSTITCH_MONKEY_RUNS=1 OPENSTITCH_MONKEY_STEPS=<step> \
 #     cargo test --release -p openstitch-app --bin openstitch --locked -- --nocapture --exact \
 #     app::monkey_tests::the_editor_survives_seeded_random_input_and_undo_returns_to_the_start
