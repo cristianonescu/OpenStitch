@@ -2301,6 +2301,79 @@ fn direction_turns_the_zigzag_net() {
 /// the outline at the top-left corner, where the diagonal back from a cut rung is cut too.
 const ZIGZAG_NET_0: (usize, u64) = (973, 17_908_954_492_682_872_431);
 
+/// #1058 through the command path: a zigzag net set with `object.setRegion` on a circle (a
+/// 64-sided polygon, 30 mm across) turned every 5° from 0° to 85° sews no rung across the
+/// next, for each of the four patterns: no stitch crosses the stitch after next more than
+/// 0.3 mm from their ends, steps along the net lines left aside.
+#[test]
+fn a_zigzag_net_set_by_command_on_a_turned_circle_has_no_crossing_rungs() {
+    let side = |p: (f64, f64), q: (f64, f64), r: (f64, f64)| {
+        (q.0 - p.0) * (r.1 - p.1) - (q.1 - p.1) * (r.0 - p.0)
+    };
+    let crosses = |a: (f64, f64), b: (f64, f64), c: (f64, f64), d: (f64, f64)| {
+        let (d1, d2) = (side(a, b, c), side(a, b, d));
+        if d1 * d2 >= -1e-6 || side(c, d, a) * side(c, d, b) >= -1e-6 {
+            return false;
+        }
+        let t = d1 / (d1 - d2);
+        let x = (c.0 + (d.0 - c.0) * t, c.1 + (d.1 - c.1) * t);
+        [a, b, c, d]
+            .iter()
+            .all(|p| (p.0 - x.0).hypot(p.1 - x.1) > 3.0)
+    };
+    let mut found = Vec::new();
+    for (pattern, lines) in [
+        ("square", &[0.0, 90.0][..]),
+        ("diamond", &[45.0, -45.0][..]),
+        ("triangle", &[0.0, 60.0, 120.0][..]),
+        ("honeycomb", &[0.0, 60.0, 120.0][..]),
+    ] {
+        for turn in (0..18).map(|k| k as f64 * 5.0) {
+            let points: Vec<[f64; 2]> = (0..64)
+                .map(|k| {
+                    let a = (k as f64 * 360.0 / 64.0 + turn).to_radians();
+                    [30.0 + 15.0 * a.cos(), 30.0 + 15.0 * a.sin()]
+                })
+                .collect();
+            let mut s = Session::new(std::env::temp_dir());
+            run(
+                &mut s,
+                "shape.polygon",
+                json!({"points": points, "fill": "Red"}),
+            );
+            run(
+                &mut s,
+                "object.setRegion",
+                json!({"id": 1, "type": "zigzagNetFill", "pattern": pattern}),
+            );
+            let st = Compiler::for_design(s.design())
+                .compile(s.design())
+                .stitches;
+            let pts: Vec<(f64, f64)> = st
+                .iter()
+                .filter(|q| q.command == Command::Stitch)
+                .map(|q| (q.x, q.y))
+                .collect();
+            let along_line = |j: usize| {
+                let (dx, dy) = (pts[j + 1].0 - pts[j].0, pts[j + 1].1 - pts[j].1);
+                let a = dy.atan2(dx).to_degrees();
+                lines.iter().any(|l| {
+                    let off = (a + l).rem_euclid(180.0);
+                    off.min(180.0 - off) < 2.0
+                })
+            };
+            if let Some(i) = (0..pts.len().saturating_sub(3)).find(|&i| {
+                !along_line(i)
+                    && !along_line(i + 2)
+                    && crosses(pts[i], pts[i + 1], pts[i + 2], pts[i + 3])
+            }) {
+                found.push(format!("{pattern} {turn}°: {:?}", &pts[i..i + 4]));
+            }
+        }
+    }
+    assert!(found.is_empty(), "rungs cross: {found:#?}");
+}
+
 /// #1043: a switch to zigzag net sets Direction 0 (PE-DESIGN's default for the type, round 13);
 /// an angle given with the switch is kept; other types keep the previous Direction.
 #[test]

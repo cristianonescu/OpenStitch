@@ -13,7 +13,9 @@ pub const FORMAT: &str = "openstitch.design";
 /// capital-height metrics they were made with (see [`migrate_v2_text`]).
 /// 4: a zigzag net turns with its Direction (#1043); nets of older files, which sewed on the
 /// page axes whatever their angle, get Direction 0 (see [`migrate_v3_zigzag_net`]).
-pub const VERSION: u32 = 4;
+/// 5: a plain net's default Spacing is PE-DESIGN's 3.0 mm (#1110); nets of older files that
+/// left it unset keep the 4.0 mm they sewed with (see [`migrate_v4_net_spacing`]).
+pub const VERSION: u32 = 5;
 pub const EXTENSION: &str = "osd";
 pub const MAX_SIZE: usize = 64 << 20;
 
@@ -66,7 +68,20 @@ pub fn decode(data: &[u8]) -> Result<Design, String> {
     if header.version < 4 {
         migrate_v3_zigzag_net(&mut env.design);
     }
+    if header.version < 5 {
+        migrate_v4_net_spacing(&mut env.design);
+    }
     Ok(env.design)
+}
+
+/// Before version 5 a plain net with no Spacing of its own sewed its lines 4.0 mm apart; the
+/// default is now PE-DESIGN's 3.0 mm, so those nets get 4.0 and sew as they did (#1110).
+pub fn migrate_v4_net_spacing(design: &mut Design) {
+    for r in design.objects.iter_mut().filter_map(|o| o.region.as_mut()) {
+        if r.kind == crate::model::RegionType::NetFill && r.spacing.is_none() {
+            r.spacing = Some(4.0);
+        }
+    }
 }
 
 /// Before version 4 a zigzag net sewed on the page axes whatever its Direction (often 45°,
@@ -223,7 +238,7 @@ mod tests {
     fn version_2_keeps_angles() {
         let bytes = encode(&design()).expect("encode");
         let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
-        assert_eq!(v["version"], 4);
+        assert_eq!(v["version"], VERSION);
         let back = decode(&bytes).expect("decode");
         assert_eq!(back, design());
     }
@@ -280,6 +295,49 @@ mod tests {
         assert_eq!(angle(&v), 45.0, "version 4 keeps the angle");
         v["version"] = serde_json::json!(3);
         assert_eq!(angle(&v), 0.0, "version 3 sewed on the axes");
+    }
+
+    /// #1110: a plain net from a version-4 file with no Spacing of its own sewed 4.0 mm
+    /// apart, so it loads with 4.0 and sews as before; a version-5 file keeps the new 3.0
+    /// default, and a set Spacing is kept either way.
+    #[test]
+    fn version_4_plain_nets_keep_their_four_millimetre_spacing() {
+        let mut d = Design::new("net", DesignPage::default());
+        let r = RegionSewing::new(RegionType::NetFill, Thread::rgb(0xff0000));
+        assert_eq!(r.spacing_mm(), 3.0, "PE-DESIGN's default");
+        d.add(DesignObject::shape(
+            vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)],
+            Some(r.clone()),
+            None,
+        ));
+        let mut set = r;
+        set.spacing = Some(2.5);
+        d.add(DesignObject::shape(
+            vec![Contour::rectangle(400.0, 0.0, 300.0, 200.0)],
+            Some(set),
+            None,
+        ));
+        let mut v: serde_json::Value =
+            serde_json::from_slice(&encode(&d).expect("encode")).expect("json");
+        let spacings = |v: &serde_json::Value| -> Vec<Option<f64>> {
+            decode(&serde_json::to_vec(v).expect("json"))
+                .expect("decode")
+                .objects
+                .iter()
+                .map(|o| o.region.as_ref().expect("region").spacing)
+                .collect()
+        };
+        assert_eq!(
+            spacings(&v),
+            vec![None, Some(2.5)],
+            "version 5 keeps the default"
+        );
+        v["version"] = serde_json::json!(4);
+        assert_eq!(
+            spacings(&v),
+            vec![Some(4.0), Some(2.5)],
+            "version 4 sewed 4 mm apart"
+        );
     }
 
     #[test]
