@@ -3,7 +3,7 @@
   "id": "radial-circle40-d5p0",
   "area": "stitches",
   "title": "Radial Stitch on a 40 mm circle at density 5",
-  "description": "PE-DESIGN 11.50's Radial Stitch (round 15, #1050): lines in pairs sewn in to an apex and back out to the outline points the pairs share, 1/density apart at the outline at every density (0.2-7.0 line/mm); one pair in K reaches the centre, K the multiple of 3 nearest 22.5 degrees of pairs (about 16 a turn), the others stop long (4-6 mm) or short (1.5-3 mm) in turn; 2,0 mm run stitches from the outline in. Counts within 4 %, bounds and the mean stitch length.",
+  "description": "PE-DESIGN 11.50's Radial Stitch (round 15, #1050): lines in pairs sewn in to an apex and back out to the outline points the pairs share, 1/density apart at the outline at every density (0.2-7.0 line/mm); one pair in K reaches the centre, K the multiple of 3 nearest 22.5 degrees of pairs (about 16 a turn), the others stop long (4-6 mm) or short (1.5-3 mm) in turn; 2,0 mm run stitches. The centre no more crowded than PE-DESIGN's (#461). Counts within 4 %, bounds and the mean stitch length.",
   "covers": {
     "audit": [],
     "featureMatrix": [
@@ -79,6 +79,37 @@
           "percent": 4
         }
       }
+    },
+    {
+      "id": "centre-points",
+      "measure": {
+        "kind": "centreCrowding",
+        "within": 3.0,
+        "property": "points"
+      },
+      "source": {
+        "export": "region.pes"
+      },
+      "expected": {
+        "max": 301
+      },
+      "evidence": "PE-DESIGN 11.50's file, measured the same way: 301 distinct needle points within 3 mm of the centre at density 5. The centre may be no more crowded than PE-DESIGN's (#461: thread breaks and the fabric is cut where the lines converge)."
+    },
+    {
+      "id": "centre-close-pairs",
+      "measure": {
+        "kind": "centreCrowding",
+        "within": 3.0,
+        "closer": 0.25,
+        "property": "closePairs"
+      },
+      "source": {
+        "export": "region.pes"
+      },
+      "expected": {
+        "max": 301
+      },
+      "evidence": "PE-DESIGN 11.50's file, measured the same way: 301 pairs of those needle points under 0.25 mm apart at density 5; no more here (#461)."
     },
     {
       "id": "bounds-width",

@@ -2614,21 +2614,28 @@ fn circles_and_spirals_start_where_asked() {
 
 #[test]
 fn radial_lines_thin_out_towards_the_centre() {
-    let c = vec![circle()];
-    let runs = crate::region::layers(&c, &region(RegionType::Radial), &[]);
-    let pts: Vec<&Vec2> = runs[0].iter().flatten().collect();
-    let centre = v2(200.0, 200.0);
-    let density = |r0: f64, r1: f64| {
-        let n = pts
-            .iter()
-            .filter(|p| (r0..r1).contains(&p.distance(centre)))
-            .count() as f64;
-        n / (std::f64::consts::PI * (r1 * r1 - r0 * r0))
-    };
-    // PE-DESIGN's 40 mm circles (round 15, #1050) put 3.6-3.8 times as many needle points per
-    // area 1-4 mm from the centre as 16-19 mm out; every line run to the centre would be about 7.
-    let (inner, outer) = (density(10.0, 40.0), density(110.0, 140.0));
-    assert!(inner < outer * 5.0, "inner {inner} outer {outer}");
+    // PE-DESIGN 11.50's 40 mm circles (round 15, #1050) put 3.53-3.63 times as many needle
+    // points per area 1-4 mm from the centre as 15-19 mm out, at densities 2, 3, 5 and 7; every
+    // line run in to the centre would be about 7. Here under 3.8: PE-DESIGN's plus about 0.2.
+    // The outer band is two run stitches wide, so it holds two needle points of every line
+    // whatever their phase.
+    let c = vec![Contour::ellipse(v2(200.0, 200.0), 200.0, 200.0, 64)];
+    for density in [2.0, 7.0] {
+        let mut r = region(RegionType::Radial);
+        r.density = density;
+        let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+        let pts: Vec<&Vec2> = runs.iter().flatten().collect();
+        let centre = v2(200.0, 200.0);
+        let area_density = |r0: f64, r1: f64| {
+            let n = pts
+                .iter()
+                .filter(|p| (r0..r1).contains(&p.distance(centre)))
+                .count() as f64;
+            n / (std::f64::consts::PI * (r1 * r1 - r0 * r0))
+        };
+        let ratio = area_density(10.0, 40.0) / area_density(150.0, 190.0);
+        assert!(ratio < 3.8, "density {density}: ratio {ratio:.2}");
+    }
 }
 
 /// The sewn stretches of a compiled design: needle points between jumps and trims.
@@ -2719,32 +2726,50 @@ fn circles_spirals_and_rings_never_run_straight_back_across_their_rows() {
 #[test]
 fn radial_lines_keep_their_needle_points_apart_at_the_centre() {
     // The lines converged on the centre, needle points of neighbouring lines 0.1-0.25 mm apart
-    // there (#461). PE-DESIGN keeps some that close too: its 40 mm circle at density 2 (round 15,
-    // #1050) has 31 pairs of needle points under 0.25 mm among the 125 within 3 mm of the centre,
-    // on the machine file's 0.1 mm grid, because only one pair of lines in nine runs in to the
-    // centre. The same circle here stays within half as many again.
+    // there (#461), where thread breaks and the fabric is cut. PE-DESIGN keeps some that close:
+    // on its 40 mm circles (round 15, #1050), within 3 mm of the centre on the machine file's
+    // 0.1 mm grid, 125 needle points and 31 pairs under 0.25 mm at density 2, 397 and 592 at 7
+    // (compat `centreCrowding`). Here no more than PE-DESIGN's plus 10 %, about the centre and
+    // about a centre moved 6.4 mm off it, where the lines reach 26.4 mm, not 20, so there are
+    // that many more of them (PE-DESIGN's numbers scaled by the reach).
     let big = vec![Contour::ellipse(v2(200.0, 200.0), 200.0, 200.0, 64)];
-    let mut r = region(RegionType::Radial);
-    r.density = 2.0;
-    let runs = crate::region::layers(&big, &r, &[]).pop().expect("top");
-    let mut pts: Vec<(i64, i64)> = runs
-        .iter()
-        .flatten()
-        .filter(|p| p.distance(v2(200.0, 200.0)) < 30.0)
-        .map(|p| (p.x.round() as i64, p.y.round() as i64))
-        .collect();
-    pts.sort_unstable();
-    pts.dedup();
-    let mut close = 0;
-    for i in 0..pts.len() {
-        for j in i + 1..pts.len() {
-            let (dx, dy) = ((pts[i].0 - pts[j].0) as f64, (pts[i].1 - pts[j].1) as f64);
-            if dx.hypot(dy) < 2.5 {
-                close += 1;
+    let crowding = |density: f64, centre: Option<Vec2>| {
+        let mut r = region(RegionType::Radial);
+        r.density = density;
+        r.center = centre;
+        let mid = centre.unwrap_or(v2(200.0, 200.0));
+        let runs = crate::region::layers(&big, &r, &[]).pop().expect("top");
+        let mut pts: Vec<(i64, i64)> = runs
+            .iter()
+            .flatten()
+            .filter(|p| p.distance(mid) < 30.0)
+            .map(|p| (p.x.round() as i64, p.y.round() as i64))
+            .collect();
+        pts.sort_unstable();
+        pts.dedup();
+        let mut close = 0;
+        for i in 0..pts.len() {
+            for j in i + 1..pts.len() {
+                let (dx, dy) = ((pts[i].0 - pts[j].0) as f64, (pts[i].1 - pts[j].1) as f64);
+                if dx.hypot(dy) < 2.5 {
+                    close += 1;
+                }
             }
         }
+        (pts.len(), close)
+    };
+    for (density, pe_points, pe_pairs) in [(2.0, 125, 31), (7.0, 397, 592)] {
+        for centre in [None, Some(v2(245.0, 155.0))] {
+            let (points, pairs) = crowding(density, centre);
+            let reach = 200.0 + centre.map_or(0.0, |c| c.distance(v2(200.0, 200.0)));
+            let bound = |pe: usize| pe as f64 * 1.1 * reach / 200.0;
+            eprintln!("density {density} {centre:?}: {points} points, {pairs} pairs");
+            assert!(
+                points as f64 <= bound(pe_points) && pairs as f64 <= bound(pe_pairs),
+                "density {density} {centre:?}: {points} needle points and {pairs} pairs under                  0.25 mm within 3 mm of the centre; PE-DESIGN {pe_points} and {pe_pairs}"
+            );
+        }
     }
-    assert!(close <= 46, "{close} pairs under 0.25 mm of {}", pts.len());
     // On centre and off it.
     let c = vec![circle()];
     for centre in [None, Some(v2(245.0, 155.0))] {

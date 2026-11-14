@@ -1646,14 +1646,28 @@ Line references are relative to `crates/`.
   - OpenStitch thinned the lines by a power-of-two level and kept them at least 0.4 mm apart,
     so above about 2.5 lines/mm the count stayed the same (2,149 stitches on the circle at any
     density). It now sews PE-DESIGN's pairs, centre spokes and long and short stops (a fixed
-    jitter within the measured classes): 2,253, 3,378, 5,570 and 7,797 stitches against 2,311,
-    3,423, 5,717 and 7,988, with the thread length within 1 % and the bounds exact (specs
-    `radial-circle40-default`, `-d3p0`, `-d5p0`, `-dmax`, within 4 %). Left: PE-DESIGN starts the
-    outward line's stitches nearer the apex, about half a stitch more a pair.
+    radii spread as PE-DESIGN's: short 1.8-3.0 mm, long 4.2-5.6 mm): 2,239, 3,346, 5,526 and
+    7,731 stitches against 2,311, 3,423, 5,717 and 7,988, with the thread length within 1.1 %
+    and the bounds exact (specs `radial-circle40-default`, `-d3p0`, `-d5p0`, `-dmax`, within
+    4 %). Lines sewn inwards step the pitch from the outline, lines sewn outwards from their
+    apex, so neighbouring lines' needle points are not on shared rings. Left: PE-DESIGN's run
+    stitches have short ends at both the apex and the outline (596 stitches of 0.3-1 mm at
+    density 7, ours 263), about half a stitch more a pair; its phase rule is not found.
+  - The centre (#461), measured within 3 mm on the 0.1 mm grid (`centreCrowding`):
+    | density | needle points PE-DESIGN / ours | pairs under 0.25 mm PE-DESIGN / ours |
+    |---|---|---|
+    | 2 | 125 / 102 | 31 / 27 |
+    | 3 | 186 / 144 | 90 / 51 |
+    | 5 | 301 / 221 | 301 / 116 |
+    | 7 | 397 / 310 | 592 / 294 |
+    The four specs hold ours at or under PE-DESIGN's. Needle points per area 1-4 mm from the
+    centre against 15-19 mm out: PE-DESIGN 3.53-3.63, ours 2.9-3.1. `design.check` (dense,
+    inPlace) finds nothing in either at density 7; `design.density` peaks at 5.27 layers and 21
+    holes per mm² in ours, 5.6 and 25 with stacked drops in PE-DESIGN's file imported.
   - Default density 2,0 and Run pitch 2,0 mm, confirmed with the fields' reset buttons (round 15,
     part 3): PE-DESIGN keeps the last value typed per sew type, so switching type alone does not
-    show the default. A remainder under 0.3 mm at a line's inner end shares the last stitch, and
-    the outline point two lines share is one needle point: 1-8 stitches under 0.3 mm a circle,
+    show the default. A remainder under 0.3 mm at a line's end shares the last stitch, and
+    the outline point two lines share is one needle point: 0-6 stitches under 0.3 mm a circle,
     PE-DESIGN 6-12; the longest 2.34 mm in PE-DESIGN's files.
 - **Concentric Circle and Spiral (calibrated 2026-10-29, #138):** issue #138 assumed PE-DESIGN
   has no concentric or spiral sewing; it has both as region sew types, with only Density

@@ -1876,7 +1876,7 @@ fn radial(
             .iter()
             // A ray through an outline corner clips to slivers: none under a needle gap.
             .filter(|p| p.len() >= 2 && p[0].distance(p[p.len() - 1]) >= RADIAL_MIN_GAP)
-            .map(|p| pitch_from_outer(p, pitch))
+            .cloned()
             .collect();
         if !pieces.is_empty() {
             lines.push(pieces);
@@ -1898,6 +1898,25 @@ fn radial(
     }
     // In, out, in, …, out; with an odd count the first line is sewn in and straight back out.
     let m = lines.len();
+    // Lines sewn inwards step the pitch from the outline in, lines sewn outwards from their apex
+    // out, so neighbouring lines put their needle points on different radii, as PE-DESIGN's
+    // do (round 15: its lines' points are not on shared rings). From the outline alone, every
+    // line had a needle point on the same rings, which crowded the centre.
+    let mut inward = true;
+    for (j, line) in lines.iter_mut().enumerate() {
+        let from_apex = !inward && !(j == 0 && m % 2 == 1);
+        for p in line.iter_mut() {
+            *p = if from_apex {
+                pitch_from_inner(p, pitch)
+            } else {
+                pitch_from_outer(p, pitch)
+            };
+        }
+        inward = !inward;
+        if j == 0 && m % 2 == 1 {
+            inward = true;
+        }
+    }
     let mut out: Vec<Vec<Vec2>> = Vec::new();
     let mut inward = true;
     for (j, line) in lines.iter().enumerate() {
@@ -2009,6 +2028,15 @@ fn pitch_from_outer(piece: &[Vec2], pitch: f64) -> Vec<Vec2> {
     out
 }
 
+/// [`pitch_from_outer`] from the inner end: exact `pitch` from the apex out, the remainder at
+/// the outline.
+fn pitch_from_inner(piece: &[Vec2], pitch: f64) -> Vec<Vec2> {
+    let back: Vec<Vec2> = piece.iter().rev().copied().collect();
+    let mut out = pitch_from_outer(&back, pitch);
+    out.reverse();
+    out
+}
+
 /// Where pair `k` of a radial fill's lines stops, from the centre (0.1 mm): the last pair of
 /// each `per_centre` reaches the centre; the others stop long, short, short (round 15: long
 /// 4.2-5.9 mm, short 1.5-3.0 mm, the same sequence at every density). A small fixed jitter
@@ -2018,9 +2046,11 @@ fn radial_stop(k: usize, per_centre: usize) -> f64 {
     if p + 1 == per_centre {
         return 0.0;
     }
-    // A fixed pattern of offsets, 0.1 mm.
-    const LONG: [f64; 6] = [42.0, 54.0, 56.0, 56.0, 52.0, 59.0];
-    const SHORT: [f64; 8] = [27.0, 16.0, 26.0, 18.0, 27.0, 24.0, 26.0, 25.0];
+    // A fixed pattern of radii, 0.1 mm, spread as PE-DESIGN's stops are (radial-circle40-dmax:
+    // the short ones from 1.6 to 3.0 mm, mean 2.42 mm; the long ones mean 5.11 mm). Short
+    // stops bunched at 1.6-1.8 mm crowded the centre past PE-DESIGN's (#461).
+    const LONG: [f64; 6] = [42.0, 52.0, 54.0, 53.0, 50.0, 56.0];
+    const SHORT: [f64; 8] = [28.0, 18.0, 26.0, 22.0, 30.0, 22.0, 25.0, 24.0];
     if p.is_multiple_of(3) {
         LONG[(k / 3) % LONG.len()]
     } else {

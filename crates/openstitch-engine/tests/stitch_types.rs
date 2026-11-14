@@ -715,6 +715,39 @@ fn every_region_type_is_set_sewn_saved_and_undone() {
     assert!(r.underlay);
 }
 
+/// Radial Stitch's Density keeps PE-DESIGN 11.50's field range at the command (round 15, #1050):
+/// 0.2 and 7 are taken, 0.1 and 7.5 refused, and a refusal leaves the region as it was.
+#[test]
+fn radial_density_keeps_pe_designs_range_at_the_command() {
+    let (mut s, _tmp) = session_with_circle();
+    let density = |s: &Session| {
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("region")
+            .density
+    };
+    for d in [0.2, 7.0] {
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "type": "radial", "density": d}),
+        );
+        assert_eq!(density(&s), d);
+    }
+    for d in [0.1, 7.5] {
+        assert!(
+            s.execute(
+                "object.setRegion",
+                Some(&json!({"id": 1, "type": "radial", "density": d}))
+            )
+            .is_err(),
+            "{d}"
+        );
+        assert_eq!(density(&s), 7.0, "{d}");
+    }
+}
+
 /// Cross stitch Times (PE-DESIGN's Single, Double, Triple) and the cross kinds beyond PE-DESIGN
 /// (#614) through `object.setRegion`: each sews, Times adds 4 stitches per cell per step, the
 /// old `triple` switch is Times Double, and the settings are saved and undone.
