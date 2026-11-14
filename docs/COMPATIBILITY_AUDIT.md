@@ -615,6 +615,16 @@ Line references are relative to `crates/`.
   M-8's remaining gap: PE-DESIGN sews each stem's top as a fan with the diagonal's start (a
   corner square, stem satin stopping below it), so its diagonals are shorter and its corners
   denser, and it locks twice on the way down.
+  Since 2026-11-14 (#1017): a letter whose satin started away from its box's top-left
+  (O at its bottom, S at its far terminal, 8 at its waist, A at its apex, e at its lower left) starts
+  where PE-DESIGN's does: on the stroke's edge nearest the top-left, with a one-step tie-in,
+  then a run of 1.4-1.9 mm stitches along the stroke's centre to the satin's start, which sews
+  back over it (O's ring is sewn from its top). The stitches before the satin are PE-DESIGN's
+  count or one short (A 7/7, e 16/16, 8 10/10, O 9/10); the starts are 0.1-1.8 mm from
+  PE-DESIGN's. O 338 → 342 against 358, S 267 → 274 against 278, 8 359 → 366 against 373, A
+  292 → 294 against 290, e 268 → 281 against 267 (A's and e's satin after the run was already
+  4 and 14 over, #1080); the other 18 satin captures are unchanged
+  (`satin_o_s_8_and_a_start_where_pe_design_starts_them_with_its_one_step_tie_in`).
   Since 2026-11-13 (#938, part): A's bar ends along the legs' inner edges, its end crossings at
   109.5 and 70.5 degrees (PE-DESIGN 110 and 70) with 41 crossings over x 5.7-14.5 mm (41 over
   5.8-14.3); the left leg is cut through the corners where the bar's edges meet it (its straight

@@ -1644,6 +1644,9 @@ fn stroke_columns(
             for p in blocks.iter_mut().filter_map(|b| b.lead.as_mut()) {
                 *p = t.apply(*p);
             }
+            for p in blocks.iter_mut().flat_map(|b| b.lead_via.iter_mut()) {
+                *p = t.apply(*p);
+            }
         }
         blocks
     };
@@ -1814,7 +1817,14 @@ fn stroke_columns(
         // A block with a lead is reached straight from it, under its satin (X's arms run out
         // along the arm first, stroke-satin-X, #446; a new run starts at the lead).
         if let (Some(lead), Some(&to)) = (b.lead, column.first()) {
-            let mut path: Vec<Vec2> = run.last().copied().into_iter().chain([lead, to]).collect();
+            let mut path: Vec<Vec2> = run
+                .last()
+                .copied()
+                .into_iter()
+                .chain([lead])
+                .chain(b.lead_via.iter().copied())
+                .chain([to])
+                .collect();
             path.dedup_by(|a, b| a.distance(*b) < 1.0);
             run.extend(
                 generate::subdivide(&path, STROKE_TRAVEL)
