@@ -417,7 +417,7 @@ pub fn generate(
                             let (a, b) = (line[line.len() - 2], line[line.len() - 1]);
                             let (u, v) = (b - a, q - b);
                             if (u.x * v.y - u.y * v.x).abs()
-                                < 1e-9 * u.x.hypot(u.y) * v.x.hypot(v.y)
+                                < 1e-9 * u.x.dhypot(u.y) * v.x.dhypot(v.y)
                                 && u.x * v.x + u.y * v.y > 0.0
                             {
                                 line.pop();
