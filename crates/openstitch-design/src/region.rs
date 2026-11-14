@@ -1127,24 +1127,33 @@ fn fill_underlay(
         // stamp-*-circle references; thread-match-swatches; the lone 5 mm square of
         // fill-square-5mm-under-sewing, its corner rows and diagonal included). Letters keep the
         // plain chain (no capture shows a letter's, as #1082).
-        match edge.first_mut().filter(|_| center.is_none() && !letter) {
-            Some(loop_run) => match rows_from_start(loop_run, &spans, &p, closed, holes, &tatami) {
-                Some((walk, mut rows)) => {
-                    loop_run.extend(walk);
-                    // Ended on the start, the under sewing steps out to the entry on the
-                    // outline before the top layer (sweep-fill-us-default: (20,39) to
-                    // (20,40); the lone 5 mm square: (2.5,4) to (2.5,5)).
-                    if let (Some(at), Some(run)) = (entry_on_outline, rows.last_mut())
-                        && run
-                            .last()
-                            .is_some_and(|q| q.distance(at) <= 1.5 * FILL_UNDERLAY_INSET)
-                    {
-                        run.push(at);
+        // Not with holes: no PE-DESIGN capture shows the path around one yet. A programmable
+        // fill, or a fill whose Running Stitch Path follows the outline, walks along the edge
+        // run instead of straight across, where its open pattern would show the travel (#628).
+        let straight = r.kind == RegionType::Fill && !entry_travel_along_outline(r);
+        match edge
+            .first_mut()
+            .filter(|_| center.is_none() && !letter && holes.is_empty())
+        {
+            Some(loop_run) => {
+                match rows_from_start(loop_run, &spans, &p, closed, holes, straight, &tatami) {
+                    Some((walk, mut rows)) => {
+                        loop_run.extend(walk);
+                        // Ended on the start, the under sewing steps out to the entry on the
+                        // outline before the top layer (sweep-fill-us-default: (20,39) to
+                        // (20,40); the lone 5 mm square: (2.5,4) to (2.5,5)).
+                        if let (Some(at), Some(run)) = (entry_on_outline, rows.last_mut())
+                            && run
+                                .last()
+                                .is_some_and(|q| q.distance(at) <= 1.5 * FILL_UNDERLAY_INSET)
+                        {
+                            run.push(at);
+                        }
+                        rows
                     }
-                    rows
+                    None => generate::chain_spans(&spans, &p, tatami),
                 }
-                None => generate::chain_spans(&spans, &p, tatami),
-            },
+            }
             None => generate::chain_spans(&spans, &p, tatami),
         }
     } else {
@@ -1180,6 +1189,7 @@ fn rows_from_start(
     p: &RegionParams,
     closed: &[Contour],
     holes: &[Contour],
+    straight: bool,
     points: &impl Fn(&Span, usize, bool) -> Vec<f64>,
 ) -> Option<(Vec<Vec2>, Vec<Run>)> {
     let (&start, &last) = (lap.first()?, lap.last()?);
@@ -1227,7 +1237,7 @@ fn rows_from_start(
     // edge or a circle's chord the same line as the edge run's), along the edge run only where
     // a straight line would leave the region.
     let way = |from: Vec2, to: Vec2| {
-        if inside_between(from, to, closed, holes) {
+        if straight && inside_between(from, to, closed, holes) {
             (
                 even_stitches(&[from, to], FILL_UNDERLAY_PITCH),
                 from.distance(to),
@@ -1305,7 +1315,13 @@ fn rows_from_start(
     {
         run.push(start);
     }
-    Some((walk, rows))
+    // On a concave outline a walk or a join between the halves' rows can cross a notch: then
+    // the earlier path is kept (a star's points).
+    let stays_inside = std::iter::once(&walk).chain(rows.iter()).all(|r| {
+        r.windows(2)
+            .all(|w| inside_between(w[0], w[1], closed, holes))
+    });
+    stays_inside.then_some((walk, rows))
 }
 
 /// One half of the under sewing's rows chained from `at`, with ties between row ends going
@@ -1391,8 +1407,10 @@ fn even_stitches(path: &[Vec2], pitch: f64) -> Vec<Vec2> {
         piece.push(q);
         let corner = path.get(i + 1).is_some_and(|&next| {
             let (a, b) = (q - path[i - 1], next - q);
-            let (la, lb) = (a.x.hypot(a.y), b.x.hypot(b.y));
-            la > 0.0 && lb > 0.0 && (a.x * b.x + a.y * b.y) / (la * lb) < 45f64.to_radians().cos()
+            let (la, lb) = (q.distance(path[i - 1]), next.distance(q));
+            la > 0.0
+                && lb > 0.0
+                && (a.x * b.x + a.y * b.y) / (la * lb) < std::f64::consts::FRAC_1_SQRT_2
         });
         if corner || i + 1 == path.len() {
             let len: f64 = piece.windows(2).map(|w| w[0].distance(w[1])).sum();
@@ -1407,7 +1425,11 @@ fn even_stitches(path: &[Vec2], pitch: f64) -> Vec<Vec2> {
                     } else {
                         0.0
                     };
-                    out.push(w[0].lerp(w[1], t));
+                    // Snapped to 1e-6 units: a point exactly half a 0.1 mm step from the grid
+                    // rounds the same wherever the shape is (a moved shape's float noise).
+                    let q = w[0].lerp(w[1], t);
+                    let snap = |v: f64| (v * 1e6).round() / 1e6;
+                    out.push(v2(snap(q.x), snap(q.y)));
                     k += 1;
                 }
                 walked += seg;
