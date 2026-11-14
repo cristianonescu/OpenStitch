@@ -1550,3 +1550,59 @@ paraphrased (openhoop, filum and myembro are GPL-3.0; lb2002/openstitch is AGPL-
 No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
 New "Planned (beyond PE-DESIGN)" row in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
 PE-DESIGN): retraced stretches of triple-stitch routed lines sewn once (#925).
+
+### 2026-11-14 scan
+
+Period checked: 2026-11-12 to 2026-11-14.
+
+**Commercial products.** No material release or feature announcement in the period.
+Checked: Wilcom blog (newest post still the staff appointment of 2026-11-11) and Hatch blog (one
+new post, 2026-11-12, project ideas for beginners: not a feature); BERNINA, mySewnet,
+Embrilliance, Janome Artistic Digitizer, Floriani Total Control U and SewWhat-Pro (one search,
+no dated release found); Tajima DG by Pulse (DG17.5, 17.5.1.8445, unchanged); Embird (the "what
+is new" page still headlines Embird 2026 without a date); Ink/Stitch (newest post still v3.3.0
+of 2026-07-31); PE-DESIGN 11 one-click update history (read again after the timeout of
+2026-11-12: 11.50 of September 2026 is still the newest, already covered).
+Sources: https://wilcom.com/resources/blog, https://hatchembroidery.com/resources/blog,
+https://inkstitch.org/news, https://www.embird.net/what-is-new/,
+https://cloud.pulsemicro.com/Download,
+https://support.brother.com/g/s/hf/ped_info/ped11/one_click_update/en/ped11update_info.html.
+
+#### Open-source projects
+
+Ideas only, read from release notes and commit titles; no code may be copied, ported or
+paraphrased (openhoop, filum and myembro are GPL-3.0; lb2002/openstitch is AGPL-3.0-or-later).
+
+- **vomitselfie/Morale**, **alexandra03/threadspool**, **lork-fork/Roidery**,
+  **bastanja/stitch_generator**, **EvenDog/openhoop** (still 0.13.6 of 2026-11-10) and
+  **lb2002/openstitch** (the other project that shares OpenStitch's name): no commits or
+  releases since 2026-11-12.
+- **benkl/filum** (GPL-3.0; release 0.2.1 on 2026-11-13, commits the same day). Most of the
+  release was read from commit titles in the scans of 2026-11-07, 2026-11-08 and 2026-11-12.
+  New since then:
+  - Nested groups, shown as a folding tree in its layers list. In OpenStitch, grouping objects
+    that are already in groups merges them into one flat group (FEATURE_MATRIX.md lists "Nested
+    groups" as the gap of the Group / ungroup row), and the Sewing Order list has no group rows:
+    new idea, issue draft sent to the coordinator (new row).
+  - Safe saving: a save that is cut off (crash, power cut, full disk) never leaves a
+    half-written file. OpenStitch writes its settings file and its autosave snapshots through
+    a temporary file and a rename (#549), but `project.save` and `design.export` write straight
+    over the existing file: new idea, issue draft sent to the coordinator (new row).
+  - Already tracked or in OpenStitch, no issue: a custom hoop fitted round the whole design
+    (Auto-Fit, #879) and larger industrial frames (hoop lists, #514); logo digitizing whose
+    outlines become even-width satins sewn as one network without trims, with presets (#489,
+    #526, #546); Connect lines (Join Lines, #744); satin guides and fill centres that follow
+    move, turn and mirror (OpenStitch's direction lines and centres are part of the object).
+  - Not material: Alt-click on an eye to show only that row and a right-click menu in the
+    layers list; a faster engine in the browser; tests run on every pull request.
+  https://github.com/benkl/filum/releases/tag/v0.2.1 (single source)
+- **linker2k/myembro** (GPL-3.0-or-later; no release after v0.4.0-beta.11, three commits on
+  2026-11-12): a licence change only. Its own improvements to the realistic preview are now
+  offered under GPL-3.0-or-later or MIT, at the reader's choice. No new feature, and the project
+  rule is unchanged: ideas only, no code from any of these projects.
+  https://github.com/linker2k/myembro/commits/main (single source)
+
+No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
+New "Planned (beyond PE-DESIGN)" rows in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
+PE-DESIGN): nested groups with a folding tree in the Sewing Order list, and saving that never
+leaves a half-written file. Both wait for an issue number from the coordinator.
