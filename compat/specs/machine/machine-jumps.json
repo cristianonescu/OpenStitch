@@ -3,7 +3,7 @@
   "id": "machine-jumps",
   "area": "machine",
   "title": "Frame moves between same-colour parts: trimmed from about 2.3 mm, sewn across below",
-  "description": "Six 5 x 5 mm red fill squares with gaps of 1, 2, 3, 4 and 6 mm (needle-to-needle moves of about 2.2, 3.2, 4.1, 5.1 and 7.1 mm): PE-DESIGN 11.50 trims the four longer moves and sews the 1 mm gap across as a plain stitch, so there is no untrimmed jump in the file. The squares' y position is OpenStitch's choice (PE imported them centred); only the moves matter. OpenStitch's optimized exit and entry points lie on the squares' edges where PE-DESIGN's lie 0.5 mm inside them and 1 mm apart in y (its moves are sqrt((gap + 1)^2 + 1) mm), so the squares are drawn at PE-DESIGN's needle-to-needle moves and the trimming rule is compared at equal moves; where PE puts its exit and entry inside the edge is the fill track's open item.",
+  "description": "Six 5 x 5 mm red fill squares with gaps of 1, 2, 3, 4 and 6 mm (needle-to-needle moves of about 2.2, 3.2, 4.1, 5.1 and 7.1 mm): PE-DESIGN 11.50 trims the four longer moves and sews the 1 mm gap across as a plain stitch, so there is no untrimmed jump in the file. The squares' y position is OpenStitch's choice (PE imported them centred); only the moves matter. The squares are drawn where PE-DESIGN's are (the bounds of each square's needle points in its file). Each square starts on its under sewing's edge run at the inset corner, 1 mm in from the top-left, and leaves at its top-right corner, in OpenStitch since #1088 as in PE-DESIGN, so the needle-to-needle moves are PE-DESIGN's: sqrt((gap + 1)^2 + 1) mm.",
   "covers": {
     "audit": [
       4
@@ -33,7 +33,7 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 10.0,
+        "x": 27.0,
         "y": 47.5,
         "width": 5,
         "height": 5,
@@ -43,7 +43,7 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 17.24,
+        "x": 33.0,
         "y": 47.5,
         "width": 5,
         "height": 5,
@@ -53,7 +53,7 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 25.4,
+        "x": 40.0,
         "y": 47.5,
         "width": 5,
         "height": 5,
@@ -63,7 +63,7 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 34.52,
+        "x": 48.0,
         "y": 47.5,
         "width": 5,
         "height": 5,
@@ -73,7 +73,7 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 44.62,
+        "x": 57.0,
         "y": 47.5,
         "width": 5,
         "height": 5,
@@ -83,7 +83,7 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 56.69,
+        "x": 68.0,
         "y": 47.5,
         "width": 5,
         "height": 5,

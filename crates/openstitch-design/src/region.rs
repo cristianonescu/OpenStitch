@@ -1044,11 +1044,19 @@ fn fill_underlay(
     shape.extend(holes.iter().cloned());
     let inset =
         crate::boolean::contours(&crate::boolean::offset(&shape, -FILL_UNDERLAY_INSET, false));
+    // Where the region starts: its entry point, or without one the outline's first vertex.
+    // PE-DESIGN 11.50 starts a fill with under sewing on the edge run 1 mm inside the outline,
+    // at its point nearest that start, not on the outline (#1088: sweep-fill-us-*,
+    // fill-frequency-*, the stamp-*-circle references at their entry; region-travel-u-*,
+    // thread-match-swatches and machine-jumps' imported squares at their first vertex).
+    let anchor = r
+        .entry
+        .or_else(|| closed.first().and_then(|c| c.points.first().copied()));
     let mut edge: Vec<Run> = if parts.edge {
         inset
             .iter()
             .filter(|c| c.closed && c.points.len() >= 3)
-            .map(|c| match r.entry {
+            .map(|c| match anchor {
                 Some(p) => generate::running(&c.starting_at(p), FILL_UNDERLAY_PITCH, 1),
                 None => generate::running(c, FILL_UNDERLAY_PITCH, 1),
             })
@@ -1056,14 +1064,12 @@ fn fill_underlay(
     } else {
         Vec::new()
     };
-    // With an entry point the region starts there: the edge run nearest to it goes first and
-    // is entered from the entry on the outline.
-    if let Some(p) = r.entry {
+    // The edge run nearest the start goes first.
+    if let Some(p) = anchor {
         let at = crate::route::snap(closed, p);
         let d = |run: &Run| run.first().map_or(f64::INFINITY, |q| q.distance(at));
         if let Some(i) = (0..edge.len()).min_by(|&a, &b| d(&edge[a]).total_cmp(&d(&edge[b]))) {
-            let mut first = edge.remove(i);
-            first.insert(0, at);
+            let first = edge.remove(i);
             edge.insert(0, first);
         }
     }
@@ -1079,13 +1085,33 @@ fn fill_underlay(
         .flatten();
     let rows = if parts.zigzag {
         let l = p.stitch_length;
-        generate::chain_spans(&inset_row_spans(&inset, &p), &p, |span, row, forward| {
+        let spans = inset_row_spans(&inset, &p);
+        let tatami = |span: &Span, row: usize, forward: bool| {
             let mut xs = tatami_points(span, row, l, Stagger::Regular(FILL_UNDERLAY_SHIFT));
             if !forward {
                 xs.reverse();
             }
             xs
-        })
+        };
+        // PE-DESIGN 11.50 sews its edge run once round, then sews the rows from the outermost
+        // row farthest from the start in towards the start, walking to that row along the edge
+        // run the shorter way; with the start in the middle, in two halves, the second from the
+        // other side's outermost row, ending on the start (#1088: sweep-fill-us-default rows 1
+        // to 19 mm, the walk along the bottom to 39 mm, rows 39 to 21 mm, the start at 20 mm;
+        // region-travel-u-* and sew-order-six-objects, one half from the far side; the
+        // stamp-*-circle references; thread-match-swatches). With both ways equally long it
+        // walks on the way the edge run went; a 5 mm square's 3 mm inset turns back instead
+        // (machine-jumps), which is not followed.
+        match edge.first_mut().filter(|_| center.is_none()) {
+            Some(loop_run) => match rows_from_start(loop_run, &spans, &p, &tatami) {
+                Some((walk, rows)) => {
+                    loop_run.extend(walk);
+                    rows
+                }
+                None => generate::chain_spans(&spans, &p, tatami),
+            },
+            None => generate::chain_spans(&spans, &p, tatami),
+        }
     } else {
         Vec::new()
     };
@@ -1105,6 +1131,190 @@ fn fill_underlay(
         graph.outline_tolerance = OPEN_JOIN_REACH;
     }
     vec![join(pieces, Some(&mut graph), 25.0)]
+}
+
+/// The fill under sewing's walk and rows as PE-DESIGN 11.50 sews them after its edge run
+/// (#1088). `lap` is the closed edge run (it ends where it started, at the start). The rows
+/// on each side of the row line through the start are sewn from that side's outermost row in
+/// towards the start: first the side whose outermost row the edge run reaches by the shorter
+/// walk, then, after a walk along the edge run, the other side, ending on the start. Returns
+/// the walk from the start to the first row and the rows; `None` when the run is not closed.
+fn rows_from_start(
+    lap: &[Vec2],
+    spans: &[generate::RowSpan],
+    p: &RegionParams,
+    points: &impl Fn(&Span, usize, bool) -> Vec<f64>,
+) -> Option<(Vec<Vec2>, Vec<Run>)> {
+    let (&start, &last) = (lap.first()?, lap.last()?);
+    // Fewer than four rows (a 5 mm square's 3 mm inset has three, two of them corner points):
+    // PE-DESIGN's walks there differ from square to square (machine-jumps), so the plain
+    // chain is kept.
+    let mut rows_y: Vec<f64> = spans.iter().map(|s| s.y).collect();
+    rows_y.sort_by(f64::total_cmp);
+    rows_y.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+    if lap.len() < 4 || start.distance(last) > 0.5 || rows_y.len() < 4 {
+        return None;
+    }
+    let ys = start.rotated(-p.angle.to_radians()).y;
+    let ends = |set: &[generate::RowSpan], y: f64| -> Vec<Vec2> {
+        set.iter()
+            .filter(|s| (s.y - y).abs() < 1e-6)
+            .flat_map(|s| {
+                [*s.range.start(), *s.range.end()]
+                    .map(|x| crate::geometry::from_rotated(v2(x, s.y), p.angle))
+            })
+            .collect()
+    };
+    let outer = |set: &[generate::RowSpan], low: bool| {
+        set.iter().map(|s| s.y).fold(
+            if low {
+                f64::INFINITY
+            } else {
+                f64::NEG_INFINITY
+            },
+            |a, y| {
+                if low { a.min(y) } else { a.max(y) }
+            },
+        )
+    };
+    let low: Vec<generate::RowSpan> = spans.iter().filter(|s| s.y < ys - 1e-6).cloned().collect();
+    let mut high: Vec<generate::RowSpan> =
+        spans.iter().filter(|s| s.y >= ys - 1e-6).cloned().collect();
+    let mut halves: Vec<(Vec<generate::RowSpan>, f64)> = Vec::new();
+    if !low.is_empty() {
+        let y = outer(&low, true);
+        halves.push((low, y));
+    }
+    if !high.is_empty() {
+        let y = outer(&high, false);
+        halves.push((std::mem::take(&mut high), y));
+    }
+    // The first half: the one whose outermost row end the shorter walk from the start reaches
+    // first.
+    let reach = |half: &(Vec<generate::RowSpan>, f64)| {
+        ends(&half.0, half.1)
+            .into_iter()
+            .map(|e| (lap_walk(lap, start, e), e))
+            .min_by(|a, b| a.0.1.total_cmp(&b.0.1))
+    };
+    let mut ranked: Vec<_> = halves
+        .into_iter()
+        .filter_map(|h| reach(&h).map(|r| (h, r)))
+        .collect();
+    // Halves as near: the one ahead, the way the edge run was sewn, goes first
+    // (sweep-fill-us-default: its left half, 19 mm either way).
+    ranked.sort_by(|a, b| {
+        let (la, lb) = (a.1.0.1, b.1.0.1);
+        if (la - lb).abs() < 1e-6 {
+            let ahead = |e: Vec2| !lap_ahead(lap, e);
+            ahead(a.1.1).cmp(&ahead(b.1.1))
+        } else {
+            la.total_cmp(&lb)
+        }
+    });
+    let mut ranked = ranked.into_iter();
+    let ((first, _), ((walk, _, _), at)) = ranked.next()?;
+    let mut rows = generate::chain_spans_from(&first, p, points, at);
+    if let Some(((second, far), _)) = ranked.next()
+        && let Some(end) = rows.last().and_then(|r| r.last()).copied()
+    {
+        // The other side's outermost row: its end nearer the first half's last needle point.
+        if let Some(target) = ends(&second, far)
+            .into_iter()
+            .min_by(|a, b| a.distance(end).total_cmp(&b.distance(end)))
+        {
+            let (between, _, _) = lap_walk(lap, end, target);
+            if let Some(run) = rows.last_mut() {
+                run.extend(between);
+            }
+            rows.extend(generate::chain_spans_from(&second, p, points, target));
+        }
+    }
+    // The rows end on the start, where the layer began.
+    if let Some(run) = rows.last_mut()
+        && run
+            .last()
+            .is_some_and(|q| q.distance(start) <= FILL_UNDERLAY_PITCH)
+    {
+        run.push(start);
+    }
+    Some((walk, rows))
+}
+
+/// The needle points along the closed run `lap` from `from` to `to` (both projected onto it),
+/// the shorter way round (back against the way it was sewn when both are as long), `to`
+/// last, the walk's length and whether it goes the way the run was sewn.
+fn lap_walk(lap: &[Vec2], from: Vec2, to: Vec2) -> (Vec<Vec2>, f64, bool) {
+    let n = lap.len() - 1; // the last point repeats the first
+    if n < 2 {
+        return (vec![to], from.distance(to), true);
+    }
+    let nearest_segment = |q: Vec2| {
+        (0..n)
+            .min_by(|&i, &j| {
+                segment_distance(q, lap[i], lap[i + 1]).total_cmp(&segment_distance(
+                    q,
+                    lap[j],
+                    lap[j + 1],
+                ))
+            })
+            .unwrap_or(0)
+    };
+    let (i, j) = (nearest_segment(from), nearest_segment(to));
+    // Forward: the vertices after `from`'s segment up to `to`'s segment's start.
+    let forward: Vec<Vec2> = (1..=((j + n - i) % n)).map(|k| lap[(i + k) % n]).collect();
+    // Backward: the vertices from `from`'s segment's start down to after `to`'s segment.
+    let backward: Vec<Vec2> = (0..((i + n - j) % n))
+        .map(|k| lap[(i + n - k) % n])
+        .collect();
+    let length = |pts: &[Vec2]| {
+        let mut l = 0.0;
+        let mut q = from;
+        for &v in pts.iter().chain(std::iter::once(&to)) {
+            l += q.distance(v);
+            q = v;
+        }
+        l
+    };
+    let (lf, lb) = (length(&forward), length(&backward));
+    // With both ways as long PE-DESIGN turns back (machine-jumps' 5 mm squares: from the
+    // inset's top-left corner to its bottom-right one along the left side).
+    let (mut walk, l, ahead) = if lf < lb - 1e-6 {
+        (forward, lf, true)
+    } else {
+        (backward, lb, false)
+    };
+    walk.retain(|v| v.distance(from) > 0.5 && v.distance(to) > 0.5);
+    walk.push(to);
+    (walk, l, ahead)
+}
+
+/// Whether `q` lies ahead of the start `lap[0]` the way `lap` was sewn: nearer along it going
+/// forward than going back.
+fn lap_ahead(lap: &[Vec2], q: Vec2) -> bool {
+    let total: f64 = lap.windows(2).map(|w| w[0].distance(w[1])).sum();
+    let (mut s, mut best, mut at) = (0.0, f64::INFINITY, 0.0);
+    for w in lap.windows(2) {
+        let d = segment_distance(q, w[0], w[1]);
+        if d < best {
+            best = d;
+            at = s + w[0].distance(q).min(w[0].distance(w[1]));
+        }
+        s += w[0].distance(w[1]);
+    }
+    at < total - at
+}
+
+/// Distance from `e` to the segment `a`–`b`.
+fn segment_distance(e: Vec2, a: Vec2, b: Vec2) -> f64 {
+    let ab = b - a;
+    let len2 = ab.x * ab.x + ab.y * ab.y;
+    let t = if len2 > 0.0 {
+        (((e - a).x * ab.x + (e - a).y * ab.y) / len2).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    e.distance(a + ab * t)
 }
 
 /// Stitch pitch (0.1 mm) of the walks along the inset outline between the lines of

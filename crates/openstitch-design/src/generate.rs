@@ -1158,6 +1158,7 @@ pub fn satin(contours: &[Contour], p: &RegionParams, holes: &[Contour]) -> Vec<R
 }
 
 /// One inside interval of a scan row, in rotated space.
+#[derive(Clone)]
 pub struct RowSpan {
     pub row: usize,
     pub y: f64,
@@ -1204,6 +1205,18 @@ pub fn chain_spans(
     points: impl Fn(&Span, usize, bool) -> Vec<f64>,
 ) -> Vec<Run> {
     chain(spans, p, points, Chain::Fill, None)
+}
+
+/// [`chain_spans`] starting from the row end nearest `start` (page coordinates, 0.1 mm)
+/// instead of the first span's start (#1088).
+pub fn chain_spans_from(
+    spans: &[RowSpan],
+    p: &RegionParams,
+    points: impl Fn(&Span, usize, bool) -> Vec<f64>,
+    start: Vec2,
+) -> Vec<Run> {
+    let frame = start.rotated(-p.angle.to_radians());
+    chain(spans, p, points, Chain::Fill, Some(frame))
 }
 
 /// [`chain_spans`] for satin: when a row follows the previous one along the same edge (the
