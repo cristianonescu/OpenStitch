@@ -1605,4 +1605,4 @@ paraphrased (openhoop, filum and myembro are GPL-3.0; lb2002/openstitch is AGPL-
 No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
 New "Planned (beyond PE-DESIGN)" rows in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
 PE-DESIGN): nested groups with a folding tree in the Sewing Order list, and saving that never
-leaves a half-written file. Both wait for an issue number from the coordinator.
+leaves a half-written file. They are issues #1092 and #1093.

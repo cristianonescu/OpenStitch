@@ -747,7 +747,7 @@ one weight (#925, an option on `shape.autoRoute`, with B4), an idea for Future.
 From the competitor scan of 2026-11-14 (same document, Updates; filum, concepts only): nested
 groups with group rows that fold in the Sewing Order list, and saving designs and exports
 through a temporary file so a save that is cut off leaves the earlier file whole. Both are ideas
-for Future; their issues are filed by the coordinator.
+for Future; their issues are #1092 and #1093.
 
 Deferred: shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
