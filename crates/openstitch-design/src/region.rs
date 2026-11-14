@@ -2400,8 +2400,47 @@ pub fn lock_points_by(a: Vec2, b: Vec2, step: f64) -> Vec<Vec2> {
         .collect()
 }
 
-/// Whether a run already starts with a tie-in: it comes back to its first needle point within
-/// its first five stitches, none of them longer than 1 mm.
+/// A tie or lock comes back to exactly the point it left (0.1 mm units): PE-DESIGN's do, and
+/// so do the ties generated here. A row that only passes near the point is not a tie: in a
+/// stitch file, on the machine's 0.1 mm grid, two points 0.03 mm apart can land on neighbouring
+/// grid points and the "lock" is gone (#1032: 75 Auto Punch ends in one kit file).
+pub const SAME_POINT: f64 = 1e-6;
+
+/// How far (0.1 mm) a return may miss its point and still be a tie or lock meant as one: the
+/// tolerance the rule had before #1032. Such a near-return is made exact (see
+/// [`nearly_starts_tied`], [`nearly_ends_locked`]), not given a second tie or lock.
+pub const NEAR_POINT: f64 = 0.5;
+
+/// The index of the needle point within `run`'s first five stitches that comes back within
+/// [`NEAR_POINT`] (but not exactly) to its first point, after stitches of at most 1.5 mm: a
+/// tie-in meant as one, which moving that point onto the first makes exact (#1032).
+pub fn nearly_starts_tied(run: &[Vec2]) -> Option<usize> {
+    let &a = run.first()?;
+    run.iter()
+        .enumerate()
+        .skip(2)
+        .take(4)
+        .take_while(|(i, _)| run[*i - 1].distance(run[*i - 2]) <= 15.0)
+        .find(|(_, p)| p.distance(a) < NEAR_POINT)
+        .map(|(i, _)| i)
+}
+
+/// The index in `tail` (the last first) of the point the last needle point comes back to within
+/// [`NEAR_POINT`] (but not exactly), within the last four stitches of at most 1.5 mm: a lock meant
+/// as one, which moving the last point onto it makes exact (#1032).
+pub fn nearly_ends_locked(tail: &[Vec2]) -> Option<usize> {
+    let &b = tail.first()?;
+    tail.iter()
+        .enumerate()
+        .skip(2)
+        .take(3)
+        .take_while(|(i, _)| tail[*i - 1].distance(tail[*i - 2]) <= 15.0)
+        .find(|(_, p)| p.distance(b) < NEAR_POINT)
+        .map(|(i, _)| i)
+}
+
+/// Whether a run already starts with a tie-in: it comes back to its first needle point (exactly,
+/// [`SAME_POINT`]) within its first five stitches, none of them longer than 1.5 mm.
 pub fn starts_tied(run: &[Vec2]) -> bool {
     let Some(&a) = run.first() else {
         return false;
@@ -2411,11 +2450,12 @@ pub fn starts_tied(run: &[Vec2]) -> bool {
         .skip(2)
         .take(4)
         .take_while(|(i, _)| run[*i - 1].distance(run[*i - 2]) <= 15.0)
-        .any(|(_, p)| p.distance(a) < 0.5)
+        .any(|(_, p)| p.distance(a) < SAME_POINT)
 }
 
 /// Whether the needle points `tail` (the last first: last, previous, …) already end with a lock:
-/// the last point is sewn again within the last four stitches, none of them longer than 1 mm.
+/// the last point is sewn again (exactly, [`SAME_POINT`]) within the last four stitches, none of
+/// them longer than 1.5 mm.
 pub fn ends_locked(tail: &[Vec2]) -> bool {
     let Some(&b) = tail.first() else {
         return false;
@@ -2425,7 +2465,7 @@ pub fn ends_locked(tail: &[Vec2]) -> bool {
         .skip(2)
         .take(3)
         .take_while(|(i, _)| tail[*i - 1].distance(tail[*i - 2]) <= 15.0)
-        .any(|(_, p)| p.distance(b) < 0.5)
+        .any(|(_, p)| p.distance(b) < SAME_POINT)
 }
 
 /// Least share of the region a derived skeleton's column must cover for Auto satin to follow
@@ -3473,5 +3513,55 @@ fn second_underlay(
         UnderlayStyle::Edge => vec![edge()],
         UnderlayStyle::EdgeZigzag => vec![edge(), rows()],
         _ => vec![rows()],
+    }
+}
+
+#[cfg(test)]
+mod tie_tests {
+    use super::*;
+    use crate::geometry::v2;
+
+    /// #1032: a tie or lock comes back to exactly its point. A row that only passes 0.03 mm
+    /// from it is not one (in a stitch file the two can land on neighbouring 0.1 mm grid points),
+    /// so the compiler adds a real lock there; the ties generated here always pass.
+    #[test]
+    fn only_an_exact_return_is_a_tie_or_a_lock() {
+        let b = v2(779.0, 456.3);
+        // Last first: the end, a step 0.32 mm back, and a point 0.03 mm from the end.
+        let near = [b, v2(779.9, 453.5), v2(779.0, 456.6), v2(770.0, 440.0)];
+        assert!(!ends_locked(&near));
+        let exact = [b, v2(779.9, 453.5), b, v2(770.0, 440.0)];
+        assert!(ends_locked(&exact));
+        let mut run = vec![v2(0.0, 0.0), v2(40.0, 0.0)];
+        run.extend(lock_after(&[v2(40.0, 0.0), v2(0.0, 0.0)]));
+        let tail: Vec<Vec2> = run.iter().rev().take(5).copied().collect();
+        assert!(ends_locked(&tail), "{run:?}");
+        // Starts the same way: a near return is not a tie-in; tie_in's is.
+        let a = v2(100.0, 100.0);
+        assert!(!starts_tied(&[
+            a,
+            v2(103.0, 100.0),
+            v2(100.3, 100.0),
+            v2(120.0, 100.0)
+        ]));
+        let mut run = vec![a, v2(130.0, 100.0), v2(160.0, 100.0)];
+        tie_in(&mut run);
+        assert!(starts_tied(&run), "{run:?}");
+        // A near-return is found, to be made exact rather than doubled; an exact one is not.
+        assert_eq!(nearly_ends_locked(&near), Some(2));
+        assert_eq!(nearly_ends_locked(&exact), Some(2));
+        let mut fixed = near;
+        fixed[0] = fixed[2];
+        assert!(ends_locked(&fixed));
+        let start = [a, v2(103.0, 100.0), v2(100.3, 100.0), v2(120.0, 100.0)];
+        assert_eq!(nearly_starts_tied(&start), Some(2));
+        let mut fixed = start;
+        fixed[2] = fixed[0];
+        assert!(starts_tied(&fixed));
+        // Too far off (0.6 mm) is no tie meant as one: a real tie-in is added instead.
+        assert_eq!(
+            nearly_starts_tied(&[a, v2(103.0, 100.0), v2(106.0, 100.0), v2(120.0, 100.0)]),
+            None
+        );
     }
 }
