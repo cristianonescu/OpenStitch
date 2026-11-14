@@ -2403,6 +2403,39 @@ pub fn lock_points_by(a: Vec2, b: Vec2, step: f64) -> Vec<Vec2> {
 /// grid points and the "lock" is gone (#1032: 75 Auto Punch ends in one kit file).
 pub const SAME_POINT: f64 = 1e-6;
 
+/// How far (0.1 mm) a return may miss its point and still be a tie or lock meant as one: the
+/// tolerance the rule had before #1032. Such a near-return is made exact (see
+/// [`nearly_starts_tied`], [`nearly_ends_locked`]), not given a second tie or lock.
+pub const NEAR_POINT: f64 = 0.5;
+
+/// The index of the needle point within `run`'s first five stitches that comes back within
+/// [`NEAR_POINT`] (but not exactly) to its first point, after stitches of at most 1.5 mm: a
+/// tie-in meant as one, which moving that point onto the first makes exact (#1032).
+pub fn nearly_starts_tied(run: &[Vec2]) -> Option<usize> {
+    let &a = run.first()?;
+    run.iter()
+        .enumerate()
+        .skip(2)
+        .take(4)
+        .take_while(|(i, _)| run[*i - 1].distance(run[*i - 2]) <= 15.0)
+        .find(|(_, p)| p.distance(a) < NEAR_POINT)
+        .map(|(i, _)| i)
+}
+
+/// The index in `tail` (the last first) of the point the last needle point comes back to within
+/// [`NEAR_POINT`] (but not exactly), within the last four stitches of at most 1.5 mm: a lock meant
+/// as one, which moving the last point onto it makes exact (#1032).
+pub fn nearly_ends_locked(tail: &[Vec2]) -> Option<usize> {
+    let &b = tail.first()?;
+    tail.iter()
+        .enumerate()
+        .skip(2)
+        .take(3)
+        .take_while(|(i, _)| tail[*i - 1].distance(tail[*i - 2]) <= 15.0)
+        .find(|(_, p)| p.distance(b) < NEAR_POINT)
+        .map(|(i, _)| i)
+}
+
 /// Whether a run already starts with a tie-in: it comes back to its first needle point (exactly,
 /// [`SAME_POINT`]) within its first five stitches, none of them longer than 1.5 mm.
 pub fn starts_tied(run: &[Vec2]) -> bool {
