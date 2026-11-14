@@ -1128,7 +1128,7 @@ fn fill_underlay(
         // fill-square-5mm-under-sewing, its corner rows and diagonal included). Letters keep the
         // plain chain (no capture shows a letter's, as #1082).
         match edge.first_mut().filter(|_| center.is_none() && !letter) {
-            Some(loop_run) => match rows_from_start(loop_run, &spans, &p, &tatami) {
+            Some(loop_run) => match rows_from_start(loop_run, &spans, &p, closed, holes, &tatami) {
                 Some((walk, mut rows)) => {
                     loop_run.extend(walk);
                     // Ended on the start, the under sewing steps out to the entry on the
@@ -1178,6 +1178,8 @@ fn rows_from_start(
     lap: &[Vec2],
     spans: &[generate::RowSpan],
     p: &RegionParams,
+    closed: &[Contour],
+    holes: &[Contour],
     points: &impl Fn(&Span, usize, bool) -> Vec<f64>,
 ) -> Option<(Vec<Vec2>, Vec<Run>)> {
     let (&start, &last) = (lap.first()?, lap.last()?);
@@ -1220,10 +1222,25 @@ fn rows_from_start(
     }
     // The first half: the one whose outermost row end the shorter walk from the start reaches
     // first.
+    // PE-DESIGN walks from the start straight to the first row (sew-order-six-objects' 15 mm
+    // squares: from the start's corner diagonally across to the far one; on a straight
+    // edge or a circle's chord the same line as the edge run's), along the edge run only where
+    // a straight line would leave the region.
+    let way = |from: Vec2, to: Vec2| {
+        if inside_between(from, to, closed, holes) {
+            (
+                even_stitches(&[from, to], FILL_UNDERLAY_PITCH),
+                from.distance(to),
+                lap_ahead(lap, to),
+            )
+        } else {
+            lap_walk(lap, from, to)
+        }
+    };
     let reach = |half: &(Vec<generate::RowSpan>, f64)| {
         ends(&half.0, half.1)
             .into_iter()
-            .map(|e| (lap_walk(lap, start, e), e))
+            .map(|e| (way(start, e), e))
             .min_by(|a, b| a.0.1.total_cmp(&b.0.1))
     };
     let mut ranked: Vec<_> = halves
@@ -1256,11 +1273,11 @@ fn rows_from_start(
             .into_iter()
             .min_by(|a, b| a.distance(end).total_cmp(&b.distance(end)))
         {
-            // Back along the edge run to the start, then straight across to that row (the
-            // lone 5 mm square: (1,4), the start (2.5,4), (3.3,2.5), (4,1); the 40 mm square:
-            // (19,39), the start, then along the bottom to (39,39)).
-            let (mut between, _, _) = lap_walk(lap, end, start);
-            between.extend(even_stitches(&[start, target], FILL_UNDERLAY_PITCH));
+            // Back to the start, then straight across to that row (the lone 5 mm square: (1,4),
+            // the start (2.5,4), (3.3,2.5), (4,1); the 40 mm square: (19,39), the start, then
+            // along the bottom to (39,39)).
+            let (mut between, _, _) = way(end, start);
+            between.extend(way(start, target).0);
             if let Some(run) = rows.last_mut() {
                 run.extend(between);
             }

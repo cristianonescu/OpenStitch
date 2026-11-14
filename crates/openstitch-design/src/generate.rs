@@ -1216,7 +1216,7 @@ pub fn chain_spans_from(
     start: Vec2,
 ) -> Vec<Run> {
     let frame = start.rotated(-p.angle.to_radians());
-    chain(spans, p, points, Chain::Fill, Some(frame))
+    chain(spans, p, points, Chain::FillUnderRows, Some(frame))
 }
 
 /// [`chain_spans`] for satin: when a row follows the previous one along the same edge (the
@@ -1247,6 +1247,10 @@ pub fn chain_sawtooth_spans(
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Chain {
     Fill,
+    /// [`Chain::Fill`] with ends within 0.05 mm taken as equally near (the 0.1 mm grid), so the
+    /// span's start wins them: PE-DESIGN's fill under sewing rows (#1088: from a corner row to
+    /// the next row's end on the top edge, sew-order-six-objects' 15 mm squares).
+    FillUnderRows,
     /// [`Chain::Fill`] with PE-DESIGN's brick row ends (the top fill).
     Brick,
     Satin,
@@ -1300,10 +1304,16 @@ fn chain_in(
             // Ties within float noise go to the first span (#567): a span whose ends are
             // equally near, as rows at 30 degrees are, was picked by the last bits of where
             // the shape stood.
-            if dl < best_d - TIE {
+            // The under sewing rows: ends within 0.05 mm are as near (the 0.1 mm grid).
+            let tie = if mode == Chain::FillUnderRows {
+                0.5
+            } else {
+                TIE
+            };
+            if dl < best_d - tie {
                 (best, forward, best_d) = (i, true, dl);
             }
-            if du < best_d - TIE {
+            if du < best_d - tie {
                 (best, forward, best_d) = (i, false, du);
             }
         }
