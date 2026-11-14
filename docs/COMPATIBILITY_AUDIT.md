@@ -96,12 +96,11 @@ dearest:
 | 2 | Default PES is truncated v1 with no object section (**fixed**; v6 open test passed at the reference tier 2026-10-27; `1t`/`1`/`6t` opens and library convert pending) | PES | 5 | Documented, unverified | Black-box open test |
 | 3 | Trims and jumps inside one fill or satin region; no Running Stitch Path (**fixed**, internal regression) | Stitches | 5 | Documented difference | No |
 | 4 | Trims between underlay, top stitching and outline of one object | Stitches | 4 | Documented, unverified | Single-needle policy |
-| 5 | Every design is written as one stitch group, nothing editable (**partly fixed**, 2026-10-29: `pesVersion` 11 writes shapes as `CEmbLine`, which PE-DESIGN 11.50 opens editable, and Lato Bold text as `CEmbNText`, which it opens editable and retypable (both reference); stitch patterns as `CEmbOne` stitch groups (reference, `pes-0110-stitches`); Text Transform and text on an outline open editable (reference, 2026-10-29); Hoop Size pages written as PE-DESIGN writes them since 2026-11-04 (#322); object kinds still refused: #608) | PES | 5 | Reference | Yes (the kinds of #608) |
+| 5 | Every design is written as one stitch group, nothing editable (**partly fixed**, 2026-10-29: `pesVersion` 11 writes shapes as `CEmbLine`, which PE-DESIGN 11.50 opens editable, and Lato Bold text as `CEmbNText`, which it opens editable and retypable (both reference); stitch patterns as `CEmbOne` stitch groups (reference, `pes-0110-stitches`); Text Transform and text on an outline open editable (reference, 2026-10-29); Hoop Size pages written as PE-DESIGN writes them since 2026-11-04 (#322); stamps, one column of vertical text, several groups and motif lines and fills written by 2026-11-14 (#608); object kinds still refused: #1024) | PES | 5 | Reference | Yes (the kinds of #1024) |
 | 6 | One sewing direction per text instead of per stroke (**partly fixed**: satin text sewn stroke by stroke since 2026-10-31, fill text since 2026-11-04 (#376); open: under sewing per stroke; letter-shape leftovers #938-#941 (A's foot, run-on foot order, M and W at 8 mm); fill text under a Text Transform sews by stroke since 2026-11-11 (#428)) | Fonts | 5 | Documented difference | Angles |
 | 7 | Auto direction is one fixed angle (**fixed**, internal regression) | Stitches | 4 | Documented difference | No |
 | 8 | Underlay model differs (**partly fixed**: PE's two region types, Density Dense / Medium / Light, the Manual Punch column's edge / piping / zigzag; zigzag lines have under sewing, on by default as PE-DESIGN's, `line-zigzag-default`; open: which type PE applies to the other region kinds, the zigzag's split points) | Stitches | 4 | Documented difference | Geometry |
-| 9 | PE-DESIGN-made PES files lose objects, properties and colours on re-save (**partly fixed**, 2026-11-05, #375, #397, #398, #120: an opened file exported unchanged is written back byte for byte; its thread table reaches the stitches; every PE-DESIGN `#PES0110` file imports as objects, texts and stitch groups included, and an edited one exports as `#PES0110`; an edited file still loses the other region types' own settings, a motif fill's arrangement beyond one motif (motif sizes and spacing are
-    read since #608), per-letter colours and unmapped fields) | PES | 4 | Documented difference | No |
+| 9 | PE-DESIGN-made PES files lose objects, properties and colours on re-save (**partly fixed**, 2026-11-05, #375, #397, #398, #120: an opened file exported unchanged is written back byte for byte; its thread table reaches the stitches; every PE-DESIGN `#PES0110` file imports as objects, texts and stitch groups included, and an edited one exports as `#PES0110`; an edited file still loses the other region types' own settings, a motif fill's arrangement beyond one motif (motif sizes and spacing are read since #608), per-letter colours and unmapped fields) | PES | 4 | Documented difference | No |
 | 10 | Hoop and Design Page fields hard-coded in PES (**fixed**, 2026-11-04, #322: `#PES0110` page, hoop, machine type and sections byte for byte against PE-DESIGN's files; v1 and the v6 display fields have no PE-DESIGN reference) | PES | 4 | Reference | No |
 | 11 | No Connection Points (Default / Closest / Farther) for text | Fonts | 4 | Documented difference | Geometry |
 | 12 | No minimum font sizes or small-text fonts (**fixed**, 2026-11-07, #527, #530: size ranges with a warning, the OpenStitch Line small-text font, compared with PE-DESIGN's recorded Small Text numbers, internal regression) | Fonts | 4 | Documented difference | No |
@@ -436,7 +435,8 @@ Line references are relative to `crates/`.
   pass, 98 stitches, the Applique block 637 as a01's), which confirms +88 and +92; the appliqué sews 32,6 x 32,6 mm (round 11's status bar; a01: 32,6 x 32,8 mm), where an
   earlier export sewed 29 x 29 mm before the wizard took PE-DESIGN's outline offsets (#246);
   Shapes-gallery shapes (`CEmbSpecialShape`, `CEmbLine` records under another class name)
-  round-trip (o-gallery-heart, shape-start-points); programmable fill written with its pattern
+  round-trip (o-gallery-heart, shape-start-points; both captures withdrawn 2026-11-14, #1060, the
+  four isosceles-triangle captures stay); programmable fill written with its pattern
   in the header's pattern list (spec `pes-0110-programmable-fill`, reference pending; the list
   byte-identical to obj-progfill-owner-v's for the owner's V; one pattern per design); decorative
   fill with its pattern in the object's pattern block (spec `pes-0110-decorative-fill`,
@@ -452,7 +452,8 @@ Line references are relative to `crates/`.
   group of four lines without the square (2026-10-31), fixed; several groups are read and
   written since #608 (2026-11-13: group-two and round 12's three-group and 3+2 captures, written
   back byte for byte from the group tags to the sewing-order list). Refused for
-  now: right-aligned and vertical text, stretched fit, rotation, letter spacing, kerning,
+  now: right-aligned text, vertical text in several columns or not top-aligned (one top-aligned
+  column is written since 2026-11-13, #608), stretched fit, rotation, letter spacing, kerning,
   per-character edits, other fonts.
   **PE-DESIGN's check (reference tier, `pes-0110-editable-text`):** it opens the file as
   editable text with every attribute as written and retyping works. Two differences came with
@@ -848,7 +849,8 @@ Line references are relative to `crates/`.
     read since #608), per-letter colours and sew types (the first
     letter's are used, noted), the hoop (Design Settings) from the file (item 10), and header
     fields the reader keeps only verbatim. Object kinds the version 11 export still refuses:
-    #608.
+    #1024 (#608 closed 2026-11-14 with stamps, one column of vertical text, several groups and
+    motif lines and fills written).
 
 - **Impact:** severity 4. Opening a user's own PE-DESIGN file and saving it again, even with
   no change, removes:
@@ -1092,6 +1094,9 @@ Line references are relative to `crates/`.
   the file (y down), because PE-DESIGN's angles turn counter-clockwise on screen. Since `.osd`
   version 2 OpenStitch stores every direction angle that way too (version-1 files are
   migrated on load), so the stored 45° sews at 135° in the file, as PE's does.
+  That capture was withdrawn on 2026-11-13: it was made with PE-DESIGN's built-in programmable
+  fill pattern (#1060). Spec `programmable-fill-45` is skipped until a capture with a project
+  pattern replaces it (#1075).
   **Fill Stitch too (2026-10-30):** PE-DESIGN 11.50's shape tools start Fill Stitch at 45° as
   well (pes-objects r01, a fresh design: "Fill … 45 deg"; r08 had to set 90 to differ), so new
   fill regions now start at 45° (`RegionSewing::default_angle`), and an outline change resets
@@ -4349,8 +4354,10 @@ skipped. PE-DESIGN keeps a Pattern2 for every motif fill and fills it with its b
 even under "Pattern1 only"; the coordinator's round-13 captures with Pattern2 set to the
 project's second motif (`motif-fill-clean-p1`, `-p1p2`) list only project motifs and replace the
 pe11 fixture. Specs
-`line-motif-zigzag-3pt` and `motif-fill-2pt` are skipped ("reference withdrawn 2026-11-13: the
-capture listed a PE-DESIGN built-in motif; a clean capture is pending"); `pes-objects-psc-patterns`
+`line-motif-zigzag-3pt` and `motif-fill-2pt` were skipped ("reference withdrawn 2026-11-13: the
+capture listed a PE-DESIGN built-in motif; a clean capture is pending") until 2026-11-14, when
+`line-motif-zigzag-5x5-spacing`, `line-motif-zigzag-5x8` and `motif-fill-clean-p1` replaced them on
+clean captures (#1077); `programmable-fill-45` stays skipped (#1075); `pes-objects-psc-patterns`
 and `pes-objects-owner-patterns` keep their other files. The formats test
 `committed_pes_files_list_only_the_projects_own_patterns` now fails on any committed PES whose
 motif list holds anything but the project's own `.pmf` motifs, or whose fill list holds anything
