@@ -239,7 +239,8 @@ pub enum SendError {
     Failed(String),
 }
 
-/// Writes `bytes` as `name.ext` in the root of `volume`.
+/// Writes `bytes` as `name.ext` in the root of `volume`, safely (#1093): a stick pulled out
+/// mid-write leaves the earlier file whole, and no half-written design for the machine.
 pub fn write_to_volume(
     volume: &Path,
     name: &str,
@@ -252,7 +253,7 @@ pub fn write_to_volume(
     if path.exists() && !overwrite {
         return Err(SendError::Exists(path));
     }
-    std::fs::write(&path, bytes)
+    crate::fsio::write(&path, bytes)
         .map_err(|e| SendError::Failed(format!("{}: {e}", path.display())))?;
     Ok(path)
 }
