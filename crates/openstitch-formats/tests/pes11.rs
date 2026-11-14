@@ -2272,6 +2272,38 @@ fn motif_sizes_and_spacing_read_and_write_back() {
     assert_eq!((plain.motif_line, plain.motif_fill), (None, None));
 }
 
+#[test]
+fn a_motif_lines_run_pitch_reads_and_writes_back() {
+    // #1068, round 15: 608-motif-5x8 saved again with Run pitch 3.0 and 7.0 and nothing else
+    // changed. +82 holds it (50, 30, 70); the running pitch +52 stays 2.0. A line without a motif
+    // keeps PE-DESIGN's default 5.0 there. Saved again with Start/End Type Run: +84.
+    let reference = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../compat/reference/stitches")
+            .join(format!("{name}.pes"));
+        std::fs::read(&path).expect("reference")
+    };
+    for (bytes, pitch) in [
+        (data("pe11/608-motif-5x8.pes"), 5.0),
+        (reference("1068-motif-5x8-runpitch-3p0"), 3.0),
+        (reference("1068-motif-5x8-runpitch-7p0"), 7.0),
+    ] {
+        let objects = objects_of(&bytes);
+        let s = &objects.shapes[0];
+        assert_eq!((s.motif_pitch, s.run_pitch), (pitch, 2.0));
+        let written = pes11::write(&objects, &stitches_of(&bytes)).expect("write");
+        assert_eq!(objects_of(&written), objects);
+    }
+    assert_eq!(one("r19-line-running").motif_pitch, 5.0);
+    // Start/End Type Run instead of Feed: +84 is 1 (0 in 608-motif-5x8).
+    let run = objects_of(&reference("1068-motif-5x8-startend-run"));
+    assert_eq!(run.shapes[0].line_flag_84, 1);
+    assert_eq!(
+        objects_of(&data("pe11/608-motif-5x8.pes")).shapes[0].line_flag_84,
+        0
+    );
+}
+
 /// The polylines of the project's own pattern sources with extension `ext`: motifs (`.pmf`,
 /// `@LINE n x y …`) or fill tiles (`.pas`, `@TILELINE 0 n x y …`) in compat/reference/pes,
 /// drawn in Programmable Stitch Creator by the owner.
