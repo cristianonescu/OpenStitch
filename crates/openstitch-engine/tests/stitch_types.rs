@@ -282,17 +282,25 @@ fn gradation_pattern_options() {
         json!({"id": 1, "gradationPattern": true}),
     );
     assert_eq!(gradation(&s), Some(Gradation::PE_DEFAULT));
-    run(
+    // PE-DESIGN's pattern always has nine points (#1039): a step count from an older script
+    // is accepted, ignored, and answered with a hint.
+    let reply = run(
         &mut s,
         "object.setRegion",
         json!({"id": 1, "gradationMax": 80, "gradationSteps": 4}),
+    );
+    assert!(
+        reply["hints"][0]
+            .as_str()
+            .is_some_and(|h| h.contains("gradationSteps is ignored")),
+        "{reply}"
     );
     assert_eq!(
         gradation(&s),
         Some(Gradation {
             max: 80.0,
             min: 5.0,
-            steps: Some(4),
+            steps: Some(9),
             shape: Default::default(),
         })
     );
@@ -302,11 +310,18 @@ fn gradation_pattern_options() {
         "object.setRegion",
         json!({"id": 1, "gradationPattern": true}),
     );
-    assert_eq!(gradation(&s).and_then(|g| g.steps), Some(4));
+    assert_eq!(gradation(&s).map(|g| g.max), Some(80.0));
     run(
         &mut s,
         "object.setRegion",
         json!({"id": 1, "gradationPattern": false}),
+    );
+    assert_eq!(gradation(&s), None);
+    // A step count alone no longer turns a pattern on.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "gradationSteps": 15}),
     );
     assert_eq!(gradation(&s), None);
     // A continuous (old) gradation becomes PE's default pattern when a pattern option is set.
@@ -332,8 +347,6 @@ fn gradation_pattern_options() {
     for params in [
         json!({"id": 1, "gradationMax": 4}),
         json!({"id": 1, "gradationMin": 101}),
-        json!({"id": 1, "gradationSteps": 1}),
-        json!({"id": 1, "gradationSteps": 21}),
     ] {
         let reply = s.handle(&json!({"command": "object.setRegion", "params": params}));
         assert_eq!(reply["ok"], json!(false), "{params}");
@@ -2509,5 +2522,27 @@ fn the_profile_description_says_when_the_ramps_differ() {
             .contains(openstitch_design::line_looks::PROFILE_PASSES_NOTE),
         "{}",
         profile.summary
+    );
+}
+
+/// #1039: `object.setRegion`'s `gradationSteps` description (what command_describe gives)
+/// says the value is ignored, so a model that passes one knows why it changes nothing.
+#[test]
+fn the_gradation_steps_description_says_it_is_ignored() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion");
+    let steps = spec
+        .params
+        .iter()
+        .find(|p| p.name == "gradationSteps")
+        .expect("gradationSteps");
+    assert!(
+        steps.summary.starts_with("Ignored (#1039)"),
+        "{}",
+        steps.summary
     );
 }
