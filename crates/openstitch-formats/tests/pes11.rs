@@ -485,7 +485,8 @@ fn unmapped_layouts_stop_reading_instead_of_misreading() {
     );
     for (name, read, stop) in [
         ("satin-zigzag-column", 1, ""),
-        ("shape-start-points", 8, ""),
+        // A Shapes-gallery triangle (CEmbSpecialShape); shape-start-points was withdrawn 2026-11-14 (#1060): its outline came from PE-DESIGN's Shapes gallerys.
+        ("concentric-triangle", 1, ""),
     ] {
         let bytes = std::fs::read(format!("{dir}/{name}.pes")).expect("reference");
         let section = pes::read_objects(&bytes).expect("objects");
@@ -533,32 +534,8 @@ fn thread_table_and_colour_indexes() {
     assert_eq!(swapped.threads[0].hex(), "#ed171f");
     let s = &swapped.shapes[0];
     assert_eq!((s.region_color, s.line_color), (0, 1));
-    // Three shapes in three colours (compat reference shape-start-points).
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../compat/reference/stitches/shape-start-points.pes"
-    );
-    let section = pes::read_objects(&std::fs::read(path).expect("reference")).expect("objects");
-    let colours: Vec<String> = section
-        .shapes
-        .iter()
-        .map(|s| section.threads[usize::from(s.region_color)].hex())
-        .collect();
-    let catalog: Vec<&str> = section
-        .shapes
-        .iter()
-        .filter_map(|s| {
-            section.threads[usize::from(s.region_color)]
-                .catalog_number
-                .as_deref()
-        })
-        .collect();
-    // All eight shapes now read (five are gallery shapes): the region colours in order.
-    assert_eq!(
-        catalog,
-        ["800", "007", "027", "019", "058", "030", "070", "005"],
-        "{colours:?}"
-    );
+    // The eight-shape check of shape-start-points' thread indexes went with that reference,
+    // withdrawn 2026-11-14 (#1060): its outline came from PE-DESIGN's Shapes gallerys.
 }
 
 #[test]
@@ -589,13 +566,11 @@ fn round_3_object_files_read_their_stitches_and_stop_cleanly() {
     // PEC stitches always read, and the object list either reads or stops at a named class
     // without panicking. The classes are mapped by later work.
     for name in [
-        "o-applique-heart",
         "o-arc-string",
         "o-arc",
         "o-closed-curve",
         "o-closed-freehand",
         "o-fan",
-        "o-gallery-heart",
         "o-group-two-rects",
         "o-hoop-100x100-s",
         "o-hoop-130x180-single",
@@ -693,8 +668,6 @@ const FULLY_PARSED: &[&str] = &[
     "pes-default-v6",
     "pes-csewseg-trims",
     "pes-design-properties",
-    "o-gallery-heart",
-    "shape-start-points",
     "text-fit-ahhhh",
     "text-fit-default",
     "text-fit-halign-left",
@@ -853,7 +826,7 @@ fn owner_file(name: &str) -> Vec<u8> {
         return std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
     }
     if [
-        "shape-start-points",
+        "concentric-triangle",
         "hole-sewing-pentagon-star",
         "concentric-ring40-hole15",
         "spiral-ring40-hole15",
@@ -1044,8 +1017,6 @@ fn written_object_sections_match_pe_designs_bytes_outside_the_documented_differe
     // and curved owner files do not all share (the circles the text-fit files' texts follow
     // too). Everything else in the object section is identical.
     let marks_differ = [
-        "o-gallery-heart",
-        "shape-start-points",
         // Three rectangles whose second position's segment differs from r01's (the documented
         // geometry-header difference).
         "group-partial",
@@ -1546,20 +1517,15 @@ fn fit_text_to_outline_reads() {
 
 #[test]
 fn gallery_shapes_read_as_shapes() {
-    // A Shapes-gallery heart is a CEmbLine record under the class CEmbSpecialShape: the same
-    // attributes and Bézier outline; the writer keeps the class.
-    let heart = objects_of(&owner_file("o-gallery-heart"));
-    assert_eq!(heart.shapes.len(), 1);
-    let s = &heart.shapes[0];
+    // A Shapes-gallery shape is a CEmbLine record under the class CEmbSpecialShape: the same
+    // attributes and outline; the writer keeps the class. The isosceles triangle stays (three
+    // corners fitted to the dragged box); the gallery heart and shape-start-points were
+    // withdrawn 2026-11-14 (#1060) because their outlines came from PE-DESIGN's gallery.
+    let triangle = objects_of(&owner_file("concentric-triangle"));
+    assert_eq!(triangle.shapes.len(), 1);
+    let s = &triangle.shapes[0];
     assert!(s.gallery && s.closed);
-    assert_eq!(s.bounds, [600, 600, 900, 900]);
-    assert_eq!(s.line_type, Shape::LINE_RUNNING);
-    let start = objects_of(&owner_file("shape-start-points"));
-    assert_eq!(
-        start.shapes.iter().filter(|s| s.gallery).count(),
-        5,
-        "three Shape-tool shapes, five gallery shapes"
-    );
+    assert_eq!(s.vertices.len(), 3);
 }
 
 #[test]
@@ -2332,6 +2298,109 @@ fn project_patterns(root: &std::path::Path, ext: &str) -> Vec<Vec<(i16, i16)>> {
     out
 }
 
+/// Every tile line (`@TILELINE i n x y …`, any index) of the project's own `.pas` and `.plf`
+/// sources: compat/reference/pes and the design crate's pattern fixtures.
+fn project_tile_lines(root: &std::path::Path) -> Vec<Vec<(i16, i16)>> {
+    let mut out = Vec::new();
+    for dir in [
+        "compat/reference/pes",
+        "crates/openstitch-design/tests/fixtures/patterns",
+    ] {
+        for entry in std::fs::read_dir(root.join(dir)).expect("dir") {
+            let path = entry.expect("entry").path();
+            let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase());
+            if !matches!(ext.as_deref(), Some("pas" | "plf")) {
+                continue;
+            }
+            for line in std::fs::read_to_string(&path).expect("source").lines() {
+                let Some(rest) = line.strip_prefix("@TILELINE ") else {
+                    continue;
+                };
+                let v: Vec<i16> = rest
+                    .split_whitespace()
+                    .skip(2)
+                    .map(|n| n.parse().expect("number"))
+                    .collect();
+                out.push(v.chunks(2).map(|c| (c[0], c[1])).collect());
+            }
+        }
+    }
+    out
+}
+
+/// The pattern blocks of a `#PES0110` file's objects (after the first object class, before the
+/// PEC section), found by their structure: u16 size, u16 polyline count, then per polyline six
+/// zero bytes, u16 1, u16 point count and the points (as tools/redact_pattern_blocks.py finds
+/// them).
+fn object_pattern_blocks(data: &[u8]) -> Vec<Vec<Vec<(i16, i16)>>> {
+    let u16_at = |o: usize| u16::from_le_bytes([data[o], data[o + 1]]);
+    let pec = u32::from_le_bytes(data[8..12].try_into().expect("offset")) as usize;
+    let end = pec.min(data.len());
+    let Some(first) = data[..end].windows(4).position(|w| w == b"CEmb") else {
+        return Vec::new();
+    };
+    let head = [0, 0, 0, 0, 0, 0, 1, 0];
+    let mut found = Vec::new();
+    let mut o = first + 4;
+    while o + 8 <= end {
+        if data[o..o + 8] != head {
+            o += 1;
+            continue;
+        }
+        let start = o - 4;
+        let (size, n) = (u16_at(start), u16_at(start + 2));
+        let mut p = start + 4;
+        let mut lines = Vec::new();
+        let mut ok = (1..=400).contains(&n) && (100..=40000).contains(&size);
+        for _ in 0..n {
+            if !ok || p + 10 > end || data[p..p + 8] != head {
+                ok = false;
+                break;
+            }
+            let cnt = usize::from(u16_at(p + 8));
+            if cnt == 0 || p + 10 + 4 * cnt > end {
+                ok = false;
+                break;
+            }
+            lines.push(
+                (0..cnt)
+                    .map(|k| {
+                        let q = p + 10 + 4 * k;
+                        (u16_at(q) as i16, u16_at(q + 2) as i16)
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            p += 10 + 4 * cnt;
+        }
+        if ok {
+            found.push(lines);
+            o = p;
+        } else {
+            o += 1;
+        }
+    }
+    found
+}
+
+/// OpenStitch's placeholder rows (pes11.rs `pattern_block`) at the point counts of `lines`.
+fn placeholder_rows(lines: &[Vec<(i16, i16)>]) -> Vec<Vec<(i16, i16)>> {
+    let n = lines.len() as f64;
+    lines
+        .iter()
+        .enumerate()
+        .map(|(k, l)| {
+            let c = l.len();
+            let y = ((k as f64 + 0.5) * 1024.0 / n).round() as i16;
+            (0..c)
+                .map(|j| {
+                    let x = (j as f64 * 1024.0 / (c.max(2) - 1) as f64).round() as i16;
+                    (x, y)
+                })
+                .collect()
+        })
+        .collect()
+}
+
 #[test]
 fn committed_pes_files_list_only_the_projects_own_patterns() {
     // PE-DESIGN's built-in motifs and programmable fill patterns are Brother content and stay
@@ -2364,10 +2433,45 @@ fn committed_pes_files_list_only_the_projects_own_patterns() {
             }
         }
     }
+    // Shape pattern blocks (#1060): PE-DESIGN writes its default decorative pattern into every
+    // shape it saves; every committed block must be OpenStitch's placeholder rows or made of the
+    // project's own tiles. Shapes-gallery shapes (CEmbSpecialShape) only in the four isosceles
+    // triangles kept after the #1060 review (three corners fitted to the dragged box).
+    let tile_lines = project_tile_lines(&root);
+    const GALLERY_OK: [&str; 4] = [
+        "concentric-triangle.pes",
+        "spiral-triangle.pes",
+        "spiral-triangle-d1p0.pes",
+        "spiral-triangle-wide.pes",
+    ];
     let mut checked = 0;
+    let mut blocks_checked = 0;
     let mut foreign = Vec::new();
     for f in &files {
         let bytes = std::fs::read(f).expect("read");
+        if !bytes.starts_with(b"#PES0110") {
+            continue;
+        }
+        let name = f.strip_prefix(&root).unwrap_or(f).display().to_string();
+        for lines in object_pattern_blocks(&bytes) {
+            blocks_checked += 1;
+            let own = lines.iter().all(|l| tile_lines.contains(l));
+            if !own && lines != placeholder_rows(&lines) {
+                foreign.push(format!(
+                    "{name} (a shape pattern block of {} polylines)",
+                    lines.len()
+                ));
+            }
+        }
+        let file_name = f
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if bytes.windows(16).any(|w| w == b"CEmbSpecialShape")
+            && !GALLERY_OK.contains(&file_name.as_str())
+        {
+            foreign.push(format!("{name} (a Shapes-gallery shape)"));
+        }
         let Ok(s) = pes::read_objects(&bytes) else {
             continue;
         };
@@ -2375,7 +2479,6 @@ fn committed_pes_files_list_only_the_projects_own_patterns() {
             continue;
         }
         checked += 1;
-        let name = f.strip_prefix(&root).unwrap_or(f).display().to_string();
         let stamp_capture = f
             .file_name()
             .is_some_and(|n| n.to_string_lossy().starts_with("stamp-"));
@@ -2394,6 +2497,10 @@ fn committed_pes_files_list_only_the_projects_own_patterns() {
         }
     }
     assert!(checked > 0, "no file with a pattern list was found");
+    assert!(
+        blocks_checked > 400,
+        "{blocks_checked} shape pattern blocks found"
+    );
     assert!(
         foreign.is_empty(),
         "patterns that are not the project's own: {foreign:?}"

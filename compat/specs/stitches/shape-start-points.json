@@ -16,6 +16,10 @@
     {
       "kind": "measured",
       "note": "PE-DESIGN 11.50 black-box survey, 2026-10-27 (pe-gui): 16 Shape-tool shapes drawn with Optimize Entry/Exit Points off; every shape ended where it started. Rectangles (square, wide, tall), ellipses, Round Rectangle, heart, diamond, hexagon, 4- and 5-point stars, crescent and drop start at the lowest outline point on the vertical centre line; triangle, pentagon and octagon at the left end of the bottom edge."
+    },
+    {
+      "kind": "measured",
+      "note": "reference withdrawn 2026-11-14 (#1060): the capture drew its shapes with PE-DESIGN's Shapes gallery, whose outlines are PE-DESIGN library geometry; a capture drawn with the outline tools is pending. The spec keeps its own checks and its machine record; the reference checks wait for the new capture."
     }
   ],
   "script": [
@@ -155,7 +159,7 @@
     {
       "id": "pe-design",
       "file": "stitches/shape-start-points.pes",
-      "make": "On a 100 × 100 mm Design Page, with Options ▸ Optimize Entry/Exit Points off, draw with the Shapes tools, each in a different thread colour, line Not Sewn, region Fill Stitch with Under Sewing off and every other attribute at its default: a Rectangle (2,2)–(22,22) mm; a Rectangle (26,2)–(46,12); an Ellipse in the box (50,2)–(70,12); a Heart in (74,2)–(94,22); a Diamond in (2,26)–(22,46); a 4-point star in (26,26)–(46,46); a Triangle in (50,26)–(70,46); a Drop in (74,26)–(94,46). Save with Save As as PES (PE-DESIGN 11's default PES version) under the file name given, and record the PE-DESIGN version, the date, the operating system and every setting you changed in compat/reference/MANIFEST.json (see docs/COMPATIBILITY_TESTS.md)."
+      "make": "Draw the same shapes with the outline tools (Rectangle, Circle, Shapes > Outline or freehand points), not the Shapes gallery. On a 100 × 100 mm Design Page, with Options ▸ Optimize Entry/Exit Points off, draw with the Shapes tools, each in a different thread colour, line Not Sewn, region Fill Stitch with Under Sewing off and every other attribute at its default: a Rectangle (2,2)–(22,22) mm; a Rectangle (26,2)–(46,12); an Ellipse in the box (50,2)–(70,12); a Heart in (74,2)–(94,22); a Diamond in (2,26)–(22,46); a 4-point star in (26,26)–(46,46); a Triangle in (50,26)–(70,46); a Drop in (74,26)–(94,46). Save with Save As as PES (PE-DESIGN 11's default PES version) under the file name given, and record the PE-DESIGN version, the date, the operating system and every setting you changed in compat/reference/MANIFEST.json (see docs/COMPATIBILITY_TESTS.md)."
     }
   ],
   "machine": {
