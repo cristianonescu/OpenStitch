@@ -541,3 +541,44 @@ fn pes_version_11_keeps_every_group() {
     assert_eq!(groups.len(), 2, "{groups:?}");
     assert!(groups.iter().all(Option::is_some), "{groups:?}");
 }
+
+#[test]
+fn pes_version_11_writes_motif_lines_and_fills_as_pe_design() {
+    // #608: PE-DESIGN 11.50's motif captures (round 12 and 13, the project's own motif)
+    // imported and exported again: the motif line's width, height and spacing, the motif fill's
+    // size and the motif in the header's list come back as PE-DESIGN wrote them.
+    let fixtures =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../openstitch-formats/tests/fixtures/pe11");
+    let dir = temp_dir("v11-motif");
+    for name in ["608-motif-5x8", "motif-fill-clean-p1"] {
+        let pe_bytes = std::fs::read(fixtures.join(format!("{name}.pes"))).expect("fixture");
+        let pe = pes::read_objects(&pe_bytes).expect("objects");
+        std::fs::write(dir.join("in.pes"), &pe_bytes).expect("copy");
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 180, "height": 130}));
+        let r = run(&mut s, "import.pes", json!({"path": "in.pes"}));
+        assert_eq!(r["skipped"], json!([]), "{name}");
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": "out.pes", "pesVersion": "11"}),
+        );
+        let ours = pes::read_objects(&std::fs::read(dir.join("out.pes")).expect("out.pes"))
+            .expect("objects");
+        let (a, b) = (&ours.shapes[0], &pe.shapes[0]);
+        assert_eq!((a.line_type, a.region), (b.line_type, b.region), "{name}");
+        assert_eq!(a.motif_line, b.motif_line, "{name}");
+        // The fill's size and arrangement (Pattern1 only, as motif-fill-clean-p1).
+        assert_eq!(a.motif_fill, b.motif_fill, "{name}");
+        // 608-motif-5x8 lists one motif, which comes back as PE-DESIGN wrote it, with +236 and
+        // +332 (1, the number listed). motif-fill-clean-p1 lists two (Pattern2 holds the project's
+        // second motif); which listed motif an object uses is not mapped, so the import keeps
+        // OpenStitch's default motif there and the export lists one.
+        if pe.motif_patterns.len() == 1 {
+            assert_eq!(ours.motif_patterns, pe.motif_patterns, "{name}");
+            assert_eq!(a.motif_fields, b.motif_fields, "{name}");
+        } else {
+            assert_eq!(a.motif_fields, [1, 1], "{name}");
+        }
+    }
+}

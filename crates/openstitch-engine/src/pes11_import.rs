@@ -100,15 +100,27 @@ pub fn objects(section: &ObjectSection) -> Imported {
                                 .into(),
                         ));
                     }
-                    out.notes.push((
-                        position,
-                        "motif size and spacing at OpenStitch's defaults (PE-DESIGN's motif fields are not mapped)".into(),
-                    ));
                     if let Some(l) = o.line.as_mut().filter(|_| motif_line) {
                         l.motif = id.clone();
+                        // Width along the line, height across it, spacing (#608).
+                        if let Some([w, h, gap]) = s.motif_line {
+                            l.width = f64::from(w);
+                            l.height = Some(f64::from(h));
+                            l.spacing = Some(f64::from(gap));
+                        }
                     }
                     if let Some(r) = o.region.as_mut().filter(|_| motif_fill) {
                         r.pattern = id;
+                        if let Some(([w, h], arrangement)) = s.motif_fill {
+                            r.pattern_width = Some(f64::from(w));
+                            r.pattern_height = Some(f64::from(h));
+                            if arrangement != 0 {
+                                out.notes.push((
+                                    position,
+                                    "the region motif's arrangement and spacing at OpenStitch's (one motif, as PE-DESIGN's Pattern1 only)".into(),
+                                ));
+                            }
+                        }
                     }
                 }
                 if !s.stamps.is_empty()

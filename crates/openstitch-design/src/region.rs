@@ -2337,16 +2337,24 @@ pub fn tie_in(run: &mut Run) {
     tie_in_by(run, TIE_STEP);
 }
 
+/// A first stitch this short (0.1 mm) is passed over by [`tie_in_by`]: the writer sews points
+/// closer than 0.05 mm as one needle point.
+const TIE_FEEL: f64 = 1.0;
+
 /// [`tie_in`] with steps of `step` (0.1 mm) instead of PE-DESIGN's 0.3 mm.
 pub fn tie_in_by(run: &mut Run, step: f64) {
     if run.len() < 2 {
         return;
     }
-    let (a, b) = (run[0], run[1]);
-    let len = a.distance(b);
-    if len <= 1e-9 {
+    // Along the first stitch the needle can feel: a run that starts on a near-duplicate point
+    // (Pacifico's i, a stroke's first rung 0.01-0.02 mm from its lead) would step out by that
+    // much and back, which the writer merges into one needle point, leaving the run untied
+    // (#1032). PE-DESIGN's text references always tie in 0.3 mm.
+    let a = run[0];
+    let Some(b) = run[1..].iter().copied().find(|p| p.distance(a) > TIE_FEEL) else {
         return;
-    }
+    };
+    let len = a.distance(b);
     let unit = (b - a) * (1.0 / len);
     // Three steps from a first stitch of 3.0 mm (satin-length-sweep-d1p0's 3 mm column),
     // one up to 2.3 mm: the bound is set halfway, at 2.65 mm.
