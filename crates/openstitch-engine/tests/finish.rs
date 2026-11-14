@@ -315,7 +315,11 @@ fn satin_o_s_8_and_a_start_where_pe_design_starts_them_with_its_one_step_tie_in(
             "text.add",
             json!({"text": letter, "font": "lato-bold", "size": 20, "x": 20, "y": 70, "fill": "Red"}),
         );
-        let ours = from_corner(&Compiler::for_design(s.design()).compile(s.design()).stitches);
+        let ours = from_corner(
+            &Compiler::for_design(s.design())
+                .compile(s.design())
+                .stitches,
+        );
         for (who, p) in [("PE-DESIGN", &pe), ("OpenStitch", &ours)] {
             // One step: out, straight back, then the run's first stitch (1.4 to 2 mm).
             assert!(d(p[0], p[1]) < 5.0, "{letter} {who}: {:?}", &p[..5]);
