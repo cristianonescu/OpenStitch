@@ -341,7 +341,9 @@ then style them in the next.
   tieCount, tieLength, between}`. For a machine without an automatic cutter: `trim: off`
   (jumps instead of trims; the user cuts them by hand), and on text `between: word` or
   `never` so letters of a word are not trimmed apart. Slippery or thick threads: `tie:
-  always` with `tieCount: 2`. `reset: true` goes back to PE-DESIGN's rules; check the result
+  always` with `tieCount: 2`. With `tie: auto`, a short join sewn across between two objects
+  of one thread carries no lock or tie-in, as PE-DESIGN sews it (#987); `tie: always` on both
+  objects puts the knots back. `reset: true` goes back to PE-DESIGN's rules; check the result
   with `design.info` (trims, jumps).
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
