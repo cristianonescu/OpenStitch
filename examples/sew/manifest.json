@@ -735,7 +735,7 @@
    86.0,
    86.0
   ],
-  "stitches": 4532,
+  "stitches": 4675,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -748,10 +748,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 6.1,
+  "sewingMinutes": 6.3,
   "image": null,
   "preview": "previews/region-sew-types-2.png",
-  "sha256": "6b7dd8931cf277740821f1cf903ba249bbdd24441af4a35c644e4e7e3278c72f",
+  "sha256": "780fbbd8797d8dbed6d5e188d294d26a08f8fd3d5910807fda1896515bfef34d",
   "renderVersion": 3
  },
  "fills/fill-options.pes": {
