@@ -29,6 +29,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.
 - `object.setRegion` `angle` (degrees, counter-clockwise) is a straight sewing direction: it turns
   `autoDirection` off unless you pass `autoDirection` in the same call.
+- A net fill (`netFill`, `zigzagNetFill`) lines up on the shape's bounds, its lines half a spacing
+  (a zigzag net: half a band) in from the top-left corner, as PE-DESIGN does; with
+  `object.setReferencePoint` its lines run through that point instead.
 - Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
   `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
   save PES version 6.
@@ -162,6 +165,7 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
    thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
    `pullPercent` (3 for tapered columns; `pullMax` caps it) compensate per side and by width;
+   on a satin `underlayStyle: edgeFill` reads back as `edgeZigzag` (the same PE-DESIGN type);
    `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
    `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`; on a skeleton or Auto
    satin it sews rows along the column that follow its width instead), `centreWalk` for thin

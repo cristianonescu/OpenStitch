@@ -1755,7 +1755,10 @@ pub struct Gradation {
     pub max: f64,
     /// Density at the far side, % (5–100).
     pub min: f64,
-    /// Number of step values (2–20); `None`: a gradation saved before patterns.
+    /// `Some`: PE-DESIGN's gradation pattern, whose Gradation Pattern Setting always has nine
+    /// points (round 15, #1039), so the count is 9 (designs saved before #1039 may hold
+    /// another, which sews the same: rows follow the straight fall from `max` to `min`);
+    /// `None`: a gradation saved before patterns, a continuous fall from 100 %.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub steps: Option<u32>,
     /// How the density goes from `max` to `min` across the region (#532, beyond PE-DESIGN):

@@ -388,10 +388,45 @@ pub fn generate(
         }
         RegionType::NetFill => {
             let id = r.pattern.as_deref().unwrap_or(NET_PATTERNS[0].id);
-            let out = net_families(closed, holes, angle, spacing, id)
+            // PE-DESIGN 11.50 starts the net from the shape, not from the page origin: its lines
+            // half a spacing in from the top-left corner of the shape's bounds along both turned
+            // axes, so Direction 90 sews as 0 (round 13 part 4, net-switch-dir0, net-dir45,
+            // net-dir90, #1071). With a reference point, `region::layers` put it at (0, 0): the
+            // net starts there.
+            let origin = match r.reference {
+                Some(_) => None,
+                None => Rect::enclosing(closed.iter().flat_map(|c| c.outline_points())).map(|b| {
+                    v2(b.min_x, b.min_y)
+                        + v2(spacing / 2.0, spacing / 2.0).rotated(angle.to_radians())
+                }),
+            }
+            .unwrap_or(v2(0.0, 0.0));
+            let to_origin = crate::geometry::Transform::translation(-origin.x, -origin.y);
+            let shift = |cs: &[Contour]| -> Vec<Contour> {
+                cs.iter().map(|c| c.transformed(&to_origin)).collect()
+            };
+            let out = net_families(&shift(closed), &shift(holes), angle, spacing, id)
                 .into_iter()
                 .flatten()
-                .map(|p| subdivide(&p, pitch))
+                .map(|p| {
+                    // Straight on through the crossings: PE-DESIGN steps the run pitch along the
+                    // whole line (2 mm steps on net-switch-dir0), not from crossing to crossing.
+                    let mut line: Vec<Vec2> = Vec::with_capacity(p.len());
+                    for q in p.into_iter().map(|q| q + origin) {
+                        if line.len() >= 2 {
+                            let (a, b) = (line[line.len() - 2], line[line.len() - 1]);
+                            let (u, v) = (b - a, q - b);
+                            if (u.x * v.y - u.y * v.x).abs()
+                                < 1e-9 * u.x.dhypot(u.y) * v.x.dhypot(v.y)
+                                && u.x * v.x + u.y * v.y > 0.0
+                            {
+                                line.pop();
+                            }
+                        }
+                        line.push(q);
+                    }
+                    subdivide(&line, pitch)
+                })
                 .collect();
             vec![region.sequence_raw(out)]
         }
@@ -593,6 +628,17 @@ pub fn generate(
                 };
                 let end = at;
                 bridge(&mut run, end);
+                // A step that would cross the stitch after next (from the line's end on the
+                // outline into a band whose last rung the outline cuts) leaves out the needle
+                // point between: the needle goes straight on (#1058).
+                let mut i = 0;
+                while i + 3 < run.len() {
+                    if crosses_inside(run[i], run[i + 1], run[i + 2], run[i + 3]) {
+                        run.remove(i + 1);
+                    } else {
+                        i += 1;
+                    }
+                }
                 // No stitch shorter than 0.3 mm (a rung cut short at a corner or the outline
                 // next to the line's end): the needle point is left out, the run still ends on
                 // the line.
@@ -2954,6 +3000,20 @@ fn zigzag_band(
     }
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
     run
+}
+
+/// Whether the stitches a–b and c–d cross more than 0.3 mm from all four ends.
+fn crosses_inside(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> bool {
+    let side = |p: Vec2, q: Vec2, r: Vec2| (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+    let (d1, d2) = (side(a, b, c), side(a, b, d));
+    let (d3, d4) = (side(c, d, a), side(c, d, b));
+    if d1 * d2 >= -1e-6 || d3 * d4 >= -1e-6 {
+        return false;
+    }
+    let x = c.lerp(d, d1 / (d1 - d2));
+    [a, b, c, d]
+        .iter()
+        .all(|p| p.distance(x) > ZIGZAG_NET_MIN_STITCH)
 }
 
 /// `part` (a piece of the polyline `line`) run on along `line` by up to `ext` at both ends.
