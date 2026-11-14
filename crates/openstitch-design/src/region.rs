@@ -3471,3 +3471,37 @@ fn second_underlay(
         _ => vec![rows()],
     }
 }
+
+#[cfg(test)]
+mod tie_tests {
+    use super::*;
+    use crate::geometry::v2;
+
+    /// #1032: a tie or lock comes back to exactly its point. A row that only passes 0.03 mm
+    /// from it is not one (in a stitch file the two can land on neighbouring 0.1 mm grid points),
+    /// so the compiler adds a real lock there; the ties generated here always pass.
+    #[test]
+    fn only_an_exact_return_is_a_tie_or_a_lock() {
+        let b = v2(779.0, 456.3);
+        // Last first: the end, a step 0.32 mm back, and a point 0.03 mm from the end.
+        let near = [b, v2(779.9, 453.5), v2(779.0, 456.6), v2(770.0, 440.0)];
+        assert!(!ends_locked(&near));
+        let exact = [b, v2(779.9, 453.5), b, v2(770.0, 440.0)];
+        assert!(ends_locked(&exact));
+        let mut run = vec![v2(0.0, 0.0), v2(40.0, 0.0)];
+        run.extend(lock_after(&[v2(40.0, 0.0), v2(0.0, 0.0)]));
+        let tail: Vec<Vec2> = run.iter().rev().take(5).copied().collect();
+        assert!(ends_locked(&tail), "{run:?}");
+        // Starts the same way: a near return is not a tie-in; tie_in's is.
+        let a = v2(100.0, 100.0);
+        assert!(!starts_tied(&[
+            a,
+            v2(103.0, 100.0),
+            v2(100.3, 100.0),
+            v2(120.0, 100.0)
+        ]));
+        let mut run = vec![a, v2(130.0, 100.0), v2(160.0, 100.0)];
+        tie_in(&mut run);
+        assert!(starts_tied(&run), "{run:?}");
+    }
+}
