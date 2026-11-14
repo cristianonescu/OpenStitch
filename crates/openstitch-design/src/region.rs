@@ -3544,5 +3544,21 @@ mod tie_tests {
         let mut run = vec![a, v2(130.0, 100.0), v2(160.0, 100.0)];
         tie_in(&mut run);
         assert!(starts_tied(&run), "{run:?}");
+        // A near-return is found, to be made exact rather than doubled; an exact one is not.
+        assert_eq!(nearly_ends_locked(&near), Some(2));
+        assert_eq!(nearly_ends_locked(&exact), Some(2));
+        let mut fixed = near;
+        fixed[0] = fixed[2];
+        assert!(ends_locked(&fixed));
+        let start = [a, v2(103.0, 100.0), v2(100.3, 100.0), v2(120.0, 100.0)];
+        assert_eq!(nearly_starts_tied(&start), Some(2));
+        let mut fixed = start;
+        fixed[2] = fixed[0];
+        assert!(starts_tied(&fixed));
+        // Too far off (0.6 mm) is no tie meant as one: a real tie-in is added instead.
+        assert_eq!(
+            nearly_starts_tied(&[a, v2(103.0, 100.0), v2(106.0, 100.0), v2(120.0, 100.0)]),
+            None
+        );
     }
 }
