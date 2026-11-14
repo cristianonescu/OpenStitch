@@ -157,7 +157,12 @@ Line references are relative to `crates/`.
   slants on the 5×2 mm column). Every satin object starts with a tie-in (0.3 mm out along the
   first stitch and back; three steps out and two back after a first stitch over 3 mm) and ends
   with a lock (0.3 mm back along the last stitch and return; two steps after a last stitch over
-  4.25 mm), per `satin-lock-column-3p5.pes` and the other satin references.
+  4.25 mm), per `satin-lock-column-3p5.pes` and the other satin references.
+  Since 2026-11-14 (#1032) the tie-in steps along the first stitch longer than 0.1 mm: a run
+  that starts on a near-duplicate point (Pacifico's i, a stroke's first rung 0.01-0.02 mm from
+  its lead) stepped out that far and back, which the writer sews as one needle point, so the
+  section started untied (four letter starts in the kit's fonts-and-text; PE-DESIGN's text
+  references never start untied).
   On a Hoop Size page (PE-DESIGN's default for a new design; these 2026-10-27 references
   are on a 100 × 100 Custom Size page) a one-step tie-in starts with a stitch in place on
   the move's landing (#1013, since 2026-11-13: 286 of 296 run starts in its Hoop Size

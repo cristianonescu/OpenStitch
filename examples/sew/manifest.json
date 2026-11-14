@@ -1026,7 +1026,7 @@
    83.4,
    54.6
   ],
-  "stitches": 1085,
+  "stitches": 1086,
   "trims": 6,
   "threads": [
    "405 Blue",
@@ -1039,7 +1039,7 @@
   "sewingMinutes": 1.7,
   "image": null,
   "preview": "previews/maze-fill.png",
-  "sha256": "d75a2894ae76f6217b3d01ae1e751ef98a16f8db4e70877f5ae8cee6c9ac33f4",
+  "sha256": "2ad01d23ef987fa15903f36cbbdfb83b025df8dd58b59cd320b66317afffc31d",
   "renderVersion": 3
  },
  "lines/line-sew-types.pes": {
@@ -1134,7 +1134,7 @@
    71.0,
    89.7
   ],
-  "stitches": 3928,
+  "stitches": 3936,
   "trims": 40,
   "threads": [
    "405 Blue",
@@ -1145,7 +1145,7 @@
   "sewingMinutes": 7.0,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "a775c590015d1e052b909f6e71f41d333210fe880a88759c929f11083120196d",
+  "sha256": "3fe75e799f76c4ce2237e2fed6e128f7ae07507a420e63daa66049d984b864fe",
   "renderVersion": 3
  },
  "lettering/monograms.pes": {
@@ -1291,7 +1291,7 @@
    89.6,
    62.1
   ],
-  "stitches": 5800,
+  "stitches": 5802,
   "trims": 13,
   "threads": [
    "001 White",
@@ -1303,7 +1303,7 @@
   "sewingMinutes": 7.9,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-pe-compatible.png",
-  "sha256": "5326117942413e8149638d1c79de2e9be41d0f21b1e2cbc7ba5274309b9469cd",
+  "sha256": "d345e9ba31fcbe1fb68cad3750d731d0b04e94c80689271011a2ee62a36f0a02",
   "renderVersion": 3
  },
  "image-tools/S-cross-stitch-strawberry-openstitch.pes": {
@@ -1581,7 +1581,7 @@
    199.3,
    150.9
   ],
-  "stitches": 114075,
+  "stitches": 114079,
   "trims": 2047,
   "threads": [
    "307 Linen",
@@ -1598,7 +1598,7 @@
   "sewingMinutes": 247.5,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "f2399ecbce32be8aa81c8a160a3ba6b820a0b0472f68100137ca7af84d4d0a3b",
+  "sha256": "1ec91298ab24d159497c237c8ff32a09ce3cc8394541b7f919d41f674a804418",
   "renderVersion": 3
  }
 }
