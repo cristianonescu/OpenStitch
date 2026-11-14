@@ -1,0 +1,75 @@
+name: Weekly monkey run
+
+# The seeded monkey test of the editor window (#880), run long once a week. Pull requests and
+# main run it short (2 seeds x 150 steps, in rust.yml's tests). Here it runs
+# OPENSTITCH_MONKEY_RUNS seeds of OPENSTITCH_MONKEY_STEPS steps each, from a new first seed every
+# week, so the weekly runs cover new ground. Release build: a step over 30 s is a freeze a user
+# would see (debug steps run about 1.6x slower). The test prints its seed range first; on a
+# failure it prints the seed, the step and the last 20 actions. To replay one seed locally:
+#   OPENSTITCH_MONKEY_SEED=<seed> OPENSTITCH_MONKEY_RUNS=1 OPENSTITCH_MONKEY_STEPS=<step> \
+#     cargo test --release -p openstitch-app --bin openstitch --locked -- --nocapture --exact \
+#     app::monkey_tests::the_editor_survives_seeded_random_input_and_undo_returns_to_the_start
+
+on:
+  schedule:
+    # Sundays 03:17 UTC, off the hour when scheduled runs queue up.
+    - cron: '17 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Seeds to run
+        default: '8'
+      steps:
+        description: Steps per seed
+        default: '1000'
+      seed:
+        description: First seed (empty for this week's)
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monkey-weekly
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  monkey:
+    name: Monkey (long)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      # Its own small release cache (the editor and its dependencies), saved from main only.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build
+        run: cargo test --release -p openstitch-app --bin openstitch --locked --no-run
+      - name: Seeds
+        shell: bash
+        env:
+          IN_RUNS: ${{ inputs.runs }}
+          IN_STEPS: ${{ inputs.steps }}
+          IN_SEED: ${{ inputs.seed }}
+        run: |
+          # This week's first seed: the ISO year and week, times 1000 (2026 week 46: 202646000).
+          seed="${IN_SEED:-$(( 10#$(date -u +%G%V) * 1000 ))}"
+          runs="${IN_RUNS:-8}"
+          steps="${IN_STEPS:-1000}"
+          case "$seed$runs$steps" in *[!0-9]*) echo "runs, steps and seed must be whole numbers"; exit 1;; esac
+          {
+            echo "OPENSTITCH_MONKEY_SEED=$seed"
+            echo "OPENSTITCH_MONKEY_RUNS=$runs"
+            echo "OPENSTITCH_MONKEY_STEPS=$steps"
+          } >> "$GITHUB_ENV"
+          echo "### Monkey run: seeds $seed to $(( seed + runs - 1 )), $steps steps each" >> "$GITHUB_STEP_SUMMARY"
+      - name: Monkey test
+        run: >-
+          cargo test --release -p openstitch-app --bin openstitch --locked --
+          --exact app::monkey_tests::the_editor_survives_seeded_random_input_and_undo_returns_to_the_start
+          --nocapture
