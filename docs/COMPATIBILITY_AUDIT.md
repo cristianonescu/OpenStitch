@@ -163,6 +163,11 @@ Line references are relative to `crates/`.
   its lead) stepped out that far and back, which the writer sews as one needle point, so the
   section started untied (four letter starts in the kit's fonts-and-text; PE-DESIGN's text
   references never start untied).
+  Since 2026-11-14 (#1076) the first stitch it steps along is longer than 0.15 mm, not 0.1 mm:
+  a 0.103 mm step (an Auto Punch fill in the PE-compatible storybook) rounded onto its start on a
+  machine file's 0.1 mm grid. A run whose first piece is one needle point, the next piece within a
+  sewn connection (4 mm), starts that piece on it, so the tie-in is on the landing (the
+  OpenStitch-mode storybook's satin, which opened with an untied 2.7 mm stitch).
   On a Hoop Size page (PE-DESIGN's default for a new design; these 2026-10-27 references
   are on a 100 × 100 Custom Size page) a one-step tie-in starts with a stitch in place on
   the move's landing (#1013, since 2026-11-13: 286 of 296 run starts in its Hoop Size

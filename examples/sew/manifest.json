@@ -935,7 +935,7 @@
    86.0,
    56.0
   ],
-  "stitches": 2181,
+  "stitches": 2182,
   "trims": 6,
   "threads": [
    "405 Blue",
@@ -948,7 +948,7 @@
   "sewingMinutes": 3.0,
   "image": null,
   "preview": "previews/meander-tiles-2.png",
-  "sha256": "0a64d29083ffd2f82ee28f54bcc02f832524600b2d0eb6fd71f96f1c39d01c2f",
+  "sha256": "6d83226d6f966729933f073f5fa132ed8b62c18e962e2990d1d83ebd1c5d9c40",
   "renderVersion": 3
  },
  "fills/gradients.pes": {
@@ -1077,7 +1077,7 @@
    84.5,
    84.0
   ],
-  "stitches": 4484,
+  "stitches": 4485,
   "trims": 10,
   "threads": [
    "405 Blue",
@@ -1094,7 +1094,7 @@
   "sewingMinutes": 6.1,
   "image": null,
   "preview": "previews/shape-tools.png",
-  "sha256": "23c685c568eb008a2816806e5d3c2820c9ea4ed9b9aba0185ad7e48e18b874cb",
+  "sha256": "e82757e8a6abe86fc17150e768d283edd66353c852755fce191054bbb7116ab8",
   "renderVersion": 3
  },
  "shapes/decorative-frames.pes": {
@@ -1171,7 +1171,7 @@
   "sewingMinutes": 10.3,
   "image": null,
   "preview": "previews/monograms.png",
-  "sha256": "c9037e43f36a548e7dcb328dd8465558ecfd6f90582d0fc992e8c18d325bff45",
+  "sha256": "6884765417aabcb26cce916c5036d9199818b6653c60112397e4acf686684208",
   "renderVersion": 3
  },
  "wizards/applique.pes": {
@@ -1553,7 +1553,7 @@
    199.0,
    150.1
   ],
-  "stitches": 95056,
+  "stitches": 95061,
   "trims": 1082,
   "threads": [
    "017 Light Blue",
@@ -1570,7 +1570,7 @@
   "sewingMinutes": 174.3,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "da2cad2d7f8f476812747b4ecfd4f74c610e045c53985e646abf479e1a0a89e7",
+  "sha256": "dc898b49c3f5afe41e3bafc9b40f31d98530c8d647ffec7d05f0bdb94e373146",
   "renderVersion": 3
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
@@ -1581,7 +1581,7 @@
    199.3,
    150.9
   ],
-  "stitches": 113916,
+  "stitches": 113921,
   "trims": 2047,
   "threads": [
    "307 Linen",
@@ -1598,7 +1598,7 @@
   "sewingMinutes": 247.3,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "a0d872be3e3cddc8a18a24071fca8873b263247b6020ad55d89df9ab7219512d",
+  "sha256": "cce30738da16d77edd8230d8a4d1507ca6a42878ebfbbd16ecc4cd9cae18dae2",
   "renderVersion": 3
  }
 }
