@@ -2368,3 +2368,62 @@ fn a_plain_net_starts_half_a_spacing_inside_the_shape() {
         .count();
     assert!(steps >= 150, "2 mm steps along the lines: {steps}");
 }
+
+/// #1071: with a reference point (`object.setReferencePoint`), a plain net's lines run through
+/// that point instead of starting from the shape's bounds.
+#[test]
+fn a_plain_net_runs_through_its_reference_point() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "netFill", "spacing": 3.0}),
+    );
+    run(
+        &mut s,
+        "object.setReferencePoint",
+        json!({"id": 1, "point": [35.2, 40.7]}),
+    );
+    let st = Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches;
+    // x of the vertical stitches and y of the horizontal ones, 0.1 mm from the rectangle's left
+    // and top, where five or more line up off the outline.
+    let (mut xs, mut ys) = (
+        std::collections::BTreeMap::<i64, usize>::new(),
+        std::collections::BTreeMap::<i64, usize>::new(),
+    );
+    for w in st.windows(2) {
+        if w[0].command != Command::Stitch || w[1].command != Command::Stitch {
+            continue;
+        }
+        let (x, y) = (
+            (w[1].x - 350.0).round() as i64,
+            (w[1].y - 400.0).round() as i64,
+        );
+        if (w[1].x - w[0].x).abs() < 0.5 && x > 0 && x < 300 {
+            *xs.entry(x).or_default() += 1;
+        } else if (w[1].y - w[0].y).abs() < 0.5 && y > 0 && y < 200 {
+            *ys.entry(y).or_default() += 1;
+        }
+    }
+    let keep = |m: std::collections::BTreeMap<i64, usize>| -> Vec<i64> {
+        m.into_iter()
+            .filter(|&(_, n)| n >= 5)
+            .map(|(v, _)| v)
+            .collect()
+    };
+    // Through (35.2, 40.7) mm, 3 mm apart: 0.2 and 0.7 mm from the left and top edges.
+    assert_eq!(
+        (keep(xs), keep(ys)),
+        (
+            (0..10).map(|k| 2 + 30 * k).collect::<Vec<i64>>(),
+            (0..7).map(|k| 7 + 30 * k).collect::<Vec<i64>>(),
+        )
+    );
+}
