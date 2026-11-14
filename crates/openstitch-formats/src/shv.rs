@@ -23,9 +23,12 @@
 //! to the first stitch after it, which has no record of its own: PE-DESIGN goes straight to the
 //! stitch after a jump's landing (`machine/pe-moves.SHV`); `80 03` comes before a move longer
 //! than [`LONG_MOVE`] (38.0 mm) on either axis (#349); a stitch over 12.7 mm is one such move
-//! to its end (pe-long.SHV). The preview is 4 bits a pixel, column by column (x), each column bottom to top, one pixel a
-//! millimetre with a one-pixel margin (`w` = width in whole millimetres + 2): PE's size fields
-//! are matched, its pixels only approximately (PE's own drawing rule is not known). A pixel
+//! to its end (pe-long.SHV). The preview is 4 bits a pixel, column by column (x), each column
+//! bottom to top, about one pixel a millimetre. Its size is PE-DESIGN's: twice the half-width
+//! in millimetres, rounded, plus a pixel each side (`w = 2 * round(W / 2 mm) + 2`, `h` alike;
+//! the ten PE-DESIGN exports captured, 26.9 to 78.0 mm, #989). Its pixels match PE-DESIGN's
+//! only approximately: PE's rows and columns follow no affine rule of the needle points
+//! (pe-preview-ruler-2: lines 2.1 mm apart land 1, 2 or 3 px apart). A pixel
 //! holds PE-DESIGN's preview value for the block's chart entry ([`PE_PREVIEW_VALUES`], 12
 //! entries measured; the nearest measured colour's for the others, #989). A Brother
 //! chart colour takes the chart entry PE-DESIGN gives it ([`PE_SHV_CODES`], #349).
@@ -358,7 +361,10 @@ pub fn write(input: &StitchPattern) -> Result<Vec<u8>> {
         .unwrap_or((0, 0, 0, 0));
     // One pixel a millimetre plus a margin, coarser for a design over 253 mm.
     let unit = 10 * (1 + (max_x - min_x).max(max_y - min_y) / 2530);
-    let (w, h) = ((max_x - min_x) / unit + 2, (max_y - min_y) / unit + 2);
+    // PE-DESIGN's size: the half extent rounded to whole pixels, a pixel's margin each side
+    // (59.0, 59.5 and 60.0 mm wide all 62 px; 26.9 mm 28 px, #989).
+    let side = |extent: i64| 2 * ((extent + unit) / (2 * unit)) + 2;
+    let (w, h) = (side(max_x - min_x), side(max_y - min_y));
     let mut pixels = vec![0_u8; (w * h) as usize];
     let pixel = |(px, py): (i64, i64)| ((px - min_x + unit) / unit, (py - min_y) / unit);
     let mut previous: Option<(i64, i64)> = None;

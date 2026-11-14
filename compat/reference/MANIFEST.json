@@ -6184,6 +6184,42 @@
       "notes": "Black-box capture 471-engraved-region-circle.pes from the coordinator's round-10 notes (#471); the project's own geometry. Kept out of the repository until PES 0110 import read a shape that carries a stamp (#959). Pattern blocks redacted 2026-11-14 (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN e76ec38316080f9fadcdeaa02eec9f075a6baad40609664aed689f3ac1228e8f."
     },
     {
+      "file": "stitches/608-motif-size-spacing.pes",
+      "spec": "line-motif-zigzag-5x5-spacing",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-13",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Layout & Editing, 100 x 100 mm page: Home > Shapes > Rectangle, a 40 x 40 mm square; region Not Sewn; line Motif Stitch with the project's own psc-motif-zigzag-3pt.pmf (compat/reference/pes, drawn in Programmable Stitch Creator in round 4), Maintain aspect ratio off, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Run pitch 5,0, Start/End Type Feed, motif 5,0 x 5,0 mm. Save As PES (default type). 40,00 x 40,00 mm, 75 st in PE-DESIGN's status bar.",
+      "sha256": "20a30e3dc1588fb3b94ce5fd5126bff076126f8519babd99ec40888e56d45c76",
+      "notes": "Header #PES0110. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. Also a formats fixture (crates/openstitch-formats/tests/fixtures/pe11, PROVENANCE.md). The header lists only the project's own motifs. As saved by PE-DESIGN: ae10e6c8bf6451db60c37b4b2b9741e8b72bed4ddafc1b26230e0bfd57675368."
+    },
+    {
+      "file": "stitches/608-motif-5x8.pes",
+      "spec": "line-motif-zigzag-5x8",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-13",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Layout & Editing, 100 x 100 mm page: Home > Shapes > Rectangle, a 40 x 40 mm square; region Not Sewn; line Motif Stitch with the project's own psc-motif-zigzag-3pt.pmf (compat/reference/pes, drawn in Programmable Stitch Creator in round 4), Maintain aspect ratio off, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Run pitch 5,0, Start/End Type Feed, motif 5,0 mm wide (the lower field, horizontal arrow) and 8,0 mm high (the upper field, vertical arrow). Save As PES (default type). 40,00 x 40,00 mm, 75 st in PE-DESIGN's status bar.",
+      "sha256": "93c51c89ad0d85022edd0d30414607c6d51269c5d658b5c3ea4b741fda2b890a",
+      "notes": "Header #PES0110. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. Also a formats fixture (crates/openstitch-formats/tests/fixtures/pe11, PROVENANCE.md). The header lists only the project's own motifs. As saved by PE-DESIGN: 972c0b75e323f1c665bb1f3e5df14bc5f65be68093a57a87e55e55b48126475d."
+    },
+    {
+      "file": "stitches/motif-fill-clean-p1.pes",
+      "spec": "motif-fill-clean-p1",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-13",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 608-motif-5x8.pes (the line as above, motif 5,0 x 8,0 mm, Spacing 2,0). Region sew Motif Stitch: first \"Pattern2 only\", Pattern2's folder button > the project's psc-motif-2pt.pmf (so no PE-DESIGN built-in motif is listed), then Pattern1's folder button > psc-motif-zigzag-3pt.pmf at 8,0 x 8,0 mm, arrangement \"Pattern1 only\", the other region settings as PE-DESIGN set them. Save As PES (default type). 186 st in PE-DESIGN's status bar.",
+      "sha256": "582bd05cf3045040a8f16c256dc50c1a37828a5d206c83f48e9c1f37aba5ca50",
+      "notes": "Header #PES0110. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. Also a formats fixture (crates/openstitch-formats/tests/fixtures/pe11, PROVENANCE.md). The header lists only the project's own motifs."
+    },
+    {
       "file": "stitches/987-two-running-lines-2mm.pes",
       "spec": "sew-across-running-lines-2mm",
       "reference": "pe-design",

@@ -1893,6 +1893,17 @@ Line references are relative to `crates/`.
   PE-DESIGN's other lines since 2026-10-30 (23 needle points against PE-DESIGN's 23, was 16;
   spec `line-motif-zigzag-3pt` checks the count within 3 %). Left: which way PE-DESIGN walks
   when both ends of the first motif-fill row are as near.
+  2026-11-14 (#1060): `motif-fill-2pt` and `line-motif-zigzag-3pt` were removed with their
+  captures, whose headers listed a PE-DESIGN built-in motif. Their replacements are on clean
+  captures, a 40 × 40 mm square with the project's zigzag motif.
+  - `line-motif-zigzag-5x5-spacing` and `line-motif-zigzag-5x8` (608-motif-size-spacing and
+    608-motif-5x8, motif 5 × 5 and 5 × 8 mm, spacing 2 mm, run pitch 5 mm): 77 needle points
+    against PE-DESIGN's 75; bounds and stitch lengths within 0.15 mm.
+  - `motif-fill-clean-p1` (motif fill 8 × 8 mm, Pattern1 only, with that line): the fill block
+    is 111 needle points against PE-DESIGN's 111, the line block 78 against 75, 189 against 186
+    in all; the fill spans 36 mm as PE-DESIGN.
+
+  Arrangement "Pattern1 and 2" is not sewn yet (motif-fill-clean-p1p2 is a formats fixture).
   Second round of captures, 2026-10-29 (pe-refs-4, inputs drawn by its `wizimg.py`):
   - **Auto Punch bars** (`autopunch-thin-strokes.pes`, nine black 40 mm bars 0.5–4 mm wide;
     `autopunch-thin-strokes-wide.pes`, seven 30 mm bars 5–14 mm; Max. Number of Colors filled
