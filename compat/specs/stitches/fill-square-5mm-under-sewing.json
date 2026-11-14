@@ -1,0 +1,195 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "fill-square-5mm-under-sewing",
+  "area": "stitches",
+  "title": "A lone 5 mm Fill square with under sewing, as PE-DESIGN sews it",
+  "description": "A 5 x 5 mm Rectangle-tool square, Fill at PE-DESIGN's defaults (under sewing on, density 4.5, Direction 45). PE-DESIGN 11.50 starts on the under sewing's edge run 1 mm inside the outline at the point nearest the entry (the middle of the bottom edge) and sews the 3 mm inset loop once round. It then sews the under sewing's rows in two halves from the start (the corner row nearest, back to the start and straight across to the far corner row, the diagonal), ends on the start and steps out to the entry before the top fill (#1088).",
+  "covers": {
+    "audit": [],
+    "featureMatrix": [
+      {
+        "area": "Region sew types",
+        "feature": "Fill (tatami: angle or auto direction"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 reference stitches/fill-square-5mm-under-sewing.pes (round 15, optimiser off): 85 stitches, the same at five positions 0,5 mm apart"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.rectangle",
+      "params": {
+        "x": 40,
+        "y": 47.5,
+        "width": 5,
+        "height": 5,
+        "fill": "Red"
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "id": 1,
+        "type": "none"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "square.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/fill-square-5mm-under-sewing.pes",
+      "make": "100 x 100 mm page, Optimize Entry/Exit Points off. Rectangle tool, 5 x 5 mm at (40, 47.5) mm (Home > Size). Line Not Sewn, region Fill Stitch at its defaults. Save As PES."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "square.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN's 85 needle points",
+      "reference": {
+        "tolerance": {
+          "count": 0
+        }
+      }
+    },
+    {
+      "id": "ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "square.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "the start on the inset edge run nearest the entry, the end at the entry on the outline",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "inset-edge",
+      "measure": {
+        "kind": "edgeStitches",
+        "rails": [
+          [
+            [
+              1,
+              1
+            ],
+            [
+              4,
+              1
+            ]
+          ],
+          [
+            [
+              4,
+              1
+            ],
+            [
+              4,
+              4
+            ]
+          ],
+          [
+            [
+              4,
+              4
+            ],
+            [
+              1,
+              4
+            ]
+          ],
+          [
+            [
+              1,
+              4
+            ],
+            [
+              1,
+              1
+            ]
+          ]
+        ],
+        "within": 0.15,
+        "maxLength": 1.6
+      },
+      "source": {
+        "export": "square.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "the inset loop's 1.5 mm stitches and the walks along it; PE-DESIGN also sews a zero-length stitch on the corner row at (4,1) (its only needle point), which OpenStitch's writer leaves out as a repeat, so it counts one more",
+      "reference": {
+        "tolerance": {
+          "count": 1
+        }
+      }
+    },
+    {
+      "id": "short-stitches",
+      "measure": {
+        "kind": "stitchLengthHistogram",
+        "bin": 1.0
+      },
+      "source": {
+        "export": "square.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "stitch lengths in 1 mm bins: the ties, the under sewing and the fill rows",
+      "reference": {
+        "tolerance": {
+          "count": 2
+        }
+      }
+    }
+  ]
+}

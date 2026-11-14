@@ -42,6 +42,19 @@ pub fn layers_with(
     holes: &[Contour],
     user: &[Pattern],
 ) -> Vec<Vec<Run>> {
+    layers_for(closed, r, holes, user, false)
+}
+
+/// [`layers_with`] for a letter of a text when `letter` is set: its fill under sewing keeps
+/// OpenStitch's earlier start and way into its rows, since no PE-DESIGN capture shows a
+/// letter's (#1088, as #1082 for its joins).
+pub fn layers_for(
+    closed: &[Contour],
+    r: &RegionSewing,
+    holes: &[Contour],
+    user: &[Pattern],
+    letter: bool,
+) -> Vec<Vec<Run>> {
     // Entry and exit points off the outline (a node moved after they were placed, as
     // `object.setPoint` leaves them) are sewn where they snap to it: a fill travelled to the
     // old point outside the reshaped outline (#570, #571).
@@ -59,7 +72,7 @@ pub fn layers_with(
     } else {
         r
     };
-    let mut out = layers_inner(closed, r, holes, user);
+    let mut out = layers_inner(closed, r, holes, user, letter);
     if r.kind == RegionType::Satin && r.underlay {
         link_underlay(&mut out, closed, holes);
     }
@@ -148,6 +161,7 @@ fn layers_inner(
     r: &RegionSewing,
     holes: &[Contour],
     user: &[Pattern],
+    letter: bool,
 ) -> Vec<Vec<Run>> {
     // Skeleton: the top stitching is a satin column along the centre line.
     if let Some(skeleton) = &r.skeleton
@@ -162,7 +176,7 @@ fn layers_inner(
         if first.is_some() {
             plain.underlay = false;
         }
-        let mut out = layers_inner(closed, &plain, holes, user);
+        let mut out = layers_inner(closed, &plain, holes, user, letter);
         out.pop();
         out.extend(first.into_iter().chain(second).map(|run| vec![run]));
         // Raised satin's padding lanes under the column, following its width (#685).
@@ -334,7 +348,7 @@ fn layers_inner(
     {
         let mut plain = r.clone();
         plain.angle_lines.clear();
-        let mut out = layers_inner(closed, &plain, holes, user);
+        let mut out = layers_inner(closed, &plain, holes, user, letter);
         out.pop();
         let spacing = 10.0 / r.density.max(0.1);
         let stitch = r.stitch_length * 10.0;
@@ -369,7 +383,7 @@ fn layers_inner(
     {
         let mut plain = r.clone();
         plain.flow_field = None;
-        let mut out = layers_inner(closed, &plain, holes, user);
+        let mut out = layers_inner(closed, &plain, holes, user, letter);
         out.pop();
         let spacing = 10.0 / r.density.max(0.1);
         let stitch = r.stitch_length * 10.0;
@@ -467,7 +481,7 @@ fn layers_inner(
         if first.is_some() {
             plain.underlay = false;
         }
-        let mut out = layers_inner(closed, &plain, holes, user);
+        let mut out = layers_inner(closed, &plain, holes, user, letter);
         out.pop();
         out.extend(first.into_iter().chain(second).map(|run| vec![run]));
         // Raised satin's padding lanes under the column (#685).
@@ -604,7 +618,7 @@ fn layers_inner(
             }
         } else {
             if (parts.edge && !edge_with_lattice) || parts.zigzag || parts.center {
-                out.extend(fill_underlay(closed, r, angle, holes, parts));
+                out.extend(fill_underlay(closed, r, angle, holes, parts, letter));
             }
             if parts.lattice {
                 out.extend(lattice(edge_with_lattice));
@@ -1039,6 +1053,7 @@ fn fill_underlay(
     angle: f64,
     holes: &[Contour],
     parts: UnderlayParts,
+    letter: bool,
 ) -> Vec<Vec<Run>> {
     let mut shape: Vec<Contour> = closed.to_vec();
     shape.extend(holes.iter().cloned());
@@ -1049,9 +1064,14 @@ fn fill_underlay(
     // at its point nearest that start, not on the outline (#1088: sweep-fill-us-*,
     // fill-frequency-*, the stamp-*-circle references at their entry; region-travel-u-*,
     // thread-match-swatches and machine-jumps' imported squares at their first vertex).
-    let anchor = r
-        .entry
-        .or_else(|| closed.first().and_then(|c| c.points.first().copied()));
+    // A letter keeps OpenStitch's earlier start: at its entry on the outline, without one at
+    // its inset's own first point (no capture shows a letter's, as #1082).
+    let anchor = if letter {
+        r.entry
+    } else {
+        r.entry
+            .or_else(|| closed.first().and_then(|c| c.points.first().copied()))
+    };
     let mut edge: Vec<Run> = if parts.edge {
         inset
             .iter()
@@ -1064,12 +1084,17 @@ fn fill_underlay(
     } else {
         Vec::new()
     };
-    // The edge run nearest the start goes first.
+    // The edge run nearest the start goes first (a letter's entered from its entry on the
+    // outline, as before).
+    let entry_on_outline = r.entry.map(|p| crate::route::snap(closed, p));
     if let Some(p) = anchor {
         let at = crate::route::snap(closed, p);
         let d = |run: &Run| run.first().map_or(f64::INFINITY, |q| q.distance(at));
         if let Some(i) = (0..edge.len()).min_by(|&a, &b| d(&edge[a]).total_cmp(&d(&edge[b]))) {
-            let first = edge.remove(i);
+            let mut first = edge.remove(i);
+            if letter {
+                first.insert(0, at);
+            }
             edge.insert(0, first);
         }
     }
@@ -1099,13 +1124,23 @@ fn fill_underlay(
         // other side's outermost row, ending on the start (#1088: sweep-fill-us-default rows 1
         // to 19 mm, the walk along the bottom to 39 mm, rows 39 to 21 mm, the start at 20 mm;
         // region-travel-u-* and sew-order-six-objects, one half from the far side; the
-        // stamp-*-circle references; thread-match-swatches). With both ways equally long it
-        // walks on the way the edge run went; a 5 mm square's 3 mm inset turns back instead
-        // (machine-jumps), which is not followed.
-        match edge.first_mut().filter(|_| center.is_none()) {
+        // stamp-*-circle references; thread-match-swatches; the lone 5 mm square of
+        // fill-square-5mm-under-sewing, its corner rows and diagonal included). Letters keep the
+        // plain chain (no capture shows a letter's, as #1082).
+        match edge.first_mut().filter(|_| center.is_none() && !letter) {
             Some(loop_run) => match rows_from_start(loop_run, &spans, &p, &tatami) {
-                Some((walk, rows)) => {
+                Some((walk, mut rows)) => {
                     loop_run.extend(walk);
+                    // Ended on the start, the under sewing steps out to the entry on the
+                    // outline before the top layer (sweep-fill-us-default: (20,39) to
+                    // (20,40); the lone 5 mm square: (2.5,4) to (2.5,5)).
+                    if let (Some(at), Some(run)) = (entry_on_outline, rows.last_mut())
+                        && run
+                            .last()
+                            .is_some_and(|q| q.distance(at) <= 1.5 * FILL_UNDERLAY_INSET)
+                    {
+                        run.push(at);
+                    }
                     rows
                 }
                 None => generate::chain_spans(&spans, &p, tatami),
@@ -1146,13 +1181,7 @@ fn rows_from_start(
     points: &impl Fn(&Span, usize, bool) -> Vec<f64>,
 ) -> Option<(Vec<Vec2>, Vec<Run>)> {
     let (&start, &last) = (lap.first()?, lap.last()?);
-    // Fewer than four rows (a 5 mm square's 3 mm inset has three, two of them corner points):
-    // PE-DESIGN's walks there differ from square to square (machine-jumps), so the plain
-    // chain is kept.
-    let mut rows_y: Vec<f64> = spans.iter().map(|s| s.y).collect();
-    rows_y.sort_by(f64::total_cmp);
-    rows_y.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
-    if lap.len() < 4 || start.distance(last) > 0.5 || rows_y.len() < 4 {
+    if lap.len() < 4 || start.distance(last) > 0.5 || spans.is_empty() {
         return None;
     }
     let ys = start.rotated(-p.angle.to_radians()).y;
@@ -1214,7 +1243,11 @@ fn rows_from_start(
     });
     let mut ranked = ranked.into_iter();
     let ((first, _), ((walk, _, _), at)) = ranked.next()?;
-    let mut rows = generate::chain_spans_from(&first, p, points, at);
+    let mut rows = split_row_joins_toward(
+        generate::chain_spans_from(&first, p, points, at),
+        p,
+        Some(start),
+    );
     if let Some(((second, far), _)) = ranked.next()
         && let Some(end) = rows.last().and_then(|r| r.last()).copied()
     {
@@ -1223,11 +1256,19 @@ fn rows_from_start(
             .into_iter()
             .min_by(|a, b| a.distance(end).total_cmp(&b.distance(end)))
         {
-            let (between, _, _) = lap_walk(lap, end, target);
+            // Back along the edge run to the start, then straight across to that row (the
+            // lone 5 mm square: (1,4), the start (2.5,4), (3.3,2.5), (4,1); the 40 mm square:
+            // (19,39), the start, then along the bottom to (39,39)).
+            let (mut between, _, _) = lap_walk(lap, end, start);
+            between.extend(even_stitches(&[start, target], FILL_UNDERLAY_PITCH));
             if let Some(run) = rows.last_mut() {
                 run.extend(between);
             }
-            rows.extend(generate::chain_spans_from(&second, p, points, target));
+            rows.extend(split_row_joins_toward(
+                generate::chain_spans_from(&second, p, points, target),
+                p,
+                Some(start),
+            ));
         }
     }
     // The rows end on the start, where the layer began.
@@ -1329,6 +1370,59 @@ fn even_stitches(path: &[Vec2], pitch: f64) -> Vec<Vec2> {
         }
     }
     out
+}
+
+/// `runs` with the stitches between two rows (their ends at different row lines) longer than
+/// the edge run's pitch split evenly: PE-DESIGN walks from one under sewing row to the next
+/// in stitches of at most 2.5 mm (the lone 5 mm square: (4,1), (2.5,1), (1,1)).
+/// And when the last row could be entered from either end at the same distance, it is sewn
+/// so that it ends nearer `toward` (the start the half sews in to: the
+/// lone 5 mm square enters its diagonal at (1,1), 3 mm from the corner row either way, and ends
+/// at (4,4), next to the start).
+fn split_row_joins_toward(runs: Vec<Run>, p: &RegionParams, toward: Option<Vec2>) -> Vec<Run> {
+    let across = |q: Vec2| q.rotated(-p.angle.to_radians()).y;
+    let mut runs = runs;
+    if let (Some(s), Some(run)) = (toward, runs.last_mut()) {
+        let n = run.len();
+        let y = run.last().map(|&q| across(q));
+        let k = y.map_or(n, |y| {
+            n - run
+                .iter()
+                .rev()
+                .take_while(|&&q| (across(q) - y).abs() < 1e-3)
+                .count()
+        });
+        if k > 0 && n - k >= 2 {
+            let prev = run[k - 1];
+            let (first, last) = (run[k], run[n - 1]);
+            if (prev.distance(first) - prev.distance(last)).abs() < 1.0
+                && first.distance(s) < last.distance(s)
+            {
+                run[k..].reverse();
+            }
+        }
+    }
+    split_row_joins_inner(runs, p)
+}
+
+fn split_row_joins_inner(runs: Vec<Run>, p: &RegionParams) -> Vec<Run> {
+    let across = |q: Vec2| q.rotated(-p.angle.to_radians()).y;
+    runs.into_iter()
+        .map(|run| {
+            let mut out: Run = Vec::with_capacity(run.len());
+            for (i, &q) in run.iter().enumerate() {
+                if let Some(&a) = i.checked_sub(1).and_then(|j| run.get(j))
+                    && (across(a) - across(q)).abs() > 1e-3
+                    && a.distance(q) > FILL_UNDERLAY_PITCH
+                {
+                    out.extend(even_stitches(&[a, q], FILL_UNDERLAY_PITCH));
+                } else {
+                    out.push(q);
+                }
+            }
+            out
+        })
+        .collect()
 }
 
 /// Whether `q` lies ahead of the start `lap[0]` the way `lap` was sewn: nearer along it going
