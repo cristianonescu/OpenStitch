@@ -22,6 +22,12 @@ pub(crate) fn read(path: &Path) -> io::Result<Vec<u8>> {
 /// As `std::fs::write` did: a target that is a link is written where it points (the link
 /// stays), a read-only target is refused, the target keeps its permissions, and a missing or
 /// read-only folder gives the same error.
+///
+/// On Windows a rename over a file another program holds open without delete sharing (an
+/// antivirus scan, a preview or thumbnail handler, a sync client) is refused, where writing into
+/// it succeeds: the rename is tried again for about half a second, then the bytes are written
+/// in place as `std::fs::write` did (not safe against a crash, but a save that worked before
+/// still works) and the temporary file is removed.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn write(path: &Path, bytes: impl AsRef<[u8]>) -> io::Result<()> {
     write_with(path, bytes.as_ref(), |file, bytes| {
@@ -77,11 +83,31 @@ fn write_with(
             None => Ok(()),
         });
     drop(file);
-    let done = written.and_then(|()| std::fs::rename(&tmp, &target));
+    let mut done = written.and_then(|()| std::fs::rename(&tmp, &target));
+    if cfg!(windows) && done.as_ref().is_err_and(held_open) {
+        for _ in 0..5 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            done = std::fs::rename(&tmp, &target);
+            if !done.as_ref().is_err_and(held_open) {
+                break;
+            }
+        }
+        if done.as_ref().is_err_and(held_open) {
+            let _ = std::fs::remove_file(&tmp);
+            return std::fs::write(&target, bytes);
+        }
+    }
     if done.is_err() {
         let _ = std::fs::remove_file(&tmp);
     }
     done
+}
+
+/// A rename refused because another program has the target open (Windows: access denied, or
+/// a sharing violation, error 32).
+#[cfg(not(target_arch = "wasm32"))]
+fn held_open(e: &io::Error) -> bool {
+    e.kind() == io::ErrorKind::PermissionDenied || e.raw_os_error() == Some(32)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -144,6 +170,16 @@ mod native_tests {
                 .expect("export");
             assert!(std::fs::metadata(&osd).is_ok_and(|m| m.len() > 0));
             assert!(std::fs::metadata(&dst).is_ok_and(|m| m.len() > 0));
+            // Saved twice over (#1093): the folder holds the two files and nothing else, no
+            // temporary file left by the safe write.
+            s.execute(
+                "project.save",
+                Some(&json!({ "path": osd.display().to_string() })),
+            )
+            .expect("save again");
+            s.execute("design.export", Some(&json!({ "path": "t.dst" })))
+                .expect("export again");
+            assert_eq!(names(dir.path()), ["t.dst", "t.osd"]);
             s.execute(
                 "project.open",
                 Some(&json!({ "path": osd.display().to_string() })),
@@ -227,6 +263,29 @@ mod native_tests {
                 .is_symlink()
         );
         assert_eq!(std::fs::read(&real).expect("read"), b"new");
+    }
+
+    /// #1093 on Windows: a target another program holds open without delete sharing (an
+    /// antivirus, a thumbnail handler) cannot be renamed over; the bytes are written in place,
+    /// as before, and no temporary file is left.
+    #[cfg(windows)]
+    #[test]
+    fn a_file_held_open_by_another_program_is_written_in_place() {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_SHARE_READ: u32 = 1;
+        const FILE_SHARE_WRITE: u32 = 2;
+        let dir = openstitch_testutil::TempDir::new("fsio-safe-held");
+        let target = dir.path().join("held.osd");
+        std::fs::write(&target, b"old bytes").expect("old");
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+            .open(&target)
+            .expect("hold");
+        super::write(&target, b"new bytes").expect("written in place");
+        drop(held);
+        assert_eq!(std::fs::read(&target).expect("read"), b"new bytes");
+        assert_eq!(names(dir.path()), ["held.osd"], "no temporary file left");
     }
 
     fn names(dir: &std::path::Path) -> Vec<String> {
