@@ -548,10 +548,10 @@ pub fn generate(
                 cut_pieces.extend(parts);
             }
             let net: Vec<Vec<Vec2>> = lines.iter().flat_map(inside).collect();
-            // PE-DESIGN travels along the outline from one band's end to the next band's start
-            // (round 15, zigzag-net-40x20-dir90-no-under: no needle point on a net line outside
-            // a band): the outline, with every line end on it as a node, is the cheap way; the
-            // net's own lines stay the way to an end inside the shape.
+            // Without under sewing PE-DESIGN travels along the outline from one band's end to the
+            // next band's start (round 15, zigzag-net-40x20-dir90-no-under: no needle point on a
+            // net line outside a band): the outline, with every line end on it as a node, is the
+            // cheap way; the net's own lines stay the way to an end inside the shape.
             let ends: Vec<Vec2> = net
                 .iter()
                 .chain(&cut_pieces)
@@ -585,7 +585,10 @@ pub fn generate(
                 })
                 .filter(|w| w.len() >= 2)
                 .collect();
-            let out = along_net(&net, &rim, cut_pieces, pitch, |piece| {
+            // With under sewing PE-DESIGN sews the lines under one family first and the bands
+            // after (round 13), an order not made here yet: there the travel keeps to the net.
+            let rim: &[Vec<Vec2>] = if r.underlay { &[] } else { &rim };
+            let out = along_net(&net, rim, cut_pieces, pitch, |piece| {
                 let along = whole.get(&key(piece)).map_or(piece, |w| w.as_slice());
                 let band = zigzag_band(along, width, step, closed, holes, &edges);
                 if band.len() < 2 {
