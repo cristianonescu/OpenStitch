@@ -143,6 +143,94 @@
       "tolerance": {
         "mm": 0.1
       }
+    },
+    {
+      "id": "fill-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50 starts a fill with under sewing on the under sewing's 1 mm inset edge run, at the point nearest the entry ((20,39) for an entry at the middle of the bottom edge), and ends on the outline at the exit (#1088)",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "inset-edge",
+      "measure": {
+        "kind": "edgeStitches",
+        "rails": [
+          [
+            [
+              1,
+              1
+            ],
+            [
+              39,
+              1
+            ]
+          ],
+          [
+            [
+              39,
+              1
+            ],
+            [
+              39,
+              39
+            ]
+          ],
+          [
+            [
+              39,
+              39
+            ],
+            [
+              1,
+              39
+            ]
+          ],
+          [
+            [
+              1,
+              39
+            ],
+            [
+              1,
+              1
+            ]
+          ]
+        ],
+        "within": 0.15,
+        "maxLength": 2.5
+      },
+      "source": {
+        "export": "a.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN sews the inset edge run once round, then walks on along it to where the first under sewing row starts (the rows begin at the inset corner it reaches first); OpenStitch crosses the region diagonally to the far corner instead (#1088)",
+      "reference": {
+        "tolerance": {
+          "count": 1
+        }
+      }
     }
   ]
 }
