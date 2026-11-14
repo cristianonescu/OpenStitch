@@ -379,6 +379,9 @@ fn shaped(mut trace: Trace, source: &Source) -> Trace {
     if let Some(b) = source.color_block {
         trace = trace.block(b);
     }
+    if let Some(p) = source.part {
+        trace = trace.part(p);
+    }
     if let Some(a) = source.align {
         trace.align(a.anchor, (a.to[0], a.to[1]));
     }

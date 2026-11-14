@@ -104,7 +104,9 @@ The fields:
   - Each export is read back with OpenStitch's reader before it is measured.
 - **`measurements`** each have:
   - a `measure` (below) and a `source`: an `export` or a labelled `step`, optionally one
-    `colorBlock`, an `align` anchor and an `exclude` (`{"first": n, "last": m}`: the first
+    `colorBlock`, one `part` (0-based: the stitches that trims and colour changes separate,
+    with the jumps leading into them, so one object of a design whose objects are trimmed
+    apart, #1088), an `align` anchor and an `exclude` (`{"first": n, "last": m}`: the first
     and last stitch segments are left out, e.g. a tie-in and an end lock; the measurement's
     evidence says why);
   - an `expected` value with a `tolerance`, a `reference` check, or both;
@@ -114,7 +116,7 @@ The fields:
   - a number against an array checks every element;
   - `{"min": a, "max": b}` is a range.
 - **A reference check** takes the same measurement on the reference file, with the same
-  `colorBlock` and `align`, and compares the two values. For `compare` and `bytesIdentical` it
+  `colorBlock`, `part` and `align`, and compares the two values. For `compare` and `bytesIdentical` it
   compares the two files directly.
 
 ### Measurements
