@@ -112,6 +112,32 @@ pub fn objects(design: &Design) -> Result<Objects, String> {
                 let pattern = fill_pattern(object.id, r, design)?;
                 list_pattern(&mut out.fill_patterns, pattern, object.id)?;
             }
+            // The motif of a motif line or fill: the header's motif list holds one per file.
+            let motifs = [
+                object
+                    .line
+                    .as_ref()
+                    .filter(|l| l.kind == LineType::Motif)
+                    .map(|l| l.motif.as_deref()),
+                object
+                    .region
+                    .as_ref()
+                    .filter(|r| r.kind == RegionType::MotifFill)
+                    .map(|r| r.pattern.as_deref()),
+            ];
+            for motif in motifs.into_iter().flatten() {
+                let pattern = motif_pattern(object.id, motif, design)?;
+                match out.motif_patterns.as_slice() {
+                    [] => out.motif_patterns.push(pattern),
+                    [only] if *only == pattern => {}
+                    _ => {
+                        return Err(format!(
+                            "object {}: a second motif (PES 0110 holds one per file so far: which object field picks a motif from the header's list is not mapped)",
+                            object.id
+                        ));
+                    }
+                }
+            }
             if let Some(r) = object.region.as_ref().filter(|r| !r.stamps.is_empty()) {
                 let (pattern, stamp) = stamp(object.id, r)?;
                 list_pattern(&mut out.fill_patterns, pattern, object.id)?;
@@ -363,6 +389,35 @@ fn decorative_pattern(id: u64, r: &RegionSewing, design: &Design) -> Result<PesP
             .iter()
             .map(|path| path.iter().map(|p| (cell(p.x), cell(p.y))).collect())
             .collect(),
+        heads: Vec::new(),
+    })
+}
+
+/// Size PE-DESIGN lists a motif at in the header's motif list, 0.01 mm: 500 in every capture
+/// (obj-motif-*-owner-v, 608-motif-*), whatever size the objects sew it at (+70/+72, +218/+220).
+const MOTIF_PATTERN_SIZE: u16 = 500;
+
+/// Motif `motif` as PE-DESIGN lists it in the header (#608): the inverse of `import.pes`'s
+/// reading, its stroke from (0, 512) to (1024, 512) in the 1024-unit cell, points across it at
+/// that scale, y down. A motif of several strokes is refused (PE-DESIGN's are one polyline).
+fn motif_pattern(id: u64, motif: Option<&str>, design: &Design) -> Result<PesPattern, String> {
+    use openstitch_design::patterns::{PatternKind, resolve};
+    let pattern = resolve(&design.patterns, PatternKind::Motif, motif);
+    let [path] = pattern.paths.as_slice() else {
+        return Err(format!(
+            "object {id}: motif {} has {} strokes (PES 0110 holds one)",
+            pattern.id,
+            pattern.paths.len()
+        ));
+    };
+    let cell = |v: f64| v.round().clamp(-32768.0, 32767.0) as i16;
+    Ok(PesPattern {
+        size: MOTIF_PATTERN_SIZE,
+        polylines: vec![
+            path.iter()
+                .map(|p| (cell(p.x * 1024.0), cell(512.0 + p.y * 1024.0)))
+                .collect(),
+        ],
         heads: Vec::new(),
     })
 }
@@ -658,6 +713,20 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
         RegionType::ZigzagNetFill => RegionSewType::ZigzagNet,
         RegionType::FlexibleSpiral => RegionSewType::FlexibleSpiral,
         RegionType::DecorativeFill => RegionSewType::Decorative,
+        // One motif at its size, PE-DESIGN's "Pattern1 only" (motif-fill-clean-p1, #608). The
+        // region motif's spacing and row or column shift have no capture yet.
+        RegionType::MotifFill => {
+            if r.spacing.is_some() || r.row_offset.is_some() || r.column_offset.is_some() {
+                return Err(format!(
+                    "object {id}: a motif fill's spacing or row and column shift are not mapped in PES 0110 (use version 6)"
+                ));
+            }
+            let (w, h) = r.pattern_size_mm();
+            s.motif_fill = Some(([w as f32, h as f32], 0));
+            // One motif listed (+332), the first (+236).
+            s.motif_fields = [1, 1];
+            RegionSewType::Motif
+        }
         other => {
             return Err(format!(
                 "object {id}: region type {} is not mapped in PES 0110 yet (fill and satin are)",
@@ -695,9 +764,26 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
         LineType::Candlewick => Shape::LINE_CANDLEWICK,
         LineType::Chain => Shape::LINE_CHAIN,
         LineType::Cutting => Shape::LINE_CUTTING,
+        // The motif's width along the line, height across it and the spacing between motifs
+        // (+70, +72, +80: 608-motif-size-spacing, 608-motif-5x8, #608).
+        LineType::Motif => {
+            // H-Arrange and V-Arrange were at their first buttons in every capture.
+            if l.arrange != openstitch_design::model::Arrange::Normal {
+                return Err(format!(
+                    "object {id}: a mirrored or alternating motif line is not mapped in PES 0110 (use version 6)"
+                ));
+            }
+            s.motif_line = Some([
+                l.width as f32,
+                l.height.unwrap_or(3.0) as f32,
+                l.spacing_mm() as f32,
+            ]);
+            s.motif_fields = [1, 1];
+            Shape::LINE_MOTIF
+        }
         other => {
             return Err(format!(
-                "object {id}: line type {} is not mapped in PES 0110 yet (running, zigzag, triple, E, V, stem, candlewick, chain and cutting are)",
+                "object {id}: line type {} is not mapped in PES 0110 yet (running, zigzag, triple, motif, E, V, stem, candlewick, chain and cutting are)",
                 other.label()
             ));
         }
@@ -1722,13 +1808,9 @@ mod tests {
             assert_eq!(o.shapes[0].region, code, "{kind:?}");
             assert!(o.shapes[0].decorative.is_none());
         }
-        // Motif fill, contour fill, maze fill and meander fill are refused with the reason.
-        for kind in [
-            RegionType::MotifFill,
-            RegionType::Contour,
-            RegionType::Maze,
-            RegionType::Meander,
-        ] {
+        // Contour fill, maze fill and meander fill are refused with the reason (motif fill is
+        // written since #608).
+        for kind in [RegionType::Contour, RegionType::Maze, RegionType::Meander] {
             let mut design = Design::new("t", openstitch_design::DesignPage::default());
             design.add(DesignObject::shape(
                 vec![Contour::rectangle(200.0, 200.0, 300.0, 300.0)],
@@ -1766,8 +1848,23 @@ mod tests {
             None,
             Some(LineSewing::new(LineType::Motif, red())),
         ));
-        let err = objects(&motif).expect_err("motif lines are not mapped");
-        assert!(err.contains("Motif"), "{err}");
+        // A motif line (#608): line code 2 with its size and spacing, the motif in the header.
+        let o = objects(&motif).expect("motif lines are written");
+        let s = &o.shapes[1];
+        assert_eq!(s.line_type, Shape::LINE_MOTIF);
+        assert!(s.motif_line.is_some());
+        assert_eq!(o.motif_patterns.len(), 1);
+        // A mirrored one is refused with the reason.
+        let mut mirrored = design.clone();
+        let mut l = LineSewing::new(LineType::Motif, red());
+        l.arrange = openstitch_design::model::Arrange::Mirror;
+        mirrored.add(DesignObject::shape(
+            vec![Contour::rectangle(0.0, 0.0, 50.0, 50.0)],
+            None,
+            Some(l),
+        ));
+        let err = objects(&mirrored).expect_err("mirrored motif lines are not mapped");
+        assert!(err.contains("mirrored"), "{err}");
 
         // A wave fill (#538, beyond PE-DESIGN) is refused rather than written as straight rows.
         let mut wave = Design::new("t", openstitch_design::DesignPage::default());
