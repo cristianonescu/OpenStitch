@@ -1286,7 +1286,49 @@ fn lap_walk(lap: &[Vec2], from: Vec2, to: Vec2) -> (Vec<Vec2>, f64, bool) {
     };
     walk.retain(|v| v.distance(from) > 0.5 && v.distance(to) > 0.5);
     walk.push(to);
-    (walk, l, ahead)
+    // Sewn in even stitches of up to the edge run's pitch along the way, turning only at its
+    // corners: PE-DESIGN's walk on a straight edge falls on the edge run's own needle points
+    // (sweep-fill-us-default, region-travel-u-*), and on a traced outline (Auto Punch) the
+    // edge run's short stitches between close vertices are not sewn again.
+    let path: Vec<Vec2> = std::iter::once(from).chain(walk).collect();
+    (even_stitches(&path, FILL_UNDERLAY_PITCH), l, ahead)
+}
+
+/// The needle points along `path` after its first, in equal stitches of at most `pitch` (0.1 mm)
+/// between its corners (turns of more than 45 degrees), the corners and the end kept.
+fn even_stitches(path: &[Vec2], pitch: f64) -> Vec<Vec2> {
+    let mut out = Vec::new();
+    let mut piece: Vec<Vec2> = path.first().copied().into_iter().collect();
+    for (i, &q) in path.iter().enumerate().skip(1) {
+        piece.push(q);
+        let corner = path.get(i + 1).is_some_and(|&next| {
+            let (a, b) = (q - path[i - 1], next - q);
+            let (la, lb) = (a.x.hypot(a.y), b.x.hypot(b.y));
+            la > 0.0 && lb > 0.0 && (a.x * b.x + a.y * b.y) / (la * lb) < 45f64.to_radians().cos()
+        });
+        if corner || i + 1 == path.len() {
+            let len: f64 = piece.windows(2).map(|w| w[0].distance(w[1])).sum();
+            let n = ((len / pitch).ceil() as usize).max(1);
+            let mut k = 1;
+            let mut walked = 0.0;
+            for w in piece.windows(2) {
+                let seg = w[0].distance(w[1]);
+                while k < n && len * k as f64 / n as f64 <= walked + seg + 1e-9 {
+                    let t = if seg > 0.0 {
+                        (len * k as f64 / n as f64 - walked) / seg
+                    } else {
+                        0.0
+                    };
+                    out.push(w[0].lerp(w[1], t));
+                    k += 1;
+                }
+                walked += seg;
+            }
+            out.push(q);
+            piece = vec![q];
+        }
+    }
+    out
 }
 
 /// Whether `q` lies ahead of the start `lap[0]` the way `lap` was sewn: nearer along it going
