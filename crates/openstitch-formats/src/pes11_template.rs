@@ -3,9 +3,9 @@
 //! (a 10 × 10 mm rectangle with PE-DESIGN's default attributes on a 100 × 100 mm page) and,
 //! for text, `r12-text-a.pes` (the letter `A` in Lato at the Text tool's defaults; see
 //! docs/FILE_FORMATS.md, "PES 0110 object list", "Writer"). Every mapped field is patched over
-//! these bytes by `super::write`. The 53-polyline pattern block inside the `CEmbLine` body is
-//! not copied: `super::pattern_block` writes OpenStitch's own placeholder pattern of the same
-//! size, so only the polyline point counts are kept here.
+//! these bytes by `super::write`. The pattern block inside the `CEmbLine` body (PE-DESIGN's
+//! default pattern, Brother content) is not copied: `super::pattern_block` writes OpenStitch's
+//! own one-line placeholder between `BODY_HEAD` and `BODY_TAIL`.
 
 pub(super) const BODY_HEAD: [u8; 386] = [
     0x58, 0x02, 0x58, 0x02, 0xBC, 0x02, 0xBC, 0x02, 0x4E, 0x02, 0x4E, 0x02, 0xC6, 0x02, 0xC6, 0x02,
@@ -40,13 +40,6 @@ pub(super) const BODY_TAIL: [u8; 72] = [
     0x8A, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1E, 0x00, 0x1E, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x80, 0x3F,
-];
-/// Bytes of the baseline's pattern block (body 386..4360).
-pub(super) const PATTERN_BYTES: usize = 4360 - 386;
-pub(super) const PATTERN_COUNTS: [u16; 53] = [
-    24, 15, 14, 13, 20, 16, 16, 13, 13, 16, 19, 15, 26, 13, 19, 14, 18, 14, 18, 19, 20, 13, 10, 15,
-    12, 34, 10, 16, 17, 15, 15, 12, 14, 13, 15, 26, 16, 30, 18, 17, 18, 12, 15, 15, 9, 17, 18, 13,
-    17, 14, 13, 13, 13,
 ];
 pub(super) const HEADER: [u8; 110] = [
     0x00, 0x00, 0x01, 0x00, 0xFF, 0x00, 0x96, 0x00, 0x96, 0x00, 0x3B, 0x00, 0x3B, 0x00, 0x08, 0x6E,
