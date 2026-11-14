@@ -13,8 +13,10 @@
 //!
 //! Controls a toggle or a choice reveals are tested in that state. Every parameter needs an
 //! entry in [`EXPECT`]: a new setting without one fails. Settings that change nothing today are
-//! in [`KNOWN`] with the reason; a number that changes only near one end of its range is printed
-//! as a NOTE. `ATTRIBUTE_SWEEP=1` prints an 11-value sweep of every setting that sews the same.
+//! in [`KNOWN`] with the reason. A number that changes only near one end of its range fails
+//! too (#1050), unless it waits for a PE-DESIGN capture ([`PLATEAU_PENDING`], printed as a NOTE);
+//! a number bounded by another setting is swept with that one set ([`CONTEXT`]).
+//! `ATTRIBUTE_SWEEP=1` prints an 11-value sweep of every setting that sews the same.
 
 use openstitch_app::editor::CommandRequest;
 use openstitch_app::editor::inspector::{self, Control, InspectorModel};
@@ -153,9 +155,8 @@ const EXPECT: &[(&str, Expect)] = &[
 ];
 
 /// Settings that change nothing today, found by this test (#880): the start of each problem
-/// line and why, with the issue that tracks it (#1039-#1049). Settings that change only near
-/// one end of their range are printed as NOTEs and tracked in #1050. A problem not listed here fails, and so does an entry that no longer
-/// reproduces (remove it once its issue is fixed).
+/// line and why, with the issue that tracks it (#1039-#1049). A problem not listed here fails,
+/// and so does an entry that no longer reproduces (remove it once its issue is fixed).
 const KNOWN: &[(&str, &str)] = &[
     (
         r#"r:fill gradationSteps"#,
@@ -202,6 +203,50 @@ const KNOWN: &[(&str, &str)] = &[
         "#1048: Satin line: cap max length changes nothing with auto corners",
     ),
 ];
+
+/// Settings whose effect is bounded by another setting of the same type, swept with that one
+/// set where it lets them act over their whole range (#1050): a motif line's run pitch only
+/// splits the motif's own segments (2 x 3 mm at the default size), a V-stitch's only the run
+/// between its Vs (0.6 x the interval), a motif fill's only its cell's segments, a zigzag's
+/// miter limit and cap length only reach as far as its width carries a corner.
+const CONTEXT: &[(&str, &str)] = &[
+    ("l:motif pitch", r#"{"width":10,"spacing":10}"#),
+    ("l:vStitch pitch", r#"{"spacing":20}"#),
+    (
+        "r:motifFill runPitch",
+        r#"{"patternWidth":20,"patternHeight":15,"spacing":10}"#,
+    ),
+    ("l:zigzag miterLimit", r#"{"width":10}"#),
+    ("l:zigzag capMaxLength", r#"{"width":5}"#),
+];
+
+/// Settings that change only near one end of their range until a PE-DESIGN capture shows
+/// whether PE-DESIGN caps them too (#1050, round 15): printed as NOTEs. Every other such
+/// plateau fails.
+const PLATEAU_PENDING: &[(&str, &str)] = &[
+    (
+        "r:radial density",
+        "#1050: radial lines stay 0.4 mm apart (about 2.5 lines/mm at the outline); round 15 captures PE-DESIGN's radial at 3, 5 and 10",
+    ),
+    (
+        "r:zigzagNetFill patternWidth",
+        "#1050: the zigzag is at most 0.8 x the spacing; round 15 captures PE-DESIGN's zigzag net at widths 6 and 10 on a 5 mm spacing",
+    ),
+];
+
+/// `state` with the setting's [`CONTEXT`] added.
+fn in_context(what: &str, state: &Value) -> Value {
+    let mut state = state.clone();
+    if let Some((_, extra)) = CONTEXT.iter().find(|(k, _)| what.starts_with(k)) {
+        let extra: Value = serde_json::from_str(extra).expect("context json");
+        if let (Some(s), Some(e)) = (state.as_object_mut(), extra.as_object()) {
+            for (k, v) in e {
+                s.insert(k.clone(), v.clone());
+            }
+        }
+    }
+    state
+}
 
 fn expect(key: &str) -> Option<Expect> {
     EXPECT.iter().find(|(k, _)| *k == key).map(|(_, e)| *e)
@@ -271,6 +316,17 @@ fn fixture_shape(shape: usize) -> (&'static str, Value) {
             "shape.polygon",
             json!({"points": [[10, 10], [30, 10], [30, 19.5], [45, 19.5], [45, 10], [65, 10], [65, 30], [45, 30], [45, 20.5], [30, 20.5], [30, 30], [10, 30]]}),
         ),
+        // Large enough for settings that act on many cells (maze straightness, #1050).
+        7 => (
+            "shape.polygon",
+            json!({"points": [[10, 10], [70, 10], [70, 50], [10, 50]]}),
+        ),
+        // A 9.5 degree spike: a corner sharp enough for a 10 mm zigzag's point to reach past
+        // 35 mm, so the miter limit acts over PE-DESIGN's 0-50 mm (#1050).
+        8 => (
+            "shape.polygon",
+            json!({"points": [[10, 20], [70, 25], [10, 30]]}),
+        ),
         k => ("shape.polygon", json!({ "points": outline(k) })),
     }
 }
@@ -299,7 +355,7 @@ fn outline(shape: usize) -> Vec<[f64; 2]> {
     }
 }
 
-const SHAPES: usize = 7;
+const SHAPES: usize = 9;
 
 impl Fixture {
     /// Fixture `shape` sewn only as `side`, of type `kind` (an inspector type id).
@@ -404,6 +460,8 @@ fn check(side: Side, kind: &str, state: &Value, c: &Control, want: Expect) -> Ve
         }
     );
     let mut problems = Vec::new();
+    let context = in_context(&format!("{}{kind} {}", side.prefix(), c.param()), state);
+    let state = &context;
     match c {
         Control::Number {
             range,
@@ -483,12 +541,23 @@ fn check(side: Side, kind: &str, state: &Value, c: &Control, want: Expect) -> Ve
                     (on_all(side, kind, state, &p(range.0)), on_all(side, kind, state, &p(range.1))),
                     (Ok(lo), Ok(hi)) if lo != hi
                 );
-            if sa == sb && ends {
-                // Changes only near an end of its range: recorded, not a failure.
+            let pending = PLATEAU_PENDING.iter().find(|(k, _)| what.starts_with(k));
+            if sa == sb
+                && ends
+                && let Some((_, why)) = pending
+            {
+                // Changes only near an end of its range, awaiting a capture: recorded.
                 eprintln!(
-                    "NOTE {what}: the same at {a} and {b}, different at {} and {}",
+                    "NOTE {what}: the same at {a} and {b}, different at {} and {} ({why})",
                     range.0, range.1
                 );
+            } else if sa == sb && ends {
+                // Changes only near an end of its range: its range promises more than it does
+                // (#1050).
+                problems.push(format!(
+                    "{what}: {a} and {b} sew the same stitches on every fixture, only the ends of its range ({} and {}) differ",
+                    range.0, range.1
+                ));
             } else if sa == sb {
                 problems.push(format!(
                     "{what}: {a} and {b} sew the same stitches on every fixture ({na} on the rectangle)"
