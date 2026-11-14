@@ -100,7 +100,8 @@ dearest:
 | 6 | One sewing direction per text instead of per stroke (**partly fixed**: satin text sewn stroke by stroke since 2026-10-31, fill text since 2026-11-04 (#376); open: under sewing per stroke; letter-shape leftovers #938-#941 (A's foot, run-on foot order, M and W at 8 mm); fill text under a Text Transform sews by stroke since 2026-11-11 (#428)) | Fonts | 5 | Documented difference | Angles |
 | 7 | Auto direction is one fixed angle (**fixed**, internal regression) | Stitches | 4 | Documented difference | No |
 | 8 | Underlay model differs (**partly fixed**: PE's two region types, Density Dense / Medium / Light, the Manual Punch column's edge / piping / zigzag; zigzag lines have under sewing, on by default as PE-DESIGN's, `line-zigzag-default`; open: which type PE applies to the other region kinds, the zigzag's split points) | Stitches | 4 | Documented difference | Geometry |
-| 9 | PE-DESIGN-made PES files lose objects, properties and colours on re-save (**partly fixed**, 2026-11-05, #375, #397, #398, #120: an opened file exported unchanged is written back byte for byte; its thread table reaches the stitches; every PE-DESIGN `#PES0110` file imports as objects, texts and stitch groups included, and an edited one exports as `#PES0110`; an edited file still loses the other region types' own settings, motif size and spacing, per-letter colours and unmapped fields) | PES | 4 | Documented difference | No |
+| 9 | PE-DESIGN-made PES files lose objects, properties and colours on re-save (**partly fixed**, 2026-11-05, #375, #397, #398, #120: an opened file exported unchanged is written back byte for byte; its thread table reaches the stitches; every PE-DESIGN `#PES0110` file imports as objects, texts and stitch groups included, and an edited one exports as `#PES0110`; an edited file still loses the other region types' own settings, a motif fill's arrangement beyond one motif (motif sizes and spacing are
+    read since #608), per-letter colours and unmapped fields) | PES | 4 | Documented difference | No |
 | 10 | Hoop and Design Page fields hard-coded in PES (**fixed**, 2026-11-04, #322: `#PES0110` page, hoop, machine type and sections byte for byte against PE-DESIGN's files; v1 and the v6 display fields have no PE-DESIGN reference) | PES | 4 | Reference | No |
 | 11 | No Connection Points (Default / Closest / Farther) for text | Fonts | 4 | Documented difference | Geometry |
 | 12 | No minimum font sizes or small-text fonts (**fixed**, 2026-11-07, #527, #530: size ranges with a warning, the OpenStitch Line small-text font, compared with PE-DESIGN's recorded Small Text numbers, internal regression) | Fonts | 4 | Documented difference | No |
@@ -157,7 +158,7 @@ Line references are relative to `crates/`.
   slants on the 5×2 mm column). Every satin object starts with a tie-in (0.3 mm out along the
   first stitch and back; three steps out and two back after a first stitch over 3 mm) and ends
   with a lock (0.3 mm back along the last stitch and return; two steps after a last stitch over
-  4.25 mm), per `satin-lock-column-3p5.pes` and the other satin references.
+  4.25 mm), per `satin-lock-column-3p5.pes` and the other satin references.
   Since 2026-11-14 (#1032) the tie-in steps along the first stitch longer than 0.1 mm: a run
   that starts on a near-duplicate point (Pacifico's i, a stroke's first rung 0.01-0.02 mm from
   its lead) stepped out that far and back, which the writer sews as one needle point, so the
@@ -810,7 +811,8 @@ Line references are relative to `crates/`.
       default, not as version 6. Only when version 11 cannot hold an object yet is it written
       as 6, with a warning that names the object (`a_changed_design_is_written_from_the_design_with_a_warning`).
   - **Still lost when a PE-DESIGN file is edited** (documented difference): the other region
-    types' own settings, motif size and spacing, per-letter colours and sew types (the first
+    types' own settings, a motif fill's arrangement beyond one motif (motif sizes and spacing are
+    read since #608), per-letter colours and sew types (the first
     letter's are used, noted), the hoop (Design Settings) from the file (item 10), and header
     fields the reader keeps only verbatim. Object kinds the version 11 export still refuses:
     #608.
@@ -4262,6 +4264,32 @@ flag, the click as the column's top and the box from 0.59 × the size above it d
 letter (PE-DESIGN's 760, 953 – 840, 1241; ours within 0.6 mm). Several columns, and centred or
 bottom-aligned columns, stay refused: PE-DESIGN's column spacing and alignment codes have no
 owner file. No kit design, example or compat spec uses vertical text.
+
+### PES 0110 motif lines and fills, 2026-11-13 (#608)
+
+PE-DESIGN 11.50's motif captures (rounds 12 and 13, the project's own `psc-motif-zigzag-3pt`
+motif) map the motif fields of a `CEmbLine` (body offsets, 0.1 mm):
+- **Motif line:** width along the line +70 (5.0 in both line captures), height across it +72
+  (5.0, then 8.0 in `608-motif-5x8`), spacing +80 (0 at the defaults, 2.0).
+- **Motif fill:** size +218 / +220 (5.0 at the defaults, 8.0), arrangement +234 (0 "Pattern1
+  only", 1 "Pattern1 and 2": the one field `motif-fill-clean-p1` and `-p1p2` differ in). +68 is
+  0 in every clean capture (it was 2 in two of the withdrawn ones; meaning not mapped).
+- **Motif list:** +332 is the number of motifs the header lists and +236 is 1 (2 in the withdrawn
+  line-motif-zigzag-3pt, which listed two own motifs). PE-DESIGN keeps a Pattern2 for every
+  motif fill; the clean captures set it to the project's second motif (#1060). Both are kept as read; the
+  export lists one motif at size 500 and writes 1 and 1.
+
+`import.pes` now reads the sizes and spacing; it used OpenStitch's defaults and noted it.
+`design.export` with `pesVersion` 11 writes motif lines and fills; it refused both. Written
+with one motif per file (which field picks a listed motif is not mapped), as Pattern1 only.
+Imported and exported again, both captures come back with the same line type, region type,
+motif sizes, spacing and listed motif (`pes_version_11_writes_motif_lines_and_fills_as_pe_design`;
+the formats test rewrites all five motif files to the same objects).
+
+Which listed motif an object uses is not mapped: files listing several import with OpenStitch's
+default motif, noted. Still refused: a motif fill with its own spacing or row and column shift (no capture), mirrored
+or alternating motif lines (H-Arrange and V-Arrange were at their first buttons), and a second
+motif. Not mapped: +216 (1 in one capture only).
 
 ### Captures with a PE-DESIGN built-in motif withdrawn, 2026-11-13
 
