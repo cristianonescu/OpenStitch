@@ -548,7 +548,44 @@ pub fn generate(
                 cut_pieces.extend(parts);
             }
             let net: Vec<Vec<Vec2>> = lines.iter().flat_map(inside).collect();
-            let out = along_net(&net, cut_pieces, pitch, |piece| {
+            // PE-DESIGN travels along the outline from one band's end to the next band's start
+            // (round 15, zigzag-net-40x20-dir90-no-under: no needle point on a net line outside
+            // a band): the outline, with every line end on it as a node, is the cheap way; the
+            // net's own lines stay the way to an end inside the shape.
+            let ends: Vec<Vec2> = net
+                .iter()
+                .chain(&cut_pieces)
+                .flat_map(|l| [l[0], l[l.len() - 1]])
+                .filter(|&p| on_outline(p))
+                .collect();
+            let rim: Vec<Vec<Vec2>> = outline
+                .iter()
+                .map(|path| {
+                    let mut walk: Vec<Vec2> = Vec::with_capacity(path.len() + ends.len());
+                    for w in path.windows(2) {
+                        let (a, d) = (w[0], w[1] - w[0]);
+                        let len2 = d.x * d.x + d.y * d.y;
+                        walk.push(a);
+                        if len2 < 1e-18 {
+                            continue;
+                        }
+                        let mut on: Vec<(f64, Vec2)> = ends
+                            .iter()
+                            .map(|&p| (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2, p))
+                            .filter(|&(s, p)| s > 0.0 && s < 1.0 && (a + d * s).distance(p) < 1e-6)
+                            .collect();
+                        on.sort_by(|x, y| x.0.total_cmp(&y.0));
+                        walk.extend(on.into_iter().map(|(_, p)| p));
+                    }
+                    if let Some(&l) = path.last() {
+                        walk.push(l);
+                    }
+                    walk.dedup_by(|a, b| net_key(*a) == net_key(*b));
+                    walk
+                })
+                .filter(|w| w.len() >= 2)
+                .collect();
+            let out = along_net(&net, &rim, cut_pieces, pitch, |piece| {
                 let along = whole.get(&key(piece)).map_or(piece, |w| w.as_slice());
                 let band = zigzag_band(along, width, step, closed, holes, &edges);
                 if band.len() < 2 {
@@ -3013,6 +3050,9 @@ fn extend_part(line: &[Vec2], part: &[Vec2], ext: f64) -> Vec<Vec2> {
     out
 }
 
+/// How much more a zigzag net's travel along its own lines costs than along the outline.
+const NET_TRAVEL_COST: f64 = 3.0;
+
 /// Shortest zigzag net stitch, 0.1 mm: a needle point nearer the previous one is left out.
 const ZIGZAG_NET_MIN_STITCH: f64 = 3.0;
 
@@ -3030,6 +3070,7 @@ fn net_key(p: Vec2) -> (i64, i64) {
 /// Pieces the net does not connect start a new run.
 fn along_net(
     net: &[Vec<Vec2>],
+    rim: &[Vec<Vec2>],
     pieces: Vec<Vec<Vec2>>,
     pitch: f64,
     mut sew: impl FnMut(&[Vec2]) -> Option<(Run, Vec2)>,
@@ -3040,7 +3081,14 @@ fn along_net(
     let mut ids: HashMap<(i64, i64), usize> = HashMap::new();
     let mut points: Vec<Vec2> = Vec::new();
     let mut edges: Vec<Vec<(usize, f64)>> = Vec::new();
-    for l in net.iter().chain(&pieces) {
+    // Travel along the net's lines costs NET_TRAVEL_COST times its length; along `rim` (the
+    // outline) its length.
+    for (l, cost) in net
+        .iter()
+        .chain(&pieces)
+        .map(|l| (l, NET_TRAVEL_COST))
+        .chain(rim.iter().map(|l| (l, 1.0)))
+    {
         for w in l.windows(2) {
             let [a, b] = [w[0], w[1]].map(|p| {
                 *ids.entry(key(p)).or_insert_with(|| {
@@ -3050,7 +3098,7 @@ fn along_net(
                 })
             });
             if a != b {
-                let d = w[0].distance(w[1]);
+                let d = w[0].distance(w[1]) * cost;
                 edges[a].push((b, d));
                 edges[b].push((a, d));
             }
