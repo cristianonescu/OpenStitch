@@ -190,10 +190,10 @@ Specs: 510 · pass 510 · fail 0 · error 0 · pending reference 0 · skipped 0.
 | `stitches/prog-fill-line-2pt` | pass | reference | pass | — | pass | — |
 | `stitches/prog-fill-square-4pt` | pass | reference | pass | — | pass | — |
 | `stitches/programmable-fill-45` | pass | reference | pass | — | pass | — |
-| `stitches/radial-circle40-d3p0` | pass | reference | — | — | pass | — |
-| `stitches/radial-circle40-d5p0` | pass | reference | — | — | pass | — |
-| `stitches/radial-circle40-default` | pass | reference | — | — | pass | — |
-| `stitches/radial-circle40-dmax` | pass | reference | — | — | pass | — |
+| `stitches/radial-circle40-d3p0` | pass | reference | pass | — | pass | — |
+| `stitches/radial-circle40-d5p0` | pass | reference | pass | — | pass | — |
+| `stitches/radial-circle40-default` | pass | reference | pass | — | pass | — |
+| `stitches/radial-circle40-dmax` | pass | reference | pass | — | pass | — |
 | `stitches/region-travel-u-along-outline` | pass | reference | pass | — | pass | — |
 | `stitches/region-travel-u-fill` | pass | reference | pass | — | pass | — |
 | `stitches/region-travel-u-gradation` | pass | reference | pass | — | pass | — |
