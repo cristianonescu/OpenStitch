@@ -1225,7 +1225,7 @@
    54.0
   ],
   "stitches": 3541,
-  "trims": 5,
+  "trims": 6,
   "threads": [
    "405 Blue",
    "405 Blue",
@@ -1234,7 +1234,7 @@
   "sewingMinutes": 4.7,
   "image": null,
   "preview": "previews/cutwork.png",
-  "sha256": "3a03c37c5071294746ac32c769ff53945df77f25eb60d5ce6bf607bb6cdfa36f",
+  "sha256": "f216eee3060e7092708b6f22bec58fb7c0a7f7cf7535e199cfcedc4ab0f18c20",
   "renderVersion": 3
  },
  "wizards/background-fill.pes": {
@@ -1553,7 +1553,7 @@
    199.0,
    150.1
   ],
-  "stitches": 95104,
+  "stitches": 95056,
   "trims": 1082,
   "threads": [
    "017 Light Blue",
@@ -1570,7 +1570,7 @@
   "sewingMinutes": 174.3,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "0a2652dd236bd49f8b65d94c15b46dd8fc8833ded4f80febf4a2e536d3bfd962",
+  "sha256": "da2cad2d7f8f476812747b4ecfd4f74c610e045c53985e646abf479e1a0a89e7",
   "renderVersion": 3
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
@@ -1581,7 +1581,7 @@
    199.3,
    150.9
   ],
-  "stitches": 114079,
+  "stitches": 113916,
   "trims": 2047,
   "threads": [
    "307 Linen",
@@ -1595,10 +1595,10 @@
    "330 Russet Brown",
    "517 Dark Olive"
   ],
-  "sewingMinutes": 247.5,
+  "sewingMinutes": 247.3,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "c5d81d33c187a75a194ec64dbdf74decbfa88d6fd7ad6f2d8f8ee6c547be2a39",
+  "sha256": "a0d872be3e3cddc8a18a24071fca8873b263247b6020ad55d89df9ab7219512d",
   "renderVersion": 3
  }
 }
