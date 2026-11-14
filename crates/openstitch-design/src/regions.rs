@@ -1840,11 +1840,14 @@ fn cross_lines(
 
 // ------------------------------------------------------------------ circles and spirals
 
-/// Radial lines from the centre, `spacing` apart at the farthest outline point. Lines are
-/// thinned towards the centre: a line of level L (the number of trailing zero bits of its
-/// index) starts where the lines of level L and higher are half a spacing apart, and never
-/// closer than [`RADIAL_MIN_GAP`] to them, so only line 0 reaches the centre and needle points
-/// there do not pile up (#461). The lines are sewn in angular order from the one nearest the
+/// Radial lines from the centre, `spacing` apart at the farthest outline point, as PE-DESIGN
+/// 11.50 sews them (round 15, a 40 mm circle at 2, 3, 5 and 7 lines/mm, #1050): the lines come
+/// in pairs sewn in and back out, and each pair stops at a radius of its own. One pair in K
+/// reaches the centre, K the multiple of 3 nearest 22.5 degrees of pairs (9 at 2 lines/mm, 12
+/// at 3, 27 at 7: about 16 a turn at any density); between them the pairs stop long, short,
+/// short ([`radial_stop`]). So the lines are 1/density apart at the outline at every density,
+/// where they were never closer than 0.4 mm before (#461: a power-of-two count thinned by
+/// level, which stopped getting denser above about 2.5 lines/mm). The lines are sewn in angular order from the one nearest the
 /// start point `entry`, alternately in from the outline and back out, the last one out, so the
 /// fill starts and ends on the outline. Between two lines at the inner end the needle runs along
 /// one of them over its own needle points and steps across, rather than out between the lines.
@@ -1856,32 +1859,35 @@ fn radial(
     pitch: f64,
     entry: Option<Vec2>,
 ) -> Vec<Vec<Vec2>> {
-    use std::f64::consts::{FRAC_PI_2, TAU};
-    let r_max = reach(closed, c) + 1.0;
-    let n_min = (TAU * r_max / spacing).ceil().max(8.0) as usize;
-    let n = n_min.next_power_of_two().min(1 << 16);
-    let gap_min = (spacing / 2.0).max(RADIAL_MIN_GAP);
+    use std::f64::consts::TAU;
+    let reach_out = reach(closed, c);
+    let r_max = reach_out + 1.0;
+    // Pairs of lines, 2 x spacing apart at the outline.
+    let pairs = ((TAU * reach_out / (2.0 * spacing)).round() as usize).clamp(4, 1 << 15);
+    let n = 2 * pairs;
+    let per_centre = {
+        let k = (TAU / 16.0) / (TAU / pairs as f64) / 3.0;
+        3 * (k.round() as usize).max(1)
+    };
     // Each line: its pieces inside the region from the centre out, in needle points.
     let mut lines: Vec<Vec<Vec<Vec2>>> = Vec::new();
     for i in 0..n {
-        let start = if i == 0 {
-            0.0
-        } else {
-            // The nearest line of this level or higher is `gap` round: at radius `start` it is
-            // `start · sin(gap)` away (the opposite line, past a right angle, `start`).
-            let gap = TAU * f64::from(1u32 << i.trailing_zeros()) / n as f64;
-            gap_min / if gap < FRAC_PI_2 { gap.dsin() } else { 1.0 }
-        };
+        let start = radial_stop(i / 2, per_centre);
         if start >= r_max {
             continue;
         }
-        let dir = v2(1.0, 0.0).rotated(TAU * i as f64 / n as f64);
+        // A pair's two lines meet at one point, its apex, between them, and run out to the
+        // outline points it shares with the pairs beside it (round 15: in to the apex and back
+        // out, one needle point at the apex and one at each outline point, a W round the shape).
+        let touch = i.div_ceil(2);
+        let dir = v2(1.0, 0.0).rotated(TAU * touch as f64 / pairs as f64);
+        let mid = v2(1.0, 0.0).rotated(TAU * ((i / 2) as f64 + 0.5) / pairs as f64);
         // Clipped first, then split: splitting first left slivers of stitches at the outline.
-        let pieces: Vec<Vec<Vec2>> = clip(&[c + dir * start, c + dir * r_max], closed, holes)
+        let pieces: Vec<Vec<Vec2>> = clip(&[c + mid * start, c + dir * r_max], closed, holes)
             .iter()
             // A ray through an outline corner clips to slivers: none under a needle gap.
             .filter(|p| p.len() >= 2 && p[0].distance(p[p.len() - 1]) >= RADIAL_MIN_GAP)
-            .map(|p| subdivide(p, pitch))
+            .cloned()
             .collect();
         if !pieces.is_empty() {
             lines.push(pieces);
@@ -1898,10 +1904,30 @@ fn radial(
                 .total_cmp(&outer_end(&lines[b]).distance(e))
         })
     {
-        lines.rotate_left(first);
+        // By whole pairs, so each pair is sewn in and out together.
+        lines.rotate_left(first - first % 2);
     }
     // In, out, in, …, out; with an odd count the first line is sewn in and straight back out.
     let m = lines.len();
+    // Lines sewn inwards step the pitch from the outline in, lines sewn outwards from their apex
+    // out, so neighbouring lines put their needle points on different radii, as PE-DESIGN's
+    // do (round 15: its lines' points are not on shared rings). From the outline alone, every
+    // line had a needle point on the same rings, which crowded the centre.
+    let mut inward = true;
+    for (j, line) in lines.iter_mut().enumerate() {
+        let from_apex = !inward && !(j == 0 && m % 2 == 1);
+        for p in line.iter_mut() {
+            *p = if from_apex {
+                pitch_from_inner(p, pitch)
+            } else {
+                pitch_from_outer(p, pitch)
+            };
+        }
+        inward = !inward;
+        if j == 0 && m % 2 == 1 {
+            inward = true;
+        }
+    }
     let mut out: Vec<Vec<Vec2>> = Vec::new();
     let mut inward = true;
     for (j, line) in lines.iter().enumerate() {
@@ -1931,7 +1957,11 @@ fn radial(
                     let m = w[0].lerp(w[1], 0.5);
                     contains(m, closed) && !contains(m, holes)
                 });
-                if a.distance(b) <= pitch || (inside && a.distance(b) <= 3.0 * pitch) {
+                if a.distance(b) < 3.0 {
+                    // The outline point the two lines share, met twice by the clip (within
+                    // 0.3 mm off centre): one needle point.
+                    prev.extend(pieces.remove(0).into_iter().skip(1));
+                } else if a.distance(b) <= pitch || (inside && a.distance(b) <= 3.0 * pitch) {
                     prev.extend(chord.into_iter().skip(1));
                     prev.extend(pieces.remove(0).into_iter().skip(1));
                 }
@@ -1975,8 +2005,69 @@ fn radial(
     out
 }
 
-/// Least distance (0.1 mm) at which a radial line starts from the lines beside it.
+/// Shortest piece of a radial line kept (0.1 mm): a ray through an outline corner clips to
+/// slivers.
 const RADIAL_MIN_GAP: f64 = 4.0;
+
+/// A radial line piece (from the centre out) in stitches of exactly `pitch` from its outer end
+/// in, the short remainder at its inner end, as PE-DESIGN sews them (round 15: 2.0 mm run
+/// stitches, a mean of 1.84 mm with the remainders, where even division gave 1.76 mm).
+fn pitch_from_outer(piece: &[Vec2], pitch: f64) -> Vec<Vec2> {
+    let (Some(&inner), Some(&outer)) = (piece.first(), piece.last()) else {
+        return piece.to_vec();
+    };
+    let len = inner.distance(outer);
+    if len <= pitch || pitch <= 0.0 {
+        return vec![inner, outer];
+    }
+    let dir = (inner - outer) * (1.0 / len);
+    let mut out = vec![outer];
+    let mut d = pitch;
+    while d < len - 1e-6 {
+        out.push(outer + dir * d);
+        d += pitch;
+    }
+    // A remainder under 0.3 mm shares the last whole stitch: PE-DESIGN's files have 6-12
+    // stitches under 0.3 mm a 40 mm circle, and more of 0.3-1.8 mm at the inner ends.
+    let last = *out.last().expect("outer");
+    if last.distance(inner) < 3.0 && out.len() >= 2 {
+        let before = out[out.len() - 2];
+        *out.last_mut().expect("outer") = before.lerp(inner, 0.5);
+    }
+    out.push(inner);
+    out.reverse();
+    out
+}
+
+/// [`pitch_from_outer`] from the inner end: exact `pitch` from the apex out, the remainder at
+/// the outline.
+fn pitch_from_inner(piece: &[Vec2], pitch: f64) -> Vec<Vec2> {
+    let back: Vec<Vec2> = piece.iter().rev().copied().collect();
+    let mut out = pitch_from_outer(&back, pitch);
+    out.reverse();
+    out
+}
+
+/// Where pair `k` of a radial fill's lines stops, from the centre (0.1 mm): the last pair of
+/// each `per_centre` reaches the centre; the others stop long, short, short (round 15: long
+/// 4.2-5.9 mm, short 1.5-3.0 mm, the same sequence at every density). A small fixed jitter
+/// keeps neighbouring stops apart as PE-DESIGN's are.
+fn radial_stop(k: usize, per_centre: usize) -> f64 {
+    let p = k % per_centre;
+    if p + 1 == per_centre {
+        return 0.0;
+    }
+    // A fixed pattern of radii, 0.1 mm, spread as PE-DESIGN's stops are (radial-circle40-dmax:
+    // the short ones from 1.6 to 3.0 mm, mean 2.42 mm; the long ones mean 5.11 mm). Short
+    // stops bunched at 1.6-1.8 mm crowded the centre past PE-DESIGN's (#461).
+    const LONG: [f64; 6] = [42.0, 52.0, 54.0, 53.0, 50.0, 56.0];
+    const SHORT: [f64; 8] = [28.0, 18.0, 26.0, 22.0, 30.0, 22.0, 25.0, 24.0];
+    if p.is_multiple_of(3) {
+        LONG[(k / 3) % LONG.len()]
+    } else {
+        SHORT[(k - k / 3 - 1) % SHORT.len()]
+    }
+}
 
 /// Flexible spiral: the region's outer outline shrunk towards its centre, turn by turn, so the
 /// spiral follows the shape. Each turn shrinks by `spacing` relative to the mean distance of

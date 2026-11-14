@@ -134,6 +134,7 @@ The fields:
 | `stitchesOutside {polygon, within}` | Stitch midpoints outside a region |
 | `travelGaps`, `totalJumpLength` | Needle travel across each jump / trim run; total jump length, mm |
 | `polar {center, ring?, ringWithin, property}` | Needle points seen from `center` (mm): `minRadius`, `maxRadius` (mm), `midAngle`, `angleSpan` (degrees clockwise on screen from 12 o'clock); points within `ringWithin` mm (default 0.3) of a circle of radius `ring` (an outline sewn with fitted text) are left out |
+| `centreCrowding {center?, within, closer?, property}` | How crowded the needle points are about `center` (mm; the bounds' middle when left out): `points`, the distinct needle points on the 0.1 mm grid within `within` mm, or `closePairs`, the pairs of them closer than `closer` mm (default 0.25). A radial fill's centre (#461, #1050) |
 | `columns {x, halfWidth}` | For each x (mm), the highest and lowest needle point within `halfWidth` mm (default 0.3): `[top0, bottom0, …]`, mm |
 | `needleEnds` | First and last needle point `[x0, y0, x1, y1]`, mm from the top-left of the needle points (a jump landing right before the first stitch counts as the start) |
 | `stitchedArea` | Area covered by 0° fill rows, mm²: each row's needle extent (with the stitches into and out of it from ≤ 0.5 mm away) × the mean row gap. Single points (under sewing across the fill, travel) are not rows |

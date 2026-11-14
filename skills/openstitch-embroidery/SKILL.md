@@ -72,7 +72,11 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.
 - Wave fill (beyond PE-DESIGN): `object.setRegion` on a fill with `waveHeight` (crest to trough,
-  mm, 0 = off) and `waveLength` (mm, default 16). PES 0110 refuses it; save PES version 6.
+  mm, 0 = off) and `waveLength` (mm, default 16). A `waveHeight` above 0.267 x `waveLength`
+  (4.27 mm at 16) sews the same wave: raise `waveLength` for a higher one. PES 0110 refuses it;
+  save PES version 6.
+- Radial Stitch: `object.setRegion` with `type: "radial"`, `density` 0.2-7.0 lines/mm (default 2.0)
+  (PE-DESIGN's range): the lines are 1/density apart at the outline, in pairs to the centre.
 - Travel hidden under later parts (beyond PE-DESIGN): `object.setRegion` on a fill with
   `runningStitchPath: "insideHidden"` sews its parts in the order that leaves the least travel
   on thread already sewn (a stem between leaves after them; a ring gone round, branches
