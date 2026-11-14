@@ -1576,3 +1576,29 @@ fn crossing_rows_never_draw_lighter_than_the_rows_alone() {
         "with an underlay crossing them {both:.3}, the rows alone {alone:.3}"
     );
 }
+
+/// #1046: the thickness profile control's hover hint says that linear, smoothstep and stairs
+/// need more than 3 passes, the same words as the command's description.
+#[test]
+fn the_thickness_profile_control_has_its_hint() {
+    use super::inspector::{Control, hint, line_controls};
+    use openstitch_design::{LineSewing, LineType};
+    let mut line = LineSewing::new(LineType::Running, Thread::rgb(0));
+    line.profile = Some(Default::default());
+    let profile = line_controls(&line)
+        .into_iter()
+        .find(|c| {
+            matches!(
+                c,
+                Control::Choice {
+                    param: "profile",
+                    ..
+                }
+            )
+        })
+        .expect("the profile control");
+    assert_eq!(
+        hint(profile.param()),
+        Some(openstitch_design::line_looks::PROFILE_PASSES_NOTE)
+    );
+}

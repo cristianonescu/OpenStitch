@@ -29,6 +29,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.
 - `object.setRegion` `angle` (degrees, counter-clockwise) is a straight sewing direction: it turns
   `autoDirection` off unless you pass `autoDirection` in the same call.
+- A net fill (`netFill`, `zigzagNetFill`) lines up on the shape's bounds, its lines half a spacing
+  (a zigzag net: half a band) in from the top-left corner, as PE-DESIGN does; with
+  `object.setReferencePoint` its lines run through that point instead.
 - Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
   `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
   save PES version 6.
@@ -222,7 +225,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    quilt outlines (two stitches forward, one back); `{type: scribble, width, runTimes,
    noiseScale, seed}` for sketchy doodles; on a running line `profile: arc` (or `linear`,
    `sine`, `smoothstep`, `stairs`, `profilePoints`) with `minPasses`/`maxPasses` (odd) and
-   `passSpacing` swells it like a brush stroke ("calligraphic", "brush" lines); `hand: true`
+   `passSpacing` swells it like a brush stroke ("calligraphic", "brush" lines; `linear`,
+   `smoothstep` and `stairs` differ only with `maxPasses` 5 or more, as 1 to 3 passes give two
+   thicknesses); `hand: true`
    (`handLength`, `handAngle`, `handPasses`, `handExtra`) on running or triple lines, or
    `object.setRegion {handSide: a|b|both, handAmount}` on a satin, gives the uneven
    hand-sewn look for "folk", "naive" or "hand-drawn" requests. The same `seed` always sews
@@ -343,7 +348,9 @@ then style them in the next.
   tieCount, tieLength, between}`. For a machine without an automatic cutter: `trim: off`
   (jumps instead of trims; the user cuts them by hand), and on text `between: word` or
   `never` so letters of a word are not trimmed apart. Slippery or thick threads: `tie:
-  always` with `tieCount: 2`. `reset: true` goes back to PE-DESIGN's rules; check the result
+  always` with `tieCount: 2`. With `tie: auto`, a short join sewn across between two objects
+  of one thread carries no lock or tie-in, as PE-DESIGN sews it (#987); `tie: always` on both
+  objects puts the knots back. `reset: true` goes back to PE-DESIGN's rules; check the result
   with `design.info` (trims, jumps).
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`

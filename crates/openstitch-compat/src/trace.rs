@@ -116,6 +116,30 @@ impl Trace {
         }
     }
 
+    /// Only part `part` of the stream (0-based): the parts are what trims and colour changes
+    /// separate, each with the jumps that lead into it, so a part is one object's stitches
+    /// when every object is trimmed apart (#1088). Empty when there is no such part.
+    pub fn part(&self, part: usize) -> Self {
+        let mut parts: Vec<Vec<Entry>> = vec![Vec::new()];
+        for e in &self.entries {
+            match e.command {
+                Command::Trim | Command::ColorChange => {
+                    if parts
+                        .last()
+                        .is_some_and(|p| p.iter().any(|q| q.command == Command::Stitch))
+                    {
+                        parts.push(Vec::new());
+                    }
+                }
+                _ => parts.last_mut().expect("a part").push(*e),
+            }
+        }
+        parts.retain(|p| p.iter().any(|q| q.command == Command::Stitch));
+        Trace {
+            entries: parts.into_iter().nth(part).unwrap_or_default(),
+        }
+    }
+
     pub fn block_count(&self) -> usize {
         if self.stitches().next().is_none() {
             return 0;
@@ -284,6 +308,27 @@ mod tests {
         );
         assert_eq!(t.excluding(0, 0), t);
         assert_eq!(t.excluding(4, 3), Trace::default());
+    }
+
+    #[test]
+    fn parts_are_what_trims_and_colour_changes_separate() {
+        let mut p = StitchPattern::new();
+        p.jump_to(0.0, 0.0);
+        p.stitch_to(0.0, 0.0);
+        p.stitch_to(10.0, 0.0);
+        p.push(Command::Trim);
+        p.jump_to(50.0, 0.0);
+        p.stitch_to(50.0, 0.0);
+        p.stitch_to(60.0, 0.0);
+        p.push(Command::ColorChange);
+        p.stitch_to(70.0, 0.0);
+        let t = Trace::from_pattern(&p);
+        let xs = |k: usize| -> Vec<f64> { t.part(k).entries.iter().map(|e| e.x).collect() };
+        assert_eq!(xs(0), [0.0, 0.0, 1.0]);
+        // The second part starts with the jump that leads into it.
+        assert_eq!(xs(1), [5.0, 5.0, 6.0]);
+        assert_eq!(xs(2), [7.0]);
+        assert_eq!(t.part(3), Trace::default());
     }
 
     #[test]

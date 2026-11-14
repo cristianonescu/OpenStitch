@@ -1,0 +1,236 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "shape-start-points-outline",
+  "area": "stitches",
+  "title": "Where shapes drawn with the outline tools start and end",
+  "description": "Six shapes drawn with PE-DESIGN's own drawing tools, not its Shapes gallery: a square and a rectangle (Rectangle tool), an ellipse, and a diamond, a four-point star and a triangle drawn as closed straight lines, in one thread, Fill with under sewing off. Each shape is trimmed from the next, and each part's start and end are compared with PE-DESIGN's. The gallery shapes of shape-start-points (heart, drop) have no outline-tool equivalent; that spec keeps the sew kit's machine-check design (#1075). The diamond, the star and the triangle are drawn too, but their ends are not checked yet: PE-DESIGN starts and ends a closed straight-line shape at its first vertex, OpenStitch at a fill row end (to follow).",
+  "covers": {
+    "audit": [],
+    "featureMatrix": [
+      {
+        "area": "Region sew types",
+        "feature": "Fill (tatami: angle or auto direction"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 reference stitches/shape-start-points-outline.pes (the coordinator's round 15 capture): 68,00 x 44,00 mm, 2086 stitches, six trimmed parts"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.rectangle",
+      "params": {
+        "x": 2,
+        "y": 2,
+        "width": 20,
+        "height": 20,
+        "fill": "Black"
+      }
+    },
+    {
+      "command": "shape.rectangle",
+      "params": {
+        "x": 26.5,
+        "y": 2,
+        "width": 19.5,
+        "height": 10,
+        "fill": "Black"
+      }
+    },
+    {
+      "command": "shape.ellipse",
+      "params": {
+        "cx": 60,
+        "cy": 7,
+        "rx": 10,
+        "ry": 5,
+        "fill": "Black"
+      }
+    },
+    {
+      "command": "shape.polygon",
+      "params": {
+        "points": [
+          [
+            12,
+            26
+          ],
+          [
+            22,
+            36.5
+          ],
+          [
+            12,
+            46
+          ],
+          [
+            2,
+            36.5
+          ]
+        ],
+        "fill": "Black"
+      }
+    },
+    {
+      "command": "shape.polygon",
+      "params": {
+        "points": [
+          [
+            36,
+            26
+          ],
+          [
+            39,
+            33.5
+          ],
+          [
+            46,
+            36.5
+          ],
+          [
+            39,
+            39.5
+          ],
+          [
+            36,
+            46
+          ],
+          [
+            33,
+            39.5
+          ],
+          [
+            26.5,
+            36.5
+          ],
+          [
+            33,
+            33.5
+          ]
+        ],
+        "fill": "Black"
+      }
+    },
+    {
+      "command": "shape.polygon",
+      "params": {
+        "points": [
+          [
+            60,
+            26
+          ],
+          [
+            70,
+            46
+          ],
+          [
+            50,
+            46
+          ]
+        ],
+        "fill": "Black"
+      }
+    },
+    {
+      "command": "object.setRegion",
+      "params": {
+        "ids": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "type": "fill",
+        "underlay": false
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "ids": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "type": "none"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "shapes.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/shape-start-points-outline.pes",
+      "make": "100 x 100 mm page, Optimize Entry/Exit Points off. Rectangle tool (2,2)-(22,22) and (26,2)-(46,12) mm; Circle tool in (50,2)-(70,12); Shapes > Outline closed straight lines for the diamond, the four-point star and the triangle (points in the MANIFEST entry). One colour, line Not Sewn, Fill with under sewing off. Save As PES. Nothing from the Shapes gallery."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "ends-1",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "shapes.pes",
+        "part": 0
+      },
+      "evidence": "where PE-DESIGN 11.50 starts and ends the square (drawn with its own tools, Optimize Entry/Exit Points off), relative to the shape's needle points",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
+    },
+    {
+      "id": "ends-2",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "shapes.pes",
+        "part": 1
+      },
+      "evidence": "where PE-DESIGN 11.50 starts and ends the rectangle (drawn with its own tools, Optimize Entry/Exit Points off), relative to the shape's needle points",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
+    },
+    {
+      "id": "ends-3",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "shapes.pes",
+        "part": 2
+      },
+      "evidence": "where PE-DESIGN 11.50 starts and ends the ellipse (drawn with its own tools, Optimize Entry/Exit Points off), relative to the shape's needle points",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
+    }
+  ]
+}
