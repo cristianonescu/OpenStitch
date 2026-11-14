@@ -1,9 +1,9 @@
 {
   "schema": "openstitch-compat/1",
-  "id": "line-motif-zigzag-3pt",
+  "id": "line-motif-zigzag-5x5-spacing",
   "area": "stitches",
-  "title": "Motif line with the owner's psc-motif-zigzag-3pt.pmf",
-  "description": "A 39.5 mm straight line sewn as a motif line with an owner-made 3-point motif (base line with its middle point dragged to (512,768)) at 5 x 5 mm: 8 motifs stretched to 4.94 mm fill the line from end to end, each point 1.25 mm off the line (256 of the 1024-unit cell at 5 mm). The line ties in and locks like PE-DESIGN's other lines.",
+  "title": "Motif line with the project's psc-motif-zigzag-3pt.pmf at 5 x 5 mm, spacing 2 mm",
+  "description": "A 40 x 40 mm square's outline sewn as a motif line with the project's 3-point motif (base line with its middle point dragged to (512,768)) at 5 mm long and 5 mm high, spacing 2 mm, run pitch 5 mm, Start/End Feed: each motif's apex is 1.25 mm off the outline (256 of the 1024-unit cell at 5 mm), so a motif's two stitches are about 2.8 mm, and the motifs stay on the outline, which bounds the stitches at 40 x 40 mm. Replaces line-motif-zigzag-3pt, withdrawn with its capture (#1060).",
   "covers": {
     "audit": [],
     "featureMatrix": [
@@ -17,16 +17,15 @@
       }
     ]
   },
-  "skip": "reference withdrawn 2026-11-13: the capture listed a PE-DESIGN built-in motif; a clean capture is pending",
   "evidence": [
     {
       "kind": "guide",
       "url": "https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/16_1293518.html",
-      "note": "Motif Stitch (line): pattern, size, offset, spacing, run pitch"
+      "note": "Motif Stitch (line and region): pattern, size, arrange, spacing, row offset, run pitch"
     },
     {
       "kind": "measured",
-      "note": "PE-DESIGN 11.50 reference stitches/line-motif-zigzag-3pt.pes (reference round 4 log, PATTERN DESIGNS 13:42-13:45): 23 stitches, 39.5 x 1.3 mm"
+      "note": "PE-DESIGN 11.50 reference stitches/608-motif-size-spacing.pes (the coordinator's round 12 capture, 2026-11-13): 75 stitches in the status bar, 40,00 x 40,00 mm; its header lists only the project's motif"
     }
   ],
   "inputs": [
@@ -47,24 +46,17 @@
       "command": "pattern.import",
       "params": {
         "path": "psc-motif-zigzag-3pt.pmf",
-        "id": "owner-zigzag"
+        "id": "zz3"
       }
     },
     {
-      "command": "shape.polygon",
+      "command": "shape.rectangle",
       "params": {
-        "points": [
-          [
-            10,
-            30
-          ],
-          [
-            49.5,
-            30
-          ]
-        ],
-        "closed": false,
-        "outline": "Blue"
+        "x": 30,
+        "y": 30,
+        "width": 40,
+        "height": 40,
+        "outline": "Red"
       }
     },
     {
@@ -74,10 +66,10 @@
           1
         ],
         "type": "motif",
-        "motif": "owner-zigzag",
+        "motif": "zz3",
         "width": 5,
         "height": 5,
-        "spacing": 0,
+        "spacing": 2,
         "pitch": 5,
         "startEnd": "feed"
       }
@@ -91,8 +83,8 @@
   "references": [
     {
       "id": "pe-design",
-      "file": "stitches/line-motif-zigzag-3pt.pes",
-      "make": "Programmable Stitch Creator, New Motif Pattern: click the base line to add a point, drag it to (512,768); Save As psc-motif-zigzag-3pt.pmf (Default Size 5.0 mm). Layout & Editing, 100 x 100 mm page: Shapes > Outline > Open Straight Line from (10,30) to (50,30) mm (snapped to 39.5 mm), line Motif Stitch > that file at 5.0 x 5.0 mm, Offset 0.0, Spacing 0.0, Run pitch 5.0, Start/End Feed. Save As PES (default type)."
+      "file": "stitches/608-motif-size-spacing.pes",
+      "make": "Programmable Stitch Creator, New Motif Pattern: click the base line to add a point, drag it to (512,768); Save As psc-motif-zigzag-3pt.pmf (round 4). Layout & Editing, 100 x 100 mm page: Home > Shapes > Rectangle, a 40 x 40 mm square; region Not Sewn; line Motif Stitch > that file, Maintain aspect ratio off, motif 5,0 x 5,0 mm, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Run pitch 5,0, Start/End Type Feed. Save As PES (default type)."
     }
   ],
   "measurements": [
@@ -104,26 +96,10 @@
       "source": {
         "export": "line.pes"
       },
-      "evidence": "PE-DESIGN 11.50 sews 23 needle points: the satin-like tie-in (three 0.3 mm steps out along the 2.8 mm first stitch and back in two), the 8 motifs' 16 points and a one-step lock",
+      "evidence": "PE-DESIGN 11.50 sews 75 needle points (76 entries in the file): the motifs around the square, the 2 mm runs between them and the line's tie-in and lock",
       "reference": {
         "tolerance": {
           "percent": 3
-        }
-      }
-    },
-    {
-      "id": "height",
-      "measure": {
-        "kind": "bounds",
-        "property": "height"
-      },
-      "source": {
-        "export": "line.pes"
-      },
-      "evidence": "the motif's middle point sits 256 of 1024 cell units off the line: 1.25 mm at 5 mm",
-      "reference": {
-        "tolerance": {
-          "mm": 0.15
         }
       }
     },
@@ -136,7 +112,23 @@
       "source": {
         "export": "line.pes"
       },
-      "evidence": "the motifs fill the 39.5 mm line from end to end",
+      "evidence": "the motifs stay on the square's outline",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "line.pes"
+      },
+      "evidence": "the motifs stay on the square's outline",
       "reference": {
         "tolerance": {
           "mm": 0.15
@@ -153,7 +145,24 @@
       "source": {
         "export": "line.pes"
       },
-      "evidence": "8 motifs on 39.5 mm: each half a 4.94 mm motif, a 2.76 mm stitch",
+      "evidence": "a motif's stitch: half its 5 mm length along the outline and 1.25 mm across",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "stitch-length-max",
+      "measure": {
+        "kind": "stitchLength",
+        "stat": "max",
+        "minLength": 0.3
+      },
+      "source": {
+        "export": "line.pes"
+      },
+      "evidence": "the longest stitch is a motif's, not a run between motifs (2 mm, under the 5 mm run pitch)",
       "reference": {
         "tolerance": {
           "mm": 0.15
@@ -169,8 +178,8 @@
       "source": {
         "export": "line.pes"
       },
-      "evidence": "one region: no trim",
       "expected": 0,
+      "evidence": "one closed line: no trim",
       "reference": {}
     },
     {
@@ -182,8 +191,8 @@
       "source": {
         "export": "line.pes"
       },
-      "evidence": "one region: no jump",
       "expected": 0,
+      "evidence": "one closed line: no jump",
       "reference": {}
     }
   ]
