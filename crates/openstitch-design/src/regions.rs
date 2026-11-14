@@ -593,6 +593,17 @@ pub fn generate(
                 };
                 let end = at;
                 bridge(&mut run, end);
+                // A step that would cross the stitch after next (from the line's end on the
+                // outline into a band whose last rung the outline cuts) leaves out the needle
+                // point between: the needle goes straight on (#1058).
+                let mut i = 0;
+                while i + 3 < run.len() {
+                    if crosses_inside(run[i], run[i + 1], run[i + 2], run[i + 3]) {
+                        run.remove(i + 1);
+                    } else {
+                        i += 1;
+                    }
+                }
                 // No stitch shorter than 0.3 mm (a rung cut short at a corner or the outline
                 // next to the line's end): the needle point is left out, the run still ends on
                 // the line.
@@ -2954,6 +2965,20 @@ fn zigzag_band(
     }
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
     run
+}
+
+/// Whether the stitches a–b and c–d cross more than 0.3 mm from all four ends.
+fn crosses_inside(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> bool {
+    let side = |p: Vec2, q: Vec2, r: Vec2| (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+    let (d1, d2) = (side(a, b, c), side(a, b, d));
+    let (d3, d4) = (side(c, d, a), side(c, d, b));
+    if d1 * d2 >= -1e-6 || d3 * d4 >= -1e-6 {
+        return false;
+    }
+    let x = c.lerp(d, d1 / (d1 - d2));
+    [a, b, c, d]
+        .iter()
+        .all(|p| p.distance(x) > ZIGZAG_NET_MIN_STITCH)
 }
 
 /// `part` (a piece of the polyline `line`) run on along `line` by up to `ext` at both ends.

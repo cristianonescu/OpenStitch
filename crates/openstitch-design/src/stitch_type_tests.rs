@@ -2510,18 +2510,67 @@ fn zigzag_net_stays_inside_and_its_rungs_do_not_cross() {
                 let first = (0..run.len().saturating_sub(3))
                     .find(|&i| crosses(i))
                     .map(|i| (i, &run[i.saturating_sub(4)..(i + 6).min(run.len())]));
-                // At 0° only: the net code puts one crossing rung on a circle polygon turned by
-                // most angles (5°-35°, 50°, 55°-80°) even at Direction 0, which a turned net
-                // meets on every circle (#1058).
-                if angle == 0.0 {
-                    assert_eq!(
-                        crossing, 0,
-                        "{name} {id} {angle}°: a rung crosses the next {first:?}"
-                    );
+                assert_eq!(
+                    crossing, 0,
+                    "{name} {id} {angle}°: a rung crosses the next {first:?}"
+                );
+            }
+        }
+    }
+}
+
+/// #1058: on a circle polygon turned by any angle, no rung of a zigzag net crosses the next (a
+/// crossing more than 0.3 mm from all four ends), for the square, diamond, triangle and
+/// honeycomb patterns at Direction 0. Before, a band ending at the outline put one crossing rung
+/// there at most turns (5° to 35°, 50° to 80°).
+#[test]
+fn zigzag_net_rungs_do_not_cross_on_a_turned_circle() {
+    let proper_cross = |a: Vec2, b: Vec2, c: Vec2, d: Vec2| {
+        let side =
+            |p: Vec2, q: Vec2, r: Vec2| (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+        let (d1, d2) = (side(a, b, c), side(a, b, d));
+        let (d3, d4) = (side(c, d, a), side(c, d, b));
+        if d1 * d2 >= -1e-6 || d3 * d4 >= -1e-6 {
+            return false;
+        }
+        let x = c.lerp(d, d1 / (d1 - d2));
+        [a, b, c, d].iter().all(|p| p.distance(x) > 3.0)
+    };
+    let mut found = Vec::new();
+    for id in ["square", "diamond", "triangle", "honeycomb"] {
+        let lines: &[f64] = match id {
+            "square" => &[0.0, 90.0],
+            "diamond" => &[45.0, -45.0],
+            _ => &[0.0, 60.0, 120.0],
+        };
+        for turn in (0..18).map(|k| k as f64 * 5.0) {
+            let c = vec![circle().transformed(&crate::geometry::Transform::rotation(
+                turn,
+                v2(200.0, 200.0),
+            ))];
+            let mut r = region(RegionType::ZigzagNetFill);
+            r.pattern = Some(id.into());
+            let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+            for run in &runs {
+                let along_line = |j: usize| {
+                    let d = run[j + 1] - run[j];
+                    let a = d.y.atan2(d.x).to_degrees();
+                    lines.iter().any(|l| {
+                        let off = (a + l).rem_euclid(180.0);
+                        off.min(180.0 - off) < 2.0
+                    })
+                };
+                if let Some(i) = (0..run.len().saturating_sub(3)).find(|&i| {
+                    !along_line(i)
+                        && !along_line(i + 2)
+                        && proper_cross(run[i], run[i + 1], run[i + 2], run[i + 3])
+                }) {
+                    found.push(format!("{id} {turn}°: {:?}", &run[i..i + 4]));
                 }
             }
         }
     }
+    assert!(found.is_empty(), "rungs cross: {found:#?}");
 }
 
 #[test]
