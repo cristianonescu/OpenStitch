@@ -8,7 +8,7 @@ are a sound start; change them only for a reason.
 ## Lettering
 
 - Capitals at least **5-6 mm** high for satin text; lowercase and thin script fonts need
-  more. Each font has its own smallest size (`fonts.list` `sizeRange.minMm`: Lato Bold 6 mm,
+  more. Each font has its own smallest size (the `minMm` of its `sizeRange` in `fonts.list`: Lato Bold 6 mm,
   Pacifico 7, the Small Text font 3); below it letters close up and lose their shape, and
   Check Design's `textTooSmall` says so (4 mm for a font without a range).
 - Very large satin letters (strokes wider than about 7-8 mm) sew loose: use fill text
