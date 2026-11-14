@@ -49,10 +49,12 @@ Decisions) in `openstitch-design`; the engine adds `usvg` and `roxmltree` (SVG i
   `TMPDIR`, and the job fails if they leave anything in it. Only `main` saves the rust-cache
   entry (also when its tests fail); pull requests restore it. The slowest job is Windows, and
   its warm build goes to compiling the test targets; see #357 and #403 for the measurements.
-  Beside it: `secrets` (gitleaks over the whole history), `icons` (asset and icon checks, file
+  Beside it: `secrets` (gitleaks over the whole history, and `tools/private_scan.py` for local
+  paths and personal details in tracked files, #1057), `icons` (asset and icon checks, file
   associations, README status checks), `web` (the browser build, its smoke test against the
   native build and a page test in Chromium, Firefox and WebKit) and `kit` (the ready-to-sew kit
-  matches a fresh build, every docs image has a generator, sew_check).
+  matches a fresh build, every docs image has a generator, the Text Transform table is what
+  `tools/fit_envelopes.py` fits from the references (#886), sew_check).
 - On `main`, it then calls `build-executables.yml`, which builds `openstitch`, `stitchtool` and
   `openstitch-mcp`: universal arm64 + x86_64 via `lipo` on macOS, x86_64 on Linux and Windows.
   It smoke-tests them with `stitchtool exec examples/badge.json` and packages them with
@@ -65,7 +67,9 @@ Decisions) in `openstitch-design`; the engine adds `usvg` and `roxmltree` (SVG i
   packages on clean Windows, Linux and macOS runners, with a Realistic-view screenshot of a dense
   fill on Linux and macOS (#1021). `pages.yml` publishes the web editor to GitHub
   Pages from `main`. `flatpak.yml` builds a Flatpak bundle as a workflow artifact when the
-  manifest or the Linux packaging changes.
+  manifest or the Linux packaging changes. `monkey-weekly.yml` runs the seeded monkey test of
+  the editor window long every Sunday (8 seeds of 1,000 steps in a release build, a new first
+  seed each week, #880); pull requests run it short inside `rust.yml`'s tests.
 - Work goes through branches and pull requests. Tags are pushed only when the owner declares a
   version stable.
 
@@ -100,7 +104,10 @@ Decisions) in `openstitch-design`; the engine adds `usvg` and `roxmltree` (SVG i
 - `Design` is the editable model (shape and stitch objects with sewing attributes). It compiles
   to a `StitchPattern`; codecs never see editable objects (the PES object section will get its
   own mapper).
-- `.osd` project files are JSON: `{"format": "openstitch.design", "version": 1, "design": …}`.
+- `.osd` project files are JSON: `{"format": "openstitch.design", "version": 4, "design": …}`.
+  Older versions are migrated on load (2: direction angles counter-clockwise; 3: PE-DESIGN's
+  text metrics; 4: a zigzag net turns with its Direction, older nets load at Direction 0, #1043);
+  a newer version is refused.
   `serde_json` is built with `float_roundtrip`, so a saved design reopens bit-identical.
 
 ## Lettering
@@ -219,7 +226,10 @@ Decisions) in `openstitch-design`; the engine adds `usvg` and `roxmltree` (SVG i
   the text along an arc, letters rigid and turned with it. Text on a path takes no envelope.
 - Vertical text (`TextSpec::direction`): characters run top to bottom in logical order (no bidi
   reordering), shaped top-to-bottom so `vert` forms and `vmtx`/`VORG` metrics apply (without
-  `vmtx`, a cell is ascender − descender with the glyph centred); lines become columns from
+  `vmtx`, a cell is ascender − descender with the glyph centred; since 2026-11-13, #608, a text
+  in PE-DESIGN's metrics uses PE-DESIGN's column instead: each letter's cell is the text size and
+  the first capital's top is the click, and only texts sized by capital height keep the font's
+  vertical cell); lines become columns from
   right to left, one line height apart; alignment is top / middle / bottom about y = 0. Text on
   a path is always laid out along the path.
 - Per-character edits (`TextSpec::characters`, `text.setCharacter`): offset (mm), clockwise
@@ -647,7 +657,8 @@ connection limit, endpoint file life cycle, loopback-only client),
 These give the AI assistant ([research/beyond/ai-integration.md](research/beyond/ai-integration.md)) everything a user can do in the window, not only design changes. The socket answers editor commands beside the engine's, and `commands.list` lists them in the engine's shape. Their specs are in `openstitch_app::editor::assistant`; `assistant_ui.rs` in the binary runs them.
 
 **Reading and running window commands**
-- `ui.state`: the window's current state.
+- `ui.state`: the window's current state, with the Sewing Order pane's Find text (`orderFilter`),
+  the page mode (`pageMode`), the Realistic view's `msaa` and, after a crash, `crashReport`.
 - `ui.actions`: every ribbon, menu and Quick Access Toolbar command, with how the assistant reaches it.
 - `ui.run`: runs a command by key, as a click would.
 
@@ -657,10 +668,11 @@ These give the AI assistant ([research/beyond/ai-integration.md](research/beyond
 - `ui.simulate`: controls the Stitch Simulator.
 
 **Settings**
-- `ui.settings` and `ui.set`: view, grid, rulers, panes, theme, updates, realistic view, font filter and simulator speed.
+- `ui.settings` and `ui.set`: view, grid, rulers, panes, theme, updates, realistic view, font filter, simulator speed and the Sewing Order pane's Find text (`orderFilter`, #1031).
 
 **Help and updates**
-- `ui.help` and `ui.update`.
+- `ui.help` and `ui.update`. `ui.help {item: "reportProblem"}` opens Report a Problem and replies
+  with the diagnostics lines, version and system (#878).
 
 **Pictures and files**
 - `ui.render`: a PNG of the live design, the same preview `openstitch-mcp` draws.

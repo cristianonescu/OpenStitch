@@ -18,7 +18,7 @@ Notes that do not change the fixture bytes:
 
 | Format | Read | Write | Evidence level | Notes |
 |---|---|---|---|---|
-| PES | ✅ all versions, via the PEC section; v4+ metadata, v5+ RGB thread table, `CEmbOne`/`CSewSeg` objects; `#PES0110` shapes, texts and groups (see "PES 0110 object list") | ✅ 1t, 1, 4, 5, 6t, 6 (default), 7–10; 11 (`#PES0110`) with editable shapes and text | Oracle-verified (pyembroidery), byte-identical for 1t, 1, 6, 6t; 4, 5, 7–10 laid out as PE-DESIGN 11.50's own saves (#374); 11 opened editable in PE-DESIGN 11.50 | No public description of PE-DESIGN's object classes: mapped from the owner's own files. Object kinds version 11 still refuses: #608. |
+| PES | ✅ all versions, via the PEC section; v4+ metadata, v5+ RGB thread table, `CEmbOne`/`CSewSeg` objects; `#PES0110` shapes, texts and groups (see "PES 0110 object list") | ✅ 1t, 1, 4, 5, 6t, 6 (default), 7–10; 11 (`#PES0110`) with editable shapes and text | Oracle-verified (pyembroidery), byte-identical for 1t, 1, 6, 6t; 4, 5, 7–10 laid out as PE-DESIGN 11.50's own saves (#374); 11 opened editable in PE-DESIGN 11.50 | No public description of PE-DESIGN's object classes: mapped from the owner's own files. Object kinds version 11 still refuses: #1024. |
 | PEC | ✅ | ✅ | Oracle-verified | Byte-identical round trip of the oracle file. |
 | DST | ✅ | ✅ | Oracle-verified read; PE-DESIGN 11.50 reference write (records and header identical) | See "PE-DESIGN's record layout" below. |
 | EXP | ✅ | ✅ | Oracle-verified read; PE-DESIGN 11.50 reference write (byte-identical) | |
@@ -157,7 +157,7 @@ whether every Brother machine opens these files, and whether PE-DESIGN 11 opens 
 | `1` | ✅ | ❌ | ❌ | ✅ (colours as PEC indexes) | ❌ |
 | `6t` | ✅ | ✅ | ✅ | ❌ | ❌ |
 | `6` (default) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `11` (PE-DESIGN 11, `#PES0110`) | ✅ | ✅ (thread table in sewing order; each thread named with its PEC chart index, as PE-DESIGN names its own colours) | ✅ | ✅ (a stitch pattern is a `CEmbOne`) | ✅ shapes: fill, satin, programmable and decorative fill and the region types Cross Stitch to Flexible Spiral at PE-DESIGN's defaults; running, zigzag, triple, E, V, stem, candlewick, chain and cutting lines; one group; one hole sewing pair; Lato Bold text, with a Text Transform or fitted to an outline; stitch patterns. A design opened from a `#PES0110` file is exported as one by default (#120). ❌ refused with the object named: motif fill and line, contour fill; fonts other than Lato Bold, text not sewn as a region, right-aligned or vertical text, per-character edits; several groups, two hole pairs, a hole pair with groups, a second programmable fill pattern; non-square pattern tiles; shapes with more than one outline (follow-up #608). PE-DESIGN 11.50 opens shapes and text editable (specs `pes-0110-editable-shapes`, `-text`, `-text-transform`, `-text-fit`); stitch patterns: spec `pes-0110-stitches` |
+| `11` (PE-DESIGN 11, `#PES0110`) | ✅ | ✅ (thread table in sewing order; each thread named with its PEC chart index, as PE-DESIGN names its own colours) | ✅ | ✅ (a stitch pattern is a `CEmbOne`) | ✅ shapes: fill, satin, programmable and decorative fill and the region types Cross Stitch to Flexible Spiral at PE-DESIGN's defaults; running, zigzag, triple, E, V, stem, candlewick, chain and cutting lines; motif lines and motif fills with the motif's size and spacing (one motif per file) and a region's stamp (one per region), since #608; groups, any number; one hole sewing pair; Lato Bold text, with a Text Transform or fitted to an outline, or vertical in one top-aligned column; stitch patterns. A design opened from a `#PES0110` file is exported as one by default (#120). ❌ refused with the object named: contour fill; a second motif, a motif fill with its own spacing or shift, mirrored or alternating motif lines; several stamps on one region, a stamp of several outlines or beside a programmable fill; fonts other than Lato Bold, text not sewn as a region, right-aligned text, vertical text in several columns or not top-aligned, per-character edits; two hole pairs, a hole pair with groups, a second programmable fill pattern; non-square pattern tiles; shapes with more than one outline (follow-up #1024). PE-DESIGN 11.50 opens shapes and text editable (specs `pes-0110-editable-shapes`, `-text`, `-text-transform`, `-text-fit`); stitch patterns: spec `pes-0110-stitches` |
 | `4` | ✅ | ❌ (no thread table: PEC chart colours) | ✅ | ✅ (colours as PEC indexes) | ❌ |
 | `5`, `7`, `8`, `9`, `10` | ✅ | ✅ (0110's thread table) | ✅ | ✅ | ❌ (PE-DESIGN itself saves these versions as stitch data) |
 
@@ -351,7 +351,7 @@ below is pinned by a test in `tests/pes11.rs`.
 | 122 | 1 on the cutting line, 5 on every other object (meaning not mapped) | a02-applique-cutting |
 | 8 (cont.) | the extent of a running, triple or unsewn line equals the bounds; a zigzag or stem line adds half the zigzag width (+48), a chain the whole of it, and a candlewick or motif line the E/V width (+90) (line-*-default: ± 10, ± 20, ± 25 with the default 2.0 and 2.5 mm; every owner line file has those widths, so which field drives the stem, chain, candlewick and motif growth is inferred from the amounts); the circle's is one unit wider still (589..711) and an open zigzag line's grows only across the line (r11: y ± 10, x unchanged) | r19, r07, r21, r10, r11 |
 | 132 | region sewn 1, Not Sewn 0 (every Round 3 file whose region is Not Sewn has 0; r11's open line keeps 1 with its unused Fill) | o-arc, o-rounded-rect, o-group-two-rects, r11 |
-| 134 | region sew type: 0 Satin, 1 Fill, 2 Programmable fill, 3 Motif, 4 Cross Stitch, 5 Concentric Circle, 6 Radial, 7 Spiral, 8 Piping, 9 Stippling, 10 Net Fill, 11 Not Sewn (open lines, outlines with the region off, the inner copy of a hole-sewing pair), 12 Zigzag Net Fill, 13 Decorative Fill, 14 Flexible Spiral. Each o-region-* file, made at the type's defaults, differs from a fill only here; the types' own attribute fields are not mapped (motif fill also changes +68, +236 and +332) | r04, programmable-fill-45, o-group-two-rects, o-arc, hole-sewing-pentagon-star |
+| 134 | region sew type: 0 Satin, 1 Fill, 2 Programmable fill, 3 Motif, 4 Cross Stitch, 5 Concentric Circle, 6 Radial, 7 Spiral, 8 Piping, 9 Stippling, 10 Net Fill, 11 Not Sewn (open lines, outlines with the region off, the inner copy of a hole-sewing pair), 12 Zigzag Net Fill, 13 Decorative Fill, 14 Flexible Spiral. Each o-region-* file, made at the type's defaults, differs from a fill only here; the types' own attribute fields are not mapped, the motif fill's aside (its size +218/+220, arrangement +234 and the header's motif count +332 since #608, described under "Writer" below; +68 was 2 only in two captures withdrawn since) | r04, programmable-fill-45, o-group-two-rects, o-arc, hole-sewing-pentagon-star |
 | 136 | region density, 0.1 line/mm | r09 (4.5 → 6.0) |
 | 138 | gradation 0 off, 1 on | region-travel-u-gradation |
 | 162 | a thread-table index for an attribute not identified yet: it points at 800 RED (PE's default colour) in every file, even when nothing sews red | r17, r18, round-1 references |
@@ -1437,8 +1437,10 @@ Designs carry the user patterns they define in `design.patterns` (same document 
 project sews the same everywhere.
 
 How the tiles are sewn (pinned 2026-10-29 against PE-DESIGN 11.50's own fills of owner-made
-patterns, `compat/reference/stitches/prog-fill-*.pes`, `motif-fill-2pt.pes`,
-`line-motif-zigzag-3pt.pes`):
+patterns, `compat/reference/stitches/prog-fill-*.pes`, and `motif-fill-2pt.pes` and
+`line-motif-zigzag-3pt.pes`, both withdrawn on 2026-11-13 because their headers listed a PE-DESIGN
+built-in motif, #1060; `motif-fill-clean-p1.pes`, `608-motif-size-spacing.pes` and
+`608-motif-5x8.pes` are the clean captures the motif specs use since 2026-11-14):
 
 - **Programmable fill:** the tile lies on the page axes (pattern direction 0), its grid starting
   at the region's top-left corner, or at the reference point when one is set. Rows run at the
@@ -1765,7 +1767,7 @@ The built-in templates are in `crates/openstitch-engine/templates/`, generated b
 ## Known limitations
 
 - PES editable shapes and text are read and written only as `#PES0110` (`pesVersion` 11),
-  with the object kinds it still refuses listed in "Writer" above (#608). Every other version
+  with the object kinds it still refuses listed in "Writer" above (#1024). Every other version
   opens in PE-DESIGN as a stitch group (v1, v4–v10) or stitch-only design (truncated). Version 6
   keeps RGB threads, names and metadata.
 - SHV and CSD are written as PE-DESIGN 11.50 exports them (see above); PHC is read only.

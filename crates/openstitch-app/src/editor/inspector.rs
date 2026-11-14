@@ -938,13 +938,15 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                 },
                 &[("1", "1: flat rows"), ("2", "2: sloped rows")],
             ));
-            // Wave fill (#538, beyond PE-DESIGN): the length only with a height.
+            // Wave fill (#538, beyond PE-DESIGN): the length only with a height. The height goes
+            // up to what the wave length allows (0.267 × the length, #1050): above it the rows
+            // would slope more than 40° and the same wave is sewn.
             v.push(num(
                 "Wave height (+)",
                 "region.waveHeight",
                 "waveHeight",
                 r.wave_height.unwrap_or(0.0),
-                (0.0, 20.0),
+                (0.0, r.max_wave_height()),
                 0.05,
                 " mm",
             ));

@@ -48,7 +48,10 @@ These rules decide what a result can claim:
 - A reference check whose file does not exist yet is **pending**: reported, never passed and
   never failed. A spec with only pending checks has the status "pending reference".
 - A reference file with no manifest entry, an incomplete entry, or a SHA-256 that does not match
-  is an **error**. Nothing reaches the reference tier without a provenance record.
+  is an **error**. Nothing reaches the reference tier without a provenance record. Since
+  2026-11-14 (#1060) every committed PE-DESIGN capture has its shapes' pattern blocks rewritten
+  to OpenStitch's placeholder rows (`tools/redact_pattern_blocks.py`); the entry's `sha256` is
+  the committed file's, and its notes keep the hash of the file as PE-DESIGN saved it.
 - A sew-out record counts only while its SHA-256 matches the current export.
 
 [compat/reference/README.md](../compat/reference/README.md) is the owner's guide to adding a
@@ -86,6 +89,10 @@ The fields:
 - **`covers`** names audit items and FEATURE_MATRIX rows. A row is named by its Area cell and
   the start of its Feature cell.
 - **`evidence`** has kinds `guide`, `spec`, `audit`, `measured` and `oracle`. URLs must be https.
+- **`skip`** (optional) is the reason a spec is not run; it is reported as skipped, neither
+  passed nor failed. The repository's own test accepts a skip only for the specs its `WITHDRAWN`
+  list names: today `programmable-fill-45`, whose PE-DESIGN capture was withdrawn on 2026-11-13
+  (#1060) and waits for a clean one (#1075).
 - **`script`** is what `stitchtool exec` takes. An optional `id` labels a step, so a
   measurement can read its reply.
   - The script runs in a session sandboxed to the spec's work directory.

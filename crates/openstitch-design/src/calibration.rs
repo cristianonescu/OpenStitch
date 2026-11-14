@@ -185,29 +185,50 @@ const SAME_ROW: f64 = 0.5;
 pub fn thread_sides(strokes: &[Vec<Vec2>], density: &RowDensity) -> Vec<Vec<(f64, f64)>> {
     const CELL: f64 = NEIGHBOUR_REACH;
     let key = |p: Vec2| ((p.x / CELL).floor() as i64, (p.y / CELL).floor() as i64);
-    let mut cells: std::collections::HashMap<(i64, i64), Vec<(usize, usize)>> =
+    // Every stitch is listed in each grid cell it crosses (#1084). A row within reach of a
+    // stitch's midpoint crosses the line through it, along its normal, at most one cell away,
+    // so the 3 x 3 cells round the midpoint hold every row that can set a side; rows farther
+    // away give the spacing `density` gives, as no row at all does.
+    //
+    // Copies laid exactly on top of a stitch (a duplicate or a paste in place) are listed once
+    // and measured once: a copy of this stitch lies on its own row, nearer than [`SAME_ROW`],
+    // and a copy of a row beside it gives the same gap again, so the sides are the same. A copy
+    // sewn the other way is a stitch of its own (its sides are swapped). Duplicating objects
+    // piled 400,000 stitches of one colour in a monkey run, three in four of them copies.
+    let mut stitches: Vec<(usize, usize)> = Vec::new();
+    let mut unique: std::collections::HashMap<[u64; 4], usize> = std::collections::HashMap::new();
+    let mut ids: Vec<usize> = Vec::new();
+    let mut cells: std::collections::HashMap<(i64, i64), Vec<usize>> =
         std::collections::HashMap::new();
     for (i, s) in strokes.iter().enumerate() {
         for (k, w) in s.windows(2).enumerate() {
-            let n = ((w[0].distance(w[1]) / (CELL / 2.0)).ceil() as usize).max(1);
-            let mut last = None;
-            for j in 0..=n {
-                let c = key(w[0].lerp(w[1], j as f64 / n as f64));
-                if last != Some(c) {
-                    cells.entry(c).or_default().push((i, k));
-                    last = Some(c);
-                }
-            }
+            let bits = [w[0].x, w[0].y, w[1].x, w[1].y].map(f64::to_bits);
+            let id = *unique.entry(bits).or_insert_with(|| {
+                let id = stitches.len();
+                stitches.push((i, k));
+                crossed_cells(w[0], w[1], CELL, |c| cells.entry(c).or_default().push(id));
+                id
+            });
+            ids.push(id);
         }
     }
+    // The stitch whose sides were last looked for with each candidate: a candidate listed in
+    // several of the cells is looked at once. A list of those seen, searched for every
+    // candidate, was quadratic where many rows of one colour pile up: 47 s for eight satins
+    // pasted onto one small outline (#1084).
+    let mut seen = vec![usize::MAX; stitches.len()];
+    let mut measured: Vec<Option<(f64, f64)>> = vec![None; stitches.len()];
     let cross = |p: Vec2, q: Vec2| p.x * q.y - p.y * q.x;
+    let mut ids = ids.into_iter();
     strokes
         .iter()
-        .enumerate()
-        .map(|(i, s)| {
+        .map(|s| {
             s.windows(2)
-                .enumerate()
-                .map(|(k, w)| {
+                .map(|w| {
+                    let me = ids.next().expect("one id a stitch");
+                    if let Some(sides) = measured[me] {
+                        return sides;
+                    }
                     let mid = w[0].lerp(w[1], 0.5);
                     let r = density.at(mid);
                     let half = covered_width_mm(r) / 2.0;
@@ -224,14 +245,14 @@ pub fn thread_sides(strokes: &[Vec<Vec2>], density: &RowDensity) -> Vec<Vec<(f64
                     let reach = NEIGHBOUR_REACH;
                     let (mut left, mut right) = (f64::INFINITY, f64::INFINITY);
                     let (cx, cy) = key(mid);
-                    let mut seen: Vec<(usize, usize)> = Vec::new();
-                    for x in cx - 2..=cx + 2 {
-                        for y in cy - 2..=cy + 2 {
-                            for &(j, m) in cells.get(&(x, y)).into_iter().flatten() {
-                                if (j, m) == (i, k) || seen.contains(&(j, m)) {
+                    for x in cx - 1..=cx + 1 {
+                        for y in cy - 1..=cy + 1 {
+                            for &other in cells.get(&(x, y)).into_iter().flatten() {
+                                if other == me || seen[other] == me {
                                     continue;
                                 }
-                                seen.push((j, m));
+                                seen[other] = me;
+                                let (j, m) = stitches[other];
                                 let (a, b) = (strokes[j][m], strokes[j][m + 1]);
                                 let e = b - a;
                                 let el = e.length();
@@ -257,16 +278,333 @@ pub fn thread_sides(strokes: &[Vec<Vec2>], density: &RowDensity) -> Vec<Vec<(f64
                         let g = if gap <= reach { gap } else { spacing };
                         (coverage(r) * g / 20.0).min(THREAD_MM / 2.0)
                     };
-                    (side(left), side(right))
+                    let sides = (side(left), side(right));
+                    measured[me] = Some(sides);
+                    sides
                 })
                 .collect()
         })
         .collect()
 }
 
+/// Calls `f` with every grid cell (side `cell`, cell `(floor(x / cell), floor(y / cell))`) the
+/// segment from `a` to `b` touches, ends included; where it passes through a corner, the two
+/// cells beside the corner too.
+fn crossed_cells(a: Vec2, b: Vec2, cell: f64, mut f: impl FnMut((i64, i64))) {
+    let key = |p: Vec2| ((p.x / cell).floor() as i64, (p.y / cell).floor() as i64);
+    let (mut x, mut y) = key(a);
+    let end = key(b);
+    let (dx, dy) = (b.x - a.x, b.y - a.y);
+    let step = |d: f64| {
+        if d > 0.0 {
+            1
+        } else if d < 0.0 {
+            -1
+        } else {
+            0
+        }
+    };
+    let (sx, sy) = (step(dx), step(dy));
+    let first_edge = |c: i64, s: i64, from: f64, d: f64| {
+        if s == 0 {
+            f64::INFINITY
+        } else {
+            let edge = if s > 0 {
+                (c + 1) as f64 * cell
+            } else {
+                c as f64 * cell
+            };
+            (edge - from) / d
+        }
+    };
+    let (mut tx, mut ty) = (first_edge(x, sx, a.x, dx), first_edge(y, sy, a.y, dy));
+    let (ddx, ddy) = (
+        if sx == 0 {
+            f64::INFINITY
+        } else {
+            cell / dx.abs()
+        },
+        if sy == 0 {
+            f64::INFINITY
+        } else {
+            cell / dy.abs()
+        },
+    );
+    // Each step moves one cell nearer the end; the bound only guards against rounding.
+    let steps = (end.0 - x).abs() + (end.1 - y).abs() + 2;
+    f((x, y));
+    for _ in 0..steps {
+        if (x, y) == end || (tx > 1.0 && ty > 1.0) {
+            break;
+        }
+        if tx < ty {
+            x += sx;
+            tx += ddx;
+        } else if ty < tx {
+            y += sy;
+            ty += ddy;
+        } else {
+            f((x + sx, y));
+            f((x, y + sy));
+            x += sx;
+            y += sy;
+            tx += ddx;
+            ty += ddy;
+        }
+        f((x, y));
+    }
+    if (x, y) != end {
+        f(end);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [`thread_sides`] as it was before #1084: candidates sampled into cells every half cell,
+    /// looked for in the 5 x 5 cells round the midpoint. The new search must give the same
+    /// sides, to the last bit.
+    fn reference_sides(strokes: &[Vec<Vec2>], density: &RowDensity) -> Vec<Vec<(f64, f64)>> {
+        const CELL: f64 = NEIGHBOUR_REACH;
+        let key = |p: Vec2| ((p.x / CELL).floor() as i64, (p.y / CELL).floor() as i64);
+        let mut cells: std::collections::HashMap<(i64, i64), Vec<(usize, usize)>> =
+            std::collections::HashMap::new();
+        for (i, s) in strokes.iter().enumerate() {
+            for (k, w) in s.windows(2).enumerate() {
+                let n = ((w[0].distance(w[1]) / (CELL / 2.0)).ceil() as usize).max(1);
+                let mut last = None;
+                for j in 0..=n {
+                    let c = key(w[0].lerp(w[1], j as f64 / n as f64));
+                    if last != Some(c) {
+                        cells.entry(c).or_default().push((i, k));
+                        last = Some(c);
+                    }
+                }
+            }
+        }
+        let cross = |p: Vec2, q: Vec2| p.x * q.y - p.y * q.x;
+        strokes
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                s.windows(2)
+                    .enumerate()
+                    .map(|(k, w)| {
+                        let mid = w[0].lerp(w[1], 0.5);
+                        let r = density.at(mid);
+                        let half = covered_width_mm(r) / 2.0;
+                        let len = w[0].distance(w[1]);
+                        if r <= 1e-6 || len < 1e-9 {
+                            return (half, half);
+                        }
+                        let d = (w[1] - w[0]) * (1.0 / len);
+                        let normal = v2(-d.y, d.x);
+                        let spacing = 10.0 / r;
+                        let (mut left, mut right) = (f64::INFINITY, f64::INFINITY);
+                        let (cx, cy) = key(mid);
+                        for x in cx - 2..=cx + 2 {
+                            for y in cy - 2..=cy + 2 {
+                                for &(j, m) in cells.get(&(x, y)).into_iter().flatten() {
+                                    if (j, m) == (i, k) {
+                                        continue;
+                                    }
+                                    let (a, b) = (strokes[j][m], strokes[j][m + 1]);
+                                    let e = b - a;
+                                    let el = e.length();
+                                    if el < 1e-9 || cross(d, e * (1.0 / el)).abs() > 0.5 {
+                                        continue;
+                                    }
+                                    let den = cross(normal, e);
+                                    let t = cross(a - mid, e) / den;
+                                    let u = cross(a - mid, normal) / den;
+                                    if !(0.0..=1.0).contains(&u) || t.abs() < SAME_ROW {
+                                        continue;
+                                    }
+                                    if t > 0.0 {
+                                        left = left.min(t);
+                                    } else {
+                                        right = right.min(-t);
+                                    }
+                                }
+                            }
+                        }
+                        let side = |gap: f64| {
+                            let g = if gap <= NEIGHBOUR_REACH { gap } else { spacing };
+                            (coverage(r) * g / 20.0).min(THREAD_MM / 2.0)
+                        };
+                        (side(left), side(right))
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// #1084: the faster neighbour search finds the same sides as the old one on rows of every
+    /// kind: on the 0.1 mm grid (so on the search's cell lines), at every angle, piled, fanned
+    /// through one point, and seeded random strokes.
+    #[test]
+    fn the_neighbour_search_gives_the_old_sides() {
+        let mut rng = 1084_u64;
+        let mut next = move || {
+            rng = rng
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (rng >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut cases: Vec<Vec<Vec<Vec2>>> = Vec::new();
+        // Rows on the machine grid at 0, 90 and 45 degrees, 0.2 to 0.7 mm apart.
+        for gap in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0] {
+            cases.push(
+                (0..40)
+                    .map(|k| {
+                        vec![
+                            v2(0.0, k as f64 * gap),
+                            v2(60.0, k as f64 * gap),
+                            v2(120.0, k as f64 * gap),
+                        ]
+                    })
+                    .collect(),
+            );
+            cases.push(
+                (0..40)
+                    .map(|k| vec![v2(k as f64 * gap, 0.0), v2(k as f64 * gap, 90.0)])
+                    .collect(),
+            );
+            cases.push(
+                (0..40)
+                    .map(|k| vec![v2(k as f64 * gap, 0.0), v2(k as f64 * gap + 60.0, 60.0)])
+                    .collect(),
+            );
+        }
+        // A satin column zigzag on the grid, and the same column piled three times, offsets
+        // 0, 0.1 and 0.3 mm.
+        let zig: Vec<Vec2> = (0..120)
+            .map(|k| {
+                v2(
+                    if k % 2 == 0 { 0.0 } else { 80.0 },
+                    (k as f64 * 2.2).round(),
+                )
+            })
+            .collect();
+        cases.push(vec![zig.clone()]);
+        cases.push(
+            [0.0, 1.0, 3.0]
+                .iter()
+                .map(|&o| zig.iter().map(|p| v2(p.x + o, p.y)).collect())
+                .collect(),
+        );
+        // The column four times exactly on top of itself, once sewn the other way, and a copy
+        // of a few of its stitches (a paste in place).
+        let mut back = zig.clone();
+        back.reverse();
+        cases.push(vec![
+            zig.clone(),
+            zig.clone(),
+            back,
+            zig.clone(),
+            zig[10..20].to_vec(),
+            zig.clone(),
+        ]);
+        // A fan through one point.
+        cases.push(
+            (0..300)
+                .map(|k| {
+                    let a = std::f64::consts::PI * k as f64 / 300.0;
+                    let d = v2(a.cos(), a.sin()) * 40.0;
+                    vec![v2(30.0, 30.0) - d, v2(30.0, 30.0) + d]
+                })
+                .collect(),
+        );
+        // Seeded random runs: short and long stitches, on the grid and off it.
+        for grid in [true, false] {
+            for _ in 0..6 {
+                let mut strokes = Vec::new();
+                for _ in 0..40 {
+                    let mut p = v2(next() * 200.0, next() * 200.0);
+                    let a = next() * std::f64::consts::TAU;
+                    let mut run = vec![p];
+                    for _ in 0..30 {
+                        let turn = a + (next() - 0.5) * 0.6;
+                        p = p + v2(turn.cos(), turn.sin()) * (1.0 + next() * 40.0);
+                        run.push(if grid {
+                            v2(p.x.round(), p.y.round())
+                        } else {
+                            p
+                        });
+                    }
+                    strokes.push(run);
+                }
+                cases.push(strokes);
+            }
+        }
+        for (n, strokes) in cases.iter().enumerate() {
+            let density = RowDensity::of(strokes);
+            let (new, old) = (
+                thread_sides(strokes, &density),
+                reference_sides(strokes, &density),
+            );
+            assert_eq!(new.len(), old.len());
+            for (i, (a, b)) in new.iter().zip(&old).enumerate() {
+                for (k, (x, y)) in a.iter().zip(b).enumerate() {
+                    assert!(
+                        x.0.to_bits() == y.0.to_bits() && x.1.to_bits() == y.1.to_bits(),
+                        "case {n}, stroke {i}, stitch {k}: {x:?} against {y:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// #1084: rows of one colour piled on one spot (eight satins pasted onto one small,
+    /// self-crossing outline) are measured in time linear in the rows near each stitch. Each
+    /// stitch kept a list of the rows it had seen, searched linearly for every candidate: here
+    /// 3,000 stitches through one point, every one a candidate of every other, about 10^10
+    /// steps; the editor froze 47 s on the pasted satins. Now well under a second, even in a
+    /// debug build, and every side is still a thread's half width at most.
+    #[test]
+    fn rows_piled_on_one_spot_are_measured_quickly() {
+        let n = 3_000;
+        let strokes: Vec<Vec<Vec2>> = (0..n)
+            .map(|k| {
+                let a = std::f64::consts::PI * k as f64 / n as f64;
+                let d = v2(a.cos(), a.sin()) * 50.0;
+                vec![v2(0.0, 0.0) - d, v2(0.0, 0.0) + d]
+            })
+            .collect();
+        let started = std::time::Instant::now();
+        let density = RowDensity::of(&strokes);
+        let sides = thread_sides(&strokes, &density);
+        let took = started.elapsed();
+        assert_eq!(sides.len(), n);
+        for (l, r) in sides.iter().flatten() {
+            assert!(
+                (0.0..=THREAD_MM / 2.0).contains(l) && (0.0..=THREAD_MM / 2.0).contains(r),
+                "{l} {r}"
+            );
+        }
+        assert!(took.as_secs_f64() < 5.0, "{took:?}");
+        // Forty copies of a 2,000-stitch satin column laid on top of one another, as repeated
+        // Duplicate or Paste leaves them: measured once, not forty times over.
+        let column: Vec<Vec2> = (0..2_000)
+            .map(|k| {
+                v2(
+                    if k % 2 == 0 { 0.0 } else { 80.0 },
+                    (k as f64 * 2.2).round(),
+                )
+            })
+            .collect();
+        let pile = vec![column; 40];
+        let started = std::time::Instant::now();
+        let density = RowDensity::of(&pile);
+        let sides = thread_sides(&pile, &density);
+        let took = started.elapsed();
+        assert!(
+            sides.iter().all(|s| *s == sides[0]),
+            "every copy has the same sides"
+        );
+        assert!(took.as_secs_f64() < 5.0, "{took:?}");
+    }
 
     #[test]
     fn rows_on_the_machine_grid_leave_no_bare_stripe() {

@@ -17,8 +17,8 @@ Icons, colours and visual style are OpenStitch's own (see
 | 2 Ribbon | Tabs Home, Image, View plus contextual tabs (orange) for the active tool or selection; large and small buttons, dropdown arrows, group captions, ScreenTips with shortcuts |
 | 3 Quick Access Toolbar | Above the ribbon (or below it, Options ▸ or ▾ ▸ Show below the Ribbon): New, Open, Save, Undo, Redo, Zoom, Help by default; ▾ adds or removes commands. Saved in `ui.json` next to the user settings file |
 | 4 Option button | **Options ▾** at the top right: Design Database, Programmable Stitch Creator, Stitch Design Factory, Font Creator, Sewing Attribute Sets, User Thread Charts, colour theme (Light, Dark, System); beyond PE-DESIGN: Accent colour (#559), Layouts (save and apply where the panes are, #551) Reset Preferences (one area at a time, #551), Show start cards and New Objects (#553, #554); also Optimize Entry/Exit Points, Show splash at startup, Text size, Language, Open designs in tabs, Picture pickers with live preview, Autosave, Show AI features, Units, guides, Editing and Updates (sections below) |
-| 5 Help button | **Help ▾**: instruction manual (this repository), Ready-to-Sew Designs (the kit packaged with the app, `examples/sew`; GitHub when none is packaged), Ready-to-Sew Designs Online, Getting Started, Machine Setup, Keyboard Shortcuts (view and change them, #551), Check for Updates, About |
-| 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), then Sew in click order, Lock and Sew outline first (#502), Stop after (#512), Leave out hidden stitching (#511) and Then: run (#545), beyond PE-DESIGN; Branch / Unbranch, Auto-route lines and Redwork (#546, beyond PE-DESIGN); Swap sides and Untangle for a selected Manual Punch column (#525, beyond PE-DESIGN); Optimise reports its before/after colour changes, jumps, trims and travel in the status bar (#547); one frame per object with a thumbnail and its thread colours; drag to reorder; double-click a name to rename it (Return keeps, Esc cancels); locked objects show "(locked)" |
+| 5 Help button | **Help ▾**: instruction manual (this repository), Ready-to-Sew Designs (the kit packaged with the app, `examples/sew`; GitHub when none is packaged), Ready-to-Sew Designs Online, Getting Started, Machine Setup, Keyboard Shortcuts (view and change them, #551), Check for Updates, Report a Problem (beyond PE-DESIGN, #878: GitHub's new-issue page with the version and system filled in, the crash reports folder and Copy diagnostics; it opens by itself once at the first start after a crash; nothing is sent from OpenStitch), About |
+| 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), then Sew in click order, Lock and Sew outline first (#502), Stop after (#512), Leave out hidden stitching (#511) and Then: run (#545), beyond PE-DESIGN; Branch / Unbranch, Auto-route lines and Redwork (#546, beyond PE-DESIGN); Swap sides and Untangle for a selected Manual Punch column (#525, beyond PE-DESIGN); Optimise reports its before/after colour changes, jumps, trims and travel in the status bar (#547); one frame per object with a thumbnail and its thread colours; drag to reorder; double-click a name to rename it (Return keeps, Esc cancels); locked objects show "(locked)"; a **Find objects** field at the top of the list (beyond PE-DESIGN, #745; Ctrl+F with the pointer over the list) shows only the rows whose name, stitch type, lettering or thread holds every word typed, with "N of M shown"; Enter or **Select All Shown** selects those rows and Esc clears the field; the design and its sewing order do not change |
 | 7 Import / Color / Sewing Attributes / Text Attributes | Docked right as four tabs |
 | 8 Stitch Simulator pane | Docked under the work area. Under PE-DESIGN's controls, the stitch-out player (#516, beyond PE-DESIGN): counters (stitch and machine time at the needle), Prev/Next block, Prev/Next object and Next trim, the Auto, Pause at trims and Follow needle toggles; a lane per colour block with trim ticks and colour-change / stop markers (click or drag to seek); one button per block named by its thread. Keys while part of the design is shown: ←/→ stitch, Shift block, Ctrl object, T next trim, Home/End |
 | 9–10 Design Page, work area | White page on a grey work area (light theme) |
@@ -31,7 +31,9 @@ chosen at the top:
 
 - **Problems**: what is likely to sew badly, errors first (outside the hoop, satin too wide or
   narrow, thin fills, small text, long stitches, untrimmed jumps, stacked or dense thread,
-  stitching in place, tiny objects, self-crossing outlines). Clicking a row selects and zooms to
+  stitching in place, tiny objects, self-crossing outlines; since #866 thread ends without a
+  tie, sections of fewer than three stitches between thread cuts, too many short stitches and,
+  as a note, more thread colours than the machine has needles). Clicking a row selects and zooms to
   its objects; **Fix** runs the suggested command as one undo step. While the tab is open the
   canvas rings each problem and draws stitches past the hoop in red.
 - **Density map**: thread layers per 1 mm cell (one layer = one default fill), heavy cells in
@@ -410,7 +412,7 @@ Attributes) drops them on purpose.
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
 | Select | Select Same ▾ (Same Thread Colour, Same Stitch Type, Same Colour and Type) |  | `Action::SelectSame` | `object.list` (`sameAs`, `match`) | yes |
 | Hoop Settings | Move Sections |  | `Action::MoveSections` | `sections.set` (`splitsX` / `splitsY`) | yes |
-| Hoop Settings | Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops` | yes |
+| Hoop Settings | Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas; Page: Hoop Size / Custom Size, PE-DESIGN's page mode, #1056; Use smallest hoop that fits and Fit to hoop, beyond PE-DESIGN, #879) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops`, `machine.useSmallestHoop`, `design.fitToHoop` | yes |
 | Hoop Settings | Export Sections (free hoopings: "Name - hooping k of n") |  | `Action::ExportSections` | `sections.export` | yes |
 | Design Settings | Split design ▸ Hoopings: Grid (PE-DESIGN) or Free (#515, beyond PE-DESIGN): hooping list (x, y, Turned 90°, Remove), Add left / right / up / down, Auto layout, Marks (Boxed X, Cross, None), overlap, Stop after the marks; objects that fit no hooping outlined red on the canvas |  | `Action::DesignSettings` | `sections.set` (`mode`, `hoopings`, `marks`, `minOverlap`, `stopAfterMarks`), `sections.autoLayout` | yes |
 | Design Settings | Production (beyond PE-DESIGN, #509, #512, #547): Basting box (Box / Follow outline, margin, stitch, Own thread), Stop at jumps (machine without thread cutter), Start each object nearest the last, Travel under later fills (#545), Leave out hidden stitching (#511) |  | `Action::DesignSettings` | `design.setBasting`, `design.setStopAtJumps`, `design.setProperties` (`autoStart`), `design.setTravelUnder`, `design.setRemoveHidden` | yes |
@@ -521,7 +523,7 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
 | Print |  | `Action::Print` | `design.print` | yes |
 | Job Sheet (in Print's menu; beyond PE-DESIGN) |  | `Action::JobSheet` | `design.print` | yes |
 | Design Property |  | `Action::DesignProperty` | `design.info` | yes |
-| Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops` | yes |
+| Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas; Page: Hoop Size / Custom Size, PE-DESIGN's page mode, #1056; Use smallest hoop that fits and Fit to hoop, beyond PE-DESIGN, #879) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops`, `machine.useSmallestHoop`, `design.fitToHoop` | yes |
 | Fabric Selector |  | `Action::FabricSelector` | `fabric.apply` | yes |
 | Select Color Palette |  | `Action::SelectColorPalette` | `threads.charts` | yes |
 | Wizard |  | `Action::Wizard` | view/UI only | yes |
@@ -600,7 +602,9 @@ No real translation ships yet.
 
 **Help ▸ Machine Setup**, also shown once on the first interactive start with the user's own
 settings: the brand (Brother first, then the other brands of the hoop list), a hoop of that brand,
-whether the machine cuts threads, and, when its manual says, the longest stitch it sews. **Save**
+whether the machine cuts threads, when its manual says, the longest stitch it sews, and for a
+multi-needle machine its number of needles (#866: Check Design then notes a design with more
+thread colours than that). **Save**
 stores it (`machine.setProfile`, user settings): New starts on that hoop, and every export warns
 about stitches longer than the machine sews and about trims a machine without a cutter will not
 cut (unless Stop at Jumps is on). The window names the brand's own file format. **Not now**

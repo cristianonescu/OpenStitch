@@ -208,7 +208,7 @@ fn run(seed: u64, steps: usize, drop: &std::path::Path) -> Result<(), String> {
             actions.join("\n  ")
         )
     };
-    for _ in 0..steps {
+    for n in 1..=steps {
         let step = random_step(&app, &mut rng, drop);
         last.push_back(step.clone());
         if last.len() > 20 {
@@ -230,10 +230,10 @@ fn run(seed: u64, steps: usize, drop: &std::path::Path) -> Result<(), String> {
                 .cloned()
                 .or_else(|| panic.downcast_ref::<&str>().map(|s| s.to_string()))
                 .unwrap_or_default();
-            return Err(report(format!("panicked: {msg}"), &last));
+            return Err(report(format!("step {n} panicked: {msg}"), &last));
         }
         if t.elapsed() > STEP_LIMIT {
-            return Err(report(format!("a step took {:?}", t.elapsed()), &last));
+            return Err(report(format!("step {n} took {:?}", t.elapsed()), &last));
         }
     }
     // Undo back step by step: the design must pass through where it started. The demo's own
@@ -293,6 +293,11 @@ fn the_editor_survives_seeded_random_input_and_undo_returns_to_the_start() {
     let first = env_or("OPENSTITCH_MONKEY_SEED", 880);
     let runs = env_or("OPENSTITCH_MONKEY_RUNS", 2);
     let steps = env_or("OPENSTITCH_MONKEY_STEPS", 150) as usize;
+    // Printed first, so a long run that times out still says what it was running.
+    eprintln!(
+        "monkey: seeds {first}..{} ({runs} runs of {steps} steps)",
+        first + runs
+    );
     let dir = openstitch_testutil::TempDir::new("monkey");
     let drop = dir.join("dropped.svg");
     std::fs::write(
