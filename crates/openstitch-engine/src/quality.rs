@@ -640,22 +640,38 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
                 fix: fix("object.setRegion", json!({ "ids": [id], "type": "satin" })),
             });
         }
-        if let Some(spec) = o.text.as_ref().filter(|s| text && s.size < TEXT_MIN_MM) {
+        // Each font's own smallest good size (#1036): a bundled font's measured range, or the
+        // range an embroidery font's maker states; TEXT_MIN_MM for a font without one.
+        if let Some(spec) = o.text.as_ref().filter(|_| text)
+            && let min = openstitch_design::text::size_range(&spec.font, &d.fonts)
+                .map_or(TEXT_MIN_MM, |(_, r)| r.0)
+            && spec.size < min - 1e-9
+        {
+            let family = openstitch_design::text::size_range(&spec.font, &d.fonts)
+                .map_or_else(|| "this font".to_string(), |(f, _)| f);
+            // The fix: the Small Text font (PE-DESIGN's Font List group, #530) where the text
+            // is big enough for it and in another font; else the font's own smallest size.
+            let small = openstitch_design::text::FONTS
+                .iter()
+                .find(|f| f.group == "smallText");
+            let fix_params = match small {
+                Some(f) if spec.font != f.id && spec.size >= f.size_range.0 => {
+                    json!({ "ids": [id], "font": f.id })
+                }
+                _ => json!({ "ids": [id], "size": min }),
+            };
             out.push(Finding {
                 rule: "textTooSmall",
                 severity: Severity::Warning,
                 ids: vec![*id],
                 bbox: bbox_of(drop_points(r)),
                 message: format!(
-                    "{:.1} mm text: letters under {TEXT_MIN_MM} mm close up and lose detail",
+                    "{:.1} mm text: {family} sews well from {min} mm; smaller, its letters close up and lose detail",
                     spec.size
                 ),
                 value: spec.size,
-                limit: TEXT_MIN_MM,
-                fix: fix(
-                    "object.setText",
-                    json!({ "ids": [id], "size": TEXT_MIN_MM }),
-                ),
+                limit: min,
+                fix: fix("object.setText", fix_params),
             });
         }
         if o.kind == ObjectKind::Shape
@@ -1345,7 +1361,7 @@ pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "design.check",
-            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, textTooSmall, tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors. Run it before reporting a design done",
+            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, textTooSmall (text below its own font's smallest good size, fonts.list sizeRange.minMm, else 4 mm; the fix switches to the Small Text font where the text is big enough for it, else sets that size), tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors. Run it before reporting a design done",
             Effect::Read,
             vec![
                 opt(

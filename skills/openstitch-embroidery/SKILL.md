@@ -166,7 +166,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.setLine`; on text a corner style shapes the corners where two strokes are sewn one
    after the other, as Z's, V's and W's, while stems and junctions stay as they are):
    `cornerStyle: auto` for stars, chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
-   `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
+   `cornerOverlap`, `capMaxLength`; a satin line or auto-direction satin reads a corner from its
+   centre line a leg's length either side, so it reads blunter than drawn: a 36° star tip still
+   mitres at the default 45°, and its corners cap only with `capBelow` raised, or with
+   `cornerStyle: cap`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
    thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
    `pullPercent` (3 for tapered columns; `pullMax` caps it) compensate per side and by width;
    on a satin `underlayStyle: edgeFill` reads back as `edgeZigzag` (the same PE-DESIGN type);
@@ -248,7 +251,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors;
    warnings include `untied` thread ends, whose fix adds ties, `tinySection` and
-   `shortStitch`; `moreColoursThanNeedles` is a note, not a problem).
+   `shortStitch`, and `textTooSmall` against the text's own font's smallest size (`fonts.list`
+   `sizeRange`; its fix switches to the Small Text font where it fits); `moreColoursThanNeedles`
+   is a note, not a problem).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
    (untrimmed jumps, long moves), `design.density` shows where thread piles up; it and
