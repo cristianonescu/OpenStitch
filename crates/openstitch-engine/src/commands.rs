@@ -1745,6 +1745,12 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         r.underlay_style = u;
                         r.underlay_parts = None;
                     }
+                    // PE-DESIGN's first under sewing type on a satin is the edge run and zigzag
+                    // rows: `edgeFill` (its fill form) is stored as that, which sews the same
+                    // (#1041), whether asked for or kept from a fill switched to a satin.
+                    if r.kind == RegionType::Satin && r.underlay_style == UnderlayStyle::EdgeFill {
+                        r.underlay_style = UnderlayStyle::EdgeZigzag;
+                    }
                     if p.has("underlayParts") {
                         let names: Vec<&str> = p
                             .array("underlayParts")?

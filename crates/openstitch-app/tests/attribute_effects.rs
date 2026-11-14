@@ -162,24 +162,8 @@ const KNOWN: &[(&str, &str)] = &[
         "#1040: Auto-direction satin corners: mitre and cap sew the same",
     ),
     (
-        r#"r:satin underlayStyle: edgeZigzag and edgeFill"#,
-        "#1041: Satin region: edge-fill under sewing sews as edge zigzag",
-    ),
-    (
         r#"r:satin runningStitchPath: inside and insideHidden"#,
         "Not a bug: insideHidden differs from inside only on an open fill (low density, #628)",
-    ),
-    (
-        r#"l:running profile: linear and smoothstep"#,
-        "#1046: Thickness profiles other than arc sew the same with the default passes",
-    ),
-    (
-        r#"l:running profile: linear and stairs"#,
-        "#1046: Thickness profiles other than arc sew the same with the default passes",
-    ),
-    (
-        r#"l:running profile: smoothstep and stairs"#,
-        "#1046: Thickness profiles other than arc sew the same with the default passes",
     ),
     (
         r#"l:satin cornerStyle: mitre and cap"#,
@@ -199,7 +183,11 @@ const KNOWN: &[(&str, &str)] = &[
 /// set where it lets them act over their whole range (#1050): a motif line's run pitch only
 /// splits the motif's own segments (2 x 3 mm at the default size), a V-stitch's only the run
 /// between its Vs (0.6 x the interval), a motif fill's only its cell's segments, a zigzag's
-/// miter limit and cap length only reach as far as its width carries a corner.
+/// miter limit and cap length only reach as far as its width carries a corner. A running
+/// line's thickness profile picks the passes between its fewest and most (#1046): with the
+/// default 1 to 3 there are two thicknesses, and linear, smoothstep and four stairs all turn
+/// from one to the other halfway along; with 1 to 7 their four thicknesses fall in different
+/// places.
 const CONTEXT: &[(&str, &str)] = &[
     ("l:motif pitch", r#"{"width":10,"spacing":10}"#),
     ("l:vStitch pitch", r#"{"spacing":20}"#),
@@ -209,6 +197,7 @@ const CONTEXT: &[(&str, &str)] = &[
     ),
     ("l:zigzag miterLimit", r#"{"width":10}"#),
     ("l:zigzag capMaxLength", r#"{"width":5}"#),
+    ("l:running profile", r#"{"maxPasses":7}"#),
 ];
 
 /// Settings that change only near one end of their range until a PE-DESIGN capture shows
