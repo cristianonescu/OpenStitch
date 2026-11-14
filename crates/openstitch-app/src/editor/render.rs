@@ -9,8 +9,11 @@ use openstitch_design::{Vec2, v2};
 /// and `--check-previews` fails on a preview drawn at another version, so a look change can't
 /// leave the committed previews behind (#920).
 ///
-/// 1: the view before #1020. 2: 4× MSAA and unfeathered thread meshes (#907, #1020).
-pub const REALISTIC_RENDER_VERSION: u32 = 2;
+/// 1: the view before #1020. 2: 4× MSAA and unfeathered thread meshes (#907, #1020). 3: the
+/// kit's previews drawn at a fixed scale on whole pixels and cropped by the design's stitch
+/// bounds in mm, not by the page-fit screenshot (#1051): every preview's framing changes, so
+/// a preview stamped 2 is not what a fresh build draws.
+pub const REALISTIC_RENDER_VERSION: u32 = 3;
 
 /// Fallback when a pattern has fewer threads than colour blocks.
 pub const UNKNOWN_THREAD: [u8; 3] = [0x80, 0x80, 0x80];

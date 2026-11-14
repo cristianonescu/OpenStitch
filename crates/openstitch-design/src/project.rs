@@ -11,7 +11,9 @@ pub const FORMAT: &str = "openstitch.design";
 /// stored them clockwise (see [`migrate_v1_angles`]).
 /// 3: text size and line spacing follow PE-DESIGN's metrics; texts of older files keep the
 /// capital-height metrics they were made with (see [`migrate_v2_text`]).
-pub const VERSION: u32 = 3;
+/// 4: a zigzag net turns with its Direction (#1043); nets of older files, which sewed on the
+/// page axes whatever their angle, get Direction 0 (see [`migrate_v3_zigzag_net`]).
+pub const VERSION: u32 = 4;
 pub const EXTENSION: &str = "osd";
 pub const MAX_SIZE: usize = 64 << 20;
 
@@ -61,7 +63,21 @@ pub fn decode(data: &[u8]) -> Result<Design, String> {
     if header.version < 3 {
         migrate_v2_text(&mut env.design);
     }
+    if header.version < 4 {
+        migrate_v3_zigzag_net(&mut env.design);
+    }
     Ok(env.design)
+}
+
+/// Before version 4 a zigzag net sewed on the page axes whatever its Direction (often 45°,
+/// kept from the fill it was switched from). Those nets get Direction 0, so they sew as they
+/// did (#1043).
+pub fn migrate_v3_zigzag_net(design: &mut Design) {
+    for r in design.objects.iter_mut().filter_map(|o| o.region.as_mut()) {
+        if r.kind == crate::model::RegionType::ZigzagNetFill {
+            r.angle = 0.0;
+        }
+    }
 }
 
 /// Before version 3 a text's size was its capital height and 100 % line spacing the font's
@@ -207,7 +223,7 @@ mod tests {
     fn version_2_keeps_angles() {
         let bytes = encode(&design()).expect("encode");
         let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
-        assert_eq!(v["version"], 3);
+        assert_eq!(v["version"], 4);
         let back = decode(&bytes).expect("decode");
         assert_eq!(back, design());
     }
@@ -236,6 +252,34 @@ mod tests {
             old.objects[0].line.as_ref().expect("line").angle,
             Some(135.0)
         );
+    }
+
+    /// #1043: a zigzag net from a version-3 file sewed on the page axes whatever its angle, so
+    /// it loads at Direction 0 and sews as before; a version-4 file keeps its angle.
+    #[test]
+    fn version_3_zigzag_nets_load_at_direction_zero() {
+        let mut d = Design::new("net", DesignPage::default());
+        let mut r = RegionSewing::new(RegionType::ZigzagNetFill, Thread::rgb(0xff0000));
+        r.angle = 45.0;
+        d.add(DesignObject::shape(
+            vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)],
+            Some(r),
+            None,
+        ));
+        let mut v: serde_json::Value =
+            serde_json::from_slice(&encode(&d).expect("encode")).expect("json");
+        let angle = |v: &serde_json::Value| {
+            decode(&serde_json::to_vec(v).expect("json"))
+                .expect("decode")
+                .objects[0]
+                .region
+                .as_ref()
+                .expect("region")
+                .angle
+        };
+        assert_eq!(angle(&v), 45.0, "version 4 keeps the angle");
+        v["version"] = serde_json::json!(3);
+        assert_eq!(angle(&v), 0.0, "version 3 sewed on the axes");
     }
 
     #[test]

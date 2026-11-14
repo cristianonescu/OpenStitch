@@ -18,6 +18,7 @@ converted in both modes (`compatMode`) for the table between the `gallery-modes`
 
 import argparse
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -130,10 +131,11 @@ def shoot(work, key, size_mm=None):
     else:
         sys.exit(f"gallery.py: {key}: no screenshot framed the design")
     def tile(*view):
-        run([str(BIN / "openstitch"), f"{key}.osd", "--show", "realistic", "--no-splash",
-             "--size", "1440x900", *view, "--screenshot", "tile.png"], work)
-        return Image.open(work / "tile.png").convert("RGB")
-    im = sharp_crop(tile, work / f"{key}.osd", im, box)
+        run([str(BIN / "openstitch"), f"{key}.osd", "--show", "realistic,bare", "--no-splash",
+             "--size", "1440x900", *view, "--screenshot", "tile.png", "--viewport-json", "tile.json"], work)
+        info = json.loads((work / "tile.json").read_text(encoding="utf-8"))
+        return Image.open(work / "tile.png").convert("RGB"), info
+    im = sharp_crop(tile)
     im = im.resize((480, round(im.height * 480 / im.width)), Image.LANCZOS)
     OUT.mkdir(parents=True, exist_ok=True)
     dst = OUT / f"{key}.png"
@@ -220,34 +222,64 @@ def canvas_and_page(im):
     return canvas, (min(px), min(py), max(px) + 1, max(py) + 1)
 
 
-def sharp_crop(shot, osd, im, box):
-    """The design box `box` of the page-fit screenshot `im` of the project `osd`, drawn again at
-    [`SHARP_PX_PER_MM`]: tiles of the canvas at a higher zoom, each centred on its part of the
-    design (`--center`), pasted together (#893). `shot(*view)` takes a screenshot of the same
-    project with the extra view arguments and returns it as an RGB image."""
-    page = json.loads(Path(osd).read_text(encoding="utf-8"))["design"]["page"]
-    canvas, (pl, pt, pr, pb) = canvas_and_page(im)
-    fit = (pr - pl) / (page["width"] / 10)  # px per mm at the page fit
-    zoom = SHARP_PX_PER_MM / fit
-    if zoom <= 1.2:
-        return im.crop(box)
-    scale = fit * zoom
-    # The page fit centres the page on the canvas; --zoom and --center keep that point.
-    cx, cy = (pl + pr) / 2, (pt + pb) / 2
-    hw = min(cx - canvas[0], canvas[2] - cx) - 40
-    hh = min(cy - canvas[1], canvas[3] - LABEL_H - cy) - 40
-    x0, y0 = (box[0] - pl) / fit, (box[1] - pt) / fit
-    x1, y1 = (box[2] - pl) / fit, (box[3] - pt) / fit
-    tw, th = 2 * hw / scale, 2 * hh / scale  # mm per tile
-    nx, ny = max(1, -(-(x1 - x0) // tw)), max(1, -(-(y1 - y0) // th))
-    out = Image.new("RGB", (round((x1 - x0) * scale), round((y1 - y0) * scale)))
-    for j in range(int(ny)):
-        for i in range(int(nx)):
-            mx, my = x0 + tw * (i + 0.5), y0 + th * (j + 0.5)
-            tile = shot("--zoom", f"{zoom:.6f}", "--center", f"{mx:.4f},{my:.4f}")
-            # 2 px more on each side so neighbouring tiles overlap rather than leave a seam.
-            part = tile.crop((round(cx - hw) - 2, round(cy - hh) - 2, round(cx + hw) + 2, round(cy + hh) + 2))
-            out.paste(part, (round((mx - tw / 2 - x0) * scale) - 2, round((my - th / 2 - y0) * scale) - 2))
+# Margin round the stitches in a preview, mm (about the 12 px design_box keeps at the page fit).
+PAD_MM = 2.0
+# Pixels of each tile kept clear of the canvas's edges (rulers, the pointer's label).
+TILE_MARGIN = 40
+
+
+def crop_box(bounds_mm, pad_mm=PAD_MM, px_per_mm=SHARP_PX_PER_MM):
+    """The preview's box in mm round the stitch bounds `[left, top, right, bottom]`, on the
+    1/px_per_mm grid, and its size in pixels (#1051)."""
+    p = px_per_mm
+    x0, y0 = math.floor((bounds_mm[0] - pad_mm) * p) / p, math.floor((bounds_mm[1] - pad_mm) * p) / p
+    x1, y1 = math.ceil((bounds_mm[2] + pad_mm) * p) / p, math.ceil((bounds_mm[3] + pad_mm) * p) / p
+    return (x0, y0, x1, y1), (round((x1 - x0) * p), round((y1 - y0) * p))
+
+
+def sharp_crop(shot, pad_mm=PAD_MM):
+    """The design drawn at [`SHARP_PX_PER_MM`] round the stitches the editor draws: tiles of the
+    canvas at that fixed scale, each centred on its part of the design and placed on whole
+    pixels (`--px-per-mm`, `--center`), pasted together (#893). Everything is placed by
+    millimetres (the stitch bounds the editor reports), never by a screenshot's pixels, so the
+    preview does not depend on the window's layout (#1051). `shot(*view)` takes a screenshot
+    with the extra view arguments and returns the image and its `--viewport-json` (scale,
+    offset, canvas, stitch bounds)."""
+    p = SHARP_PX_PER_MM
+    # A first look at the page tells the stitch bounds and the canvas's size.
+    _, info = shot("--px-per-mm", f"{p:g}")
+    if not info.get("stitchBoundsMm"):
+        sys.exit("gallery.py: the design has no stitches to preview")
+    c = info["canvasPx"]
+    usable = (int(c[2] - c[0]) - 2 * TILE_MARGIN, int(c[3] - c[1]) - 2 * TILE_MARGIN - 2 * LABEL_H)
+    if min(usable) < 64:
+        sys.exit(f"gallery.py: the canvas is too small for preview tiles ({c})")
+    (x0, y0, x1, y1), (w, h) = crop_box(info["stitchBoundsMm"], pad_mm)
+    out = Image.new("RGB", (w, h))
+    v = 0
+    while v < h:
+        u, row_h = 0, None
+        while u < w:
+            tw, th = min(usable[0], w - u), min(usable[1], h - v)
+            cx, cy = x0 + (u + tw / 2) / p, y0 + (v + th / 2) / p
+            im, info = shot("--px-per-mm", f"{p:g}", "--center", f"{cx:.6f},{cy:.6f}")
+            if abs(info["pxPerMm"] - p) > 1e-6:
+                sys.exit(f"gallery.py: the tile was drawn at {info['pxPerMm']} px/mm, not {p}")
+            # Pixel (u, v) of the preview is mm (x0 + u / p, y0 + v / p): on the screenshot at
+            # offset + mm × p, a whole number (the offset is on whole pixels, x0 on the 1/p grid).
+            sx = info["offsetPx"][0] + x0 * p + u
+            sy = info["offsetPx"][1] + y0 * p + v
+            if abs(sx - round(sx)) > 1e-3 or abs(sy - round(sy)) > 1e-3:
+                sys.exit(f"gallery.py: the tile is not on whole pixels ({sx}, {sy})")
+            sx, sy = round(sx), round(sy)
+            c = info["canvasPx"]
+            if sx < c[0] + TILE_MARGIN - 1 or sy < c[1] + TILE_MARGIN - 1 or \
+                    sx + tw > c[2] - TILE_MARGIN + 1 or sy + th > c[3] - TILE_MARGIN - LABEL_H + 1:
+                sys.exit(f"gallery.py: tile {sx},{sy} {tw}x{th} reaches past the canvas {c}")
+            out.paste(im.crop((sx, sy, sx + tw, sy + th)), (u, v))
+            u += tw
+            row_h = th
+        v += row_h
     return out
 
 
