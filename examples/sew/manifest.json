@@ -975,7 +975,7 @@
   "sewingMinutes": 20.4,
   "image": null,
   "preview": "previews/gradients.png",
-  "sha256": "4e30b689db525469095699ba2a867833847a76ca6ee7fc7da78a29968a95df13",
+  "sha256": "44e18f3faf1663532da918525dedbd8e517891fbbf7276ea03d6b0a0aa12cb21",
   "renderVersion": 3
  },
  "fills/angle-lines.pes": {
@@ -1225,7 +1225,7 @@
    54.0
   ],
   "stitches": 3541,
-  "trims": 6,
+  "trims": 5,
   "threads": [
    "405 Blue",
    "405 Blue",
@@ -1234,7 +1234,7 @@
   "sewingMinutes": 4.7,
   "image": null,
   "preview": "previews/cutwork.png",
-  "sha256": "f216eee3060e7092708b6f22bec58fb7c0a7f7cf7535e199cfcedc4ab0f18c20",
+  "sha256": "3a03c37c5071294746ac32c769ff53945df77f25eb60d5ce6bf607bb6cdfa36f",
   "renderVersion": 3
  },
  "wizards/background-fill.pes": {
@@ -1303,7 +1303,7 @@
   "sewingMinutes": 7.9,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-pe-compatible.png",
-  "sha256": "d345e9ba31fcbe1fb68cad3750d731d0b04e94c80689271011a2ee62a36f0a02",
+  "sha256": "3b4b99ec9add45a8359419ca83fa3aed3586fbc6c1bc1fe29775d40ea9b5a235",
   "renderVersion": 3
  },
  "image-tools/S-cross-stitch-strawberry-openstitch.pes": {
@@ -1553,7 +1553,7 @@
    199.0,
    150.1
   ],
-  "stitches": 95056,
+  "stitches": 95104,
   "trims": 1082,
   "threads": [
    "017 Light Blue",
@@ -1570,7 +1570,7 @@
   "sewingMinutes": 174.3,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "d00ee253800a63649dd347d09b6471dc7ea2f312124790efc0fa7a63ae325af5",
+  "sha256": "0a2652dd236bd49f8b65d94c15b46dd8fc8833ded4f80febf4a2e536d3bfd962",
   "renderVersion": 3
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
@@ -1581,7 +1581,7 @@
    199.3,
    150.9
   ],
-  "stitches": 113916,
+  "stitches": 114079,
   "trims": 2047,
   "threads": [
    "307 Linen",
@@ -1595,10 +1595,10 @@
    "330 Russet Brown",
    "517 Dark Olive"
   ],
-  "sewingMinutes": 247.3,
+  "sewingMinutes": 247.5,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "c917eb115e204da02bcd87af7448ceb360b08b6646a2dbb44a484248f7cb6fc8",
+  "sha256": "c5d81d33c187a75a194ec64dbdf74decbfa88d6fd7ad6f2d8f8ee6c547be2a39",
   "renderVersion": 3
  }
 }
