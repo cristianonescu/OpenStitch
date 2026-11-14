@@ -156,12 +156,10 @@ const EXPECT: &[(&str, Expect)] = &[
 /// Settings that change nothing today, found by this test (#880): the start of each problem
 /// line and why, with the issue that tracks it (#1039-#1049). A problem not listed here fails,
 /// and so does an entry that no longer reproduces (remove it once its issue is fixed).
-const KNOWN: &[(&str, &str)] = &[
-    (
-        r#"r:satin runningStitchPath: inside and insideHidden"#,
-        "Not a bug: insideHidden differs from inside only on an open fill (low density, #628)",
-    ),
-];
+const KNOWN: &[(&str, &str)] = &[(
+    r#"r:satin runningStitchPath: inside and insideHidden"#,
+    "Not a bug: insideHidden differs from inside only on an open fill (low density, #628)",
+)];
 
 /// Settings whose effect is bounded by another setting of the same type, swept with that one
 /// set where it lets them act over their whole range (#1050): a motif line's run pitch only
