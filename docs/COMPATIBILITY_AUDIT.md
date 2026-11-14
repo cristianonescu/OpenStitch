@@ -1630,6 +1630,21 @@ Line references are relative to `crates/`.
   than one record; VIP's exact piece length (7.5–7.9 mm); JEF's `-1` hoop block; XXX's header
   tables and palette filler; SEW's 340 header bytes; DST's `AX`/`AY`; PE-DESIGN's RGB for chart
   colour 800 RED (`E3 31 1F`) against the PEC chart table's `ED 17 1F`.
+- **Radial Stitch (calibrated 2026-11-14, #1050, round 15):**
+  - PE-DESIGN 11.50 was measured on a 40 mm circle at Density 2,0, 3,0, 5,0 and 7,0 line/mm (the
+    field keeps 0,2 to 7,0). It sews the lines in pairs, in to an apex and straight back out, to
+    outline points each pair shares with the next (a W round the shape). The lines are 1/density
+    apart at the outline at every density (0.49, 0.33, 0.198 and 0.143 mm). About 16 pairs a turn
+    reach the centre: one in K, K the multiple of 3 nearest 22.5 degrees of pairs (9, 12 and 27).
+    The others stop long (4.2-5.9 mm) and short (1.5-3.0 mm) in turn. The stop radii follow the
+    same sequence at every density. Run stitches are 2,0 mm from the outline in.
+  - OpenStitch thinned the lines by a power-of-two level and kept them at least 0.4 mm apart,
+    so above about 2.5 lines/mm the count stayed the same (2,149 stitches on the circle at any
+    density). It now sews PE-DESIGN's pairs, centre spokes and long and short stops (a fixed
+    jitter within the measured classes): 2,246, 3,374, 5,564 and 7,787 stitches against 2,311,
+    3,423, 5,717 and 7,988, with the thread length within 1 % and the bounds exact (specs
+    `radial-circle40-default`, `-d3p0`, `-d5p0`, `-dmax`, within 4 %). Left: PE-DESIGN starts the
+    outward line's stitches nearer the apex, about half a stitch more a pair.
 - **Concentric Circle and Spiral (calibrated 2026-10-29, #138):** issue #138 assumed PE-DESIGN
   has no concentric or spiral sewing; it has both as region sew types, with only Density
   (default 2.0), Run pitch (2.0) and two Start Point buttons. Fourteen references
