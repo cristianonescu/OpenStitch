@@ -305,7 +305,30 @@ Line references are relative to `crates/`.
   and up trimmed, with its exit 0.5 mm inside the right edge and 1 mm up and its entry 0.5 mm
   inside the next left edge: moves of sqrt((gap + 1)^2 + 1)). OpenStitch's compiler now sews a
   move of up to 2.3 mm between objects across (`Compiler::sew_across_distance`) and trims every
-  longer one, so no plain interior jump is written. Open: where PE-DESIGN puts the optimized
+  longer one, so no plain interior jump is written.
+  **2026-11-14 (#987): what PE-DESIGN sews at the join, and a shorter bound between lines.**
+  - At a join sewn across, PE-DESIGN locks neither object: no end lock on the first, no tie-in
+    on the second.
+  - Between two objects' lines it trims from a shorter move. Two 40 mm running lines (references
+    `987-two-running-lines-*`, specs `sew-across-running-lines-*`) are sewn across at 0.5 and
+    1.0 mm (46 needle points). They are locked, trimmed and tied in at 1.5 and 2.0 mm (2.0 mm
+    also at run pitch 3) and at 3.0 mm (50 needle points).
+  - OpenStitch now matches both.
+    - At a join sewn across, the writer drops the generator's end lock and the next run's
+      tie-in. An object's own ties (#548) keep theirs.
+    - From one object's line into the next one's, it sews across only up to 1.25 mm
+      (`LINE_ACROSS`). The bound is halfway between 1.0 and 1.5 mm, as the fills' 2.3 mm lies
+      between 2.24 and 2.33 mm. Between fills, and between a fill and a line, it stays 2.3 mm.
+  - The six line specs match PE-DESIGN's needle points exactly: stitch count, trims, and
+    stitches under 1 mm.
+  - machine-jumps, machine-trim-bound and machine-trim-fine lose 4 needle points per join sewn
+    across: 497 → 493, 661 → 649 and 415 → 411.
+  - Open: lines into fills and fills into lines have no capture yet.
+  - Letters keep their lock and tie-in at a sewn-across join, into or out of a letter. There is
+    no evidence either way: every letter move in PE-DESIGN's text captures is longer than 2.3 mm
+    and trimmed. Capture requested in #1082.
+
+  Open: where PE-DESIGN puts the optimized
   exit and entry (0.5 mm inside the edges; OpenStitch's lie on the edges, so the specs draw the
   squares at PE's needle-to-needle moves), and the value PE's multi-needle "minimum jump stitch
   length for trimming" field shows (read the Design Settings dialog; the recordings were made

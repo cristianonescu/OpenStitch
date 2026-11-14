@@ -4,7 +4,7 @@
 
 The tier each [FEATURE_MATRIX.md](FEATURE_MATRIX.md) row and [audit](COMPATIBILITY_AUDIT.md) item has reached in the compatibility harness ([COMPATIBILITY_TESTS.md](COMPATIBILITY_TESTS.md)). A row is only as far as the weakest spec covering it. Tiers, weakest first: internal-regression (our own earlier output or the guide's description), oracle (an independent implementation), reference (PE-DESIGN 11 output supplied by the owner), machine (a sew-out record). "Reference pending" means a spec is ready for a PE-DESIGN file that does not exist yet.
 
-Specs: 498 · pass 495 · fail 0 · error 0 · pending reference 0 · skipped 3.
+Specs: 504 · pass 501 · fail 0 · error 0 · pending reference 0 · skipped 3.
 
 ## By FEATURE_MATRIX row
 
@@ -39,6 +39,7 @@ Specs: 498 · pass 495 · fail 0 · error 0 · pending reference 0 · skipped 3.
 | Lettering | Text entry and attributes… | reference | `stroke-blocks-satin-n`, `stroke-fill-8`, `stroke-fill-a`, `stroke-fill-i`, `stroke-fill-l`, `stroke-fill-lower-e`, `stroke-fill-lower-i`, `stroke-fill-o`, `stroke-fill-s`, `stroke-fill-t`, `stroke-fill-v`, `stroke-fill-x`, `stroke-satin-8`, `stroke-satin-a`, `stroke-satin-h-10`, `stroke-satin-h-40`, `stroke-satin-i`, `stroke-satin-k-8`, `stroke-satin-k`, `stroke-satin-l`, `stroke-satin-lower-e`, `stroke-satin-lower-i`, `stroke-satin-m-8`, `stroke-satin-m`, `stroke-satin-n-8`, `stroke-satin-n`, `stroke-satin-o`, `stroke-satin-s`, `stroke-satin-t`, `stroke-satin-v`, `stroke-satin-w-8`, `stroke-satin-w`, `stroke-satin-x`, `stroke-satin-z-8`, `stroke-satin-z`, `text-defaults-fill`, `text-defaults-h`, `text-line-spacing-100`, `text-line-spacing-150`, `text-line-spacing-50`, `text-sewing-order`, `text-size-h`, `text-size-hg` |
 | Line sew types | Motif… | — | `line-motif-zigzag-3pt` |
 | Line sew types | Motif (OpenStitch's own motif library… | reference | `line-candlewick-default`, `line-candlewick-startend-feed`, `line-candlewick-startend-run`, `line-chain-default`, `line-chain-startend-feed`, `line-chain-startend-l2side-feed`, `line-chain-startend-l2side-run`, `line-chain-startend-mid-feed`, `line-chain-startend-mid-run`, `line-chain-startend-run`, `line-e-default`, `line-e-rect-default`, `line-stem-default`, `line-stem-startend-feed`, `line-stem-startend-run`, `line-v-default`, `line-v-rect-default` |
+| Line sew types | Running… | reference | `sew-across-running-lines-0p5mm`, `sew-across-running-lines-1p0mm`, `sew-across-running-lines-1p5mm`, `sew-across-running-lines-2mm-pitch3`, `sew-across-running-lines-2mm`, `sew-across-running-lines-3mm` |
 | Line sew types | Running (pitch, run times… | internal-regression | `attribute-ranges` |
 | Line sew types | Running (pitch, run times 1… | reference | `line-running-default`, `line-triple-default`, `run-circle-60` |
 | Line sew types | Zigzag: Sharp Corners and Miter Limit… | reference | `line-zigzag-miter-l-b2-m7`, `line-zigzag-miter-v-b1-m0`, `line-zigzag-miter-v-b1-m1`, `line-zigzag-miter-v-b1-m3`, `line-zigzag-miter-v-b1-m50`, `line-zigzag-miter-v-b2-m0`, `line-zigzag-miter-v-b2-m3`, `line-zigzag-miter-v-b2-m50`, `line-zigzag-miter-v120-b1-m0`, `line-zigzag-miter-v45-b1-m0`, `line-zigzag-miter-v45-b2-m0`, `line-zigzag-miter-v60-b1-m0`, `line-zigzag-miter-v60-b2-m0`, `line-zigzag-miter-v75-b1-m0`, `line-zigzag-miter-v75-b2-m0` |
@@ -221,6 +222,12 @@ Specs: 498 · pass 495 · fail 0 · error 0 · pending reference 0 · skipped 3.
 | `stitches/satin-zigzag-column` | pass | reference | pass | — | pass | — |
 | `stitches/satin-zigzag-rect` | pass | reference | pass | — | pass | pending |
 | `stitches/satin-zigzag-skeleton` | pass | internal-regression | pass | — | — | — |
+| `stitches/sew-across-running-lines-0p5mm` | pass | reference | — | — | pass | — |
+| `stitches/sew-across-running-lines-1p0mm` | pass | reference | — | — | pass | — |
+| `stitches/sew-across-running-lines-1p5mm` | pass | reference | — | — | pass | — |
+| `stitches/sew-across-running-lines-2mm-pitch3` | pass | reference | — | — | pass | — |
+| `stitches/sew-across-running-lines-2mm` | pass | reference | — | — | pass | — |
+| `stitches/sew-across-running-lines-3mm` | pass | reference | — | — | pass | — |
 | `stitches/sew-order-six-objects` | pass | reference | — | — | pass | — |
 | `stitches/shape-start-points` | pass | internal-regression | pass | — | pending | pending |
 | `stitches/spiral-circle20-pitch3p0` | pass | reference | pass | — | pass | — |
