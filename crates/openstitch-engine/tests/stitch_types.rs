@@ -2399,3 +2399,25 @@ fn the_profile_description_says_when_the_ramps_differ() {
         profile.summary
     );
 }
+
+/// #1039: `object.setRegion`'s `gradationSteps` description (what command_describe gives)
+/// says the value is ignored, so a model that passes one knows why it changes nothing.
+#[test]
+fn the_gradation_steps_description_says_it_is_ignored() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion");
+    let steps = spec
+        .params
+        .iter()
+        .find(|p| p.name == "gradationSteps")
+        .expect("gradationSteps");
+    assert!(
+        steps.summary.starts_with("Ignored (#1039)"),
+        "{}",
+        steps.summary
+    );
+}
