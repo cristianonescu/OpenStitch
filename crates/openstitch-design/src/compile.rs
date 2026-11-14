@@ -415,11 +415,14 @@ impl Writer {
             self.cfg.max_stitch
         };
         let mut runs: Vec<Run> = element.runs.into_iter().filter(|r| !r.is_empty()).collect();
-        // A lone needle point beside longer runs sews nothing of its own: a jump that landed
-        // on it would leave the section untied, its first stitch the step to the next run
-        // (an Auto Punch satin piece of one point, the storybook's object 1160, #1076).
-        if runs.iter().any(|r| r.len() >= 2) {
-            runs.retain(|r| r.len() >= 2);
+        // A lone needle point first, then the next run: the move lands on it and the next run's
+        // first stitch leaves from it, so it starts that run, which ties in there. Sewn apart,
+        // the section opened untied, its first stitch the step to the next run (an Auto Punch
+        // satin piece of one point, the storybook's object 1160: 2.7 mm, #1076). Lone points
+        // further on (a pulled fill row's end) are stitched to as before.
+        if runs.len() > 1 && runs[0].len() == 1 {
+            let lone = runs.remove(0);
+            runs[0].splice(0..0, lone);
         }
         if runs.is_empty() {
             return;
@@ -2723,7 +2726,7 @@ mod tie_off_tests {
         // section opened with that stitch, untied. (2) PE-DESIGN-compatible mode: a fill's
         // first stitch was 0.103 mm, the tie stepped out that far and back, and the machine
         // file's 0.1 mm grid rounded the step onto its start. Both now tie in on a step that
-        // survives the grid: out more than 0.1 mm on one axis and straight back.
+        // survives the grid: out more than 0.1 mm on one axis and back.
         let grid = |p: Vec2| ((p.x).round() as i64, (p.y).round() as i64);
         let starts_tied = |p: &StitchPattern| {
             // From the move's landing (or the first needle point) on.
@@ -2741,7 +2744,10 @@ mod tie_off_tests {
             let pts: Vec<Vec2> = p.stitches[from..].iter().map(|s| v2(s.x, s.y)).collect();
             let mut cells: Vec<(i64, i64)> = pts.iter().map(|&q| grid(q)).collect();
             cells.dedup();
-            cells.len() > 3 && cells[2] == cells[0] && cells[1] != cells[0]
+            // Out (one step or three) and back to the first needle point within six.
+            cells.len() > 3
+                && cells[1] != cells[0]
+                && cells[2..cells.len().min(7)].contains(&cells[0])
         };
         let along: Vec<Vec2> = (0..10).map(|k| v2(300.0 + 20.0 * k as f64, 0.0)).collect();
         let mut page = Design::default();
@@ -2760,8 +2766,8 @@ mod tie_off_tests {
         assert!(
             p.stitches
                 .iter()
-                .all(|s| v2(s.x, s.y).distance(v2(320.5, -27.0)) > 1.0),
-            "the lone point is not sewn"
+                .any(|s| v2(s.x, s.y).distance(v2(320.5, -27.0)) < 0.5),
+            "the lone point is still sewn"
         );
         assert!(starts_tied(&p), "{:?}", &p.stitches[..6]);
         // A first stitch of 0.103 mm, diagonal, then on along the row.
