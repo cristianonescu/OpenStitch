@@ -619,6 +619,8 @@ impl EditorApp {
             // Whether the window draws with MSAA (#907, #1020): without it the Realistic view
             // feathers its threads and dense fills can show stripes when zoomed out (#1031).
             "msaa": msaa_json(crate::workspace_ui::MSAA.load(std::sync::atomic::Ordering::Relaxed)),
+            // PE-DESIGN's page mode (#1056): hoop (Hoop Size) or custom (Custom Size).
+            "pageMode": if self.session.design().hoop_size_page() { "hoop" } else { "custom" },
             "settings": self.ui_settings(),
             // Check Design (#599): ready to sew, the problem counts and the open tab.
             "check": crate::quality_ui::state_json(self),
@@ -1151,6 +1153,30 @@ mod tests {
             demo: true,
             ..Launch::default()
         })
+    }
+
+    #[test]
+    fn ui_state_shows_the_page_mode_and_design_settings_changes_it_in_one_undo_step() {
+        // #1056: Design Settings' Hoop Size / Custom Size (machine.set pageMode), as the
+        // window sends it. A new 100 x 100 design is on a Hoop Size page.
+        let mut app = EditorApp::new(Launch::default());
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 20, "y": 20, "width": 20, "height": 20, "fill": "Red" }),
+        ))
+        .expect("shape");
+        let mode = |app: &mut EditorApp| app.ui_command("ui.state", None).expect("state")["pageMode"].clone();
+        assert_eq!(mode(&mut app), json!("hoop"));
+        let before = app.revision;
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "machine.set",
+            json!({ "pageMode": "custom" }),
+        ))
+            .expect("page mode");
+        assert_eq!(mode(&mut app), json!("custom"));
+        assert!(app.revision > before, "the preview is sewn again");
+        app.undo();
+        assert_eq!(mode(&mut app), json!("hoop"));
     }
 
     #[test]
