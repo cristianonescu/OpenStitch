@@ -662,6 +662,80 @@ fn a_motif_lines_pitch_and_start_end_set_by_command_come_back_from_pes_11() {
     );
 }
 
+/// #1139: PE-DESIGN 11.50 sews a closed line from its first vertex and stores its Rectangle
+/// tool's square as five vertices from the bottom centre, leftward
+/// (1068-motif-5x8-runpitch-3p0). OpenStitch's `shape.rectangle` square with the same motif
+/// line is written with PE-DESIGN's vertices, relative to the bounds, so PE-DESIGN's re-save
+/// starts it where OpenStitch does; it had started at the top-left corner. A shape with no
+/// start point (a PE-DESIGN file's, as imported) keeps its vertices.
+#[test]
+fn a_closed_line_is_written_from_where_it_starts_as_pe_designs_rectangle() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let pmf =
+        root.join("crates/openstitch-design/tests/fixtures/patterns/psc-motif-zigzag-3pt.pmf");
+    let dir = temp_dir("v11-closed-start");
+    std::fs::copy(&pmf, dir.join("zz3.pmf")).expect("motif");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "pattern.import",
+        json!({"path": "zz3.pmf", "id": "zz3"}),
+    );
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 30, "y": 30, "width": 40, "height": 40, "outline": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"ids": [1], "type": "motif", "motif": "zz3", "width": 5, "height": 8,
+               "spacing": 2, "pitch": 3}),
+    );
+    run(
+        &mut s,
+        "design.export",
+        json!({"path": "sq.pes", "pesVersion": "11"}),
+    );
+    let corners = |sh: &openstitch_formats::pes11::Shape| -> Vec<(f32, f32, u32)> {
+        let (x0, y0) = (f32::from(sh.bounds[0]), f32::from(sh.bounds[1]));
+        sh.vertices
+            .iter()
+            .map(|v| (v.x - x0, v.y - y0, v.kind))
+            .collect()
+    };
+    let ours =
+        pes::read_objects(&std::fs::read(dir.join("sq.pes")).expect("sq.pes")).expect("objects");
+    let pe_bytes =
+        std::fs::read(root.join("compat/reference/stitches/1068-motif-5x8-runpitch-3p0.pes"))
+            .expect("reference");
+    let pe = pes::read_objects(&pe_bytes).expect("objects");
+    assert_eq!(corners(&ours.shapes[0]), corners(&pe.shapes[0]));
+    assert_eq!(
+        corners(&pe.shapes[0])[..2],
+        [(200.0, 400.0, 0), (0.0, 400.0, 0)],
+        "the bottom centre, then leftward"
+    );
+    // PE-DESIGN's square imported and written again keeps its vertices as they were.
+    std::fs::write(dir.join("pe.pes"), &pe_bytes).expect("copy");
+    let mut back = Session::new(&dir);
+    run(
+        &mut back,
+        "design.new",
+        json!({"width": 100, "height": 100}),
+    );
+    run(&mut back, "import.pes", json!({"path": "pe.pes"}));
+    run(
+        &mut back,
+        "design.export",
+        json!({"path": "again.pes", "pesVersion": "11"}),
+    );
+    let again = pes::read_objects(&std::fs::read(dir.join("again.pes")).expect("again.pes"))
+        .expect("objects");
+    assert_eq!(corners(&again.shapes[0]), corners(&pe.shapes[0]));
+}
+
 #[test]
 fn pes_version_11_writes_motif_lines_and_fills_as_pe_design() {
     // #608: PE-DESIGN 11.50's motif captures (round 12 and 13, the project's own motif)
