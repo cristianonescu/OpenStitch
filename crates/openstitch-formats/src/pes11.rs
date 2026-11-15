@@ -620,9 +620,10 @@ pub struct Shape {
     /// Spacing is the gap between bands (round 15, zigzag-net-circle40-w3p0/w6p0/w10p0, #1109).
     /// Written only on a zigzag net; other shapes keep the template's values.
     pub zigzag_net: [f32; 2],
-    /// Body +368 as read, lines/mm: a zigzag net's Density again (45 beside +136's 45 in round
-    /// 15's zigzag-net-circle40 captures). Written from [`Shape::density`] on a zigzag net
-    /// (#1122); other shapes keep the template's value. Read only to check the two agree.
+    /// Zigzag Net Fill's Density, lines/mm (body +368, 0.1 line/mm; PE-DESIGN's default 4.5).
+    /// PE-DESIGN keeps it here and not at +136, which stays 45 when the net's Density changes
+    /// (zigzag-net-circle40-w3p0-density-4p7: +368 47, +136 45; #1122). Written only on a
+    /// zigzag net; other shapes keep the template's value.
     pub net_density: f32,
     /// The fields of the sew types the object doesn't use hold their plain values
     /// ([`PLAIN_SETTINGS`]) rather than PE-DESIGN's tool values ([`TOOL_SETTINGS`]): the
@@ -2310,8 +2311,8 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     put16(&mut head, 284, s.cross_passes);
     if s.region == RegionSewType::ZigzagNet {
         put16(&mut head, 366, tenths(s.zigzag_net[0]));
-        // The Density again, as PE-DESIGN writes it beside the width (#1122).
-        put16(&mut head, 368, tenths(s.density));
+        // The net's Density, between the width and the Spacing (#1122).
+        put16(&mut head, 368, tenths(s.net_density));
         put16(&mut head, 370, tenths(s.zigzag_net[1]));
     }
     // Reference points: five at the bounds' top-left corner, two at their centre (i32 x, y).

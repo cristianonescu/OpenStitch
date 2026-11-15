@@ -6460,6 +6460,18 @@
       "notes": "Round 15 (#1050 part B, #1109), the coordinator's round-15 capture notes; the field ranges: Zigzag width 0,1 kept as 1,0 and 99 as 10,0; Spacing 0,1 kept as 2,0 and 99 as 10,0. Pattern blocks redacted 2026-11-15 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 39a5d5b22a51a7ba84924389f23701f47511548ae87a333293784a850787ad31."
     },
     {
+      "file": "stitches/zigzag-net-circle40-w3p0-density-4p7.pes",
+      "spec": "zigzag-net-circle40-w3p0-density-4p7",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-15",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened compat/reference/stitches/zigzag-net-circle40-w3p0.pes as PE-DESIGN saved it (SHA-256 39a5d5b22a51a7ba84924389f23701f47511548ae87a333293784a850787ad31) in PE-DESIGN 11.50, changed the region's Density from 4,5 to 4,7 line/mm, nothing else; Save As PES (default type, Ver.11.0). Stitches = 2032.",
+      "sha256": "c60db56a0053ab4fba958e6ae36bd004a43a76d53fdd4d9b9e2816c128ebeb3f",
+      "notes": "The coordinator's capture for #1122. Against zigzag-net-circle40-w3p0 exactly one field of the shape's header changes: body +368 (file offset 569), 45 to 47; body +136 stays 45. Pattern blocks redacted 2026-11-15 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN dcb69b42c2ce9231a221bcbdd8461cd9d16e5b70efd656535d4a5984426ebd46."
+    },
+    {
       "file": "stitches/zigzag-net-circle40-w6p0.pes",
       "spec": "zigzag-net-circle40-w6p0",
       "reference": "pe-design",
