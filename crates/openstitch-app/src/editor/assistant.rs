@@ -40,7 +40,7 @@ const fn p(
 pub const UI_COMMANDS: &[UiCommand] = &[
     UiCommand {
         id: "ui.state",
-        summary: "The editor's state: file, unsaved changes, selection, tool, view, zoom, panes, simulator and every setting",
+        summary: "The editor's state: file, unsaved changes, selection, tool, view, zoom, panes, simulator, Check Design's indicator (check: level readyToSew, sewableWithSmallRisks or fixThisFirst, with the error, warning and note counts) and every setting",
         effect: Effect::Read,
         params: &[],
     },

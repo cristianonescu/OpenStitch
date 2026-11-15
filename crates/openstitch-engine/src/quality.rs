@@ -1726,21 +1726,35 @@ pub fn check_json(
     let errors = findings.iter().filter(|f| f["severity"] == "error").count();
     let notes = findings.iter().filter(|f| f["severity"] == "info").count();
     let first = findings.first().map(|f| f["message"].clone());
+    let warnings = findings.len() - errors - notes;
     json!({
         "ready": errors == 0,
+        "level": readiness(errors, warnings),
         "errors": errors,
-        "warnings": findings.len() - errors - notes,
+        "warnings": warnings,
         "notes": notes,
         "summary": if findings.is_empty() { json!("Ready to sew") } else { first.unwrap_or_default() },
         "findings": findings,
     })
 }
 
+/// The readiness level (#1036), from the counts alone: `readyToSew` with no errors and no
+/// warnings, `sewableWithSmallRisks` with warnings only, `fixThisFirst` with any error. Notes
+/// never count. A level, not a score: a number would read as a calibrated quality figure, and
+/// none is calibrated against sew-outs yet (coordinator, #1036).
+pub fn readiness(errors: usize, warnings: usize) -> &'static str {
+    match (errors, warnings) {
+        (0, 0) => "readyToSew",
+        (0, _) => "sewableWithSmallRisks",
+        _ => "fixThisFirst",
+    }
+}
+
 pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "design.check",
-            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, lowCoverage (a note: a plain fill, not a gradation, hiding under 40 % of the fabric on the coverage curve measured on sew-outs; no fix: raise its density if the open look is not wanted), textTooSmall (text below its own font's smallest good size, fonts.list sizeRange.minMm, else 4 mm; the fix switches to the Small Text font where the text is big enough for it, else sets that size), tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, crowdedNeedles (the most crowded spot: a warning over 600 pairs of needle points under 0.25 mm within 3 mm of one spot, beyond what PE-DESIGN's own files sew, and an error over 1,200; no sew-out evidence yet of what it does to the fabric; no fix; names the objects whose needle points are there), untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors. Run it before reporting a design done",
+            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, lowCoverage (a note: a plain fill, not a gradation, hiding under 40 % of the fabric on the coverage curve measured on sew-outs; no fix: raise its density if the open look is not wanted), textTooSmall (text below its own font's smallest good size, fonts.list sizeRange.minMm, else 4 mm; the fix switches to the Small Text font where the text is big enough for it, else sets that size), tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, crowdedNeedles (the most crowded spot: a warning over 600 pairs of needle points under 0.25 mm within 3 mm of one spot, beyond what PE-DESIGN's own files sew, and an error over 1,200; no sew-out evidence yet of what it does to the fabric; no fix; names the objects whose needle points are there), untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors; `level` is readyToSew (no errors or warnings), sewableWithSmallRisks (warnings only) or fixThisFirst (any error), notes never counting: a level, not a score. Run it before reporting a design done",
             Effect::Read,
             vec![
                 opt(
@@ -1849,6 +1863,19 @@ pub(crate) fn errors(d: &Design) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::Session;
+
+    /// #1036: design.check's description names the three readiness levels it returns.
+    #[test]
+    fn the_check_description_names_the_levels() {
+        let spec = commands()
+            .into_iter()
+            .find(|c| c.id == "design.check")
+            .expect("design.check");
+        for level in ["readyToSew", "sewableWithSmallRisks", "fixThisFirst"] {
+            assert!(spec.summary.contains(level), "{level}: {}", spec.summary);
+            assert!([readiness(0, 0), readiness(0, 1), readiness(1, 0)].contains(&level));
+        }
+    }
 
     /// #1036: design.check's description (what command_describe gives) names every rule the check
     /// can emit, read from this file's own `rule: "…"` literals, so a new rule cannot be left out.

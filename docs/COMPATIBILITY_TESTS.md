@@ -378,7 +378,9 @@ at its defaults, 800 RED, Save As default type.
   the text off the page and PE then wrote no PEC section, so pe-gui remade them on the page.
   `tools/fit_envelopes.py` reads every H stem's top and bottom needle point and fits each
   preset's top and bottom edge in the straight text's box (constant, slope and cosine terms,
-  outliers dropped; mirror pairs and symmetric presets pooled), into
+  outliers dropped; mirror pairs and symmetric presets pooled; a knot between two letters keeps
+  the fit unless it ripples outside its nearest sampled knots, then lies on the straight line
+  between them, #1079), into
   `crates/openstitch-design/src/envelope_presets.rs`. The specs check the box (`bounds`) and the
   14 stems (`columns`, 1.05 mm half width: OpenStitch's fill rows end on the stem edges) within
   0.5 mm. The arches set the letters rigidly along an arc whose inner line keeps the text's

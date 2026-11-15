@@ -105,6 +105,25 @@
       }
     },
     {
+      "id": "under-sewing-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes",
+        "exclude": {
+          "first": 0,
+          "last": 2021
+        }
+      },
+      "evidence": "The under sewing alone: the needle points before the top fill's last 2021, which are the same in both files (PE-DESIGN 308). OpenStitch sews one more, its first point before the tie-in, so the tolerance is 1 (#1132)",
+      "reference": {
+        "tolerance": {
+          "count": 1
+        }
+      }
+    },
+    {
       "id": "bounds-width",
       "measure": {
         "kind": "bounds",
