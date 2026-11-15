@@ -1312,7 +1312,7 @@ fn elements(
             if closed.is_empty() {
                 continue;
             }
-            let mut layers = region::layers_with(&closed, region, holes, user);
+            let mut layers = region::layers_for(&closed, region, holes, user, text);
             // PE-DESIGN 11.50 sews a TrueType letter in Satin and in Fill stroke by stroke, each
             // stroke a column, in its Convert to Blocks order (docs/research/stroke-lettering.md).
             // Fill text under a Text Transform too (#428): PE-DESIGN sews it by stroke as well

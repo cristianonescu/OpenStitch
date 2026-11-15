@@ -601,6 +601,68 @@ fn a_motif_lines_run_pitch_and_start_end_come_back_from_pe_design() {
 }
 
 #[test]
+fn a_motif_lines_pitch_and_start_end_set_by_command_come_back_from_pes_11() {
+    // #1129: object.setLine's pitch and startEnd on a motif line, saved as PES version 11 and
+    // opened again, come back; Start/End Run sews the same as Feed, as PE-DESIGN's closed
+    // motif outline does (608-motif-5x8 against 1068-motif-5x8-startend-run, 76 of 76 records).
+    let pmf = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../openstitch-design/tests/fixtures/patterns/psc-motif-zigzag-3pt.pmf");
+    let dir = temp_dir("v11-motif-setline");
+    std::fs::copy(&pmf, dir.join("zz3.pmf")).expect("motif");
+    let mut sewn = Vec::new();
+    for start_end in ["feed", "run"] {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        run(
+            &mut s,
+            "pattern.import",
+            json!({"path": "zz3.pmf", "id": "zz3"}),
+        );
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 30, "y": 30, "width": 40, "height": 40, "outline": "Red"}),
+        );
+        run(
+            &mut s,
+            "object.setLine",
+            json!({"ids": [1], "type": "motif", "motif": "zz3", "width": 5, "height": 8,
+                   "spacing": 2, "pitch": 3, "startEnd": start_end}),
+        );
+        let out = format!("{start_end}.pes");
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": out, "pesVersion": "11"}),
+        );
+        sewn.push(
+            pes::read(&std::fs::read(dir.join(&out)).expect("export"))
+                .expect("pattern")
+                .stitches,
+        );
+        let mut back = Session::new(&dir);
+        run(
+            &mut back,
+            "design.new",
+            json!({"width": 100, "height": 100}),
+        );
+        run(&mut back, "import.pes", json!({"path": out}));
+        let l = back.design().objects[0].line.clone().expect("line");
+        assert_eq!(l.kind, openstitch_design::model::LineType::Motif);
+        assert_eq!(l.pitch, 3.0, "{start_end}");
+        assert_eq!(
+            l.start_end == openstitch_design::model::StartEnd::Run,
+            start_end == "run",
+            "{start_end}"
+        );
+    }
+    assert_eq!(
+        sewn[0], sewn[1],
+        "Start/End Run changes no stitches on a motif line"
+    );
+}
+
+#[test]
 fn pes_version_11_writes_motif_lines_and_fills_as_pe_design() {
     // #608: PE-DESIGN 11.50's motif captures (round 12 and 13, the project's own motif)
     // imported and exported again: the motif line's width, height and spacing, the motif fill's
