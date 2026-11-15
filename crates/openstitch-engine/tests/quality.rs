@@ -1472,3 +1472,21 @@ fn more_colours_than_needles_is_a_note_with_a_needle_count() {
         );
     }
 }
+
+/// A satin skeleton bent 90° (the kit's V in shapes/shape-tools.pes) has an outline that goes
+/// round the bend once, so Check Design finds no selfCrossing on it (#1136).
+#[test]
+fn a_bent_satin_skeleton_is_not_a_self_crossing() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(&mut s, "design.new", json!({ "width": 100, "height": 100 }));
+    run(
+        &mut s,
+        "shape.skeletonSatin",
+        json!({ "points": [[8, 82], [20, 70], [32, 82]], "widths": [1.5, 4, 1.5] }),
+    );
+    let c = run(&mut s, "design.check", json!({}));
+    assert!(
+        rules(&c).iter().all(|(rule, _)| rule != "selfCrossing"),
+        "{c}"
+    );
+}

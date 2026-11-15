@@ -1,7 +1,7 @@
 //! Continuing a line, satin skeleton or Manual Punch column from either end (#479).
 
 use openstitch_core::Command;
-use openstitch_design::{Compiler, DesignObject, v2};
+use openstitch_design::{Compiler, DesignObject, skeleton, v2};
 use openstitch_engine::Session;
 use serde_json::{Value, json};
 
@@ -226,5 +226,53 @@ fn continuing_a_column_adds_valid_direction_lines() {
             .direction_lines
             .len(),
         5
+    );
+}
+
+/// Gives skeleton satin `id` the uncut outline a file saved before #1136 keeps.
+fn saved_before_1136(s: &mut Session, id: u64) {
+    let mut d = s.design().clone();
+    let i = d.index_of(id).expect("object");
+    let sk = d.objects[i]
+        .region
+        .as_ref()
+        .and_then(|r| r.skeleton.clone())
+        .expect("skeleton");
+    let uncut = skeleton::uncut_outline(&sk).expect("outline");
+    assert_ne!(
+        uncut.points,
+        skeleton::outline(&sk).expect("outline").points,
+        "the bend folds the uncut outline"
+    );
+    d.objects[i].contours = vec![uncut];
+    assert!(s.adopt_design(d));
+}
+
+#[test]
+fn a_satin_skeleton_saved_before_1136_is_continued_too() {
+    let mut s = Session::new(std::env::temp_dir());
+    // The kit's 90° V (shapes/shape-tools.pes).
+    let k = id(&run(
+        &mut s,
+        "shape.skeletonSatin",
+        json!({ "points": [[8, 82], [20, 70], [32, 82]], "widths": [1.5, 4, 1.5] }),
+    ));
+    saved_before_1136(&mut s, k);
+    run(
+        &mut s,
+        "object.extendPath",
+        json!({ "id": k, "end": "end", "points": [[40, 82]] }),
+    );
+    let sk = object(&s, k)
+        .region
+        .as_ref()
+        .and_then(|r| r.skeleton.clone())
+        .expect("skeleton");
+    assert_eq!(sk.points.len(), 4);
+    assert_eq!(sk.points[3], v2(400.0, 820.0));
+    // Rebuilt as the longer column's outline, cut.
+    assert_eq!(
+        object(&s, k).contours,
+        vec![skeleton::outline(&sk).expect("outline")]
     );
 }
