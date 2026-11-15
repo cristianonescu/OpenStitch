@@ -486,6 +486,9 @@ mod tests {
             let mut d = Design::new("motif", DesignPage::default());
             let mut l = LineSewing::new(LineType::Motif, Thread::rgb(0xff0000));
             l.pitch = pitch;
+            // The Run pitch sews the runs between motifs: with the default gap of 0 a motif
+            // line sews the same at either pitch, so this one has a 4 mm gap.
+            l.spacing = Some(4.0);
             d.add(DesignObject::shape(
                 vec![Contour::rectangle(0.0, 0.0, 400.0, 400.0)],
                 None,
