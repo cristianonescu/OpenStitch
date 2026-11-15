@@ -476,6 +476,67 @@ mod tests {
         assert!(changed.is_empty(), "{changed:#?}");
     }
 
+    /// #1121 / #1043: what [`version_5_zigzag_nets_sew_the_stitches_they_sewed`] stands for,
+    /// whatever the engine sews: each of its eight version-5 zigzag nets, loaded through the
+    /// spacing migration, sews exactly the stitches of the same net made at the current version
+    /// with the migrated settings (the band `min(width, 0.8 × pitch)`, the gap `pitch − band`,
+    /// the band stored only where it was set or the cap narrowed it).
+    #[test]
+    fn a_migrated_version_5_zigzag_net_sews_as_the_same_net_made_now() {
+        let stitch_print = |d: &Design| -> (usize, u64) {
+            let p = crate::Compiler::default().compile(d);
+            let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+            for q in &p.stitches {
+                let s = format!(
+                    "{:?}{}:{};",
+                    q.command,
+                    (q.x * 1000.0).round() as i64,
+                    (q.y * 1000.0).round() as i64
+                );
+                for b in s.bytes() {
+                    h ^= u64::from(b);
+                    h = h.wrapping_mul(0x0100_0000_01b3);
+                }
+            }
+            (p.stitches.len(), h)
+        };
+        let net = |spacing: Option<f64>, width: Option<f64>, angle: f64| {
+            let mut d = Design::new("net", DesignPage::default());
+            let mut r = RegionSewing::new(RegionType::ZigzagNetFill, Thread::rgb(0xff0000));
+            (r.spacing, r.pattern_width, r.angle) = (spacing, width, angle);
+            d.add(DesignObject::shape(
+                vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)],
+                Some(r),
+                None,
+            ));
+            d
+        };
+        let mut differ = Vec::new();
+        for angle in [0.0, 30.0] {
+            // (stored pitch, stored width) at version 5 -> (gap, band) made now.
+            for ((pitch, width), (gap, band)) in [
+                ((0.5, None), (0.5 - 0.5 * 0.8, Some(0.5 * 0.8))),
+                ((3.0, None), (3.0 - 3.0 * 0.8, Some(3.0 * 0.8))),
+                ((5.0, Some(10.0)), (5.0 - 5.0 * 0.8, Some(5.0 * 0.8))),
+                ((8.0, None), (8.0 - 3.0, None)),
+            ] {
+                let mut v: serde_json::Value = serde_json::from_slice(
+                    &encode(&net(Some(pitch), width, angle)).expect("encode"),
+                )
+                .expect("json");
+                v["version"] = serde_json::json!(5);
+                let old = decode(&serde_json::to_vec(&v).expect("bytes")).expect("decode");
+                let now =
+                    decode(&encode(&net(Some(gap), band, angle)).expect("encode")).expect("decode");
+                let (a, b) = (stitch_print(&old), stitch_print(&now));
+                if a != b {
+                    differ.push(format!("{pitch} {width:?} {angle}°: {a:?} vs {b:?}"));
+                }
+            }
+        }
+        assert!(differ.is_empty(), "{differ:#?}");
+    }
+
     /// #1130: a motif line's default Run pitch went from 2.5 to PE-DESIGN's 5.0 with no `.osd`
     /// version step, because every file stores `pitch` on every line (the field is required):
     /// a version-6 motif line made at the old default loads at 2.5 and sews what it sewed, and

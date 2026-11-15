@@ -458,6 +458,16 @@ pub fn generate(
                 Rect::enclosing(closed.iter().flat_map(|c| c.outline_points()))
                     .map(|b| v2(b.center().x, b.max_y))
             });
+            // With the Running Stitch Path off each line is its own run, the machine jumping
+            // between them.
+            if !region.travel {
+                let out = families
+                    .into_iter()
+                    .flatten()
+                    .map(|l| subdivide(&l, pitch))
+                    .collect();
+                return vec![region.sequence_raw(out)];
+            }
             let out = along_net(&[], &rim, families, aim, v2(1.0, 0.0), pitch, |_, line| {
                 let run = subdivide(line, pitch);
                 let end = *run.last()?;
@@ -3182,18 +3192,24 @@ fn zigzag_band(
     run
 }
 
-/// Whether the stitches a–b and c–d cross more than 0.3 mm from all four ends.
-fn crosses_inside(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> bool {
+/// Where the stitches a–b and c–d cross (each strictly between its ends), if they do.
+fn crossing(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> Option<Vec2> {
     let side = |p: Vec2, q: Vec2, r: Vec2| (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
     let (d1, d2) = (side(a, b, c), side(a, b, d));
     let (d3, d4) = (side(c, d, a), side(c, d, b));
     if d1 * d2 >= -1e-6 || d3 * d4 >= -1e-6 {
-        return false;
+        return None;
     }
-    let x = c.lerp(d, d1 / (d1 - d2));
-    [a, b, c, d]
-        .iter()
-        .all(|p| p.distance(x) > ZIGZAG_NET_MIN_STITCH)
+    Some(c.lerp(d, d1 / (d1 - d2)))
+}
+
+/// Whether the stitches a–b and c–d cross more than 0.3 mm from all four ends.
+fn crosses_inside(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> bool {
+    crossing(a, b, c, d).is_some_and(|x| {
+        [a, b, c, d]
+            .iter()
+            .all(|p| p.distance(x) > ZIGZAG_NET_MIN_STITCH)
+    })
 }
 
 /// `part` (a piece of the polyline `line`) run on along `line` by up to `ext` at both ends.
@@ -3447,6 +3463,20 @@ fn along_net(
     if run.len() >= 2 {
         out.push(run);
     }
+    // Where the travel along the outline meets a band, the needle may run on past a line's
+    // end and come back along the outline, so a step crosses the step after next (the
+    // triangle pattern on a circle turned 15°, `zigzag_net_rungs_do_not_cross_on_a_turned_
+    // circle`): the needle point between is left out, as within a band (#1058).
+    for run in &mut out {
+        let mut i = 0;
+        while i + 3 < run.len() {
+            if crossing(run[i], run[i + 1], run[i + 2], run[i + 3]).is_some() {
+                run.remove(i + 1);
+            } else {
+                i += 1;
+            }
+        }
+    }
     out
 }
 
@@ -3490,7 +3520,7 @@ fn straight_through(path: &[Vec2]) -> Vec<Vec2> {
         if out.len() >= 2 {
             let (a, b) = (out[out.len() - 2], out[out.len() - 1]);
             let d = p - a;
-            let len = d.x.hypot(d.y);
+            let len = d.x.dhypot(d.y);
             let off = if len > 1e-9 {
                 ((b.x - a.x) * d.y - (b.y - a.y) * d.x).abs() / len
             } else {

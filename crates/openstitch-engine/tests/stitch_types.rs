@@ -2958,3 +2958,4 @@ fn a_zigzag_net_without_under_sewing_travels_along_the_outline() {
         (n as f64 - 955.0).abs() <= 955.0 * 0.05,
         "{n} stitches against PE-DESIGN's 955"
     );
+}
