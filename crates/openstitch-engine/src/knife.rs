@@ -79,10 +79,11 @@ fn cut(o: &DesignObject, line: &[Vec2]) -> Result<Vec<DesignObject>, String> {
                 })
                 .collect());
         }
-        // A satin skeleton: cut across the centre line.
+        // A satin skeleton (its outline cut or, saved before #1136, uncut): cut across the
+        // centre line.
         if let Some(sk) = &r.skeleton
             && o.contours.len() == 1
-            && skeleton::outline(sk).is_some_and(|c| same_outline(&o.contours[0], &c))
+            && skeleton::is_outline_of(&o.contours[0], sk, SAME)
         {
             let parts =
                 knife::skeleton_cut(sk, line).ok_or("the line does not cross the centre line")?;
