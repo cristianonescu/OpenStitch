@@ -507,7 +507,10 @@ fn layers_inner(
         pull_compensation: r.pull_compensation * 10.0,
     };
     let row_based = matches!(r.kind, RegionType::Fill | RegionType::Satin);
-    if r.underlay {
+    // A zigzag net's under sewing is the run along each of its lines, sewn with the net
+    // (`regions::generate`); PE-DESIGN 11.50 sews no edge run round it (round 13,
+    // zigzag-net-dir0: the lines first, from the bottom edge, #1043).
+    if r.underlay && r.kind != RegionType::ZigzagNetFill {
         let edge = || -> Vec<Run> {
             closed
                 .iter()
