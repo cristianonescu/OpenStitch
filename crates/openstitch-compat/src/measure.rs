@@ -85,6 +85,20 @@ pub enum PolarProperty {
     AngleSpan,
 }
 
+/// What [`Measure::CentreCrowding`] reports.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CrowdingProperty {
+    /// Distinct needle points near the centre.
+    Points,
+    /// Pairs of those points closer than `closer`.
+    ClosePairs,
+}
+
+fn default_crowding_closer() -> f64 {
+    0.25
+}
+
 fn default_bin() -> f64 {
     1.0
 }
@@ -126,6 +140,17 @@ pub enum Measure {
         #[serde(default = "default_ring_within", rename = "ringWithin")]
         ring_within: f64,
         property: PolarProperty,
+    },
+    /// How crowded the needle points are about a centre (a radial fill's, #461, #1050): the
+    /// distinct needle points on the file's 0.1 mm grid within `within` mm of `center` (mm; the
+    /// middle of the bounds when left out), or the pairs of them closer than `closer` mm.
+    CentreCrowding {
+        #[serde(default)]
+        center: Option<[f64; 2]>,
+        within: f64,
+        #[serde(default = "default_crowding_closer")]
+        closer: f64,
+        property: CrowdingProperty,
     },
     /// Statistic of stitch lengths (consecutive stitch entries), mm; stitches shorter than
     /// `minLength` are left out.
@@ -271,6 +296,7 @@ impl Measure {
             Self::BlockStitchCounts => "blockStitchCounts",
             Self::Bounds { .. } => "bounds",
             Self::Polar { .. } => "polar",
+            Self::CentreCrowding { .. } => "centreCrowding",
             Self::Columns { .. } => "columns",
             Self::StitchLength { .. } => "stitchLength",
             Self::StitchLengthHistogram { .. } => "stitchLengthHistogram",
@@ -346,6 +372,10 @@ impl Measure {
             non_negative("within", within)
         };
         match self {
+            Self::CentreCrowding { within, closer, .. } => {
+                positive("within", *within)?;
+                positive("closer", *closer)
+            }
             Self::StitchLength { min_length, .. } => non_negative("minLength", *min_length),
             Self::StitchLengthHistogram { bin } | Self::DominantAngle { bin } => {
                 positive("bin", *bin)
@@ -440,6 +470,12 @@ impl Measure {
                 ring_within,
                 property,
             } => json!(polar(t, *center, *ring, *ring_within, *property)?),
+            Self::CentreCrowding {
+                center,
+                within,
+                closer,
+                property,
+            } => json!(centre_crowding(t, *center, *within, *closer, *property)?),
             Self::Columns { x, half_width } => json!(columns(t, x, *half_width)?),
             Self::StitchLength { stat, min_length } => {
                 let mut v: Vec<f64> = stitch_lengths(t)
@@ -825,6 +861,45 @@ fn columns(t: &Trace, xs: &[f64], half_width: f64) -> Result<Vec<f64>, String> {
     Ok(out)
 }
 
+/// See [`Measure::CentreCrowding`].
+fn centre_crowding(
+    t: &Trace,
+    center: Option<[f64; 2]>,
+    within: f64,
+    closer: f64,
+    property: CrowdingProperty,
+) -> Result<usize, String> {
+    let c = match center {
+        Some(c) => c,
+        None => {
+            let b = t.bounds().ok_or("nothing is sewn")?;
+            [(b.0 + b.2) / 2.0, (b.1 + b.3) / 2.0]
+        }
+    };
+    let mut pts: Vec<(i64, i64)> = t
+        .stitches()
+        .filter(|e| (e.x - c[0]).hypot(e.y - c[1]) < within)
+        .map(|e| ((e.x * 10.0).round() as i64, (e.y * 10.0).round() as i64))
+        .collect();
+    pts.sort_unstable();
+    pts.dedup();
+    Ok(match property {
+        CrowdingProperty::Points => pts.len(),
+        CrowdingProperty::ClosePairs => {
+            let lim = closer * 10.0;
+            let mut n = 0;
+            for (i, a) in pts.iter().enumerate() {
+                for b in &pts[i + 1..] {
+                    if ((a.0 - b.0) as f64).hypot((a.1 - b.1) as f64) < lim {
+                        n += 1;
+                    }
+                }
+            }
+            n
+        }
+    })
+}
+
 /// See [`Measure::Polar`].
 fn polar(
     t: &Trace,
@@ -882,6 +957,24 @@ mod tests {
             vec![2.0, 8.0, 3.0, 3.0]
         );
         assert!(columns(&t, &[3.0], 0.3).is_err());
+    }
+
+    #[test]
+    fn centre_crowding_counts_distinct_points_and_close_pairs_near_the_centre() {
+        // About (10, 10): a point sewn twice, two 0.2 mm apart, one 0.3 mm from them, and one
+        // 4 mm out; the bounds' middle is (12, 10).
+        let t = trace(&[
+            (10.0, 10.0),
+            (10.0, 10.0),
+            (10.2, 10.0),
+            (10.5, 10.0),
+            (14.0, 10.0),
+        ]);
+        let m =
+            |center, property| centre_crowding(&t, center, 3.0, 0.25, property).expect("crowding");
+        assert_eq!(m(Some([10.0, 10.0]), CrowdingProperty::Points), 3);
+        assert_eq!(m(Some([10.0, 10.0]), CrowdingProperty::ClosePairs), 1);
+        assert_eq!(m(None, CrowdingProperty::Points), 4);
     }
 
     #[test]

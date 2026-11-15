@@ -151,6 +151,28 @@
           "mm": 0.25
         }
       }
+    },
+    {
+      "id": "ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "band.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50 starts and ends this Closed Straight Line shape at its first vertex (0, 0) (#1103), relative to the shape's needle points",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
     }
   ]
 }

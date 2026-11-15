@@ -71,6 +71,35 @@ pub(crate) const fn opt(name: &'static str, kind: &'static str, summary: &'stati
     }
 }
 
+/// The region types whose `spacing` has a default of its own, in the order
+/// `object.setRegion`'s `spacing` description lists them.
+pub const SPACING_TYPES: [RegionType; 8] = [
+    RegionType::CrossStitch,
+    RegionType::Stippling,
+    RegionType::NetFill,
+    RegionType::ZigzagNetFill,
+    RegionType::FlexibleSpiral,
+    RegionType::MotifFill,
+    RegionType::Contour,
+    RegionType::Maze,
+];
+
+/// `object.setRegion`'s `spacing` description, its defaults read from
+/// [`RegionSewing::spacing_mm`] so the text cannot drift from what is sewn (#1117).
+static SPACING_SUMMARY: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    let defaults: Vec<String> = SPACING_TYPES
+        .iter()
+        .map(|&k| {
+            let mm = RegionSewing::new(k, Thread::rgb(0)).spacing_mm();
+            format!("{} {mm}", k.id())
+        })
+        .collect();
+    format!(
+        "Cross size, stippling / net / flexible spiral spacing, motif gaps; a netFill's is the line pitch, a zigzagNetFill's the gap between bands (its lines patternWidth + spacing apart, as PE-DESIGN's, #1109), PE-DESIGN's range 2.0-10 (a gap outside it is stored and sewn as given, the inspector shows it unchanged, and a PES 0110 save writes it as stored; PE-DESIGN 11.50 opened such a file (width 0.5, Spacing 1.0) without a message, kept both values, re-sewed the net at them (8,742 stitches against OpenStitch's 9,062) and wrote them back unchanged on a re-save (round 15)); 0-20 (0.5 minimum except motif fill). Left out, the type's default in mm: {}",
+        defaults.join(", ")
+    )
+});
+
 pub type RunFn = fn(&mut EngineState, &Params) -> CommandResult;
 
 #[derive(Clone)]
@@ -893,13 +922,20 @@ fn shape_commands() -> Vec<CommandSpec> {
             "Add a polygon (closed) or polyline (closed: false)",
             Effect::Edit,
             shape_docs(vec![
-                req("points", "[[x, y]] mm", "Vertices"),
+                req(
+                    "points",
+                    "[[x, y]] mm",
+                    "Vertices; a closed polygon's region starts and ends at the first (PE-DESIGN's Closed Straight Line: the corner clicked first)",
+                ),
                 opt("closed", "bool", "Closed region (default true)"),
             ]),
             |s, p| {
                 let closed = p.bool("closed", Some(true))?;
                 let points = p.points("points", if closed { 3 } else { 2 })?;
-                add_shape(s, p, Contour::new(points, closed))
+                // PE-DESIGN 11.50 starts and ends a closed straight-line shape's region at the
+                // vertex clicked first, whichever corner and drawing direction (#1103).
+                let first: fn(&Contour) -> Option<Vec2> = |c| c.points.first().copied();
+                add_shape_ending(s, p, Contour::new(points, closed), closed.then_some(first))
             },
         ),
         spec(
@@ -1345,7 +1381,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "density",
                     "rows/mm",
-                    "Row density (fill and satin 0.1-14, others 0.5-10)",
+                    "Row density (fill and satin 0.1-14, radial 0.2-7, others 0.5-10)",
                 ),
                 opt(
                     "stitchLength",
@@ -1362,7 +1398,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "underlayStyle",
                     "edge|zigzag|edgeZigzag|double|edgeFill|cross|auto|centreWalk",
-                    "Underlay: edge run, inset rows, both, two crossing layers, PE-DESIGN's first type (edge and rows) or its second (edge and lattice); shorthand for underlayParts. Beyond PE-DESIGN: auto (Manual Punch column: a centre walk, the edge run, or edge run and zigzag by the column's average width, see underlayAuto; skeleton satin and Auto satin: rows along the column that follow its width, one where it is under 3 mm, about one per underlaySpacing where wider, never past the edge) and centreWalk (a running stitch down the middle)",
+                    "Underlay: edge run, inset rows, both, two crossing layers, PE-DESIGN's first type (edge and rows) or its second (edge and lattice); shorthand for underlayParts. On a satin, edgeFill is stored as edgeZigzag: it is PE-DESIGN's first type in its fill form, which a satin sews as edge and zigzag (#1041, #1105). Beyond PE-DESIGN: auto (Manual Punch column: a centre walk, the edge run, or edge run and zigzag by the column's average width, see underlayAuto; skeleton satin and Auto satin: rows along the column that follow its width, one where it is under 3 mm, about one per underlaySpacing where wider, never past the edge) and centreWalk (a running stitch down the middle)",
                 ),
                 opt(
                     "underlayParts",
@@ -1407,7 +1443,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "gradationSteps",
                     "int",
-                    "Gradation pattern: number of step values (2-20)",
+                    "Ignored (#1039): PE-DESIGN's Gradation Pattern Setting always has nine points. Accepted from older scripts and designs, with a hint",
                 ),
                 opt(
                     "gradationShape",
@@ -1462,18 +1498,14 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "patternWidth",
                     "mm",
-                    "Pattern width; zigzag net: zigzag width; meander fill: tile width (default 8), 0.5-50 (decorative fill 0.5-100)",
+                    "Pattern width; zigzag net: zigzag width, PE-DESIGN's range 1.0-10 (a width outside it, 0.5-50 here, is stored and sewn as given, the inspector shows it unchanged, and a PES 0110 save writes it as stored; PE-DESIGN 11.50 opened such a file (width 0.5, Spacing 1.0) without a message, kept both values, re-sewed the net at them (8,742 stitches against OpenStitch's 9,062) and wrote them back unchanged on a re-save (round 15), #1109); meander fill: tile width (default 8), 0.5-50 (decorative fill 0.5-500: PE-DESIGN's range is 10-500, below 10 is OpenStitch's own, #1124)",
                 ),
                 opt(
                     "patternHeight",
                     "mm",
-                    "Pattern height; meander fill: tile height, the distance between its rows (default 8), 0.5-50 (decorative fill 0.5-100)",
+                    "Pattern height; meander fill: tile height, the distance between its rows (default 8), 0.5-50 (decorative fill 0.5-500: PE-DESIGN's range is 10-500, below 10 is OpenStitch's own, #1124)",
                 ),
-                opt(
-                    "spacing",
-                    "mm",
-                    "Cross size, stippling / net / flexible spiral spacing, motif gaps, 0-20 (0.5 minimum except motif fill)",
-                ),
+                opt("spacing", "mm", SPACING_SUMMARY.as_str()),
                 opt(
                     "runPitch",
                     "mm",
@@ -1745,6 +1777,12 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         r.underlay_style = u;
                         r.underlay_parts = None;
                     }
+                    // PE-DESIGN's first under sewing type on a satin is the edge run and zigzag
+                    // rows: `edgeFill` (its fill form) is stored as that, which sews the same
+                    // (#1041), whether asked for or kept from a fill switched to a satin.
+                    if r.kind == RegionType::Satin && r.underlay_style == UnderlayStyle::EdgeFill {
+                        r.underlay_style = UnderlayStyle::EdgeZigzag;
+                    }
                     if p.has("underlayParts") {
                         let names: Vec<&str> = p
                             .array("underlayParts")?
@@ -1792,7 +1830,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                                 .unwrap_or(Gradation::PE_DEFAULT)
                         });
                     }
-                    if ["gradationMax", "gradationMin", "gradationSteps", "gradationShape"]
+                    if ["gradationMax", "gradationMin", "gradationShape"]
                         .iter()
                         .any(|k| p.has(k))
                     {
@@ -1802,8 +1840,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             .unwrap_or(Gradation::PE_DEFAULT);
                         g.max = p.opt("gradationMax", g.max, 5.0, 100.0)?;
                         g.min = p.opt("gradationMin", g.min, 5.0, 100.0)?;
-                        let steps = g.steps.unwrap_or(9) as f64;
-                        g.steps = Some(p.opt("gradationSteps", steps, 2.0, 20.0)?.round() as u32);
+                        // PE-DESIGN's nine sliders (#1039).
+                        g.steps = Some(9);
                         if let Some(shape) = choice(
                             p,
                             "gradationShape",
@@ -1941,9 +1979,10 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         }
                         r.pattern = Some(id);
                     }
-                    // PE-DESIGN 11.50's Decorative Fill defaults to a 100 mm tile.
+                    // PE-DESIGN 11.50's Decorative Fill defaults to a 100 mm tile and takes
+                    // 10.0-500.0 mm (round 15, #1124).
                     let max_size = if r.kind == RegionType::DecorativeFill {
-                        100.0
+                        500.0
                     } else {
                         50.0
                     };
@@ -2132,7 +2171,6 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         "gradationPattern",
                         "gradationMax",
                         "gradationMin",
-                        "gradationSteps",
                         "gradationShape",
                     ];
                     if r.gradation.is_some() && gradation_keys.iter().any(|k| p.has(k)) {
@@ -2157,6 +2195,12 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     }
                     o.region = Some(r);
                 }
+                if p.has("gradationSteps") {
+                    hints.push(
+                        "gradationSteps is ignored: PE-DESIGN's gradation pattern always has nine points (#1039)"
+                            .into(),
+                    );
+                }
                 Ok(if hints.is_empty() {
                     Value::Null
                 } else {
@@ -2179,7 +2223,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "pitch",
                     "mm",
-                    "Running/triple stitch length, run pitch; back stitch: forward stitch; scribble: zigzag point spacing, 1-10",
+                    "Running/triple stitch length, run pitch; back stitch: forward stitch; scribble: zigzag point spacing; motif: the line's Run pitch, the runs between and along the motifs (default 5.0, PE-DESIGN's, #1130), stored at PES 11 body +82. 1-10; outside it is refused",
                 ),
                 opt(
                     "runTimes",
@@ -2189,12 +2233,12 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "width",
                     "mm",
-                    "Zigzag, motif, stem width; candlewick, chain size; E/V stroke, 0.5-10",
+                    "Zigzag, motif, stem width; candlewick, chain size; E/V stroke, 0.5-10 (candlewick: PE-DESIGN's Size range is 3-10; below 3 is OpenStitch's own)",
                 ),
                 opt(
                     "density",
                     "stitches/mm",
-                    "Zigzag density (lines/mm: along an open line; on a closed outline along its outer edge, as PE-DESIGN, so a 40 mm square at 2 mm sews 4.5 x 42 / 40 along its sides); candlewick spokes ÷ 2, 0.1-14",
+                    "Zigzag density (lines/mm: along an open line; on a closed outline along its outer edge, as PE-DESIGN, so a 40 mm square at 2 mm sews 4.5 x 42 / 40 along its sides); candlewick: the knot's points ÷ 2, PE-DESIGN's Density choices Light 10, Medium 12 (the default) and Dense 16 (knots of 20, 24 and 32 points, round 15). 0.1-14 (candlewick 0.1-16)",
                 ),
                 opt(
                     "motif",
@@ -2209,7 +2253,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "spacing",
                     "mm",
-                    "Gap between motifs (0-20), stem stitches, knots, E/V strokes (0.5-20)",
+                    "Gap between motifs (0-20), stem stitches, knots (candlewick 0-100, PE-DESIGN's Spacing range), E/V strokes (0.5-20)",
                 ),
                 opt(
                     "angle",
@@ -2248,7 +2292,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "startEnd",
                     "feed|run",
-                    "Closed stem, candlewick and chain lines with moved points: the pattern begins and ends at the exit point L2; start with it (feed) or run there from the entry point L1 (run)",
+                    "Closed stem, candlewick and chain lines with moved points: the pattern begins and ends at the exit point L2; start with it (feed) or run there from the entry point L1 (run). Motif line: stored for PE-DESIGN (PES 11 body +84) and changes no stitches; PE-DESIGN sews a closed motif outline the same either way (608-motif-5x8 against 1068-motif-5x8-startend-run: 76 of 76 records identical, #1129); an open motif line is not captured",
                 ),
             ]
             .into_iter()
@@ -2389,9 +2433,14 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         1,
                         max_times.into(),
                     )? as u32;
+                    // PE-DESIGN's candlewick Size runs from 3.0 to 10.0 mm (round 15, #1124);
+                    // the command keeps 0.5-10 so a smaller knot set in alpha 14 still works.
+                    let candlewick = l.kind == LineType::Candlewick;
                     l.width = p.opt("width", l.width, 0.5, 10.0)?;
-                    // PE-DESIGN's zigzag density runs from 0.1 to 14 lines/mm.
-                    l.density = p.opt("density", l.density, 0.1, 14.0)?;
+                    // PE-DESIGN's zigzag density runs from 0.1 to 14 lines/mm; a candlewick's
+                    // Dense knot is density 16 (32 points, round 15, #1124).
+                    let max_density = if candlewick { 16.0 } else { 14.0 };
+                    l.density = p.opt("density", l.density, 0.1, max_density)?;
                     if motif.is_some() {
                         l.motif.clone_from(&motif);
                     }
@@ -2399,8 +2448,13 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         l.height = Some(p.req("height", 0.5, 20.0)?);
                     }
                     if p.has("spacing") {
-                        let lo = if l.kind == LineType::Motif { 0.0 } else { 0.5 };
-                        l.spacing = Some(p.req("spacing", lo, 20.0)?);
+                        // PE-DESIGN's candlewick Spacing runs from 0.0 to 100.0 mm (round 15).
+                        let (lo, hi) = match l.kind {
+                            LineType::Motif => (0.0, 20.0),
+                            LineType::Candlewick => (0.0, 100.0),
+                            _ => (0.5, 20.0),
+                        };
+                        l.spacing = Some(p.req("spacing", lo, hi)?);
                     }
                     if p.has("angle") {
                         l.angle = Some(p.req("angle", 45.0, 135.0)?);
@@ -3688,6 +3742,11 @@ fn codec_commands() -> Vec<CommandSpec> {
                     "warn|strict|off",
                     "Read every written file back and compare it with the stitches meant for it (#457): warn (default) adds a mismatch to the warnings, strict removes the files and fails",
                 ),
+                opt(
+                    "checks",
+                    "warn|strict",
+                    "Check Design before writing (#1036): warn (default) writes the file and lists design.check's errors as problems; strict writes nothing and fails while design.check has any error (crowdedNeedles over its error limit, stacked needle drops, stitches outside the hoop and the others). Use strict for a file going straight to a machine unattended. Separate from verify, which checks the written file reads back",
+                ),
             ],
             |s, p| {
                 let raw_path = p.string("path", None)?;
@@ -3696,6 +3755,20 @@ fn codec_commands() -> Vec<CommandSpec> {
                 let verify = p.string("verify", Some("warn"))?;
                 if !["warn", "strict", "off"].contains(&verify.as_str()) {
                     return Err(p.invalid("verify", "must be warn, strict or off"));
+                }
+                let checks = p.string("checks", Some("warn"))?;
+                if !["warn", "strict"].contains(&checks.as_str()) {
+                    return Err(p.invalid("checks", "must be warn or strict"));
+                }
+                if checks == "strict" {
+                    let errors = crate::quality::errors(&s.design);
+                    if !errors.is_empty() {
+                        return Err(p.failed(format!(
+                            "design.check has {} error(s), so nothing was written (checks strict): {}",
+                            errors.len(),
+                            errors.join("; ")
+                        )));
+                    }
                 }
                 // Stitch lists and G-code (#488): not machine files, written whole.
                 let extra = if p.has("format") {

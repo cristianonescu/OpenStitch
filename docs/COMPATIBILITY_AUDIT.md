@@ -446,7 +446,14 @@ Line references are relative to `crates/`.
   byte-identical to obj-progfill-owner-v's for the owner's V; one pattern per design); decorative
   fill with its pattern in the object's pattern block (spec `pes-0110-decorative-fill`,
   reference pending; the block byte-identical to deco-fill-1line-100mm's); the other Round 3
-  region types by their codes at PE-DESIGN's default attributes (their own fields not mapped);
+  region types by their codes at PE-DESIGN's default attributes (their own fields not mapped;
+  the zigzag net's zigzag width, +366, and Spacing, the gap between bands, +370, are written and
+  read since #1109, round 15's zigzag-net-circle40-w3p0/w6p0/w10p0; a band or gap outside
+  PE-DESIGN's ranges, 1.0–10.0 and 2.0–10.0 mm, which a net from an .osd file before version 6
+  can hold after its migration, is written as stored to 0.1 mm, not clamped: PE-DESIGN 11.50
+  opened OpenStitch's width 0.5 / Spacing 1.0 circle without a message, kept both values,
+  re-sewed the net at them, 8,742 stitches against OpenStitch's 9,062, and wrote them back
+  unchanged on a re-save, round 15, #1124);
   stem, candlewick and chain lines by their codes (spec `pes-0110-line-types`, reference
   pending; the 22 owner line-* files read and rewritten byte for byte outside the documented
   differences), their Start/End options at PE-DESIGN's defaults (open: the sewing end
@@ -575,7 +582,13 @@ Line references are relative to `crates/`.
   blocks and junction squares keep their 3 mm rungs (fine rungs fanned where a junction cuts a
   side short: A's legs at the bar); a bending satin stroke's sides are joined by the centre
   line's progress, so crossings stay across S's spine as PE-DESIGN's do (fill rows keep the
-  length pairing their spacing was measured with); and the stroke cut's grid has 200 cells across every letter (it never went
+  length pairing their spacing was measured with), except where such a stroke turns sharply with
+  an outline corner on each side (e's bar into its bowl, #1080): PE-DESIGN joins the two corners
+  with one crossing and spaces the crossings within two stroke widths of them along each side's
+  length, and a straight stretch ending in that turn along its middle (e's bar: 0.31 mm along the
+  counter, 0.45 mm along the aperture), where the progress pairing kept the bar upright and then
+  pivoted 16 crossings round the counter's corner (stroke-satin-lower-e 281 → 267, PE-DESIGN 267;
+  on strokes 1.2 mm wide or more at their median, not measured on smaller letters); and the stroke cut's grid has 200 cells across every letter (it never went
   under 0.02 mm cells, which coarsened 4 mm letters: n lost its stem's top and fell back to
   region). The 13 satin captures and text-defaults-h are now 5.6 % from PE-DESIGN's needle points on average (was
   9.3 %), none further than before: O 338 (was 310) against 358, S 267 (215) against 278, 8 357
@@ -1635,6 +1648,40 @@ Line references are relative to `crates/`.
   than one record; VIP's exact piece length (7.5–7.9 mm); JEF's `-1` hoop block; XXX's header
   tables and palette filler; SEW's 340 header bytes; DST's `AX`/`AY`; PE-DESIGN's RGB for chart
   colour 800 RED (`E3 31 1F`) against the PEC chart table's `ED 17 1F`.
+- **Radial Stitch (calibrated 2026-11-14, #1050, round 15):**
+  - PE-DESIGN 11.50 was measured on a 40 mm circle at Density 2,0, 3,0, 5,0 and 7,0 line/mm (the
+    field keeps 0,2 to 7,0). It sews the lines in pairs, in to an apex and straight back out, to
+    outline points each pair shares with the next (a W round the shape). The lines are 1/density
+    apart at the outline at every density (0.49, 0.33, 0.198 and 0.143 mm). About 16 pairs a turn
+    reach the centre: one in K, K the multiple of 3 nearest 22.5 degrees of pairs (9, 12 and 27).
+    The others stop long (4.2-5.9 mm) and short (1.5-3.0 mm) in turn. The stop radii follow the
+    same sequence at every density. Run stitches are 2,0 mm from the outline in.
+  - OpenStitch thinned the lines by a power-of-two level and kept them at least 0.4 mm apart,
+    so above about 2.5 lines/mm the count stayed the same (2,149 stitches on the circle at any
+    density). It now sews PE-DESIGN's pairs, centre spokes and long and short stops (a fixed
+    radii spread as PE-DESIGN's: short 1.8-3.0 mm, long 4.2-5.6 mm): 2,239, 3,346, 5,526 and
+    7,731 stitches against 2,311, 3,423, 5,717 and 7,988, with the thread length within 1.1 %
+    and the bounds exact (specs `radial-circle40-default`, `-d3p0`, `-d5p0`, `-dmax`, within
+    4 %). Lines sewn inwards step the pitch from the outline, lines sewn outwards from their
+    apex, so neighbouring lines' needle points are not on shared rings. Left: PE-DESIGN's run
+    stitches have short ends at both the apex and the outline (596 stitches of 0.3-1 mm at
+    density 7, ours 263), about half a stitch more a pair; its phase rule is not found.
+  - The centre (#461), measured within 3 mm on the 0.1 mm grid (`centreCrowding`):
+    | density | needle points PE-DESIGN / ours | pairs under 0.25 mm PE-DESIGN / ours |
+    |---|---|---|
+    | 2 | 125 / 102 | 31 / 27 |
+    | 3 | 186 / 144 | 90 / 51 |
+    | 5 | 301 / 221 | 301 / 116 |
+    | 7 | 397 / 310 | 592 / 294 |
+    The four specs hold ours at or under PE-DESIGN's. Needle points per area 1-4 mm from the
+    centre against 15-19 mm out: PE-DESIGN 3.53-3.63, ours 2.9-3.1. `design.check` (dense,
+    inPlace) finds nothing in either at density 7; `design.density` peaks at 5.27 layers and 21
+    holes per mm² in ours, 5.6 and 25 with stacked drops in PE-DESIGN's file imported.
+  - Default density 2,0 and Run pitch 2,0 mm, confirmed with the fields' reset buttons (round 15,
+    part 3): PE-DESIGN keeps the last value typed per sew type, so switching type alone does not
+    show the default. A remainder under 0.3 mm at a line's end shares the last stitch, and
+    the outline point two lines share is one needle point: 0-6 stitches under 0.3 mm a circle,
+    PE-DESIGN 6-12; the longest 2.34 mm in PE-DESIGN's files.
 - **Concentric Circle and Spiral (calibrated 2026-10-29, #138):** issue #138 assumed PE-DESIGN
   has no concentric or spiral sewing; it has both as region sew types, with only Density
   (default 2.0), Run pitch (2.0) and two Start Point buttons. Fourteen references
@@ -4158,7 +4205,8 @@ too; the rows there are sewn since #927 (below). Motif fill keeps the chord warp
 `programmable_fill_along_a_curve_keeps_to_the_curves_offsets`.
 
 Re-measured 2026-11-12 with the U-shaped (C) curve of #927 added. All three rows come from one
-script, through `stitchtool exec` with programmable fill's defaults (2.5 rows/mm), with #927's
+script, through `stitchtool exec` with programmable fill's defaults then (2.5 rows/mm; 4.5 since
+#1102, PE-DESIGN's own), with #927's
 and #947's row fixes in. The figures differ a little from the table above, which was measured
 another way:
 - coverage here counts cells 1 mm in from the square's edges;

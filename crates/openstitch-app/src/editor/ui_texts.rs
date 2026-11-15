@@ -1494,6 +1494,8 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("ui-rows", "Rows"),
     ("ui-triple", "Triple"),
     ("ui-ready-to-sew", "Ready to sew"),
+    ("ui-sewable-with-small-risks", "Sewable with small risks"),
+    ("ui-fix-this-first", "Fix this first"),
     (
         "ui-check-design-open-the-list-of-tip",
         "Check Design: open the list of sewing problems",

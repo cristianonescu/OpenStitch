@@ -113,6 +113,361 @@ fn density_reads_one_layer_per_fill_and_stacks() {
     );
 }
 
+/// #1135: stitching in place is counted as the machine file holds it, between needle points
+/// rounded to the 0.1 mm grid. Ten 0.296 mm steps are each under 0.3 mm in the design but 0.3 mm
+/// in the file, so they are no run in place; ten 0.2 mm steps still are. The kit's
+/// fonts-and-text "OpenStitch" text read 9 in a row before (its file 6) and reads no error now.
+#[test]
+fn stitching_in_place_is_counted_on_the_file_grid() {
+    let dir = TempDir::new("check-in-place-grid");
+    let in_place = |step: f64| {
+        let mut s = Session::new(&dir);
+        // A plain run, then the steps: imported, then moved off the grid as a design holds them.
+        let mut st: Vec<Stitch> = (0..10)
+            .map(|k| Stitch::new(f64::from(k) * 20.0, 0.0, Command::Stitch))
+            .collect();
+        st.extend((1..=10).map(|k| Stitch::new(180.0 + f64::from(k) * 3.0, 0.0, Command::Stitch)));
+        st.extend((1..=5).map(|k| Stitch::new(210.0 + f64::from(k) * 20.0, 0.0, Command::Stitch)));
+        import(&mut s, &dir, "steps.pes", st);
+        let mut d = s.design().clone();
+        let block = d
+            .objects
+            .iter_mut()
+            .find_map(|o| o.stitch_block.as_mut())
+            .expect("block");
+        // The import moves the design onto the page: the steps start where a 3-unit step does.
+        let first = block
+            .stitches
+            .windows(2)
+            .position(|w| (w[1].x - w[0].x - 3.0).abs() < 1e-9)
+            .expect("the steps");
+        let x0 = block.stitches[first].x;
+        for k in 1..=10 {
+            block.stitches[first + k].x = x0 + k as f64 * step;
+        }
+        for k in 11..=15 {
+            block.stitches[first + k].x = x0 + 10.0 * step + (k - 10) as f64 * 20.0;
+        }
+        assert!(s.adopt_design(d));
+        let c = run(&mut s, "design.check", json!({"rules": ["inPlace"]}));
+        found(&c, "inPlace").cloned()
+    };
+    assert!(
+        in_place(2.96).is_none(),
+        "0.296 mm steps are 0.3 mm in the file"
+    );
+    let f = in_place(2.0).expect("0.2 mm steps stay in place");
+    assert_eq!(f["value"], json!(10.0), "{f}");
+    // The kit's fonts-and-text title (tools/sew_kit.py): no run in place over 6.
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "OpenStitch", "size": 10, "x": 50, "y": 18, "align": "center"}),
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["inPlace"]}));
+    assert!(found(&c, "inPlace").is_none(), "{c}");
+}
+
+/// #1135: the run in place Check Design reads on a design is the run in the PES OpenStitch
+/// exports from it, read back. These are the three PE-DESIGN references whose finding changed
+/// when the count moved onto the 0.1 mm grid (before: 3, 8 and 7). PE-DESIGN's own files read 5,
+/// 3 and 1. All 508 references agree this way (a release run of 325 s, too slow to keep here).
+/// Since #1151 a squeezed fill stroke sews no stitches in place: text-transform-19's run is 3
+/// (its O) and text-transform-25's 4.
+#[test]
+fn stitching_in_place_reads_the_same_on_the_design_and_its_file() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../compat/reference");
+    let dir = TempDir::new("check-in-place-file");
+    let longest = |st: &[Stitch]| {
+        let (mut run, mut best) = (0, 0);
+        for (i, s) in st.iter().enumerate() {
+            let tiny = i > 0 && s.command == Command::Stitch && {
+                let p = &st[i - 1];
+                let grid = openstitch_core::round_coordinate;
+                ((grid(p.x) - grid(s.x)) as f64).hypot((grid(p.y) - grid(s.y)) as f64) < 3.0
+            };
+            run = if tiny { run + 1 } else { 0 };
+            best = best.max(run);
+        }
+        best
+    };
+    // The run Check Design reports (only over its limit of 6) and the run in the exported file.
+    let both = |rel: &str, turned: bool| {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 400, "height": 400}));
+        if turned {
+            run(
+                &mut s,
+                "machine.set",
+                json!({"hoop": "160x260", "rotate90": true}),
+            );
+        }
+        let path = root.join(rel).display().to_string();
+        run(&mut s, "import.pes", json!({"path": path}));
+        let c = run(&mut s, "design.check", json!({"rules": ["inPlace"]}));
+        let flagged = found(&c, "inPlace").map(|f| f["value"].as_f64().expect("value"));
+        run(&mut s, "design.export", json!({"path": "x.pes"}));
+        let back = FileType::Pes
+            .read(&std::fs::read(dir.join("x.pes")).expect("x.pes"))
+            .expect("pes");
+        (flagged, longest(&back.stitches))
+    };
+    for (rel, want) in [
+        ("text/text-transform-19-openstitch-l100.pes", 3),
+        ("text/text-transform-25-openstitch-l100.pes", 4),
+        ("stitches/line-zigzag-miter-v-b2-m50.pes", 3),
+    ] {
+        let (flagged, file) = both(rel, false);
+        assert_eq!(file, want, "{rel}: the file");
+        assert_eq!(flagged, (want > 6).then_some(want as f64), "{rel}");
+        // A hoop turned 90°: the PES holds the stitches turned about the design's centre, on
+        // another grid, and Check Design counts them as written.
+        let (flagged, file) = both(rel, true);
+        assert_eq!(
+            flagged,
+            (file > 6).then_some(file as f64),
+            "{rel}, turned: file {file}"
+        );
+    }
+}
+
+/// #1036: the crowding count (the spot with the most pairs of needle points under 0.25 mm
+/// within 3 mm) is the same here as in `tools/sew_check.py`, whose self-test asserts these
+/// numbers too: PE-DESIGN's radial circle at its highest density, the kit's most crowded design
+/// and a plain one.
+#[test]
+fn crowding_counts_agree_with_sew_check() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let lim = &openstitch_engine::quality::LIMITS;
+    for (rel, want) in [
+        ("compat/reference/stitches/radial-circle40-dmax.pes", 591),
+        (
+            "examples/sew/image-tools/L-autopunch-storybook-openstitch.pes",
+            227,
+        ),
+        ("examples/sew/fills/fill-options.pes", 29),
+    ] {
+        let p = FileType::Pes
+            .read(&std::fs::read(root.join(rel)).expect("read"))
+            .expect("pes");
+        let c = openstitch_engine::quality::crowding(
+            &p.stitches,
+            lim.crowd_check_mm,
+            lim.crowd_close_mm,
+            0,
+        )
+        .expect("stitches");
+        assert_eq!(c.pairs, want, "{rel}");
+    }
+}
+
+/// #1036: the quick bound that lets most designs skip the count is never below the count (so it
+/// never hides a crowded spot), and a design just over the warning is counted, not skipped.
+#[test]
+fn the_crowding_bound_never_hides_a_crowded_spot() {
+    use openstitch_engine::quality::{crowding, crowding_bound};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for rel in [
+        "compat/reference/stitches/radial-circle40-dmax.pes",
+        "examples/sew/image-tools/L-autopunch-storybook-openstitch.pes",
+        "examples/sew/fills/fill-options.pes",
+    ] {
+        let p = FileType::Pes
+            .read(&std::fs::read(root.join(rel)).expect("read"))
+            .expect("pes");
+        let exact = crowding(&p.stitches, 3.0, 0.25, 0).expect("stitches").pairs;
+        let bound = crowding_bound(&p.stitches, 3.0, 0.25).expect("bound");
+        assert!(bound >= exact, "{rel}: bound {bound} under {exact}");
+        // Skipped under the floor exactly when the count is under it too.
+        assert_eq!(
+            crowding(&p.stitches, 3.0, 0.25, 600).is_none(),
+            exact <= 600,
+            "{rel}"
+        );
+    }
+    let mut s = Session::new(std::env::temp_dir());
+    radial_pair(&mut s, WARN_DENSITY, WARN_OFF);
+    let t = Traced::new(s.design());
+    let exact = crowding(&t.pattern.stitches, 3.0, 0.25, 0)
+        .expect("stitches")
+        .pairs;
+    assert!(exact > 600, "{exact}");
+    assert!(crowding_bound(&t.pattern.stitches, 3.0, 0.25).expect("bound") >= exact);
+    assert_eq!(
+        crowding(&t.pattern.stitches, 3.0, 0.25, 600).map(|c| c.pairs),
+        Some(exact),
+        "just over the warning: counted, not skipped"
+    );
+}
+
+/// #1036: no PE-DESIGN reference file and no kit design reaches the crowding warning (PE-DESIGN's
+/// own most crowded file, its radial circle at density 7, has 591 pairs; the warning is over 600).
+#[test]
+fn no_reference_or_kit_design_is_crowded() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let lim = &openstitch_engine::quality::LIMITS;
+    let mut seen = 0;
+    for dir in ["compat/reference", "examples/sew"] {
+        let mut todo = vec![root.join(dir)];
+        while let Some(d) = todo.pop() {
+            for e in std::fs::read_dir(d).expect("dir").flatten() {
+                let f = e.path();
+                if f.is_dir() {
+                    todo.push(f);
+                } else if f.extension().is_some_and(|x| x.eq_ignore_ascii_case("pes")) {
+                    let Ok(p) = FileType::Pes.read(&std::fs::read(&f).expect("read")) else {
+                        continue;
+                    };
+                    seen += 1;
+                    let c = openstitch_engine::quality::crowding(
+                        &p.stitches,
+                        lim.crowd_check_mm,
+                        lim.crowd_close_mm,
+                        lim.max_crowd_pairs_warn,
+                    );
+                    assert!(
+                        c.is_none(),
+                        "{}: {:?} pairs",
+                        f.display(),
+                        c.map(|c| c.pairs)
+                    );
+                }
+            }
+        }
+    }
+    assert!(seen > 500, "{seen} files");
+}
+
+/// Radial circles just over the crowding warning: 662 pairs (two at density 3 0.1 mm apart
+/// have 574, just under it; two at density 5 0.2 mm apart 1,242, over the error).
+const WARN_DENSITY: f64 = 3.5;
+const WARN_OFF: f64 = 0.2;
+
+/// Two radial circles 40 mm across, the second `off` mm to the right: a real generator setting
+/// whose needle points crowd where the two centres overlap.
+fn radial_pair(s: &mut Session, density: f64, off: f64) {
+    for (id, dx) in [(1, 0.0), (2, off)] {
+        run(
+            s,
+            "shape.ellipse",
+            json!({"cx": 50.0 + dx, "cy": 50, "rx": 20, "ry": 20, "fill": "Red"}),
+        );
+        run(
+            s,
+            "object.setRegion",
+            json!({"ids": [id], "type": "radial", "density": density}),
+        );
+    }
+}
+
+/// #1036: needle crowding is a warning over 600 pairs (beyond anything PE-DESIGN's own files sew)
+/// and an error over 1,200 (twice that), on real generator settings: radial circles laid over each
+/// other. OpenStitch's own radial at its highest density stays under PE-DESIGN's 591.
+#[test]
+fn crowded_needles_warn_then_stop_a_strict_export() {
+    let crowd = |density: f64, off: Option<f64>| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+        match off {
+            Some(off) => radial_pair(&mut s, density, off),
+            None => {
+                run(
+                    &mut s,
+                    "shape.ellipse",
+                    json!({"cx": 50, "cy": 50, "rx": 20, "ry": 20, "fill": "Red"}),
+                );
+                run(
+                    &mut s,
+                    "object.setRegion",
+                    json!({"ids": [1], "type": "radial", "density": density}),
+                );
+            }
+        }
+        let c = run(&mut s, "design.check", json!({"rules": ["crowdedNeedles"]}));
+        (s, found(&c, "crowdedNeedles").cloned())
+    };
+    // OpenStitch's radial at its highest density (#1112): clear of the warning.
+    assert!(crowd(7.0, None).1.is_none());
+    // Just under the warning: none.
+    assert!(crowd(3.0, Some(0.1)).1.is_none());
+    // Just over: a warning naming both circles and the spot.
+    let (_, f) = crowd(WARN_DENSITY, Some(WARN_OFF));
+    let f = f.expect("over 600 pairs");
+    assert_eq!(
+        (f["severity"].as_str(), f["limit"].as_f64()),
+        (Some("warning"), Some(600.0)),
+        "{f}"
+    );
+    assert!(
+        f["value"]
+            .as_f64()
+            .is_some_and(|v| v > 600.0 && v <= 1200.0),
+        "{f}"
+    );
+    assert_eq!(f["ids"], json!([1, 2]), "{f}");
+    assert!(f["bbox"].is_array() && f["fix"].is_null(), "{f}");
+    assert!(
+        f["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("no sew-out evidence")),
+        "{f}"
+    );
+    // Over 1,200: an error, which a strict export refuses; the default export writes and lists it.
+    let (mut s, f) = crowd(5.0, Some(0.2));
+    let f = f.expect("over 1,200 pairs");
+    assert_eq!(
+        (f["severity"].as_str(), f["limit"].as_f64()),
+        (Some("error"), Some(1200.0)),
+        "{f}"
+    );
+    let dir = TempDir::new("check-crowd-export");
+    let strict = dir.join("strict.pes");
+    let e = s
+        .execute(
+            "design.export",
+            Some(&json!({"path": strict.display().to_string(), "checks": "strict"})),
+        )
+        .expect_err("strict refuses a design with an error");
+    assert!(e.to_string().contains("nothing was written"), "{e}");
+    assert!(!strict.exists());
+    let warn = dir.join("warn.pes");
+    let r = run(
+        &mut s,
+        "design.export",
+        json!({"path": warn.display().to_string()}),
+    );
+    assert!(warn.exists());
+    assert!(
+        r["problems"].to_string().contains("pairs of needle points"),
+        "{r}"
+    );
+    // A design without errors exports under strict (two radial centres 0.1 mm apart also stack
+    // 30 needle drops in one spot, an error of its own, so a plain fill here).
+    let mut s = Session::new(std::env::temp_dir());
+    run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 20, "y": 20, "width": 30, "height": 20, "fill": "Blue"}),
+    );
+    let clean = dir.join("clean.pes");
+    run(
+        &mut s,
+        "design.export",
+        json!({"path": clean.display().to_string(), "checks": "strict"}),
+    );
+    assert!(clean.exists());
+    assert!(
+        s.execute(
+            "design.export",
+            Some(&json!({"path": "x.pes", "checks": "loose"}))
+        )
+        .is_err()
+    );
+}
+
 /// `sew_check`'s limits are errors here too, so every kit file it fails fails this check.
 #[test]
 fn sew_check_failures_are_errors() {
@@ -153,6 +508,172 @@ fn sew_check_failures_are_errors() {
     let c = run(&mut s, "design.check", json!({}));
     assert_eq!(c["findings"][0]["rule"], json!("outsideHoop"));
     assert_eq!(c["findings"][0]["severity"], json!("error"), "{c}");
+}
+
+/// #1036: a plain fill whose rows hide less than 40 % of the fabric (on the coverage curve
+/// measured on the T1 sew-outs) gets the `lowCoverage` note, without a fix: about 1.06 lines/mm
+/// hides 40 %, so 0.9 lines/mm is just under and 1.3 just over. A gradation (open on purpose) is
+/// not judged.
+#[test]
+fn a_fill_the_fabric_shows_through_gets_a_low_coverage_note() {
+    let check = |params: Value| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+        let id = run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 20, "y": 20, "width": 40, "height": 30, "fill": "Blue"}),
+        )["id"]
+            .as_u64()
+            .expect("id");
+        let mut p = params;
+        p["ids"] = json!([id]);
+        run(&mut s, "object.setRegion", p);
+        let c = run(&mut s, "design.check", json!({"rules": ["lowCoverage"]}));
+        (id, c.clone(), found(&c, "lowCoverage").cloned())
+    };
+    let (id, c, f) = check(json!({"density": 0.9, "underlay": false}));
+    let f = f.expect("0.9 lines/mm shows the fabric");
+    assert_eq!(f["ids"], json!([id]));
+    assert_eq!(
+        (f["severity"].as_str(), f["limit"].as_f64()),
+        (Some("info"), Some(40.0)),
+        "{f}"
+    );
+    assert!(f["value"].as_f64().is_some_and(|v| v < 40.0), "{f}");
+    assert!(
+        f["fix"].is_null(),
+        "no fix: the density is the user's choice: {f}"
+    );
+    assert!(
+        f["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("1.1 lines/mm")),
+        "{f}"
+    );
+    // A note: the design stays ready, with no warning.
+    assert_eq!(
+        (c["ready"].as_bool(), c["warnings"].as_u64()),
+        (Some(true), Some(0)),
+        "{c}"
+    );
+    assert!(
+        check(json!({"density": 1.3, "underlay": false}))
+            .2
+            .is_none()
+    );
+    assert!(
+        check(json!({"density": 0.5, "underlay": false, "gradationPattern": true}))
+            .2
+            .is_none(),
+        "a gradation is open on purpose"
+    );
+}
+
+/// #1036: small text is judged by its own font's smallest good size (fonts.list sizeRange), not
+/// one size for every font. The fix offers the Small Text font where the text is big enough
+/// for it, else the font's smallest size, and clears the finding.
+#[test]
+fn small_text_is_judged_by_its_own_font() {
+    let small = |font: &str, size: f64| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+        run(
+            &mut s,
+            "text.add",
+            json!({"text": "Hi", "font": font, "size": size, "x": 50, "y": 50}),
+        );
+        let c = run(&mut s, "design.check", json!({"rules": ["textTooSmall"]}));
+        let f = found(&c, "textTooSmall").cloned();
+        if let Some(f) = &f {
+            let fix = f["fix"].clone();
+            run(
+                &mut s,
+                fix["command"].as_str().expect("command"),
+                fix["params"].clone(),
+            );
+            let c = run(&mut s, "design.check", json!({"rules": ["textTooSmall"]}));
+            assert!(found(&c, "textTooSmall").is_none(), "{font} {size}: {c}");
+        }
+        f
+    };
+    // Lato Bold sews well from 6 mm: 5 mm is small (the old single limit, 4 mm, let it pass).
+    let f = small("lato-bold", 5.0).expect("5 mm Lato Bold");
+    assert_eq!(
+        (f["value"].as_f64(), f["limit"].as_f64()),
+        (Some(5.0), Some(6.0)),
+        "{f}"
+    );
+    assert_eq!(f["fix"]["params"]["font"], json!("openstitch-line"), "{f}");
+    assert!(small("lato-bold", 6.0).is_none());
+    // Pacifico from 7 mm.
+    let f = small("pacifico", 6.5).expect("6.5 mm Pacifico");
+    assert_eq!(f["limit"], json!(7.0), "{f}");
+    assert!(small("pacifico", 7.0).is_none());
+    // The Small Text font itself, under its own 3 mm: the fix is its smallest size.
+    let f = small("openstitch-line", 2.5).expect("2.5 mm Small Text");
+    assert_eq!(f["fix"]["params"]["size"], json!(3.0), "{f}");
+    assert!(small("openstitch-line", 3.0).is_none());
+}
+
+/// #1036: `design.check` names the readiness level from its counts alone: ready to sew with no
+/// errors or warnings (notes never count), sewable with small risks with warnings only, fix this
+/// first with any error. A level, not a score.
+#[test]
+fn the_readiness_level_follows_the_errors_and_warnings() {
+    let level = |steps: &[(&str, Value)]| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+        for (c, p) in steps {
+            run(&mut s, c, p.clone());
+        }
+        let c = run(&mut s, "design.check", json!({}));
+        (c["level"].as_str().unwrap_or_default().to_string(), c)
+    };
+    let rect = |x: f64| {
+        (
+            "shape.rectangle",
+            json!({"x": x, "y": 20, "width": 30, "height": 20, "fill": "Blue"}),
+        )
+    };
+    let (l, c) = level(&[rect(20.0)]);
+    assert_eq!(l, "readyToSew", "{c}");
+    // A note only (an open fill, #1036): still ready.
+    let (l, c) = level(&[
+        rect(20.0),
+        (
+            "object.setRegion",
+            json!({"ids": [1], "density": 0.9, "underlay": false}),
+        ),
+    ]);
+    assert_eq!(
+        (l.as_str(), c["notes"].as_u64()),
+        ("readyToSew", Some(1)),
+        "{c}"
+    );
+    // A warning only (3 mm text).
+    let (l, c) = level(&[
+        rect(20.0),
+        (
+            "text.add",
+            json!({"text": "Hi", "size": 3, "x": 50, "y": 70}),
+        ),
+    ]);
+    assert_eq!(
+        (l.as_str(), c["errors"].as_u64()),
+        ("sewableWithSmallRisks", Some(0)),
+        "{c}"
+    );
+    // An error (past the hoop), whatever else.
+    let (l, c) = level(&[
+        rect(80.0),
+        (
+            "text.add",
+            json!({"text": "Hi", "size": 3, "x": 50, "y": 70}),
+        ),
+    ]);
+    assert_eq!(l, "fixThisFirst", "{c}");
+    assert!(c.get("score").is_none(), "no number: {c}");
 }
 
 /// The fixture of #503: each problem is found once, on its own object, and its fix clears it
@@ -264,10 +785,11 @@ fn just_inside_the_limits_is_clean() {
         "shape.rectangle",
         json!({"x": 40, "y": 10, "width": 2, "height": 30, "fill": "Red"}),
     );
+    // Lato Bold's smallest good size, its own limit since #1036 (4 mm for every font before).
     run(
         &mut s,
         "text.add",
-        json!({"text": "Hi", "size": 4, "x": 50, "y": 60}),
+        json!({"text": "Hi", "size": 6, "x": 50, "y": 60}),
     );
     let c = run(&mut s, "design.check", json!({}));
     assert_eq!(c["findings"], json!([]), "{c}");
@@ -892,7 +1414,7 @@ fn a_turned_zigzag_nets_steps_along_the_outline_are_not_short_stitch_findings() 
     run(
         &mut s,
         "object.setRegion",
-        json!({"id": 1, "type": "zigzagNetFill", "spacing": 8.0, "density": 2.25,
+        json!({"id": 1, "type": "zigzagNetFill", "spacing": 5.0, "density": 2.25,
             "patternWidth": 3.0, "underlay": true, "angle": 45}),
     );
     let st = openstitch_design::Compiler::for_design(s.design())

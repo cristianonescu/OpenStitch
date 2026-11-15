@@ -69,7 +69,8 @@ pub const APPLIQUE_KIND: u32 = 2;
 
 /// Body offsets of fields that belong to the sew types an object doesn't use: they hold either
 /// PE-DESIGN's tool values or plain ones ([`Shape::plain_settings`]); the meaning of each is not
-/// mapped.
+/// mapped, except on a motif line, where +70 and +72 are its size and +82 its Run pitch, written
+/// from the shape.
 pub const SETTINGS_FIELDS: [usize; 13] =
     [58, 70, 72, 82, 218, 220, 238, 240, 260, 334, 336, 346, 364];
 /// [`SETTINGS_FIELDS`] as the Shape, Text and Manual Punch tools write them (r01 and every
@@ -548,8 +549,10 @@ pub struct Shape {
     /// rectangles); on stem, candlewick and chain lines it moves with the start and end options
     /// together with +84 (line-*-startend-*), meaning not mapped there (1 on a default chain).
     pub line_variant: u16,
-    /// Body +84: 1 with some start and end options on stem and candlewick lines
-    /// (line-stem-startend-*), 0 otherwise; meaning not mapped.
+    /// Body +84: on a motif line its Start/End Type, 0 Feed (PE-DESIGN's default), 1 Run
+    /// (1068-motif-5x8-startend-run against 608-motif-5x8, round 15, #1068); 1 with some start
+    /// and end options on stem and candlewick lines (line-stem-startend-*), meaning not mapped
+    /// there; 0 otherwise.
     pub line_flag_84: u16,
     /// Zigzag width, mm.
     pub zigzag_width: f32,
@@ -575,6 +578,13 @@ pub struct Shape {
     pub ev_opening: f32,
     /// Running stitch pitch, mm. Kept while another line type is chosen, as PE's tool keeps it.
     pub run_pitch: f32,
+    /// A motif line's Run pitch, mm (body +82, 0.1 mm; PE-DESIGN's default 5.0). Written on
+    /// motif lines only; other line types write the settings value there ([`SETTINGS_FIELDS`]),
+    /// which is 5.0 from PE-DESIGN's tools. The stitches between and along the motifs, apart from the running
+    /// pitch (+52). The only field of 608-motif-5x8 that moves when Run pitch alone is set to
+    /// 3.0 and 7.0 (1068-motif-5x8-runpitch-3p0, -7p0, round 15, #1068), besides +216 (0 at
+    /// 5.0, 1 at both others; not mapped).
+    pub motif_pitch: f32,
     pub line_under_sewing: bool,
     pub region: RegionSewType,
     /// Region colour: an index into [`Objects::threads`].
@@ -600,6 +610,11 @@ pub struct Shape {
     /// Cross Stitch Times as PE-DESIGN writes it (body +284): 2 Single, 4 Double, 6 Triple,
     /// the times each diagonal is covered (614-cross-single/-double/-triple, #614).
     pub cross_passes: u16,
+    /// Zigzag Net Fill's zigzag width and Spacing, mm (body +366 and +370, 0.1 mm; 30 and 50
+    /// for PE-DESIGN's 3.0 / 5.0 defaults, its Density 4.5 in between at +368 and at +136).
+    /// Spacing is the gap between bands (round 15, zigzag-net-circle40-w3p0/w6p0/w10p0, #1109).
+    /// Written only on a zigzag net; other shapes keep the template's values.
+    pub zigzag_net: [f32; 2],
     /// The fields of the sew types the object doesn't use hold their plain values
     /// ([`PLAIN_SETTINGS`]) rather than PE-DESIGN's tool values ([`TOOL_SETTINGS`]): the
     /// Applique Wizard's covering line (a01-rect-applique) and shapes from a vector import
@@ -689,6 +704,7 @@ impl Shape {
             ev_spacing: 5.0,
             ev_opening: 2.0,
             run_pitch: 2.0,
+            motif_pitch: 5.0,
             line_under_sewing: true,
             region: RegionSewType::Fill,
             region_color: 0,
@@ -702,6 +718,7 @@ impl Shape {
             flag_178: 1,
             cross_size: 2.5,
             cross_passes: 2,
+            zigzag_net: [3.0, 5.0],
             plain_settings: false,
             flag_176: 1,
             gallery: false,
@@ -1533,6 +1550,7 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         ev_spacing: f32::from(u16_at(body, 88)) / 10.0,
         ev_opening: f32::from(u16_at(body, 92)) / 10.0,
         run_pitch: f32::from(u16_at(body, 52)) / 10.0,
+        motif_pitch: f32::from(u16_at(body, 82)) / 10.0,
         line_under_sewing: u16_at(body, 60) != 0,
         region: RegionSewType::from_raw(u16_at(body, 134)),
         region_color: u16_at(body, 170),
@@ -1546,6 +1564,7 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         flag_178: u16_at(body, 178),
         cross_size: f32::from(u16_at(body, 282)) / 10.0,
         cross_passes: u16_at(body, 284),
+        zigzag_net: [366, 370].map(|at| f32::from(u16_at(body, at)) / 10.0),
         plain_settings: SETTINGS_FIELDS
             .iter()
             .zip(PLAIN_SETTINGS)
@@ -2247,6 +2266,10 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     for (&at, v) in SETTINGS_FIELDS.iter().zip(settings) {
         put16(&mut head, at, v);
     }
+    // +82 is one of the settings fields, but on a motif line it is the line's Run pitch (#1068).
+    if s.line_type == Shape::LINE_MOTIF {
+        put16(&mut head, 82, tenths(s.motif_pitch));
+    }
     put16(&mut head, 180, u16::from(s.under_sewing));
     put16(&mut head, 182, s.under_sewing_type);
     put16(&mut head, 186, s.running_path);
@@ -2269,6 +2292,10 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     put16(&mut head, 332, s.motif_fields[1]);
     put16(&mut head, 282, tenths(s.cross_size));
     put16(&mut head, 284, s.cross_passes);
+    if s.region == RegionSewType::ZigzagNet {
+        put16(&mut head, 366, tenths(s.zigzag_net[0]));
+        put16(&mut head, 370, tenths(s.zigzag_net[1]));
+    }
     // Reference points: five at the bounds' top-left corner, two at their centre (i32 x, y).
     for at in [204, 262, 286, 354, 378] {
         put32(&mut head, at, i32::from(x0));

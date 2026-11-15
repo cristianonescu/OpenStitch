@@ -110,7 +110,6 @@ const EXPECT: &[(&str, Expect)] = &[
     ("r:gradationMin", Expect::Changes),
     ("r:gradationPattern", Expect::Changes),
     ("r:gradationShape", Expect::Changes),
-    ("r:gradationSteps", Expect::Changes),
     ("r:halfStitch", Expect::Changes),
     ("r:handAmount", Expect::Changes),
     ("r:handSide", Expect::Changes),
@@ -157,58 +156,22 @@ const EXPECT: &[(&str, Expect)] = &[
 /// Settings that change nothing today, found by this test (#880): the start of each problem
 /// line and why, with the issue that tracks it (#1039-#1049). A problem not listed here fails,
 /// and so does an entry that no longer reproduces (remove it once its issue is fixed).
-const KNOWN: &[(&str, &str)] = &[
-    (
-        r#"r:fill gradationSteps"#,
-        "#1039: Gradation steps change nothing with a gradation pattern on (2-20 steps)",
-    ),
-    (
-        r#"r:satin gradationSteps"#,
-        "#1039: Gradation steps change nothing with a gradation pattern on (2-20 steps)",
-    ),
-    (
-        r#"r:satin cornerStyle (with {"autoDirection":true}): mitre and cap"#,
-        "#1040: Auto-direction satin corners: mitre and cap sew the same",
-    ),
-    (
-        r#"r:satin underlayStyle: edgeZigzag and edgeFill"#,
-        "#1041: Satin region: edge-fill under sewing sews as edge zigzag",
-    ),
-    (
-        r#"r:satin runningStitchPath: inside and insideHidden"#,
-        "Not a bug: insideHidden differs from inside only on an open fill (low density, #628)",
-    ),
-    (
-        r#"l:running profile: linear and smoothstep"#,
-        "#1046: Thickness profiles other than arc sew the same with the default passes",
-    ),
-    (
-        r#"l:running profile: linear and stairs"#,
-        "#1046: Thickness profiles other than arc sew the same with the default passes",
-    ),
-    (
-        r#"l:running profile: smoothstep and stairs"#,
-        "#1046: Thickness profiles other than arc sew the same with the default passes",
-    ),
-    (
-        r#"l:satin cornerStyle: mitre and cap"#,
-        "#1048: Satin line corners: mitre and cap sew the same",
-    ),
-    (
-        r#"l:satin capBelow (with {"cornerStyle":"auto"})"#,
-        "#1048: Satin line: cap below changes nothing with auto corners",
-    ),
-    (
-        r#"l:satin capMaxLength (with {"cornerStyle":"auto"})"#,
-        "#1048: Satin line: cap max length changes nothing with auto corners",
-    ),
-];
+const KNOWN: &[(&str, &str)] = &[(
+    r#"r:satin runningStitchPath: inside and insideHidden"#,
+    "Not a bug: insideHidden differs from inside only on an open fill (low density, #628)",
+)];
 
 /// Settings whose effect is bounded by another setting of the same type, swept with that one
 /// set where it lets them act over their whole range (#1050): a motif line's run pitch only
 /// splits the motif's own segments (2 x 3 mm at the default size), a V-stitch's only the run
 /// between its Vs (0.6 x the interval), a motif fill's only its cell's segments, a zigzag's
-/// miter limit and cap length only reach as far as its width carries a corner.
+/// miter limit and cap length only reach as far as its width carries a corner. A running
+/// line's thickness profile picks the passes between its fewest and most (#1046): with the
+/// default 1 to 3 there are two thicknesses, and linear, smoothstep and four stairs all turn
+/// from one to the other halfway along; with 1 to 7 their four thicknesses fall in different
+/// places. A satin line's cap max length only acts where a corner is capped: with Auto
+/// corners below the default 45° none of the fixtures' corners is, so it is swept with every
+/// corner below 120° capped, on a 6 mm satin whose caps have lengths across its range (#1048).
 const CONTEXT: &[(&str, &str)] = &[
     ("l:motif pitch", r#"{"width":10,"spacing":10}"#),
     ("l:vStitch pitch", r#"{"spacing":20}"#),
@@ -218,21 +181,14 @@ const CONTEXT: &[(&str, &str)] = &[
     ),
     ("l:zigzag miterLimit", r#"{"width":10}"#),
     ("l:zigzag capMaxLength", r#"{"width":5}"#),
+    ("l:running profile", r#"{"maxPasses":7}"#),
+    ("l:satin capMaxLength", r#"{"capBelow":120,"width":6}"#),
 ];
 
 /// Settings that change only near one end of their range until a PE-DESIGN capture shows
 /// whether PE-DESIGN caps them too (#1050, round 15): printed as NOTEs. Every other such
 /// plateau fails.
-const PLATEAU_PENDING: &[(&str, &str)] = &[
-    (
-        "r:radial density",
-        "#1050: radial lines stay 0.4 mm apart (about 2.5 lines/mm at the outline); round 15 captures PE-DESIGN's radial at 3, 5 and 10",
-    ),
-    (
-        "r:zigzagNetFill patternWidth",
-        "#1050: the zigzag is at most 0.8 x the spacing; round 15 captures PE-DESIGN's zigzag net at widths 6 and 10 on a 5 mm spacing",
-    ),
-];
+const PLATEAU_PENDING: &[(&str, &str)] = &[];
 
 /// `state` with the setting's [`CONTEXT`] added.
 fn in_context(what: &str, state: &Value) -> Value {
@@ -327,6 +283,12 @@ fn fixture_shape(shape: usize) -> (&'static str, Value) {
             "shape.polygon",
             json!({"points": [[10, 20], [70, 25], [10, 30]]}),
         ),
+        // A narrow V band whose skeleton bends sharply enough for an auto-direction satin's
+        // corner to be capped as well as mitred (#1040).
+        9 => (
+            "shape.polygon",
+            json!({"points": [[10, 10], [25, 50], [40, 10], [44, 10], [25, 58], [6, 10]]}),
+        ),
         k => ("shape.polygon", json!({ "points": outline(k) })),
     }
 }
@@ -355,7 +317,7 @@ fn outline(shape: usize) -> Vec<[f64; 2]> {
     }
 }
 
-const SHAPES: usize = 9;
+const SHAPES: usize = 10;
 
 impl Fixture {
     /// Fixture `shape` sewn only as `side`, of type `kind` (an inspector type id).

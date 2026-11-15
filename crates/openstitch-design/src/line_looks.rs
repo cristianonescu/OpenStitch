@@ -66,6 +66,11 @@ fn is_four(v: &u32) -> bool {
     *v == 4
 }
 
+/// What a running line's thickness profile shows with few passes (#1046): the passes are odd,
+/// from the fewest to the most, so 1 to 3 gives two thicknesses only. The inspector's hint and
+/// `object.setLine`'s description both say it.
+pub const PROFILE_PASSES_NOTE: &str = "Thin to thick (linear), smooth thin to thick (smoothstep) and stairs differ only with Most passes 5 or more: with 1 to 3 passes a line has two thicknesses, and all three turn from one to the other halfway along";
+
 /// A profile: a preset, or custom points `(t, value)` joined by straight lines.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

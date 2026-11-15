@@ -146,3 +146,52 @@ fn knockdown_keeps_large_holes() {
     );
     assert_eq!(r["contours"], 1);
 }
+
+/// #1124: the second layer crosses the first within the -360..360 that the command and the
+/// inspector accept: at 300 degrees it is stored as 30 (390 less a turn), the same direction.
+#[test]
+fn a_second_layer_past_a_turn_is_stored_within_one() {
+    let tmp = TempDir::new("knockdown-turn");
+    let mut s = Session::new(tmp.path());
+    let a = rect(&mut s, 20.0, 20.0, 20.0, 20.0, "#ff0000");
+    for (angle, second) in [(300.0, 30.0), (270.0, 0.0), (-300.0, -210.0)] {
+        run(
+            &mut s,
+            "wizard.knockdown",
+            json!({"ids": [a], "layers": 2, "angle": angle}),
+        );
+        let angles: Vec<f64> = s.design().objects[..2]
+            .iter()
+            .map(|o| o.region.as_ref().expect("present").angle)
+            .collect();
+        assert_eq!(angles, vec![angle, second], "at {angle}");
+        run(&mut s, "history.undo", json!({}));
+    }
+}
+
+/// #1124: `wizard.knockdown`'s `layers` description says how a second layer past a turn is stored,
+/// as `a_second_layer_past_a_turn_is_stored_within_one` checks it.
+#[test]
+fn the_layers_description_says_a_second_layer_is_stored_within_a_turn() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "wizard.knockdown")
+        .expect("wizard.knockdown");
+    let layers = spec
+        .params
+        .iter()
+        .find(|p| p.name == "layers")
+        .expect("layers")
+        .summary
+        .to_string();
+    for words in [
+        "angle and angle + 90",
+        "stored a turn less",
+        "300 gives 30, 270 gives 0",
+        "within the -360..360",
+    ] {
+        assert!(layers.contains(words), "{words:?} in {layers}");
+    }
+}

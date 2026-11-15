@@ -861,23 +861,25 @@ fn region_entry_and_exit_points() {
         "snapped to the left edge"
     );
     assert_eq!(r["regionExit"], json!([40.0, 12.0]));
+    // A fill with under sewing (the default) starts on the under sewing's edge run 1 mm
+    // inside the outline, at its point nearest the entry, as PE-DESIGN 11.50 does (#1088).
     let (first, last) = first_and_last_stitch(&s);
-    assert_eq!(first, (10.0, 22.0));
+    assert_eq!(first, (11.0, 22.0));
     assert_eq!(last, (40.0, 12.0));
     // Moving the shape moves its points; the .osd keeps them.
     run(&mut s, "object.move", json!({"id": 1, "dx": 5}));
     let (first, _) = first_and_last_stitch(&s);
-    assert_eq!(first, (15.0, 22.0));
+    assert_eq!(first, (16.0, 22.0));
     let saved = openstitch_engine::project::encode(s.design()).expect("encode");
     let back = openstitch_engine::project::decode(&saved).expect("decode");
     assert_eq!(&back, s.design());
-    // Underlay starts at the entry too.
+    // Underlay starts nearest the entry too.
     run(
         &mut s,
         "object.setRegion",
         json!({"id": 1, "underlay": true}),
     );
-    assert_eq!(first_and_last_stitch(&s).0, (15.0, 22.0));
+    assert_eq!(first_and_last_stitch(&s).0, (16.0, 22.0));
     // Clearing.
     run(
         &mut s,
@@ -1042,4 +1044,53 @@ fn paste_carries_the_fonts_its_texts_use() {
     let clash =
         json!({"objects": [run(&mut a, "object.get", json!({"id": text}))], "fonts": other});
     assert!(b.execute("object.paste", Some(&clash)).is_err());
+}
+
+/// #1103: PE-DESIGN 11.50 starts and ends a Closed Straight Line shape's fill at the vertex
+/// clicked first, whichever corner and drawing direction (round15/polygon-start-vertex); an
+/// open line keeps no start of its own. The command's `points` description says so.
+#[test]
+fn a_closed_polygon_starts_and_ends_at_its_first_vertex() {
+    let mut s = session();
+    // Triangle A clicked bottom-right first, triangle B top first and anticlockwise.
+    for pts in [
+        json!([[70, 76.5], [50, 76.5], [60, 56]]),
+        json!([[30, 56], [20, 76.5], [40, 76.5]]),
+    ] {
+        let first = (
+            pts[0][0].as_f64().expect("x"),
+            pts[0][1].as_f64().expect("y"),
+        );
+        let o = id(&run(
+            &mut s,
+            "shape.polygon",
+            json!({"points": pts, "fill": "Black"}),
+        ));
+        let d = s.design();
+        let r = d.objects[d.index_of(o).expect("object")]
+            .region
+            .clone()
+            .expect("region");
+        let at = r.entry.expect("entry");
+        assert!((at.x - first.0 * 10.0).abs() < 1e-9 && (at.y - first.1 * 10.0).abs() < 1e-9);
+        assert_eq!(r.exit, r.entry);
+    }
+    let line = id(&run(
+        &mut s,
+        "shape.polygon",
+        json!({"points": [[0, 0], [10, 0]], "closed": false}),
+    ));
+    let d = s.design();
+    assert!(d.objects[d.index_of(line).expect("line")].region.is_none());
+    let doc = s
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "shape.polygon")
+        .expect("shape.polygon");
+    let points = doc
+        .params
+        .iter()
+        .find(|p| p.name == "points")
+        .expect("points");
+    assert!(points.summary.contains("starts and ends at the first"));
 }

@@ -139,6 +139,16 @@ impl Control {
         let param = self.param();
         let value = match (self, value.as_f64()) {
             (Control::Number { integer: true, .. }, Some(v)) => json!(v.round() as i64),
+            // The candlewick Density choices send their density (#1124).
+            (
+                Control::Choice {
+                    param: "density", ..
+                },
+                _,
+            ) => value
+                .as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+                .map_or(value, |v| json!(v)),
             _ => value,
         };
         json!({ param: value })
@@ -255,6 +265,14 @@ fn toggle(label: &'static str, param: &'static str, value: bool) -> Control {
     }
 }
 
+/// The hover hint of a control, by its parameter: what the control alone does not say.
+pub fn hint(param: &str) -> Option<&'static str> {
+    match param {
+        "profile" => Some(openstitch_design::line_looks::PROFILE_PASSES_NOTE),
+        _ => None,
+    }
+}
+
 fn choice(
     label: &'static str,
     param: &'static str,
@@ -269,6 +287,36 @@ fn choice(
             .iter()
             .map(|(v, l)| (v.to_string(), l.to_string()))
             .collect(),
+    }
+}
+
+/// PE-DESIGN's candlewick Density choices (round 15), as stored densities: a knot of twice as
+/// many points.
+pub const CANDLEWICK_DENSITIES: [(f64, &str); 3] =
+    [(16.0, "Dense"), (12.0, "Medium"), (10.0, "Light")];
+
+/// The candlewick Density drop-down (#1124). A density set by command to another value is
+/// offered as it is, so selecting the line shows and keeps it.
+fn candlewick_density(density: f64) -> Control {
+    let value = format!("{density}");
+    let mut options: Vec<(String, String)> = Vec::new();
+    if !CANDLEWICK_DENSITIES
+        .iter()
+        .any(|(d, _)| (d - density).abs() < 1e-9)
+    {
+        let points = (density * 2.0).round().clamp(4.0, 48.0);
+        options.push((value.clone(), format!("{value} ({points} points)")));
+    }
+    options.extend(
+        CANDLEWICK_DENSITIES
+            .iter()
+            .map(|(d, name)| (format!("{d}"), (*name).to_string())),
+    );
+    Control::Choice {
+        label: "Density",
+        param: "density",
+        value,
+        options,
     }
 }
 
@@ -566,22 +614,28 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
         }
         v.push(toggle("Underlay", "underlay", r.underlay));
         if r.underlay {
-            let style = r.underlay_style.id();
-            v.push(choice(
-                "Underlay style",
-                "underlayStyle",
-                style,
-                &[
-                    ("edge", "Edge"),
-                    ("zigzag", "Zigzag"),
-                    ("edgeZigzag", "Edge and zigzag"),
-                    ("double", "Double"),
-                    ("edgeFill", "Edge and fill"),
-                    ("cross", "Edge and cross-hatch (PE-DESIGN type 2)"),
-                    ("auto", "Automatic (by width)"),
-                    ("centreWalk", "Centre walk"),
-                ],
-            ));
+            // PE-DESIGN's first under sewing type is the edge run and rows: fill rows on a fill
+            // (`edgeFill`), zigzag rows on a satin (`edgeZigzag`). A satin has no separate edge
+            // and fill (#1041): one holding it shows, and sews, as edge and zigzag.
+            let satin = r.kind == RegionType::Satin;
+            let style = match r.underlay_style {
+                UnderlayStyle::EdgeFill if satin => "edgeZigzag",
+                s => s.id(),
+            };
+            let styles: Vec<(&str, &str)> = [
+                ("edge", "Edge"),
+                ("zigzag", "Zigzag"),
+                ("edgeZigzag", "Edge and zigzag"),
+                ("double", "Double"),
+                ("edgeFill", "Edge and fill"),
+                ("cross", "Edge and cross-hatch (PE-DESIGN type 2)"),
+                ("auto", "Automatic (by width)"),
+                ("centreWalk", "Centre walk"),
+            ]
+            .into_iter()
+            .filter(|(id, _)| !(satin && *id == "edgeFill"))
+            .collect();
+            v.push(choice("Underlay style", "underlayStyle", style, &styles));
             v.push(choice(
                 "Underlay density",
                 "underlayDensity",
@@ -661,15 +715,6 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
                         (5.0, 100.0),
                         1.0,
                         " %",
-                    ));
-                    v.push(num(
-                        "Gradation steps",
-                        "region.gradationSteps",
-                        "gradationSteps",
-                        g.steps.unwrap_or(9) as f64,
-                        (2.0, 20.0),
-                        1.0,
-                        "",
                     ));
                     // Named density profiles (#532, beyond PE-DESIGN).
                     let shapes: Vec<(&str, &str)> = openstitch_design::GradationShape::ALL
@@ -800,6 +845,14 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
             .unwrap_or_else(|| patterns::default_for(kind).id.clone()),
         options: pattern_options_with(kind, user),
     };
+    // #1124: a decorative fill's tile goes to PE-DESIGN 11.50's 500 mm, as the command's
+    // (round 15: width and height 10.0-500.0 each, default 100 x 100). The 0.5 mm minimum stays
+    // below PE-DESIGN's 10.0 for OpenStitch's own smaller tiles (its default is 10 x 8).
+    let size_max = if r.kind == RegionType::DecorativeFill {
+        500.0
+    } else {
+        50.0
+    };
     let size = || {
         vec![
             num(
@@ -807,7 +860,7 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                 "region.patternWidth",
                 "patternWidth",
                 pw,
-                (0.5, 50.0),
+                (0.5, size_max),
                 0.05,
                 " mm",
             ),
@@ -816,7 +869,7 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                 "region.patternHeight",
                 "patternHeight",
                 ph,
-                (0.5, 50.0),
+                (0.5, size_max),
                 0.05,
                 " mm",
             ),
@@ -1129,8 +1182,9 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
             v.push(pitch);
         }
         // Beyond PE-DESIGN (#533).
+        // #1124: the command's 0.5 mm minimum (no PE-DESIGN range to follow).
         RegionType::Maze => {
-            v.push(spacing("Spacing", 1.0));
+            v.push(spacing("Spacing", 0.5));
             v.push(pitch);
             v.push(percent(
                 "Straightness",
@@ -1165,7 +1219,21 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                     .unwrap_or_else(|| patterns::NET_PATTERNS[0].id.to_string()),
                 options: net_options(zigzag),
             });
-            v.push(spacing("Spacing", 0.5));
+            if zigzag {
+                // PE-DESIGN 11.50's ranges: Spacing (the gap between bands) 2.0 to 10.0 mm, zigzag
+                // width 1.0 to 10.0 mm (#1109).
+                v.push(num(
+                    "Spacing",
+                    "region.spacing",
+                    "spacing",
+                    r.spacing_mm(),
+                    (2.0, 10.0),
+                    0.05,
+                    " mm",
+                ));
+            } else {
+                v.push(spacing("Spacing", 0.5));
+            }
             v.push(pitch);
             if zigzag {
                 v.push(num(
@@ -1173,7 +1241,7 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                     "region.patternWidth",
                     "patternWidth",
                     pw,
-                    (0.5, 50.0),
+                    (1.0, 10.0),
                     0.05,
                     " mm",
                 ));
@@ -1472,18 +1540,30 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
                 value: l.single,
             },
         ],
+        // #1124: PE-DESIGN 11.50's own fields (round 15): Size 3.0-10.0 mm, Spacing 0.0-100.0
+        // mm, and Density a drop-down of Dense, Medium and Light, knots of 32, 24 and 20
+        // points (densities 16, 12 and 10; 1124-candlewick-*-square40.pes). The command keeps
+        // Size 0.5-10, and a smaller stored knot is shown as it is (#1121).
         LineType::Candlewick => vec![
-            width("Size"),
             num(
-                "Density",
-                "line.density",
-                "density",
-                l.density,
-                (0.5, 10.0),
+                "Size",
+                "line.width",
+                "width",
+                l.width,
+                (3.0, 10.0),
                 0.05,
-                " /mm",
+                " mm",
             ),
-            spacing("Spacing", 0.5),
+            candlewick_density(l.density),
+            num(
+                "Spacing",
+                "line.spacing",
+                "spacing",
+                l.spacing_mm(),
+                (0.0, 100.0),
+                0.05,
+                " mm",
+            ),
             pitch,
         ],
         LineType::EStitch | LineType::VStitch => {
@@ -1491,7 +1571,8 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
                 spacing("Interval", 0.5),
                 width("Stroke width"),
                 pitch,
-                times("Run times", "line.runTimes", "runTimes", l.run_times, 6),
+                // #1124: the guide's 1-5, as the command's (chain alone takes 6).
+                times("Run times", "line.runTimes", "runTimes", l.run_times, 5),
             ];
             if l.kind == LineType::EStitch {
                 v.push(times(

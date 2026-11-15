@@ -108,7 +108,10 @@ The fields:
     with the jumps leading into them, so one object of a design whose objects are trimmed
     apart, #1088), an `align` anchor and an `exclude` (`{"first": n, "last": m}`: the first
     and last stitch segments are left out, e.g. a tie-in and an end lock; the measurement's
-    evidence says why);
+    evidence says why) and a `cut` (`{"at": [x, y], "keep": "before" | "from"}`: only the
+    stitches before, or from, the first stitch within 0.05 mm of the point, after `align` and
+    before `exclude`; one layer of an object whose layers meet there, such as a fill's under
+    sewing and its top fill at the entry point, #1103);
   - an `expected` value with a `tolerance`, a `reference` check, or both;
   - an `evidence` string saying where the expected value comes from.
 - **Expected values** are compared structurally:
@@ -134,6 +137,7 @@ The fields:
 | `stitchesOutside {polygon, within}` | Stitch midpoints outside a region |
 | `travelGaps`, `totalJumpLength` | Needle travel across each jump / trim run; total jump length, mm |
 | `polar {center, ring?, ringWithin, property}` | Needle points seen from `center` (mm): `minRadius`, `maxRadius` (mm), `midAngle`, `angleSpan` (degrees clockwise on screen from 12 o'clock); points within `ringWithin` mm (default 0.3) of a circle of radius `ring` (an outline sewn with fitted text) are left out |
+| `centreCrowding {center?, within, closer?, property}` | How crowded the needle points are about `center` (mm; the bounds' middle when left out): `points`, the distinct needle points on the 0.1 mm grid within `within` mm, or `closePairs`, the pairs of them closer than `closer` mm (default 0.25). A radial fill's centre (#461, #1050) |
 | `columns {x, halfWidth}` | For each x (mm), the highest and lowest needle point within `halfWidth` mm (default 0.3): `[top0, bottom0, …]`, mm |
 | `needleEnds` | First and last needle point `[x0, y0, x1, y1]`, mm from the top-left of the needle points (a jump landing right before the first stitch counts as the start) |
 | `stitchedArea` | Area covered by 0° fill rows, mm²: each row's needle extent (with the stitches into and out of it from ≤ 0.5 mm away) × the mean row gap. Single points (under sewing across the fill, travel) are not rows |
@@ -377,7 +381,9 @@ at its defaults, 800 RED, Save As default type.
   the text off the page and PE then wrote no PEC section, so pe-gui remade them on the page.
   `tools/fit_envelopes.py` reads every H stem's top and bottom needle point and fits each
   preset's top and bottom edge in the straight text's box (constant, slope and cosine terms,
-  outliers dropped; mirror pairs and symmetric presets pooled), into
+  outliers dropped; mirror pairs and symmetric presets pooled; a knot between two letters keeps
+  the fit unless it ripples outside its nearest sampled knots, then lies on the straight line
+  between them, #1079), into
   `crates/openstitch-design/src/envelope_presets.rs`. The specs check the box (`bounds`) and the
   14 stems (`columns`, 1.05 mm half width: OpenStitch's fill rows end on the stem edges) within
   0.5 mm. The arches set the letters rigidly along an arc whose inner line keeps the text's

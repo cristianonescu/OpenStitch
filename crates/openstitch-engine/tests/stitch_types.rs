@@ -282,17 +282,25 @@ fn gradation_pattern_options() {
         json!({"id": 1, "gradationPattern": true}),
     );
     assert_eq!(gradation(&s), Some(Gradation::PE_DEFAULT));
-    run(
+    // PE-DESIGN's pattern always has nine points (#1039): a step count from an older script
+    // is accepted, ignored, and answered with a hint.
+    let reply = run(
         &mut s,
         "object.setRegion",
         json!({"id": 1, "gradationMax": 80, "gradationSteps": 4}),
+    );
+    assert!(
+        reply["hints"][0]
+            .as_str()
+            .is_some_and(|h| h.contains("gradationSteps is ignored")),
+        "{reply}"
     );
     assert_eq!(
         gradation(&s),
         Some(Gradation {
             max: 80.0,
             min: 5.0,
-            steps: Some(4),
+            steps: Some(9),
             shape: Default::default(),
         })
     );
@@ -302,11 +310,18 @@ fn gradation_pattern_options() {
         "object.setRegion",
         json!({"id": 1, "gradationPattern": true}),
     );
-    assert_eq!(gradation(&s).and_then(|g| g.steps), Some(4));
+    assert_eq!(gradation(&s).map(|g| g.max), Some(80.0));
     run(
         &mut s,
         "object.setRegion",
         json!({"id": 1, "gradationPattern": false}),
+    );
+    assert_eq!(gradation(&s), None);
+    // A step count alone no longer turns a pattern on.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "gradationSteps": 15}),
     );
     assert_eq!(gradation(&s), None);
     // A continuous (old) gradation becomes PE's default pattern when a pattern option is set.
@@ -332,8 +347,6 @@ fn gradation_pattern_options() {
     for params in [
         json!({"id": 1, "gradationMax": 4}),
         json!({"id": 1, "gradationMin": 101}),
-        json!({"id": 1, "gradationSteps": 1}),
-        json!({"id": 1, "gradationSteps": 21}),
     ] {
         let reply = s.handle(&json!({"command": "object.setRegion", "params": params}));
         assert_eq!(reply["ok"], json!(false), "{params}");
@@ -526,6 +539,91 @@ fn fill_stitch_type_is_set_sewn_saved_and_undone() {
     assert_eq!(Compiler::default().compile(s.design()), flat);
 }
 
+/// #1041: PE-DESIGN's first under sewing type on a satin is the edge run and zigzag rows; its
+/// fill form, edge and fill, is the same button. A satin given edge and fill keeps edge and
+/// zigzag, and sews exactly what it sewed with edge and fill before.
+#[test]
+fn a_satin_keeps_edge_and_zigzag_for_edge_and_fill() {
+    use openstitch_design::{RegionType, UnderlayStyle};
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.ellipse",
+        json!({"cx": 50, "cy": 50, "rx": 30, "ry": 10, "fill": "Red"}),
+    );
+    let style = |s: &Session| {
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .map(|r| (r.kind, r.underlay_style))
+    };
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "satin", "underlay": true, "underlayStyle": "edgeZigzag"}),
+    );
+    let zigzag = Compiler::default().compile(s.design());
+    // Edge and fill as a design saved before held it on a satin: the same stitches.
+    let mut held = s.design().clone();
+    if let Some(r) = held.objects[0].region.as_mut() {
+        r.underlay_style = UnderlayStyle::EdgeFill;
+    }
+    assert_eq!(Compiler::default().compile(&held), zigzag);
+    // Asked for: stored as edge and zigzag, the stitches unchanged.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "underlayStyle": "edgeFill"}),
+    );
+    assert_eq!(
+        style(&s),
+        Some((RegionType::Satin, UnderlayStyle::EdgeZigzag))
+    );
+    assert_eq!(Compiler::default().compile(s.design()), zigzag);
+    // A fill (edge and fill by default) switched to a satin.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "fill", "underlayStyle": "edgeFill"}),
+    );
+    assert_eq!(style(&s), Some((RegionType::Fill, UnderlayStyle::EdgeFill)));
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "satin"}),
+    );
+    assert_eq!(
+        style(&s),
+        Some((RegionType::Satin, UnderlayStyle::EdgeZigzag))
+    );
+}
+
+/// #1105: `object.setRegion`'s `underlayStyle` description (what command_describe and the
+/// per-command tools give) says that a satin stores edgeFill as edgeZigzag, so a model that
+/// reads back the other value knows why.
+#[test]
+fn the_underlay_style_description_says_a_satin_keeps_edge_and_zigzag() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion");
+    let style = spec
+        .params
+        .iter()
+        .find(|p| p.name == "underlayStyle")
+        .expect("underlayStyle");
+    assert!(
+        style
+            .summary
+            .contains("On a satin, edgeFill is stored as edgeZigzag"),
+        "{}",
+        style.summary
+    );
+}
+
 #[test]
 fn bad_region_options_fail_cleanly() {
     let tmp = temp_dir();
@@ -640,6 +738,39 @@ fn every_region_type_is_set_sewn_saved_and_undone() {
     let r = s.design().objects[0].region.clone().expect("region");
     assert_eq!(r.kind, RegionType::ZigzagNetFill);
     assert!(r.underlay);
+}
+
+/// Radial Stitch's Density keeps PE-DESIGN 11.50's field range at the command (round 15, #1050):
+/// 0.2 and 7 are taken, 0.1 and 7.5 refused, and a refusal leaves the region as it was.
+#[test]
+fn radial_density_keeps_pe_designs_range_at_the_command() {
+    let (mut s, _tmp) = session_with_circle();
+    let density = |s: &Session| {
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("region")
+            .density
+    };
+    for d in [0.2, 7.0] {
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "type": "radial", "density": d}),
+        );
+        assert_eq!(density(&s), d);
+    }
+    for d in [0.1, 7.5] {
+        assert!(
+            s.execute(
+                "object.setRegion",
+                Some(&json!({"id": 1, "type": "radial", "density": d}))
+            )
+            .is_err(),
+            "{d}"
+        );
+        assert_eq!(density(&s), 7.0, "{d}");
+    }
 }
 
 /// Cross stitch Times (PE-DESIGN's Single, Double, Triple) and the cross kinds beyond PE-DESIGN
@@ -2101,7 +2232,7 @@ fn zigzag_net(angle: Option<f64>) -> Vec<openstitch_core::Stitch> {
         "shape.rectangle",
         json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
     );
-    let mut p = json!({"id": 1, "type": "zigzagNetFill", "spacing": 8.0, "density": 2.25,
+    let mut p = json!({"id": 1, "type": "zigzagNetFill", "spacing": 5.0, "density": 2.25,
         "patternWidth": 3.0, "underlay": true});
     if let Some(a) = angle {
         p["angle"] = json!(a);
@@ -2169,6 +2300,79 @@ fn direction_turns_the_zigzag_net() {
 /// part sewed 972 stitches, hash 6_462_209_893_352_527_947; the one more is a needle point on
 /// the outline at the top-left corner, where the diagonal back from a cut rung is cut too.
 const ZIGZAG_NET_0: (usize, u64) = (973, 17_908_954_492_682_872_431);
+
+/// #1058 through the command path: a zigzag net set with `object.setRegion` on a circle (a
+/// 64-sided polygon, 30 mm across) turned every 5° from 0° to 85° sews no rung across the
+/// next, for each of the four patterns: no stitch crosses the stitch after next more than
+/// 0.3 mm from their ends, steps along the net lines left aside.
+#[test]
+fn a_zigzag_net_set_by_command_on_a_turned_circle_has_no_crossing_rungs() {
+    let side = |p: (f64, f64), q: (f64, f64), r: (f64, f64)| {
+        (q.0 - p.0) * (r.1 - p.1) - (q.1 - p.1) * (r.0 - p.0)
+    };
+    let crosses = |a: (f64, f64), b: (f64, f64), c: (f64, f64), d: (f64, f64)| {
+        let (d1, d2) = (side(a, b, c), side(a, b, d));
+        if d1 * d2 >= -1e-6 || side(c, d, a) * side(c, d, b) >= -1e-6 {
+            return false;
+        }
+        let t = d1 / (d1 - d2);
+        let x = (c.0 + (d.0 - c.0) * t, c.1 + (d.1 - c.1) * t);
+        [a, b, c, d]
+            .iter()
+            .all(|p| (p.0 - x.0).hypot(p.1 - x.1) > 3.0)
+    };
+    let mut found = Vec::new();
+    for (pattern, lines) in [
+        ("square", &[0.0, 90.0][..]),
+        ("diamond", &[45.0, -45.0][..]),
+        ("triangle", &[0.0, 60.0, 120.0][..]),
+        ("honeycomb", &[0.0, 60.0, 120.0][..]),
+    ] {
+        for turn in (0..18).map(|k| k as f64 * 5.0) {
+            let points: Vec<[f64; 2]> = (0..64)
+                .map(|k| {
+                    let a = (k as f64 * 360.0 / 64.0 + turn).to_radians();
+                    [30.0 + 15.0 * a.cos(), 30.0 + 15.0 * a.sin()]
+                })
+                .collect();
+            let mut s = Session::new(std::env::temp_dir());
+            run(
+                &mut s,
+                "shape.polygon",
+                json!({"points": points, "fill": "Red"}),
+            );
+            run(
+                &mut s,
+                "object.setRegion",
+                json!({"id": 1, "type": "zigzagNetFill", "pattern": pattern}),
+            );
+            let st = Compiler::for_design(s.design())
+                .compile(s.design())
+                .stitches;
+            let pts: Vec<(f64, f64)> = st
+                .iter()
+                .filter(|q| q.command == Command::Stitch)
+                .map(|q| (q.x, q.y))
+                .collect();
+            let along_line = |j: usize| {
+                let (dx, dy) = (pts[j + 1].0 - pts[j].0, pts[j + 1].1 - pts[j].1);
+                let a = dy.atan2(dx).to_degrees();
+                lines.iter().any(|l| {
+                    let off = (a + l).rem_euclid(180.0);
+                    off.min(180.0 - off) < 2.0
+                })
+            };
+            if let Some(i) = (0..pts.len().saturating_sub(3)).find(|&i| {
+                !along_line(i)
+                    && !along_line(i + 2)
+                    && crosses(pts[i], pts[i + 1], pts[i + 2], pts[i + 3])
+            }) {
+                found.push(format!("{pattern} {turn}°: {:?}", &pts[i..i + 4]));
+            }
+        }
+    }
+    assert!(found.is_empty(), "rungs cross: {found:#?}");
+}
 
 /// #1043: a switch to zigzag net sets Direction 0 (PE-DESIGN's default for the type, round 13);
 /// an angle given with the switch is kept; other types keep the previous Direction.
@@ -2303,6 +2507,431 @@ fn a_turned_zigzag_net_starts_where_pe_design_starts_it() {
     );
 }
 
+/// #1071: a plain square net starts from the shape as PE-DESIGN 11.50's does (round 13 part 4,
+/// net-switch-dir0 and net-dir90 on a 30 × 20 mm rectangle, Spacing 3.0): its lines half a
+/// spacing in from the left and top edges, 3 mm apart, the same at Direction 0 and 90, and the
+/// needle steps 2 mm along a line, through its crossings, not from crossing to crossing.
+#[test]
+fn a_plain_net_starts_half_a_spacing_inside_the_shape() {
+    let net = |angle: f64| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+        );
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "type": "netFill", "spacing": 3.0, "angle": angle}),
+        );
+        Compiler::for_design(s.design())
+            .compile(s.design())
+            .stitches
+    };
+    // The lines: x of the vertical stitches and y of the horizontal ones (0.1 mm from the
+    // rectangle's left and top) where five or more line up, off the outline.
+    let lines = |st: &[openstitch_core::Stitch]| {
+        let (mut xs, mut ys) = (
+            std::collections::BTreeMap::<i64, usize>::new(),
+            std::collections::BTreeMap::<i64, usize>::new(),
+        );
+        for w in st.windows(2) {
+            if w[0].command != Command::Stitch || w[1].command != Command::Stitch {
+                continue;
+            }
+            let (x, y) = (
+                (w[1].x - 350.0).round() as i64,
+                (w[1].y - 400.0).round() as i64,
+            );
+            if (w[1].x - w[0].x).abs() < 0.5 && x > 0 && x < 300 {
+                *xs.entry(x).or_default() += 1;
+            } else if (w[1].y - w[0].y).abs() < 0.5 && y > 0 && y < 200 {
+                *ys.entry(y).or_default() += 1;
+            }
+        }
+        let keep = |m: std::collections::BTreeMap<i64, usize>| -> Vec<i64> {
+            m.into_iter()
+                .filter(|&(_, n)| n >= 5)
+                .map(|(v, _)| v)
+                .collect()
+        };
+        (keep(xs), keep(ys))
+    };
+    let flat = net(0.0);
+    let want = (
+        (0..10).map(|k| 15 + 30 * k).collect::<Vec<i64>>(),
+        (0..7).map(|k| 15 + 30 * k).collect::<Vec<i64>>(),
+    );
+    assert_eq!(lines(&flat), want, "0°");
+    assert_eq!(lines(&net(90.0)), want, "90°: the same lines");
+    let steps = flat
+        .windows(2)
+        .filter(|w| w[0].command == Command::Stitch && w[1].command == Command::Stitch)
+        .filter(|w| ((w[1].x - w[0].x).hypot(w[1].y - w[0].y) - 20.0).abs() < 0.6)
+        .count();
+    assert!(steps >= 150, "2 mm steps along the lines: {steps}");
+}
+
+/// #1071: with a reference point (`object.setReferencePoint`), a plain net's lines run through
+/// that point instead of starting from the shape's bounds.
+#[test]
+fn a_plain_net_runs_through_its_reference_point() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "netFill", "spacing": 3.0}),
+    );
+    run(
+        &mut s,
+        "object.setReferencePoint",
+        json!({"id": 1, "point": [35.2, 40.7]}),
+    );
+    let st = Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches;
+    // x of the vertical stitches and y of the horizontal ones, 0.1 mm from the rectangle's left
+    // and top, where five or more line up off the outline.
+    let (mut xs, mut ys) = (
+        std::collections::BTreeMap::<i64, usize>::new(),
+        std::collections::BTreeMap::<i64, usize>::new(),
+    );
+    for w in st.windows(2) {
+        if w[0].command != Command::Stitch || w[1].command != Command::Stitch {
+            continue;
+        }
+        let (x, y) = (
+            (w[1].x - 350.0).round() as i64,
+            (w[1].y - 400.0).round() as i64,
+        );
+        if (w[1].x - w[0].x).abs() < 0.5 && x > 0 && x < 300 {
+            *xs.entry(x).or_default() += 1;
+        } else if (w[1].y - w[0].y).abs() < 0.5 && y > 0 && y < 200 {
+            *ys.entry(y).or_default() += 1;
+        }
+    }
+    let keep = |m: std::collections::BTreeMap<i64, usize>| -> Vec<i64> {
+        m.into_iter()
+            .filter(|&(_, n)| n >= 5)
+            .map(|(v, _)| v)
+            .collect()
+    };
+    // Through (35.2, 40.7) mm, 3 mm apart: 0.2 and 0.7 mm from the left and top edges.
+    assert_eq!(
+        (keep(xs), keep(ys)),
+        (
+            (0..10).map(|k| 2 + 30 * k).collect::<Vec<i64>>(),
+            (0..7).map(|k| 7 + 30 * k).collect::<Vec<i64>>(),
+        )
+    );
+}
+
+/// #1102: a new programmable fill, and a fill switched to one, start at PE-DESIGN 11.50's
+/// density 4.5 lines/mm (the Density field's reset button with Prog. Fill Stitch); a density
+/// given with the switch still wins.
+#[test]
+fn a_programmable_fill_starts_at_density_four_and_a_half() {
+    let mut s = Session::new(std::env::temp_dir());
+    for x in [10, 60, 110] {
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": x, "y": 10, "width": 40, "height": 40, "outline": "Black"}),
+        );
+    }
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "programmableFill"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 2, "type": "fill", "density": 3.0}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 2, "type": "programmableFill"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 3, "type": "programmableFill", "density": 2.5}),
+    );
+    let density = |id: u64| {
+        let o = s
+            .design()
+            .objects
+            .iter()
+            .find(|o| o.id == id)
+            .expect("object");
+        o.region.as_ref().expect("region").density
+    };
+    assert_eq!([density(1), density(2), density(3)], [4.5, 4.5, 2.5]);
+}
+
+/// #1117: a plain net set by `object.setRegion` with no `spacing` sews its lines 3.0 mm apart,
+/// PE-DESIGN 11.50's default (#1110), both ways, measured in the compiled stitches.
+#[test]
+fn a_plain_net_without_spacing_sews_its_lines_three_millimetres_apart() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "netFill"}),
+    );
+    let st = Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches;
+    let (mut xs, mut ys) = (
+        std::collections::BTreeMap::<i64, usize>::new(),
+        std::collections::BTreeMap::<i64, usize>::new(),
+    );
+    for w in st.windows(2) {
+        if w[0].command != Command::Stitch || w[1].command != Command::Stitch {
+            continue;
+        }
+        let (x, y) = (
+            (w[1].x - 350.0).round() as i64,
+            (w[1].y - 400.0).round() as i64,
+        );
+        if (w[1].x - w[0].x).abs() < 0.5 && x > 0 && x < 300 {
+            *xs.entry(x).or_default() += 1;
+        } else if (w[1].y - w[0].y).abs() < 0.5 && y > 0 && y < 200 {
+            *ys.entry(y).or_default() += 1;
+        }
+    }
+    let gaps = |m: std::collections::BTreeMap<i64, usize>| -> Vec<i64> {
+        let lines: Vec<i64> = m
+            .into_iter()
+            .filter(|&(_, n)| n >= 5)
+            .map(|(v, _)| v)
+            .collect();
+        lines.windows(2).map(|w| w[1] - w[0]).collect()
+    };
+    let (gx, gy) = (gaps(xs), gaps(ys));
+    assert!(gx.len() >= 8 && gy.len() >= 5, "lines: {gx:?} {gy:?}");
+    assert!(
+        gx.iter().chain(&gy).all(|&g| g == 30),
+        "lines 3.0 mm apart: {gx:?} {gy:?}"
+    );
+}
+
+/// #1117: `object.setRegion`'s `spacing` description (what command_describe gives) names each
+/// type's default as `RegionSewing::spacing_mm` has it, and says what a zigzag net's is.
+#[test]
+fn the_spacing_description_names_each_types_default() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion");
+    let summary = spec
+        .params
+        .iter()
+        .find(|p| p.name == "spacing")
+        .expect("spacing")
+        .summary;
+    for kind in openstitch_engine::commands::SPACING_TYPES {
+        let mm = openstitch_design::RegionSewing::new(kind, openstitch_core::Thread::rgb(0))
+            .spacing_mm();
+        let named = format!("{} {mm}", kind.id());
+        assert!(summary.contains(&named), "{named} in {summary}");
+    }
+    assert!(summary.contains("netFill 3,") && summary.contains("zigzagNetFill 5,"));
+    assert!(summary.contains("the gap between bands"), "{summary}");
+}
+
+/// #1109: `object.setRegion`'s `patternWidth` and `spacing` descriptions name PE-DESIGN's zigzag
+/// net ranges and what happens outside them.
+#[test]
+fn the_zigzag_net_descriptions_name_pe_designs_ranges() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion");
+    let summary = |name: &str| {
+        spec.params
+            .iter()
+            .find(|p| p.name == name)
+            .expect("param")
+            .summary
+            .to_string()
+    };
+    for (name, range) in [("patternWidth", "1.0-10"), ("spacing", "2.0-10")] {
+        let s = summary(name);
+        for words in [
+            format!("PE-DESIGN's range {range}"),
+            "stored and sewn as given".into(),
+            "the inspector shows it unchanged".into(),
+            "writes it as stored; PE-DESIGN 11.50 opened such a file".into(),
+            "kept both values".into(),
+        ] {
+            assert!(s.contains(&words), "{name}: {words:?} in {s}");
+        }
+    }
+}
+
+/// #1046: `object.setLine`'s description of `profile` (what command_describe and the per-command
+/// tools give the Assistant) says that linear, smoothstep and stairs need more than 3 passes.
+#[test]
+fn the_profile_description_says_when_the_ramps_differ() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setLine")
+        .expect("object.setLine");
+    let profile = spec
+        .params
+        .iter()
+        .find(|p| p.name == "profile")
+        .expect("profile");
+    assert!(
+        profile
+            .summary
+            .contains(openstitch_design::line_looks::PROFILE_PASSES_NOTE),
+        "{}",
+        profile.summary
+    );
+}
+
+/// #1039: `object.setRegion`'s `gradationSteps` description (what command_describe gives)
+/// says the value is ignored, so a model that passes one knows why it changes nothing.
+#[test]
+fn the_gradation_steps_description_says_it_is_ignored() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion");
+    let steps = spec
+        .params
+        .iter()
+        .find(|p| p.name == "gradationSteps")
+        .expect("gradationSteps");
+    assert!(
+        steps.summary.starts_with("Ignored (#1039)"),
+        "{}",
+        steps.summary
+    );
+}
+
+/// #1129: `object.setLine`'s `pitch` names a motif line's Run pitch and its stored default, and
+/// `startEnd` says it changes no stitches on a motif line (what command_describe gives).
+#[test]
+fn the_set_line_pitch_and_start_end_descriptions_cover_the_motif_line() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setLine")
+        .expect("object.setLine");
+    let summary = |name: &str| {
+        spec.params
+            .iter()
+            .find(|p| p.name == name)
+            .unwrap_or_else(|| panic!("{name}"))
+            .summary
+    };
+    let pitch = summary("pitch");
+    assert!(
+        pitch.contains("motif: the line's Run pitch")
+            && pitch.contains("default 5.0, PE-DESIGN's, #1130"),
+        "{pitch}"
+    );
+    let start_end = summary("startEnd");
+    assert!(
+        start_end.contains("Motif line: stored for PE-DESIGN")
+            && start_end.contains("changes no stitches")
+            && start_end.contains("an open motif line is not captured"),
+        "{start_end}"
+    );
+}
+
+/// #1130: a line switched to motif starts at PE-DESIGN's Run pitch 5.0, and switching away and
+/// back gives it again; a pitch set on the motif line stays until the type changes.
+#[test]
+fn a_line_switched_to_motif_starts_at_run_pitch_5() {
+    let (mut s, _tmp) = session_with_circle();
+    let pitch = |s: &Session| s.design().objects[0].line.as_ref().expect("line").pitch;
+    assert_eq!(pitch(&s), 2.0);
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "type": "motif", "motif": "heart"}),
+    );
+    assert_eq!(pitch(&s), 5.0);
+    run(&mut s, "object.setLine", json!({"id": 1, "pitch": 3}));
+    assert_eq!(pitch(&s), 3.0);
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "type": "running"}),
+    );
+    assert_eq!(pitch(&s), 2.0);
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "type": "motif", "motif": "heart"}),
+    );
+    assert_eq!(pitch(&s), 5.0);
+}
+
+/// #1123: a motif line cuts a sharp corner with one motif laid straight across it, as
+/// PE-DESIGN 11.50 does (608-motif-5x8: at the top-left corner of the 40 mm square
+/// (0, 3.3) -> (3.2, 3.1) -> (3.8, 0) mm, no needle point on the corner); where a run between
+/// motifs crosses a corner, the run keeps the corner point.
+#[test]
+fn a_motif_line_cuts_the_corners_of_a_square() {
+    let tmp = temp_dir();
+    let pmf = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../openstitch-design/tests/fixtures/patterns/psc-motif-zigzag-3pt.pmf");
+    std::fs::copy(&pmf, tmp.path().join("zz3.pmf")).expect("motif");
+    let mut s = Session::new(tmp.path());
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "pattern.import",
+        json!({"path": "zz3.pmf", "id": "zz3"}),
+    );
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 30, "y": 30, "width": 40, "height": 40, "outline": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"ids": [1], "type": "motif", "motif": "zz3", "width": 5, "height": 8,
+               "spacing": 2, "pitch": 5, "startEnd": "feed"}),
+    );
+    let st = Compiler::default().compile(s.design()).stitches;
+    // 0.1 mm units.
+    let near = |x: f64, y: f64| st.iter().any(|p| (p.x - x).hypot(p.y - y) < 3.0);
+    assert!(!near(300.0, 300.0), "a motif spans the top-left corner");
+    assert!(near(332.0, 331.0), "its point, straight across the corner");
+    assert!(!near(700.0, 700.0), "a motif spans the bottom-right corner");
+    assert!(near(700.0, 300.0), "a run keeps the top-right corner");
+    assert!(near(300.0, 700.0), "a run keeps the bottom-left corner");
+}
+
 /// #1043: without under sewing a zigzag net travels along the outline between its bands, as
 /// PE-DESIGN 11.50 does (round 15, zigzag-net-40x20-dir90-no-under: 955 stitches, no needle point
 /// on a net line between bands), not along its own lines: on that 40 × 20 mm rectangle at
@@ -2318,7 +2947,7 @@ fn a_zigzag_net_without_under_sewing_travels_along_the_outline() {
     run(
         &mut s,
         "object.setRegion",
-        json!({"id": 1, "type": "zigzagNetFill", "spacing": 8.0, "density": 2.25,
+        json!({"id": 1, "type": "zigzagNetFill", "spacing": 5.0, "density": 2.25,
             "patternWidth": 3.0, "underlay": false, "angle": 90}),
     );
     let st = Compiler::for_design(s.design())
@@ -2329,4 +2958,3 @@ fn a_zigzag_net_without_under_sewing_travels_along_the_outline() {
         (n as f64 - 955.0).abs() <= 955.0 * 0.05,
         "{n} stitches against PE-DESIGN's 955"
     );
-}

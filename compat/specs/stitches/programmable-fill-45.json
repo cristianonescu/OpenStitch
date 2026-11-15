@@ -2,8 +2,8 @@
   "schema": "openstitch-compat/1",
   "id": "programmable-fill-45",
   "area": "stitches",
-  "title": "Programmable fill defaults to 45°",
-  "description": "A new programmable fill on a 40 × 40 mm square is sewn at the guide's default direction, 45°, which PE-DESIGN measures counter-clockwise on screen: the stitch direction carrying the most length is 135° ±1° (angles measured from +x towards +y, the file's y axis pointing down), and the stored angle is 45.",
+  "title": "Programmable fill defaults to 45° (the project's psc-square-4pt tile)",
+  "description": "A new programmable fill on a 40 × 40 mm square with the project's own closed square tile (psc-square-4pt.pas at 7.5 × 7.5 mm) is sewn at the guide's default direction, 45°, which PE-DESIGN measures counter-clockwise on screen: the stitch direction carrying the most length is 135° ±1° (angles measured from +x towards +y, the file's y axis pointing down), and the stored angle is 45. The reference replaces the withdrawn capture of PE-DESIGN's built-in pattern (#1060, #1075).",
   "covers": {
     "audit": [
       14
@@ -15,7 +15,6 @@
       }
     ]
   },
-  "skip": "reference withdrawn 2026-11-13: the capture used PE-DESIGN's built-in programmable fill pattern; a clean capture with a project pattern is pending",
   "evidence": [
     {
       "kind": "audit",
@@ -36,6 +35,13 @@
       }
     },
     {
+      "command": "pattern.import",
+      "params": {
+        "path": "psc-square-4pt.pas",
+        "id": "owner-tile"
+      }
+    },
+    {
       "command": "shape.rectangle",
       "params": {
         "x": 10,
@@ -49,7 +55,10 @@
       "command": "object.setRegion",
       "params": {
         "id": 1,
-        "type": "programmableFill"
+        "type": "programmableFill",
+        "pattern": "owner-tile",
+        "patternWidth": 7.5,
+        "patternHeight": 7.5
       }
     },
     {
@@ -75,8 +84,8 @@
   "references": [
     {
       "id": "pe-design",
-      "file": "stitches/programmable-fill-45.pes",
-      "make": "On a 100 × 100 mm Design Page draw a 40 × 40 mm square at (10, 10) mm. Line sewing off; set the region sew type to Programmable Fill Stitch without changing the direction or the pattern from their defaults (record the pattern name). Save with Save As as PES (PE-DESIGN 11's default PES version) under the file name given, and record the PE-DESIGN version, the date, the operating system and every setting you changed in compat/reference/MANIFEST.json (see docs/COMPATIBILITY_TESTS.md)."
+      "file": "stitches/programmable-fill-45-psc-square.pes",
+      "make": "Programmable Stitch Creator, New Fill/Stamp Pattern: the closed square (128,128) (896,128) (896,896) (128,896), Save As psc-square-4pt.pas (round 4). Layout & Editing, 100 x 100 mm page: Rectangle 40 x 40 mm at (10, 10) mm, line Not Sewn, region Prog. Fill Stitch, its folder button (Browse) > psc-square-4pt.pas, every other setting as PE-DESIGN sets it (Direction 45). Save As PES. Never choose a pattern from PE-DESIGN's own list."
     }
   ],
   "measurements": [
@@ -93,6 +102,18 @@
       "evidence": "RegionSewing::new: programmable fill starts at 45°"
     },
     {
+      "id": "stored-density",
+      "measure": {
+        "kind": "replyValue",
+        "pointer": "/region/density"
+      },
+      "source": {
+        "step": "object"
+      },
+      "expected": 4.5,
+      "evidence": "PE-DESIGN 11.50 shows Density 4,5 for this new programmable fill (the capture's pane, round 15), and the Density field's reset button with Prog. Fill Stitch sets 4,5 line/mm (checked 2026-11-14, #1102)"
+    },
+    {
       "id": "dominant-direction",
       "measure": {
         "kind": "dominantAngle",
@@ -105,8 +126,29 @@
       "tolerance": {
         "deg": 1
       },
-      "evidence": "audit item 14; PE-DESIGN 11.50 reference compat/reference/stitches/programmable-fill-45.pes (default prog. fill, 45°): dominant direction 135° in the y-down file, its under sewing at 45° (fill-analysis, 2026-10-27), ±1°",
+      "evidence": "audit item 14; PE-DESIGN 11.50 reference stitches/programmable-fill-45-psc-square.pes (the project's square tile, Direction 45 as PE-DESIGN sets it): the dominant direction of its stitches, ±1°",
       "reference": {}
+    },
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "pfill.pes"
+      },
+      "evidence": "PE-DESIGN's 2,686 stitches in the capture; within 3 % (#1102: 1,612 at the old 2.5 default)",
+      "reference": {
+        "tolerance": {
+          "percent": 3
+        }
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "from": "crates/openstitch-design/tests/fixtures/patterns/psc-square-4pt.pas",
+      "name": "psc-square-4pt.pas"
     }
   ]
 }

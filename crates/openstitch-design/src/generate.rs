@@ -850,7 +850,11 @@ const PE_END_GAP: f64 = 3.0;
 
 /// Where PE-DESIGN's needle grid starts (rotated space): the start of the first row, on the
 /// outline's extreme point across the rows (a square's corner, a pentagon's top vertex).
-fn grid_anchor(contours: &[Contour], p: &RegionParams, holes: &[Contour]) -> Option<f64> {
+pub(crate) fn grid_anchor(
+    contours: &[Contour],
+    p: &RegionParams,
+    holes: &[Contour],
+) -> Option<f64> {
     let b = crate::region::rotated_bounds(contours, p.angle)?;
     let y = b.min_y + 1e-3_f64.min(b.height() / 4.0);
     Some(
@@ -862,7 +866,7 @@ fn grid_anchor(contours: &[Contour], p: &RegionParams, holes: &[Contour]) -> Opt
 
 /// PE-DESIGN's needle grid inside `span` (its ends left out): every `l` from `phase`, without
 /// points closer than [`PE_END_GAP`] to an end.
-fn pe_grid(span: &Span, phase: f64, l: f64) -> Vec<f64> {
+pub(crate) fn pe_grid(span: &Span, phase: f64, l: f64) -> Vec<f64> {
     let (lo, hi) = (*span.start(), *span.end());
     let mut j = ((lo - phase) / l).floor();
     let mut xs = Vec::new();
@@ -1158,6 +1162,7 @@ pub fn satin(contours: &[Contour], p: &RegionParams, holes: &[Contour]) -> Vec<R
 }
 
 /// One inside interval of a scan row, in rotated space.
+#[derive(Clone)]
 pub struct RowSpan {
     pub row: usize,
     pub y: f64,
@@ -1206,6 +1211,25 @@ pub fn chain_spans(
     chain(spans, p, points, Chain::Fill, None)
 }
 
+/// [`chain_spans`] starting from the row end nearest `start` (page coordinates, 0.1 mm)
+/// instead of the first span's start (#1088); row ends within 0.05 mm are as near, and they
+/// go to the span's end when `ends_first` is set, else to its start.
+pub fn chain_spans_from(
+    spans: &[RowSpan],
+    p: &RegionParams,
+    points: impl Fn(&Span, usize, bool) -> Vec<f64>,
+    start: Vec2,
+    ends_first: bool,
+) -> Vec<Run> {
+    let frame = start.rotated(-p.angle.to_radians());
+    let mode = if ends_first {
+        Chain::FillUnderRowsEnd
+    } else {
+        Chain::FillUnderRows
+    };
+    chain(spans, p, points, mode, Some(frame))
+}
+
 /// [`chain_spans`] for satin: when a row follows the previous one along the same edge (the
 /// next row, entered within three row distances of the last needle point), its first needle
 /// point is left out. The stitch then goes from one edge straight to the far edge of the next
@@ -1234,6 +1258,12 @@ pub fn chain_sawtooth_spans(
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Chain {
     Fill,
+    /// [`Chain::Fill`] with ends within 0.05 mm taken as equally near (the 0.1 mm grid), so the
+    /// span's start wins them: PE-DESIGN's fill under sewing rows (#1088: from a corner row to
+    /// the next row's end on the top edge, sew-order-six-objects' 15 mm squares).
+    FillUnderRows,
+    /// [`Chain::FillUnderRows`] with ties going to the span's end.
+    FillUnderRowsEnd,
     /// [`Chain::Fill`] with PE-DESIGN's brick row ends (the top fill).
     Brick,
     Satin,
@@ -1287,10 +1317,16 @@ fn chain_in(
             // Ties within float noise go to the first span (#567): a span whose ends are
             // equally near, as rows at 30 degrees are, was picked by the last bits of where
             // the shape stood.
-            if dl < best_d - TIE {
+            // The under sewing rows: ends within 0.05 mm are as near (the 0.1 mm grid).
+            let under = matches!(mode, Chain::FillUnderRows | Chain::FillUnderRowsEnd);
+            let tie = if under { 0.5 } else { TIE };
+            if mode == Chain::FillUnderRowsEnd && du < best_d - tie {
+                (best, forward, best_d) = (i, false, du);
+            }
+            if dl < best_d - tie {
                 (best, forward, best_d) = (i, true, dl);
             }
-            if du < best_d - TIE {
+            if du < best_d - tie {
                 (best, forward, best_d) = (i, false, du);
             }
         }

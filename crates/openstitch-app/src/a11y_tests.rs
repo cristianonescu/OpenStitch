@@ -143,3 +143,153 @@ fn text_size_scales_the_whole_window_through_ui_set() {
         ctx.zoom_factor()
     );
 }
+
+/// #1109: a zigzag net from a version-5 file with a 0.5 mm line pitch loads with a 0.1 mm gap and
+/// a 0.4 mm band, below the inspector's ranges (Spacing 2.0-10.0, Zigzag width 1.0-10.0).
+/// Selecting it and drawing the inspector shows those values without changing them: only the
+/// user's edit may (egui clamped a value outside the range on drawing, and that was written back).
+#[test]
+fn the_inspector_shows_a_stored_value_outside_its_range_without_changing_it() {
+    use openstitch_design::geometry::Contour;
+    use openstitch_design::model::{Design, DesignObject, DesignPage, RegionSewing, RegionType};
+    let mut d = Design::new("net", DesignPage::default());
+    let mut r = RegionSewing::new(RegionType::ZigzagNetFill, openstitch_core::Thread::rgb(0xff0000));
+    r.spacing = Some(0.5);
+    d.add(DesignObject::shape(
+        vec![Contour::rectangle(100.0, 100.0, 200.0, 200.0)],
+        Some(r),
+        None,
+    ));
+    let mut v: serde_json::Value =
+        serde_json::from_slice(&openstitch_design::project::encode(&d).expect("encode"))
+            .expect("json");
+    v["version"] = json!(5);
+    let path = std::env::temp_dir().join(format!("openstitch-1109-{}.osd", std::process::id()));
+    std::fs::write(&path, serde_json::to_vec(&v).expect("bytes")).expect("write");
+    let mut app = EditorApp::new(Launch {
+        open: Some(path.clone()),
+        select: vec![1],
+        ..Launch::default()
+    });
+    std::fs::remove_file(&path).ok();
+    app.splash = None;
+    let stored = |app: &EditorApp| {
+        let r = app.session.design().objects[0]
+            .region
+            .clone()
+            .expect("region");
+        (r.spacing, r.pattern_width)
+    };
+    let loaded = stored(&app);
+    let design = app.session.design().clone();
+    assert!(
+        loaded.0.is_some_and(|g| g < 0.5) && loaded.1.is_some_and(|w| w < 1.0),
+        "migrated below the ranges: {loaded:?}"
+    );
+    let nodes = tree(&mut app);
+    let shows = |s: &str| {
+        nodes
+            .iter()
+            .any(|(_, n)| n.label() == Some(s) || n.value() == Some(s))
+    };
+    assert!(shows("Zigzag width"), "the inspector shows the zigzag net's fields");
+    assert_eq!(stored(&app), loaded, "drawing the inspector kept the stored values");
+    assert!(*app.session.design() == design, "nothing else was edited");
+}
+
+/// #1124: a candlewick stored at 2 mm, which the command takes (0.5-10) though PE-DESIGN's Size
+/// field starts at 3.0, is shown as it is when selected and kept until the user edits it.
+#[test]
+fn the_inspector_keeps_a_two_mm_candlewick() {
+    use openstitch_design::geometry::Contour;
+    use openstitch_design::model::{Design, DesignObject, DesignPage, LineSewing, LineType};
+    let mut d = Design::new("candlewick", DesignPage::default());
+    let mut l = LineSewing::new(LineType::Candlewick, openstitch_core::Thread::rgb(0xff0000));
+    l.width = 2.0;
+    d.add(DesignObject::shape(
+        vec![Contour::rectangle(100.0, 100.0, 200.0, 200.0)],
+        None,
+        Some(l),
+    ));
+    let path = std::env::temp_dir().join(format!("openstitch-1124-{}.osd", std::process::id()));
+    std::fs::write(&path, openstitch_design::project::encode(&d).expect("encode")).expect("write");
+    let mut app = EditorApp::new(Launch {
+        open: Some(path.clone()),
+        select: vec![1],
+        ..Launch::default()
+    });
+    std::fs::remove_file(&path).ok();
+    app.splash = None;
+    let design = app.session.design().clone();
+    assert_eq!(design.objects[0].line.as_ref().expect("line").width, 2.0);
+    let nodes = tree(&mut app);
+    assert!(
+        nodes
+            .iter()
+            .any(|(_, n)| n.label() == Some("Size") || n.value() == Some("Size")),
+        "the inspector shows the candlewick's Size field"
+    );
+    assert!(*app.session.design() == design, "drawing the inspector kept 2 mm");
+}
+
+/// #1109: with a stored value outside the field's range shown as it is, the user's own edit is
+/// still kept to the range. A Spacing field (2.0-10.0) holding 0.6 returns nothing while it is
+/// drawn and focused; typing 0.5 and Enter returns 2.0, typing 50 returns 10.0.
+#[test]
+fn typing_into_an_inspector_field_still_keeps_to_its_range() {
+    let ctx = egui::Context::default();
+    let mut app = EditorApp::new(Launch::default());
+    app.splash = None;
+    let run = |app: &mut EditorApp, events: Vec<egui::Event>, focus: bool| {
+        let mut got = None;
+        let mut out = ctx.run_ui(
+            egui::RawInput {
+                events,
+                ..Default::default()
+            },
+            |ui| {
+                let id = ui.next_auto_id();
+                if focus {
+                    ui.memory_mut(|m| m.request_focus(id));
+                }
+                got = crate::panels::number(
+                    app,
+                    ui,
+                    "region.spacing",
+                    0.6,
+                    (2.0, 10.0),
+                    0.05,
+                    " mm",
+                );
+            },
+        );
+        out.textures_delta.clear();
+        got
+    };
+    let enter = egui::Event::Key {
+        key: egui::Key::Enter,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    for (typed, kept) in [("0.5", 2.0), ("50", 10.0)] {
+        let shown = [
+            run(&mut app, Vec::new(), false),
+            run(&mut app, Vec::new(), true),
+            run(&mut app, Vec::new(), false),
+        ];
+        assert!(
+            shown.iter().all(Option::is_none),
+            "drawn and focused, 0.6 is kept: {shown:?}"
+        );
+        let typed_in = run(&mut app, vec![egui::Event::Text(typed.into())], false);
+        let entered = run(&mut app, vec![enter.clone()], false);
+        let after = run(&mut app, Vec::new(), false);
+        assert_eq!(
+            [typed_in, entered, after].into_iter().flatten().collect::<Vec<_>>(),
+            vec![kept],
+            "typing {typed} gives {kept}"
+        );
+    }
+}

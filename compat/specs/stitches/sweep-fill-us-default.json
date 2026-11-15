@@ -105,6 +105,25 @@
       }
     },
     {
+      "id": "under-sewing-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes",
+        "exclude": {
+          "first": 0,
+          "last": 2021
+        }
+      },
+      "evidence": "The under sewing alone: the needle points before the top fill's last 2021, which are the same in both files (PE-DESIGN 308). OpenStitch sews one more, its first point before the tie-in, so the tolerance is 1 (#1132)",
+      "reference": {
+        "tolerance": {
+          "count": 1
+        }
+      }
+    },
+    {
       "id": "bounds-width",
       "measure": {
         "kind": "bounds",
@@ -142,6 +161,94 @@
       "expected": 40.0,
       "tolerance": {
         "mm": 0.1
+      }
+    },
+    {
+      "id": "fill-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50 starts a fill with under sewing on the under sewing's 1 mm inset edge run, at the point nearest the entry ((20,39) for an entry at the middle of the bottom edge), and ends on the outline at the exit (#1088)",
+      "reference": {
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "inset-edge",
+      "measure": {
+        "kind": "edgeStitches",
+        "rails": [
+          [
+            [
+              1,
+              1
+            ],
+            [
+              39,
+              1
+            ]
+          ],
+          [
+            [
+              39,
+              1
+            ],
+            [
+              39,
+              39
+            ]
+          ],
+          [
+            [
+              39,
+              39
+            ],
+            [
+              1,
+              39
+            ]
+          ],
+          [
+            [
+              1,
+              39
+            ],
+            [
+              1,
+              1
+            ]
+          ]
+        ],
+        "within": 0.15,
+        "maxLength": 2.5
+      },
+      "source": {
+        "export": "a.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN sews the inset edge run once round, walks on along it to the first under sewing row, and between the two halves walks back along the bottom edge run; OpenStitch sews the same path corner for corner (#1088). It counts one more: OpenStitch's first needle point is on the start (20,39) before its 0.3 mm tie-in, where PE-DESIGN's first is the tie-in's (19.7,39)",
+      "reference": {
+        "tolerance": {
+          "count": 1
+        }
       }
     }
   ]

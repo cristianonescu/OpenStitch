@@ -543,6 +543,126 @@ fn pes_version_11_keeps_every_group() {
 }
 
 #[test]
+fn a_motif_lines_run_pitch_and_start_end_come_back_from_pe_design() {
+    // #1068: PE-DESIGN 11.50's 608-motif-5x8 at Run pitch 5.0 and saved again at 3.0, 7.0 and
+    // with Start/End Type Run. Imported, the line's pitch is its Run pitch (+82), not the 2.0 mm
+    // running pitch (+52); exported, both fields and +84 come back as PE-DESIGN wrote them.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = temp_dir("v11-motif-pitch");
+    for (file, pitch, start_run) in [
+        (
+            "crates/openstitch-formats/tests/fixtures/pe11/608-motif-5x8.pes",
+            5.0,
+            false,
+        ),
+        (
+            "compat/reference/stitches/1068-motif-5x8-runpitch-3p0.pes",
+            3.0,
+            false,
+        ),
+        (
+            "compat/reference/stitches/1068-motif-5x8-runpitch-7p0.pes",
+            7.0,
+            false,
+        ),
+        (
+            "compat/reference/stitches/1068-motif-5x8-startend-run.pes",
+            5.0,
+            true,
+        ),
+    ] {
+        let pe_bytes = std::fs::read(root.join(file)).expect("capture");
+        let pe = pes::read_objects(&pe_bytes).expect("objects");
+        std::fs::write(dir.join("in.pes"), &pe_bytes).expect("copy");
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        run(&mut s, "import.pes", json!({"path": "in.pes"}));
+        let l = s.design().objects[0].line.clone().expect("line");
+        assert_eq!(l.pitch, pitch, "{file}");
+        assert_eq!(
+            l.start_end == openstitch_design::model::StartEnd::Run,
+            start_run,
+            "{file}"
+        );
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": "out.pes", "pesVersion": "11"}),
+        );
+        let ours = pes::read_objects(&std::fs::read(dir.join("out.pes")).expect("out.pes"))
+            .expect("objects");
+        let (a, b) = (&ours.shapes[0], &pe.shapes[0]);
+        assert_eq!(
+            (a.motif_pitch, a.run_pitch, a.line_flag_84),
+            (b.motif_pitch, b.run_pitch, b.line_flag_84),
+            "{file}"
+        );
+    }
+}
+
+#[test]
+fn a_motif_lines_pitch_and_start_end_set_by_command_come_back_from_pes_11() {
+    // #1129: object.setLine's pitch and startEnd on a motif line, saved as PES version 11 and
+    // opened again, come back; Start/End Run sews the same as Feed, as PE-DESIGN's closed
+    // motif outline does (608-motif-5x8 against 1068-motif-5x8-startend-run, 76 of 76 records).
+    let pmf = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../openstitch-design/tests/fixtures/patterns/psc-motif-zigzag-3pt.pmf");
+    let dir = temp_dir("v11-motif-setline");
+    std::fs::copy(&pmf, dir.join("zz3.pmf")).expect("motif");
+    let mut sewn = Vec::new();
+    for start_end in ["feed", "run"] {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        run(
+            &mut s,
+            "pattern.import",
+            json!({"path": "zz3.pmf", "id": "zz3"}),
+        );
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 30, "y": 30, "width": 40, "height": 40, "outline": "Red"}),
+        );
+        run(
+            &mut s,
+            "object.setLine",
+            json!({"ids": [1], "type": "motif", "motif": "zz3", "width": 5, "height": 8,
+                   "spacing": 2, "pitch": 3, "startEnd": start_end}),
+        );
+        let out = format!("{start_end}.pes");
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": out, "pesVersion": "11"}),
+        );
+        sewn.push(
+            pes::read(&std::fs::read(dir.join(&out)).expect("export"))
+                .expect("pattern")
+                .stitches,
+        );
+        let mut back = Session::new(&dir);
+        run(
+            &mut back,
+            "design.new",
+            json!({"width": 100, "height": 100}),
+        );
+        run(&mut back, "import.pes", json!({"path": out}));
+        let l = back.design().objects[0].line.clone().expect("line");
+        assert_eq!(l.kind, openstitch_design::model::LineType::Motif);
+        assert_eq!(l.pitch, 3.0, "{start_end}");
+        assert_eq!(
+            l.start_end == openstitch_design::model::StartEnd::Run,
+            start_end == "run",
+            "{start_end}"
+        );
+    }
+    assert_eq!(
+        sewn[0], sewn[1],
+        "Start/End Run changes no stitches on a motif line"
+    );
+}
+
+#[test]
 fn pes_version_11_writes_motif_lines_and_fills_as_pe_design() {
     // #608: PE-DESIGN 11.50's motif captures (round 12 and 13, the project's own motif)
     // imported and exported again: the motif line's width, height and spacing, the motif fill's
@@ -580,5 +700,68 @@ fn pes_version_11_writes_motif_lines_and_fills_as_pe_design() {
         } else {
             assert_eq!(a.motif_fields, [1, 1], "{name}");
         }
+    }
+}
+
+/// #1124: PE-DESIGN 11.50's candlewick Density choices, read from the coordinator's round 15
+/// captures (a 40 mm square, Size 5.0, Spacing 1.0): Light, Medium and Dense sew 28 knots of 20,
+/// 24 and 32 points. OpenStitch's densities 10, 12 and 16 sew the same knots. Light and Medium
+/// sew PE-DESIGN's 654 and 766 needle points exactly; Dense sews 990 against 992, because
+/// OpenStitch's rectangle starts its outline mid-edge and PE-DESIGN's square at its top-left
+/// corner, which places the runs between the knots differently (the knots are the same).
+#[test]
+fn candlewick_knots_have_pe_designs_points() {
+    // The knots: runs of stitches 4 to 6 mm long (a 5 mm knot's chords; the runs between knots
+    // are 2.5 mm and shorter).
+    fn knots(p: &openstitch_core::StitchPattern) -> Vec<usize> {
+        let mut runs = Vec::new();
+        let mut n = 0;
+        for w in p.stitches.windows(2) {
+            let d = (w[1].x - w[0].x).hypot(w[1].y - w[0].y);
+            if (40.0..=60.0).contains(&d) {
+                n += 1;
+            } else if n > 0 {
+                runs.push(n);
+                n = 0;
+            }
+        }
+        if n > 0 {
+            runs.push(n);
+        }
+        runs
+    }
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = temp_dir("candlewick-knots");
+    for (name, density, points, off) in [
+        ("light", 10.0, 20, 0),
+        ("medium", 12.0, 24, 0),
+        ("dense", 16.0, 32, 2),
+    ] {
+        let file = format!("compat/reference/stitches/line-candlewick-{name}-square40.pes");
+        let bytes = std::fs::read(root.join(&file)).expect("capture");
+        let pe = pes::read(&bytes).expect("stitches");
+        assert_eq!(knots(&pe), vec![points; 28], "{file}");
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 30, "y": 30, "width": 40, "height": 40, "outline": "Red"}),
+        );
+        run(&mut s, "object.setRegion", json!({"id": 1, "type": "none"}));
+        run(
+            &mut s,
+            "object.setLine",
+            json!({"id": 1, "type": "candlewick", "density": density, "width": 5, "spacing": 1}),
+        );
+        let ours = openstitch_design::Compiler::default().compile(s.design());
+        assert_eq!(knots(&ours), vec![points; 28], "density {density}");
+        let needles = |p: &openstitch_core::StitchPattern| {
+            p.stitches
+                .iter()
+                .filter(|q| q.command == openstitch_core::Command::Stitch)
+                .count()
+        };
+        assert_eq!(needles(&ours) + off, needles(&pe), "density {density}");
     }
 }

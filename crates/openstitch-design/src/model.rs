@@ -1000,6 +1000,8 @@ impl RegionType {
     pub fn density_range(self) -> (f64, f64) {
         match self {
             RegionType::Fill | RegionType::Satin => (0.1, 14.0),
+            // PE-DESIGN 11.50's Radial Stitch keeps 0.2 to 7.0 line/mm (round 15, #1050).
+            RegionType::Radial => (0.2, 7.0),
             _ => (0.5, 10.0),
         }
     }
@@ -1755,7 +1757,10 @@ pub struct Gradation {
     pub max: f64,
     /// Density at the far side, % (5–100).
     pub min: f64,
-    /// Number of step values (2–20); `None`: a gradation saved before patterns.
+    /// `Some`: PE-DESIGN's gradation pattern, whose Gradation Pattern Setting always has nine
+    /// points (round 15, #1039), so the count is 9 (designs saved before #1039 may hold
+    /// another, which sews the same: rows follow the straight fall from `max` to `min`);
+    /// `None`: a gradation saved before patterns, a continuous fall from 100 %.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub steps: Option<u32>,
     /// How the density goes from `max` to `min` across the region (#532, beyond PE-DESIGN):
@@ -2217,13 +2222,14 @@ impl RegionSewing {
             thread,
             angle: Self::default_angle(kind),
             // PE-DESIGN 11.50 Sewing Attributes (reference files, fill-analysis): fill and satin
-            // 4.5 lines/mm with under sewing on.
+            // 4.5 lines/mm with under sewing on; a programmable fill 4.5 too (the Density field's
+            // reset button with Prog. Fill Stitch, and the programmable-fill-45 capture, #1102).
             density: match kind {
-                RegionType::Fill | RegionType::Satin => 4.5,
-                RegionType::ProgrammableFill => 2.5,
+                RegionType::Fill | RegionType::Satin | RegionType::ProgrammableFill => 4.5,
                 RegionType::Piping => 1.0,
-                // PE-DESIGN 11.50's Concentric Circle and Spiral Stitch: 2.0 lines/mm.
-                RegionType::ConcentricCircle | RegionType::Spiral => 2.0,
+                // PE-DESIGN 11.50's Concentric Circle, Spiral and Radial Stitch: 2.0 lines/mm
+                // (Radial confirmed with the field's reset button, round 15, #1050).
+                RegionType::ConcentricCircle | RegionType::Spiral | RegionType::Radial => 2.0,
                 // PE-DESIGN 11.50's zigzag net: a rung every 0.44 mm.
                 RegionType::ZigzagNetFill => 2.25,
                 _ => 1.5,
@@ -2468,9 +2474,12 @@ impl RegionSewing {
         self.spacing.unwrap_or(match self.kind {
             RegionType::CrossStitch => 2.5,
             RegionType::Stippling => 2.0,
-            RegionType::NetFill => 4.0,
-            // PE-DESIGN 11.50's zigzag net (o-region-zigzag-net): bands 8 mm apart.
-            RegionType::ZigzagNetFill => 8.0,
+            // PE-DESIGN 11.50's Net Fill: Spacing 3.0 mm, the line pitch (its field's reset
+            // button, #1110).
+            RegionType::NetFill => 3.0,
+            // PE-DESIGN 11.50's zigzag net: Spacing 5.0 mm, the gap between bands (its field's
+            // reset button; with the 3 mm band the lines are 8 mm apart, #1109).
+            RegionType::ZigzagNetFill => 5.0,
             RegionType::FlexibleSpiral => 1.0,
             // The contour fill sketch's default row spacing (echo-quilting look).
             RegionType::Contour => 2.0,
@@ -2953,7 +2962,7 @@ impl LineGap {
 impl LineSewing {
     /// A line of `kind` with the attributes PE-DESIGN 11.50 gives that type (measured from
     /// compat/reference/stitches/line-*-default.pes): run pitch 2.0 mm for running, triple
-    /// and E/V; zigzag 2.0 mm wide at 4.5 lines/mm with under sewing and half stitch; E/V
+    /// and E/V; motif Run pitch 5.0 mm; zigzag 2.0 mm wide at 4.5 lines/mm with under sewing and half stitch; E/V
     /// strokes 2.5 mm every 5.0 mm; stem 2.0 mm every 1.5 mm at 45°; candlewicking knots of
     /// 5.0 mm (Medium: 24 points) 1.0 mm apart; chain triangles of 4.0 mm sewn 5 times.
     pub fn new(kind: LineType, thread: Thread) -> Self {
@@ -2966,6 +2975,9 @@ impl LineSewing {
             pitch: match kind {
                 LineType::Running | LineType::Triple | LineType::Zigzag | LineType::Satin => 2.0,
                 LineType::Scribble => 1.0,
+                // PE-DESIGN's motif line Run pitch: 5.0, the 50 its tools write at PES 11
+                // body +82 (608-motif-5x8, #1130).
+                LineType::Motif => 5.0,
                 _ if stroke => 2.0,
                 _ => 2.5,
             },

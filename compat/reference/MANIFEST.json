@@ -854,6 +854,54 @@
       "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-concentric.pes.) Pattern blocks redacted 2026-11-14 (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN b5b36250eeb59748054f67feabdf82f9429f5f7db0ab190842cdd6849c35a74e."
     },
     {
+      "file": "stitches/radial-circle40-default.pes",
+      "spec": "radial-circle40-default",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; Concentric Circle density 2,0, run pitch 2,0; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region to Radial Stitch (the pane shows only Density and Run pitch, 2,0 and 2,0), Density (none: 2,0 as the pane showed it after the switch); Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 2311.",
+      "sha256": "19cf8c43526e8374302a460552d56ed2b753a165859f22cd0f37bc04c9cbb70a",
+      "notes": "Round 15 (#1050), the owner's round-15 capture notes, part 2; the field range: 0,1 kept as 0,2 and 10,0 or 99 as 7,0. Pattern blocks redacted 2026-11-14 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN a5dd387be2162838d8fe617234ee60f737c59b789d21c754528ccfbcc3a93798."
+    },
+    {
+      "file": "stitches/radial-circle40-d3p0.pes",
+      "spec": "radial-circle40-d3p0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; Concentric Circle density 2,0, run pitch 2,0; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region to Radial Stitch (the pane shows only Density and Run pitch, 2,0 and 2,0), Density 3,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 3423.",
+      "sha256": "56e8685dd313646850100ab9307f950f60174ad22e722e31062ad7f76776dddc",
+      "notes": "Round 15 (#1050), the owner's round-15 capture notes, part 2; the field range: 0,1 kept as 0,2 and 10,0 or 99 as 7,0. Pattern blocks redacted 2026-11-14 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN f88eb91b0a487f29e967ed37c7615e658508563eed27496aaef00724284a3edd."
+    },
+    {
+      "file": "stitches/radial-circle40-d5p0.pes",
+      "spec": "radial-circle40-d5p0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; Concentric Circle density 2,0, run pitch 2,0; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region to Radial Stitch (the pane shows only Density and Run pitch, 2,0 and 2,0), Density 5,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 5717.",
+      "sha256": "3ab3c329bc265facb00df99979208c7fd37cede067260fed5a84ac74edbf7f0b",
+      "notes": "Round 15 (#1050), the owner's round-15 capture notes, part 2; the field range: 0,1 kept as 0,2 and 10,0 or 99 as 7,0. Pattern blocks redacted 2026-11-14 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 9a45cace42558e3677ace87a64965d0af940128a226af375583d3b44c79e3897."
+    },
+    {
+      "file": "stitches/radial-circle40-dmax.pes",
+      "spec": "radial-circle40-dmax",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; Concentric Circle density 2,0, run pitch 2,0; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region to Radial Stitch (the pane shows only Density and Run pitch, 2,0 and 2,0), Density 10,0 typed, kept as 7,0 (the field's maximum); Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 7988.",
+      "sha256": "ecf9132cbbeaec652c13a77b1b93abac9dc5b99b9cc0c5d937646d5c454c302e",
+      "notes": "Round 15 (#1050), the owner's round-15 capture notes, part 2; the field range: 0,1 kept as 0,2 and 10,0 or 99 as 7,0. Pattern blocks redacted 2026-11-14 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN f7db22d934543045f3a776988c7c4c4a31de86fc52b0e6008924520b79e7e154."
+    },
+    {
       "file": "stitches/concentric-ellipse30x40.pes",
       "spec": "concentric-ellipse30x40",
       "reference": "pe-design",
@@ -6208,6 +6256,78 @@
       "notes": "Header #PES0110. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. Also a formats fixture (crates/openstitch-formats/tests/fixtures/pe11, PROVENANCE.md). The header lists only the project's own motifs. As saved by PE-DESIGN: 972c0b75e323f1c665bb1f3e5df14bc5f65be68093a57a87e55e55b48126475d."
     },
     {
+      "file": "stitches/608-motif-5x8.pes",
+      "spec": "line-motif-zigzag-5x8-import",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-13",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Layout & Editing, 100 x 100 mm page: Home > Shapes > Rectangle, a 40 x 40 mm square; region Not Sewn; line Motif Stitch with the project's own psc-motif-zigzag-3pt.pmf (compat/reference/pes, drawn in Programmable Stitch Creator in round 4), Maintain aspect ratio off, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Run pitch 5,0, Start/End Type Feed, motif 5,0 mm wide (the lower field, horizontal arrow) and 8,0 mm high (the upper field, vertical arrow). Save As PES (default type). 40,00 x 40,00 mm, 75 st in PE-DESIGN's status bar.",
+      "sha256": "93c51c89ad0d85022edd0d30414607c6d51269c5d658b5c3ea4b741fda2b890a",
+      "notes": "Header #PES0110. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. Also a formats fixture (crates/openstitch-formats/tests/fixtures/pe11, PROVENANCE.md). The header lists only the project's own motifs. As saved by PE-DESIGN: 972c0b75e323f1c665bb1f3e5df14bc5f65be68093a57a87e55e55b48126475d."
+    },
+    {
+      "file": "stitches/1068-motif-5x8-runpitch-3p0.pes",
+      "spec": "line-motif-zigzag-5x8-pitch3",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 608-motif-5x8.pes (round 13: the 40 x 40 mm square, line Motif Stitch with the project's psc-motif-zigzag-3pt.pmf, motif 5,0 mm wide and 8,0 mm high, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Start/End Type Feed). Run pitch 3,0 (was 5,0), nothing else changed. Save As PES (default type). 117 stitches by OpenStitch's reader.",
+      "sha256": "34a1d23a204d884c7ed527c9c13f67a8b0d81b94f4c0cf914912548b9be9cfda",
+      "notes": "Header #PES0110. Round 15 (#1068), the coordinator's capture. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. The header lists only the project's own motif. As saved by PE-DESIGN: 25a944f9f1e9c20ce25c93e29d6f892b9ea4fc53a1b5172ac5d20d46ca698b38."
+    },
+    {
+      "file": "stitches/1068-motif-5x8-runpitch-3p0.pes",
+      "spec": "line-motif-zigzag-5x8-import-pitch3",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 608-motif-5x8.pes (round 13: the 40 x 40 mm square, line Motif Stitch with the project's psc-motif-zigzag-3pt.pmf, motif 5,0 mm wide and 8,0 mm high, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Start/End Type Feed). Run pitch 3,0 (was 5,0), nothing else changed. Save As PES (default type). 117 stitches by OpenStitch's reader.",
+      "sha256": "34a1d23a204d884c7ed527c9c13f67a8b0d81b94f4c0cf914912548b9be9cfda",
+      "notes": "Header #PES0110. Round 15 (#1068), the coordinator's capture. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. The header lists only the project's own motif. As saved by PE-DESIGN: 25a944f9f1e9c20ce25c93e29d6f892b9ea4fc53a1b5172ac5d20d46ca698b38."
+    },
+    {
+      "file": "stitches/1068-motif-5x8-runpitch-7p0.pes",
+      "spec": "line-motif-zigzag-5x8-pitch7",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 608-motif-5x8.pes (round 13: the 40 x 40 mm square, line Motif Stitch with the project's psc-motif-zigzag-3pt.pmf, motif 5,0 mm wide and 8,0 mm high, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Start/End Type Feed). Run pitch 7,0 (was 5,0), nothing else changed. Save As PES (default type). 76 stitches by OpenStitch's reader.",
+      "sha256": "ecf65714104a0aea1362d8e7e96e21cf9f922d6af0975605c80c700c4b33f99a",
+      "notes": "Header #PES0110. Round 15 (#1068), the coordinator's capture. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. The header lists only the project's own motif. As saved by PE-DESIGN: e209e4ebb0911e316710ced3c8eb391ccacac27ea94b09051bdcb67a47194aa2."
+    },
+    {
+      "file": "stitches/1068-motif-5x8-runpitch-7p0.pes",
+      "spec": "line-motif-zigzag-5x8-import-pitch7",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 608-motif-5x8.pes (round 13: the 40 x 40 mm square, line Motif Stitch with the project's psc-motif-zigzag-3pt.pmf, motif 5,0 mm wide and 8,0 mm high, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Start/End Type Feed). Run pitch 7,0 (was 5,0), nothing else changed. Save As PES (default type). 76 stitches by OpenStitch's reader.",
+      "sha256": "ecf65714104a0aea1362d8e7e96e21cf9f922d6af0975605c80c700c4b33f99a",
+      "notes": "Header #PES0110. Round 15 (#1068), the coordinator's capture. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. The header lists only the project's own motif. As saved by PE-DESIGN: e209e4ebb0911e316710ced3c8eb391ccacac27ea94b09051bdcb67a47194aa2."
+    },
+    {
+      "file": "stitches/1068-motif-5x8-startend-run.pes",
+      "spec": "line-motif-zigzag-5x8-import-startend-run",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 608-motif-5x8.pes (round 13: the 40 x 40 mm square, line Motif Stitch with the project's psc-motif-zigzag-3pt.pmf, motif 5,0 mm wide and 8,0 mm high, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Run pitch 5,0). Start/End Type Run (was Feed), nothing else changed. Save As PES (default type). 75 st in PE-DESIGN's status bar.",
+      "sha256": "fa36484ec2a81e5fdac7aa010d494b7f404e1004c82bc2650cb354e247b42087",
+      "notes": "Header #PES0110. Round 15 (#1068), the coordinator's capture. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. The header lists only the project's own motif. As saved by PE-DESIGN: bb613d9aede6a5d08777a26a3d5829301abd0020b60664cbf4e0d989ace1b164."
+    },
+    {
       "file": "stitches/motif-fill-clean-p1.pes",
       "spec": "motif-fill-clean-p1",
       "reference": "pe-design",
@@ -6290,6 +6410,114 @@
       "settings": "Opened 987-two-running-lines-2mm.pes, selected both lines and set Run pitch 3,0, nothing else changed: 40,00 x 2,00 mm, 42 stitches. Save As PES (default type).",
       "sha256": "4f4626ee606b7b772ef9e8db3ed04928b1d6562c233167182c296ec74c76daa3",
       "notes": "Header #PES0110. The coordinator's capture for #987. Pattern blocks redacted (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 419f1308658e367aadb4a1b017939373cb5c361dd95484195be923846dfe6e88."
+    },
+    {
+      "file": "stitches/programmable-fill-45-psc-square.pes",
+      "spec": "programmable-fill-45",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "100 x 100 mm Hoop Size page. Home > Shapes > Rectangle dragged to 40,00 x 40,00 mm with its top-left near (10 ; 10) mm. Line Not Sewn. Region Prog. Fill Stitch; Pattern: the folder button (Browse) > the project's psc-square-4pt.pas (compat/reference/pes, round 4); nothing chosen from a PE-DESIGN list. Left as PE-DESIGN set them: Under sewing on (first type, Density Medium), Density 4,5, Direction Manual straight line 45, Running Stitch Path first, Pull compensation 0,0; tile 7,5 x 7,5 mm, pattern Direction 0, Offset row 0 %, Base Sewing off, Feathered edge off. Optimize Entry/Exit Points off. Save As PES (default type). 40,00 x 40,00 mm, 2686 stitches in the status bar.",
+      "sha256": "9cf92f47e62561725f3b0c0f824ae933fefbeb7bf69c88f9726c869488933328",
+      "notes": "Header #PES0110. The coordinator's round 15 capture (#1075). Its fill list holds one pattern, the project's square (128,128) (896,128) (896,896) (128,896). Pattern blocks redacted (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 5d6228c2f695010cf03de2f6eb8d426d02b1f97bcc611f7af631e8b747e5f489."
+    },
+    {
+      "file": "stitches/shape-start-points-outline.pes",
+      "spec": "shape-start-points-outline",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "100 x 100 mm page, Options > Optimize Entry/Exit Points off. Drawn with PE-DESIGN's drawing tools only, no Shapes gallery: Rectangle tool (2,2)-(22,22) and (26,2)-(46,12) mm, the Circle/Ellipse tool in (50,2)-(70,12), and Shapes > Outline closed straight lines: a diamond (12,26) (22,36) (12,46) (2,36), a four-point star (36,26) (39,33) (46,36) (39,39) (36,46) (33,39) (26,36) (33,33) and a triangle (60,26) (70,46) (50,46), by screen clicks 0,1 to 0,5 mm off (the spec scripts the points read from the file). One thread colour for all six. Line Not Sewn, region Fill Stitch with Under sewing off, every other attribute at its default. Save As PES (default type). 68,00 x 44,00 mm, 2086 stitches.",
+      "sha256": "cfbc2598001e35655ef93ee7ecd3d6b983cc434b746e4a0c5cc8131dc4666a6c",
+      "notes": "Header #PES0110, no pattern list. The coordinator's round 15 capture (#1075), replacing the withdrawn gallery-shape reference of shape-start-points. Pattern blocks redacted (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 8fca630cb276e4c13a2b6e456e41410bf85c247a5855b4165711f74695ebe98b."
+    },
+    {
+      "file": "stitches/fill-square-5mm-under-sewing.pes",
+      "spec": "fill-square-5mm-under-sewing",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "100 x 100 mm page, Optimize Entry/Exit Points off. Home > Shapes > Rectangle, set to 5,00 x 5,00 mm with Home > Size, top-left at (40,0 ; 47,5) mm (read from the file). Line Not Sewn; region Fill Stitch at its defaults: under sewing on, density 4,5, Direction 45, step pitch 4,0, frequency 30 %. The shape's default colour. Save As PES (default type). 5,00 x 5,00 mm, 85 stitches. Saved as 1088-square-5mm-x0.pes; the same square moved by 0,5, 1,0 and 1,5 mm right and 0,5 mm down sews byte-identical stitches (round 15).",
+      "sha256": "1df8d1a1e8cdabc4339468b8ba2fb2c359f18569a3268051cdad9ec0ff1c5421",
+      "notes": "Header #PES0110. The coordinator's round 15 capture for #1088. Pattern blocks redacted (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 13e3c829c497370c67bc43ea91c95c9bd0d2514520255446b00d81954adf04f2."
+    },
+    {
+      "file": "stitches/zigzag-net-circle40-w3p0.pes",
+      "spec": "zigzag-net-circle40-w3p0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region from Radial (at 7,0) to Zigzag Net Fill Stitch: the pane showed PE-DESIGN's defaults (Pattern first button, Under sewing on, Zigzag width 3,0, Density 4,5, Spacing 5,0, H-Offset 0,0, V-Offset 0,0, Direction 0); Zigzag width 3,0, Spacing 5,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 1974.",
+      "sha256": "22b53f469789d0b1392f51e693da0b686d397231ab5268d373e34efd06aef8b7",
+      "notes": "Round 15 (#1050 part B, #1109), the coordinator's round-15 capture notes; the field ranges: Zigzag width 0,1 kept as 1,0 and 99 as 10,0; Spacing 0,1 kept as 2,0 and 99 as 10,0. Pattern blocks redacted 2026-11-15 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 39a5d5b22a51a7ba84924389f23701f47511548ae87a333293784a850787ad31."
+    },
+    {
+      "file": "stitches/zigzag-net-circle40-w6p0.pes",
+      "spec": "zigzag-net-circle40-w6p0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region from Radial (at 7,0) to Zigzag Net Fill Stitch: the pane showed PE-DESIGN's defaults (Pattern first button, Under sewing on, Zigzag width 3,0, Density 4,5, Spacing 5,0, H-Offset 0,0, V-Offset 0,0, Direction 0); Zigzag width 6,0, Spacing 5,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 1718.",
+      "sha256": "a05b929b8374ba71fc6a2dbff5f43538fe991b727f487da843ea67359ce5021d",
+      "notes": "Round 15 (#1050 part B, #1109), the coordinator's round-15 capture notes; the field ranges: Zigzag width 0,1 kept as 1,0 and 99 as 10,0; Spacing 0,1 kept as 2,0 and 99 as 10,0. Pattern blocks redacted 2026-11-15 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 3516ea9ef35e57d9b9a58b063656f196b26d6924f860ef039eab4d3f3c78e444."
+    },
+    {
+      "file": "stitches/zigzag-net-circle40-w10p0.pes",
+      "spec": "zigzag-net-circle40-w10p0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region from Radial (at 7,0) to Zigzag Net Fill Stitch: the pane showed PE-DESIGN's defaults (Pattern first button, Under sewing on, Zigzag width 3,0, Density 4,5, Spacing 5,0, H-Offset 0,0, V-Offset 0,0, Direction 0); Zigzag width 10,0, Spacing 5,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 1453.",
+      "sha256": "a805dd9be50fa9475554abfe1501d6c544fdd88dd8c408c106d970ccf3be7aa8",
+      "notes": "Round 15 (#1050 part B, #1109), the coordinator's round-15 capture notes; the field ranges: Zigzag width 0,1 kept as 1,0 and 99 as 10,0; Spacing 0,1 kept as 2,0 and 99 as 10,0. Pattern blocks redacted 2026-11-15 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN cd3b6d085802b53e57ecc2258bbd87752252f6e4aa77a0f4257bb08cfb6f3c60."
+    },
+    {
+      "file": "stitches/line-candlewick-light-square40.pes",
+      "spec": "line-candlewick-light-square40",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-15",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 15's 40 x 40 mm square (30,30)-(70,70) mm, region Not Sewn, and set its line to Candlewicking, 800 EMBROIDERY RED, Size 5,0, Spacing 1,0, Density Light (a drop-down: Dense, Medium, Light; Size 3,0-10,0 and Spacing 0,0-100,0 mm by typing past both ends). Save As PES (default type). 45,00 x 45,00 mm, 654 stitches in PE-DESIGN's status bar.",
+      "sha256": "6e996e017b65e715acc17619094af1171ee2095970d55ea1f41cfc6d0bccd01a",
+      "notes": "Header #PES0110. Round 15 (#1124), the coordinator's round-15 capture notes (results-2026-11-15). 28 knots of 20 points; the Density choice at the line body's +110 (2). The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. As saved by PE-DESIGN: 5b615a2f843655fee59dfdd418ce37a8f14b555bf5e5f9c6b54d400cb3d000a7."
+    },
+    {
+      "file": "stitches/line-candlewick-medium-square40.pes",
+      "spec": "line-candlewick-medium-square40",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-15",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 15's 40 x 40 mm square (30,30)-(70,70) mm, region Not Sewn, and set its line to Candlewicking, 800 EMBROIDERY RED, Size 5,0, Spacing 1,0, Density Medium (a drop-down: Dense, Medium, Light; Size 3,0-10,0 and Spacing 0,0-100,0 mm by typing past both ends). Save As PES (default type). 45,00 x 45,00 mm, 766 stitches in PE-DESIGN's status bar.",
+      "sha256": "ec8d864b17946f3757d93a121603ede72a168c493fc1d1d8d5ba3b562ff7d5b4",
+      "notes": "Header #PES0110. Round 15 (#1124), the coordinator's round-15 capture notes (results-2026-11-15). 28 knots of 24 points; the Density choice at the line body's +110 (1). The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. As saved by PE-DESIGN: cb57fec85e1b08a5cd242a37a97d60632ef128c54428947eaccf11d320571a80."
+    },
+    {
+      "file": "stitches/line-candlewick-dense-square40.pes",
+      "spec": "line-candlewick-dense-square40",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-15",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 15's 40 x 40 mm square (30,30)-(70,70) mm, region Not Sewn, and set its line to Candlewicking, 800 EMBROIDERY RED, Size 5,0, Spacing 1,0, Density Dense (a drop-down: Dense, Medium, Light; Size 3,0-10,0 and Spacing 0,0-100,0 mm by typing past both ends). Save As PES (default type). 45,00 x 45,00 mm, 992 stitches in PE-DESIGN's status bar.",
+      "sha256": "c49fcd6bbe748eaf9ce39e47de29156d335c3bc8c4713b5732679d8426185a1b",
+      "notes": "Header #PES0110. Round 15 (#1124), the coordinator's round-15 capture notes (results-2026-11-15). 28 knots of 32 points; the Density choice at the line body's +110 (0). The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. As saved by PE-DESIGN: fb134d65cace6f01fe6bdcc1da6c6b24182d4cfa29b5a1336e9fafc0becfde5a."
     }
   ]
 }

@@ -42,6 +42,16 @@ pub struct Limits {
     /// (zero-length stitches in place left out).
     pub short_stitch_mm: f64,
     pub max_short_per_1000: f64,
+    /// Low coverage (#1036): a fill hiding less than this share of the fabric, on the coverage
+    /// curve measured on the T1 sew-outs (`openstitch_design::calibration::coverage`).
+    pub min_coverage: f64,
+    /// Needle crowding (#1036): pairs of distinct needle points closer than `crowd_close_mm`
+    /// within `crowd_check_mm` of one needle point; a warning over `max_crowd_pairs_warn`, an
+    /// error over `max_crowd_pairs_error`.
+    pub crowd_check_mm: f64,
+    pub crowd_close_mm: f64,
+    pub max_crowd_pairs_warn: usize,
+    pub max_crowd_pairs_error: usize,
 }
 
 /// [`Limits`] as the table holds them.
@@ -391,6 +401,304 @@ fn is_feed(o: &DesignObject) -> bool {
 }
 
 /// Whether the object is meant to sew: a region or line, or fixed stitches.
+/// The share of the fabric object `o`'s stitches `st` hide (#1036): its thread per mm² of its
+/// area, which for one layer of parallel rows is their rows per mm, through the coverage curve
+/// measured on the T1 sew-outs (#291). Thread per area, not a sampled density map, so a 2 mm
+/// stroke reads as a wide square at the same density (a map's blur reads narrow shapes low).
+/// `None` for an empty or degenerate outline.
+fn fill_coverage(o: &DesignObject, st: &[openstitch_core::Stitch]) -> Option<f64> {
+    let closed: Vec<Contour> = o.contours.iter().filter(|c| c.closed).cloned().collect();
+    let area = openstitch_design::boolean::region_area(&closed) / (MM * MM);
+    if area <= 1e-6 {
+        return None;
+    }
+    let thread: f64 = st
+        .windows(2)
+        .filter(|w| w[0].command == Command::Stitch && w[1].command == Command::Stitch)
+        .map(|w| (w[1].x - w[0].x).hypot(w[1].y - w[0].y))
+        .sum::<f64>()
+        / MM;
+    (thread > 0.0).then(|| openstitch_design::calibration::coverage(thread / area))
+}
+
+/// The most crowded spot of a stitch list (#1036, #1112's `centreCrowding` anywhere): over every
+/// needle point, the distinct needle points (on the 0.1 mm grid) within `within_mm` of it and the
+/// pairs of them closer than `closer_mm`; the spot with the most pairs.
+pub struct Crowd {
+    pub pairs: usize,
+    /// The spot's distinct needle points. Informational: where two spots have the same pairs,
+    /// the one with more points is kept, and a run with a floor may meet them in another order
+    /// than a full run, so only `pairs` is asserted to agree.
+    pub points: usize,
+    /// The spot's centre, design units.
+    pub centre: Vec2,
+    /// Indexes of the stitches on its points.
+    pub stitches: Vec<usize>,
+}
+
+/// See [`Crowd`]. Needle points lie on the 0.1 mm grid, so a point's close neighbours are a fixed
+/// set of grid offsets (each pair once); a window's pairs all start in the 3 × 3 cells round it,
+/// so the close pairs of those cells bound it, and cells that cannot beat the best (or `floor`)
+/// are skipped, the most promising first. With a `floor`, a design whose most crowded spot has at
+/// most `floor` pairs gives `None` (what the check needs, much faster); `tools/sew_check.py`'s
+/// `crowding` is the same count.
+pub fn crowding(
+    st: &[openstitch_core::Stitch],
+    within_mm: f64,
+    closer_mm: f64,
+    floor: usize,
+) -> Option<Crowd> {
+    // Most designs end here: no spot can hold more than `floor` pairs.
+    if floor > 0 && crowding_bound(st, within_mm, closer_mm).is_some_and(|b| b <= floor) {
+        return None;
+    }
+    // Distinct needle points on the 0.1 mm grid, sorted, each with its stitches.
+    let mut drops: Vec<((i64, i64), usize)> = st
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.command == Command::Stitch)
+        .map(|(i, s)| ((s.x.round() as i64, s.y.round() as i64), i))
+        .collect();
+    if drops.is_empty() {
+        return None;
+    }
+    drops.sort_unstable();
+    let mut pts: Vec<(i64, i64)> = drops.iter().map(|d| d.0).collect();
+    pts.dedup();
+    let n = pts.len();
+    let (within, close) = (within_mm * MM, closer_mm * MM);
+    let dist = |a: (i64, i64), b: (i64, i64)| ((a.0 - b.0) as f64).hypot((a.1 - b.1) as f64);
+    // Which grid points hold a needle point: a bit per point of the design's extent (a 260 ×
+    // 160 mm hoop is half a megabyte), or a hash set for a very large one.
+    let (x0, y0) = pts
+        .iter()
+        .fold((i64::MAX, i64::MAX), |a, p| (a.0.min(p.0), a.1.min(p.1)));
+    let (x1, y1) = pts
+        .iter()
+        .fold((i64::MIN, i64::MIN), |a, p| (a.0.max(p.0), a.1.max(p.1)));
+    let (w, h) = ((x1 - x0 + 1) as u64, (y1 - y0 + 1) as u64);
+    let bits: Option<Vec<u64>> = (w.saturating_mul(h) <= 64_000_000).then(|| {
+        let mut v = vec![0u64; (w * h).div_ceil(64) as usize];
+        for p in &pts {
+            let k = (p.1 - y0) as u64 * w + (p.0 - x0) as u64;
+            v[(k / 64) as usize] |= 1 << (k % 64);
+        }
+        v
+    });
+    let set: std::collections::HashSet<(i64, i64)> = if bits.is_none() {
+        pts.iter().copied().collect()
+    } else {
+        Default::default()
+    };
+    let has = |q: (i64, i64)| match &bits {
+        Some(v) => {
+            if q.0 < x0 || q.0 > x1 || q.1 < y0 || q.1 > y1 {
+                return false;
+            }
+            let k = (q.1 - y0) as u64 * w + (q.0 - x0) as u64;
+            v[(k / 64) as usize] >> (k % 64) & 1 == 1
+        }
+        None => set.contains(&q),
+    };
+    // A point's close neighbours after it: a fixed set of grid offsets, each pair once.
+    let r = close.ceil() as i64;
+    let offsets: Vec<(i64, i64)> = (0..=r)
+        .flat_map(|dx| (-r..=r).map(move |dy| (dx, dy)))
+        .filter(|&(dx, dy)| (dx > 0 || dy > 0) && ((dx * dx + dy * dy) as f64).sqrt() < close)
+        .collect();
+    let close_count: Vec<usize> = pts
+        .iter()
+        .map(|p| {
+            offsets
+                .iter()
+                .filter(|o| has((p.0 + o.0, p.1 + o.1)))
+                .count()
+        })
+        .collect();
+    // A window's pairs all start among its points, which lie in the 1 mm cells that come within
+    // `within` of its centre's cell: the close pairs of those cells bound it. Cells (an array over
+    // the extent) that cannot beat the best (or `floor`) are skipped, the most promising first.
+    let cell = MM as i64;
+    let reach = (within / cell as f64).ceil() as i64;
+    let (cw, ch) = (
+        ((x1 - x0) / cell + 1) as usize,
+        ((y1 - y0) / cell + 1) as usize,
+    );
+    let cell_of = |p: (i64, i64)| (((p.0 - x0) / cell) as usize, ((p.1 - y0) / cell) as usize);
+    let mut members: Vec<Vec<usize>> = vec![Vec::new(); cw * ch];
+    let mut pairs_in = vec![0usize; cw * ch];
+    for (i, &p) in pts.iter().enumerate() {
+        let (cx, cy) = cell_of(p);
+        members[cy * cw + cx].push(i);
+        pairs_in[cy * cw + cx] += close_count[i];
+    }
+    // The cells a window centred in a cell can reach: their nearest corners within `within`.
+    let reachable: Vec<(i64, i64)> = (-reach..=reach)
+        .flat_map(|dx| (-reach..=reach).map(move |dy| (dx, dy)))
+        .filter(|&(dx, dy)| {
+            let gap = |d: i64| ((d.abs() - 1).max(0) * cell) as f64;
+            gap(dx).hypot(gap(dy)) < within
+        })
+        .collect();
+    let around = |cx: usize, cy: usize| {
+        reachable.iter().filter_map(move |&(dx, dy)| {
+            let (x, y) = (cx as i64 + dx, cy as i64 + dy);
+            (x >= 0 && y >= 0 && (x as usize) < cw && (y as usize) < ch)
+                .then(|| y as usize * cw + x as usize)
+        })
+    };
+    let mut ranked: Vec<(usize, usize)> = (0..cw * ch)
+        .filter(|&k| !members[k].is_empty())
+        .map(|k| (k, around(k % cw, k / cw).map(|c| pairs_in[c]).sum()))
+        .collect();
+    ranked.sort_unstable_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let index = |q: (i64, i64)| pts.binary_search(&q).ok();
+    let mut stamp = vec![usize::MAX; n];
+    let mut best: Option<(usize, usize, usize)> = None;
+    for (k, bound) in ranked {
+        if bound <= floor.max(best.map_or(0, |b| b.0)) && (best.is_some() || bound <= floor) {
+            break;
+        }
+        let nearby: Vec<usize> = around(k % cw, k / cw)
+            .flat_map(|c| members[c].iter().copied())
+            .collect();
+        for &i in &members[k] {
+            let c = pts[i];
+            let near: Vec<usize> = nearby
+                .iter()
+                .copied()
+                .filter(|&j| dist(pts[j], c) < within)
+                .collect();
+            for &j in &near {
+                stamp[j] = i;
+            }
+            let pairs = near
+                .iter()
+                .map(|&j| {
+                    offsets
+                        .iter()
+                        .map(|o| (pts[j].0 + o.0, pts[j].1 + o.1))
+                        .filter(|&q| has(q) && index(q).is_some_and(|m| stamp[m] == i))
+                        .count()
+                })
+                .sum::<usize>();
+            if best.is_none_or(|b| pairs > b.0 || (pairs == b.0 && near.len() > b.1)) {
+                best = Some((pairs, near.len(), i));
+            }
+        }
+    }
+    let (pairs, points, ci) = best?;
+    if pairs <= floor && floor > 0 {
+        return None;
+    }
+    let c = pts[ci];
+    let stitches = drops
+        .iter()
+        .filter(|d| dist(d.0, c) < within)
+        .map(|d| d.1)
+        .collect();
+    Some(Crowd {
+        pairs,
+        points,
+        centre: v2(c.0 as f64, c.1 as f64),
+        stitches,
+    })
+}
+
+/// An upper bound on any spot's pairs in [`crowding`] (#1036), without sorting: each close pair
+/// counted at its first point's 1 mm cell, and the pairs of the square of cells round each
+/// occupied cell (which holds every cell a spot centred in it reaches) summed from a summed-area
+/// table. `None` for no stitches or an extent too large for its bitmap (then nothing is skipped).
+pub fn crowding_bound(
+    st: &[openstitch_core::Stitch],
+    within_mm: f64,
+    closer_mm: f64,
+) -> Option<usize> {
+    let raw: Vec<(i64, i64)> = st
+        .iter()
+        .filter(|s| s.command == Command::Stitch)
+        .map(|s| (s.x.round() as i64, s.y.round() as i64))
+        .collect();
+    let (x0, y0) = raw
+        .iter()
+        .fold((i64::MAX, i64::MAX), |a, p| (a.0.min(p.0), a.1.min(p.1)));
+    let (x1, y1) = raw
+        .iter()
+        .fold((i64::MIN, i64::MIN), |a, p| (a.0.max(p.0), a.1.max(p.1)));
+    if raw.is_empty() {
+        return None;
+    }
+    let (w, h) = ((x1 - x0 + 1) as u64, (y1 - y0 + 1) as u64);
+    if w.saturating_mul(h) > 64_000_000 {
+        return None;
+    }
+    let bit = |p: (i64, i64)| (p.1 - y0) as u64 * w + (p.0 - x0) as u64;
+    let mut bits = vec![0u64; (w * h).div_ceil(64) as usize];
+    let mut pts = Vec::with_capacity(raw.len());
+    for p in raw {
+        let k = bit(p);
+        let (word, mask) = ((k / 64) as usize, 1u64 << (k % 64));
+        if bits[word] & mask == 0 {
+            bits[word] |= mask;
+            pts.push(p);
+        }
+    }
+    let close = closer_mm * MM;
+    let r = close.ceil() as i64;
+    let offsets: Vec<(i64, i64)> = (0..=r)
+        .flat_map(|dx| (-r..=r).map(move |dy| (dx, dy)))
+        .filter(|&(dx, dy)| (dx > 0 || dy > 0) && ((dx * dx + dy * dy) as f64).sqrt() < close)
+        .collect();
+    let has = |q: (i64, i64)| {
+        q.0 >= x0 && q.0 <= x1 && q.1 >= y0 && q.1 <= y1 && {
+            let k = bit(q);
+            bits[(k / 64) as usize] >> (k % 64) & 1 == 1
+        }
+    };
+    let cell = MM as i64;
+    let reach = (within_mm * MM / MM).ceil() as usize;
+    let (cw, ch) = (
+        ((x1 - x0) / cell + 1) as usize,
+        ((y1 - y0) / cell + 1) as usize,
+    );
+    let mut pairs = vec![0usize; cw * ch];
+    let mut occupied = vec![false; cw * ch];
+    for &p in &pts {
+        let c = ((p.1 - y0) / cell) as usize * cw + ((p.0 - x0) / cell) as usize;
+        occupied[c] = true;
+        pairs[c] += offsets
+            .iter()
+            .filter(|o| has((p.0 + o.0, p.1 + o.1)))
+            .count();
+    }
+    // Summed-area table, one row and column of zeros in front.
+    let mut sat = vec![0usize; (cw + 1) * (ch + 1)];
+    for y in 0..ch {
+        let mut run = 0;
+        for x in 0..cw {
+            run += pairs[y * cw + x];
+            sat[(y + 1) * (cw + 1) + x + 1] = run + sat[y * (cw + 1) + x + 1];
+        }
+    }
+    let area = |xa: usize, ya: usize, xb: usize, yb: usize| {
+        sat[yb * (cw + 1) + xb] + sat[ya * (cw + 1) + xa]
+            - sat[ya * (cw + 1) + xb]
+            - sat[yb * (cw + 1) + xa]
+    };
+    (0..cw * ch)
+        .filter(|&c| occupied[c])
+        .map(|c| {
+            let (x, y) = (c % cw, c / cw);
+            area(
+                x.saturating_sub(reach),
+                y.saturating_sub(reach),
+                (x + reach + 1).min(cw),
+                (y + reach + 1).min(ch),
+            )
+        })
+        .max()
+}
+
 fn sews(o: &DesignObject) -> bool {
     o.region.is_some() || o.line.is_some() || o.stitch_block.is_some()
 }
@@ -640,22 +948,67 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
                 fix: fix("object.setRegion", json!({ "ids": [id], "type": "satin" })),
             });
         }
-        if let Some(spec) = o.text.as_ref().filter(|s| text && s.size < TEXT_MIN_MM) {
+        // Fabric showing through (#1036): a plain fill (not a gradation, open on purpose; not
+        // a decorative, motif or stippled fill, open by design) whose rows hide less of the
+        // fabric than the limit, on the coverage curve measured on the T1 sew-outs.
+        if !text
+            && o.region.as_ref().is_some_and(|g| {
+                matches!(g.kind, RegionType::Fill | RegionType::ProgrammableFill)
+                    && g.gradation.is_none()
+            })
+            && let Some(c) = fill_coverage(o, &st[r.clone()])
+            && c < LIMITS.min_coverage
+        {
+            out.push(Finding {
+                rule: "lowCoverage",
+                // A note, not a warning: an open fill can be a chosen look (coordinator, #1036).
+                severity: Severity::Info,
+                ids: vec![*id],
+                bbox: bbox_of(drop_points(r)),
+                message: format!(
+                    "The fill hides about {:.0} % of the fabric (under {:.0} %): the fabric shows between its rows; about {:.1} lines/mm hides {:.0} %",
+                    c * 100.0,
+                    LIMITS.min_coverage * 100.0,
+                    openstitch_design::calibration::rows_for_coverage(LIMITS.min_coverage),
+                    LIMITS.min_coverage * 100.0
+                ),
+                value: (c * 1000.0).round() / 10.0,
+                limit: LIMITS.min_coverage * 100.0,
+                fix: None,
+            });
+        }
+        // Each font's own smallest good size (#1036): a bundled font's measured range, or the
+        // range an embroidery font's maker states; TEXT_MIN_MM for a font without one.
+        if let Some(spec) = o.text.as_ref().filter(|_| text)
+            && let min = openstitch_design::text::size_range(&spec.font, &d.fonts)
+                .map_or(TEXT_MIN_MM, |(_, r)| r.0)
+            && spec.size < min - 1e-9
+        {
+            let family = openstitch_design::text::size_range(&spec.font, &d.fonts)
+                .map_or_else(|| "this font".to_string(), |(f, _)| f);
+            // The fix: the Small Text font (PE-DESIGN's Font List group, #530) where the text
+            // is big enough for it and in another font; else the font's own smallest size.
+            let small = openstitch_design::text::FONTS
+                .iter()
+                .find(|f| f.group == "smallText");
+            let fix_params = match small {
+                Some(f) if spec.font != f.id && spec.size >= f.size_range.0 => {
+                    json!({ "ids": [id], "font": f.id })
+                }
+                _ => json!({ "ids": [id], "size": min }),
+            };
             out.push(Finding {
                 rule: "textTooSmall",
                 severity: Severity::Warning,
                 ids: vec![*id],
                 bbox: bbox_of(drop_points(r)),
                 message: format!(
-                    "{:.1} mm text: letters under {TEXT_MIN_MM} mm close up and lose detail",
+                    "{:.1} mm text: {family} sews well from {min} mm; smaller, its letters close up and lose detail",
                     spec.size
                 ),
                 value: spec.size,
-                limit: TEXT_MIN_MM,
-                fix: fix(
-                    "object.setText",
-                    json!({ "ids": [id], "size": TEXT_MIN_MM }),
-                ),
+                limit: min,
+                fix: fix("object.setText", fix_params),
             });
         }
         if o.kind == ObjectKind::Shape
@@ -717,6 +1070,15 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
     let mut dense: HashMap<(i64, i64), f64> = HashMap::new();
     let lim = &*LIMITS;
     let mut run = (0usize, 0usize, 0usize);
+    // A hoop turned 90° (#1135): the PES holds the stitches turned about the design's centre,
+    // which can fall between grid points, so the run in place is counted on them as written.
+    let turned = d
+        .machine
+        .rotate90
+        .then(|| openstitch_core::turned_for_hoop(&t.pattern));
+    let filed_st = turned
+        .as_ref()
+        .map_or(st.as_slice(), |p| p.stitches.as_slice());
     // Short stitches (#866): stitch-to-stitch moves, and the short ones by object.
     let (mut moves, mut short) = (0usize, HashMap::<Option<u64>, usize>::new());
     for (i, s) in st.iter().enumerate() {
@@ -739,7 +1101,20 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
             .push(i);
         let mid = v2((from.x + to.x) / 2.0, (from.y + to.y) / 2.0);
         *dense.entry(cell(mid, lim.dense_cell_mm)).or_default() += from.distance(to) / MM;
-        if i > 0 && from.distance(to) < lim.in_place_mm * MM {
+        // In place as the machine file holds it (#1135): between needle points rounded to the
+        // 0.1 mm grid as the writer rounds them, where a step just under 0.3 mm can become
+        // 0.3 mm and end the run (fonts-and-text's Lato read 9 in a row here, 6 in its file).
+        let grid = |s: &openstitch_core::Stitch| {
+            (
+                openstitch_core::round_coordinate(s.x),
+                openstitch_core::round_coordinate(s.y),
+            )
+        };
+        let filed = i.checked_sub(1).map_or(0.0, |j| {
+            let (a, b) = (grid(&filed_st[j]), grid(&filed_st[i]));
+            ((a.0 - b.0) as f64).hypot((a.1 - b.1) as f64)
+        });
+        if i > 0 && filed < lim.in_place_mm * MM {
             run.0 += 1;
             if run.0 > run.1 {
                 run = (run.0, run.0, i);
@@ -871,6 +1246,48 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
             value: peak,
             limit: opts.fabric.1,
             fix: fix("shape.removeOverlap", json!({ "ids": ids })),
+        });
+    }
+    // Needle crowding (#1036): the spot with the most pairs of needle points close together.
+    if let Some(c) = crowding(
+        st,
+        LIMITS.crowd_check_mm,
+        LIMITS.crowd_close_mm,
+        LIMITS.max_crowd_pairs_warn,
+    ) && c.pairs > LIMITS.max_crowd_pairs_warn
+    {
+        let error = c.pairs > LIMITS.max_crowd_pairs_error;
+        let limit = if error {
+            LIMITS.max_crowd_pairs_error
+        } else {
+            LIMITS.max_crowd_pairs_warn
+        };
+        let ids: BTreeSet<u64> = c.stitches.iter().filter_map(|&i| t.owner(i)).collect();
+        let r = LIMITS.crowd_check_mm * MM;
+        out.push(Finding {
+            rule: "crowdedNeedles",
+            severity: if error {
+                Severity::Error
+            } else {
+                Severity::Warning
+            },
+            ids: ids.into_iter().collect(),
+            bbox: bbox_of([c.centre - v2(r, r), c.centre + v2(r, r)]),
+            message: format!(
+                "{} pairs of needle points closer than {} mm within {} mm of one spot ({} points): over {limit}, {}; there is no sew-out evidence yet of what this does to the fabric",
+                c.pairs,
+                LIMITS.crowd_close_mm,
+                LIMITS.crowd_check_mm,
+                c.points,
+                if error {
+                    "twice anything PE-DESIGN's own files sew"
+                } else {
+                    "beyond anything PE-DESIGN's own files sew (591 at most)"
+                }
+            ),
+            value: c.pairs as f64,
+            limit: limit as f64,
+            fix: None,
         });
     }
     out.sort_by_key(|f| f.severity);
@@ -1331,21 +1748,35 @@ pub fn check_json(
     let errors = findings.iter().filter(|f| f["severity"] == "error").count();
     let notes = findings.iter().filter(|f| f["severity"] == "info").count();
     let first = findings.first().map(|f| f["message"].clone());
+    let warnings = findings.len() - errors - notes;
     json!({
         "ready": errors == 0,
+        "level": readiness(errors, warnings),
         "errors": errors,
-        "warnings": findings.len() - errors - notes,
+        "warnings": warnings,
         "notes": notes,
         "summary": if findings.is_empty() { json!("Ready to sew") } else { first.unwrap_or_default() },
         "findings": findings,
     })
 }
 
+/// The readiness level (#1036), from the counts alone: `readyToSew` with no errors and no
+/// warnings, `sewableWithSmallRisks` with warnings only, `fixThisFirst` with any error. Notes
+/// never count. A level, not a score: a number would read as a calibrated quality figure, and
+/// none is calibrated against sew-outs yet (coordinator, #1036).
+pub fn readiness(errors: usize, warnings: usize) -> &'static str {
+    match (errors, warnings) {
+        (0, 0) => "readyToSew",
+        (0, _) => "sewableWithSmallRisks",
+        _ => "fixThisFirst",
+    }
+}
+
 pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "design.check",
-            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, textTooSmall, tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors. Run it before reporting a design done",
+            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, lowCoverage (a note: a plain fill, not a gradation, hiding under 40 % of the fabric on the coverage curve measured on sew-outs; no fix: raise its density if the open look is not wanted), textTooSmall (text below its own font's smallest good size, fonts.list sizeRange.minMm, else 4 mm; the fix switches to the Small Text font where the text is big enough for it, else sets that size), tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, crowdedNeedles (the most crowded spot: a warning over 600 pairs of needle points under 0.25 mm within 3 mm of one spot, beyond what PE-DESIGN's own files sew, and an error over 1,200; no sew-out evidence yet of what it does to the fabric; no fix; names the objects whose needle points are there), untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors; `level` is readyToSew (no errors or warnings), sewableWithSmallRisks (warnings only) or fixThisFirst (any error), notes never counting: a level, not a score. Run it before reporting a design done",
             Effect::Read,
             vec![
                 opt(
@@ -1448,4 +1879,80 @@ pub(crate) fn errors(d: &Design) -> Vec<String> {
         .filter(|f| f.severity == Severity::Error)
         .map(|f| f.message)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Session;
+
+    /// #1036: design.check's description names the three readiness levels it returns.
+    #[test]
+    fn the_check_description_names_the_levels() {
+        let spec = commands()
+            .into_iter()
+            .find(|c| c.id == "design.check")
+            .expect("design.check");
+        for level in ["readyToSew", "sewableWithSmallRisks", "fixThisFirst"] {
+            assert!(spec.summary.contains(level), "{level}: {}", spec.summary);
+            assert!([readiness(0, 0), readiness(0, 1), readiness(1, 0)].contains(&level));
+        }
+    }
+
+    /// #1036: design.check's description (what command_describe gives) names every rule the check
+    /// can emit, read from this file's own `rule: "…"` literals, so a new rule cannot be left out.
+    #[test]
+    fn the_check_description_names_every_rule() {
+        let source = include_str!("quality.rs");
+        let rules: BTreeSet<&str> = source
+            .split("rule: \"")
+            .skip(1)
+            .filter_map(|s| s.split('"').next())
+            .filter(|r| !r.is_empty() && r.chars().all(|c| c.is_ascii_alphanumeric()))
+            .collect();
+        assert!(
+            rules.contains("crowdedNeedles") && rules.contains("lowCoverage"),
+            "{rules:?}"
+        );
+        let spec = commands()
+            .into_iter()
+            .find(|c| c.id == "design.check")
+            .expect("design.check");
+        let words: BTreeSet<&str> = spec
+            .summary
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .collect();
+        let missing: Vec<&&str> = rules.iter().filter(|r| !words.contains(**r)).collect();
+        assert!(
+            missing.is_empty(),
+            "design.check's description leaves out {missing:?}"
+        );
+    }
+
+    /// The coverage of one fill rectangle `w` × `h` mm at `density` lines/mm, underlay off.
+    fn covered(w: f64, h: f64, density: f64) -> f64 {
+        let mut s = Session::new(std::env::temp_dir());
+        let p = json!({"x": 10, "y": 10, "width": w, "height": h, "fill": "Blue"});
+        s.execute("shape.rectangle", Some(&p)).expect("rect");
+        let p = json!({"ids": [1], "density": density, "underlay": false});
+        s.execute("object.setRegion", Some(&p)).expect("region");
+        let d = s.design().clone();
+        let t = Traced::new(&d);
+        let (_, r) = t.spans.iter().find(|(id, _)| *id == 1).expect("span");
+        fill_coverage(&d.objects[0], &t.pattern.stitches[r.clone()]).expect("coverage")
+    }
+
+    /// #1036: thread per area reads a narrow stroke as a wide square at the same density, where
+    /// a sampled density map's blur read small letters 0.2 low. A 2 mm stroke at 4.5 lines/mm
+    /// is within 0.05 of a 40 mm square; both hide what the T1 sew-outs measured (about 96 %
+    /// at 4.5 rows/mm), and 1 line/mm about 38 %.
+    #[test]
+    fn a_narrow_fill_reads_as_a_wide_one() {
+        let (narrow, wide) = (covered(2.0, 30.0, 4.5), covered(40.0, 30.0, 4.5));
+        assert!((narrow - wide).abs() <= 0.05, "{narrow} against {wide}");
+        assert!(wide > 0.9, "{wide}");
+        let sparse = covered(40.0, 30.0, 1.0);
+        assert!((0.33..=0.43).contains(&sparse), "{sparse}");
+        assert!((openstitch_design::calibration::rows_for_coverage(0.4) - 1.06).abs() < 0.01);
+    }
 }

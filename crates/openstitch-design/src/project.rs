@@ -13,7 +13,12 @@ pub const FORMAT: &str = "openstitch.design";
 /// capital-height metrics they were made with (see [`migrate_v2_text`]).
 /// 4: a zigzag net turns with its Direction (#1043); nets of older files, which sewed on the
 /// page axes whatever their angle, get Direction 0 (see [`migrate_v3_zigzag_net`]).
-pub const VERSION: u32 = 4;
+/// 5: a plain net's default Spacing is PE-DESIGN's 3.0 mm (#1110); nets of older files that
+/// left it unset keep the 4.0 mm they sewed with (see [`migrate_v4_net_spacing`]).
+/// 6: a zigzag net's Spacing is the gap between bands, as PE-DESIGN's (#1109), and its band
+/// is no longer capped at 0.8 × the line pitch; nets of older files keep their lines and
+/// bands (see [`migrate_v5_zigzag_net_spacing`]).
+pub const VERSION: u32 = 6;
 pub const EXTENSION: &str = "osd";
 pub const MAX_SIZE: usize = 64 << 20;
 
@@ -66,7 +71,45 @@ pub fn decode(data: &[u8]) -> Result<Design, String> {
     if header.version < 4 {
         migrate_v3_zigzag_net(&mut env.design);
     }
+    if header.version < 5 {
+        migrate_v4_net_spacing(&mut env.design);
+    }
+    if header.version < 6 {
+        migrate_v5_zigzag_net_spacing(&mut env.design);
+    }
     Ok(env.design)
+}
+
+/// Before version 6 a zigzag net's Spacing was its line pitch (8.0 mm unset) and its band at
+/// most 0.8 × that pitch. Since then Spacing is the gap between bands, as in PE-DESIGN, and
+/// the band is the zigzag width whatever the gap (#1109). Those nets get the band they sewed
+/// and the gap that leaves the lines where they were: pitch − band. A net at both defaults
+/// (8.0 mm lines, 3.0 mm band) is the new defaults (5.0 mm gap) and stays unset.
+pub fn migrate_v5_zigzag_net_spacing(design: &mut Design) {
+    for r in design.objects.iter_mut().filter_map(|o| o.region.as_mut()) {
+        if r.kind != crate::model::RegionType::ZigzagNetFill
+            || (r.spacing.is_none() && r.pattern_width.is_none())
+        {
+            continue;
+        }
+        let pitch = r.spacing.unwrap_or(8.0);
+        let width = r.pattern_size_mm().0;
+        let band = width.min(pitch * 0.8);
+        if r.pattern_width.is_some() || band != width {
+            r.pattern_width = Some(band);
+        }
+        r.spacing = Some(pitch - band);
+    }
+}
+
+/// Before version 5 a plain net with no Spacing of its own sewed its lines 4.0 mm apart; the
+/// default is now PE-DESIGN's 3.0 mm, so those nets get 4.0 and sew as they did (#1110).
+pub fn migrate_v4_net_spacing(design: &mut Design) {
+    for r in design.objects.iter_mut().filter_map(|o| o.region.as_mut()) {
+        if r.kind == crate::model::RegionType::NetFill && r.spacing.is_none() {
+            r.spacing = Some(4.0);
+        }
+    }
 }
 
 /// Before version 4 a zigzag net sewed on the page axes whatever its Direction (often 45°,
@@ -223,7 +266,7 @@ mod tests {
     fn version_2_keeps_angles() {
         let bytes = encode(&design()).expect("encode");
         let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
-        assert_eq!(v["version"], 4);
+        assert_eq!(v["version"], VERSION);
         let back = decode(&bytes).expect("decode");
         assert_eq!(back, design());
     }
@@ -280,6 +323,204 @@ mod tests {
         assert_eq!(angle(&v), 45.0, "version 4 keeps the angle");
         v["version"] = serde_json::json!(3);
         assert_eq!(angle(&v), 0.0, "version 3 sewed on the axes");
+    }
+
+    /// #1110: a plain net from a version-4 file with no Spacing of its own sewed 4.0 mm
+    /// apart, so it loads with 4.0 and sews as before; a version-5 file keeps the new 3.0
+    /// default, and a set Spacing is kept either way.
+    #[test]
+    fn version_4_plain_nets_keep_their_four_millimetre_spacing() {
+        let mut d = Design::new("net", DesignPage::default());
+        let r = RegionSewing::new(RegionType::NetFill, Thread::rgb(0xff0000));
+        assert_eq!(r.spacing_mm(), 3.0, "PE-DESIGN's default");
+        d.add(DesignObject::shape(
+            vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)],
+            Some(r.clone()),
+            None,
+        ));
+        let mut set = r;
+        set.spacing = Some(2.5);
+        d.add(DesignObject::shape(
+            vec![Contour::rectangle(400.0, 0.0, 300.0, 200.0)],
+            Some(set),
+            None,
+        ));
+        let mut v: serde_json::Value =
+            serde_json::from_slice(&encode(&d).expect("encode")).expect("json");
+        let spacings = |v: &serde_json::Value| -> Vec<Option<f64>> {
+            decode(&serde_json::to_vec(v).expect("json"))
+                .expect("decode")
+                .objects
+                .iter()
+                .map(|o| o.region.as_ref().expect("region").spacing)
+                .collect()
+        };
+        assert_eq!(
+            spacings(&v),
+            vec![None, Some(2.5)],
+            "version 5 keeps the default"
+        );
+        v["version"] = serde_json::json!(4);
+        assert_eq!(
+            spacings(&v),
+            vec![Some(4.0), Some(2.5)],
+            "version 4 sewed 4 mm apart"
+        );
+    }
+
+    /// #1109: a version-5 zigzag net's Spacing was its line pitch and its band at most 0.8 of
+    /// it. It loads with the band it sewed and the gap that keeps its lines in place; one at
+    /// both defaults stays unset.
+    #[test]
+    fn version_5_zigzag_nets_keep_their_lines_and_bands() {
+        let net = |spacing: Option<f64>, width: Option<f64>| {
+            let mut d = Design::new("net", DesignPage::default());
+            let mut r = RegionSewing::new(RegionType::ZigzagNetFill, Thread::rgb(0xff0000));
+            (r.spacing, r.pattern_width) = (spacing, width);
+            d.add(DesignObject::shape(
+                vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)],
+                Some(r),
+                None,
+            ));
+            d
+        };
+        let as_v5 = |d: &Design| {
+            let mut v: serde_json::Value =
+                serde_json::from_slice(&encode(d).expect("encode")).expect("json");
+            v["version"] = serde_json::json!(5);
+            decode(&serde_json::to_vec(&v).expect("bytes")).expect("decode")
+        };
+        let kept = |d: &Design| {
+            let r = d.objects[0].region.as_ref().expect("region");
+            (r.spacing, r.pattern_width)
+        };
+        // (stored pitch, stored width) -> (gap, band): band + gap is the old pitch.
+        for (old, new) in [
+            ((None, None), (None, None)),
+            ((Some(8.0), None), (Some(5.0), None)),
+            ((Some(10.0), Some(4.0)), (Some(6.0), Some(4.0))),
+            // Capped: a 10 mm width on a 5 mm pitch sewed a 4 mm band.
+            ((Some(5.0), Some(10.0)), (Some(1.0), Some(4.0))),
+            // The default 3 mm band capped by a 3 mm pitch: 2.4 mm.
+            ((Some(3.0), None), (Some(3.0 - 3.0 * 0.8), Some(3.0 * 0.8))),
+            // The command's 0.5 mm minimum pitch: a 0.4 mm band and a 0.1 mm gap, below the
+            // inspector's ranges, kept as they are (no validation or clamp on load).
+            ((Some(0.5), None), (Some(0.5 - 0.5 * 0.8), Some(0.5 * 0.8))),
+        ] {
+            assert_eq!(kept(&as_v5(&net(old.0, old.1))), new, "{old:?}");
+        }
+        // A version-6 file keeps the gap as stored.
+        let d = net(Some(5.0), Some(10.0));
+        assert_eq!(
+            kept(&decode(&encode(&d).expect("encode")).expect("decode")),
+            kept(&d)
+        );
+    }
+
+    /// #1109: a version-5 zigzag net loads with its pitch turned into a band and a gap, and sews
+    /// the stitches the code before #1109 sewed, also where the old cap narrowed the band
+    /// (pitch 0.5 and 3.0 with the 3 mm default; width 10 on pitch 5) and on a turned net.
+    /// Each print is the stitch count and an FNV-1a hash of every command and point to
+    /// 0.0001 mm, taken from the same 30 × 20 mm nets compiled at main 61c16a0f (before this
+    /// change, the stored values sewn with the old cap).
+    #[test]
+    fn version_5_zigzag_nets_sew_the_stitches_they_sewed() {
+        let stitch_print = |d: &Design| -> (usize, u64) {
+            let p = crate::Compiler::default().compile(d);
+            let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+            for q in &p.stitches {
+                let s = format!(
+                    "{:?}{}:{};",
+                    q.command,
+                    (q.x * 1000.0).round() as i64,
+                    (q.y * 1000.0).round() as i64
+                );
+                for b in s.bytes() {
+                    h ^= u64::from(b);
+                    h = h.wrapping_mul(0x0100_0000_01b3);
+                }
+            }
+            (p.stitches.len(), h)
+        };
+        // (stored pitch, stored width, Direction) -> the print at 61c16a0f.
+        type Net = (f64, Option<f64>, f64);
+        let before: [(Net, (usize, u64)); 8] = [
+            ((0.5, None, 0.0), (15806, 1429652117529704550)),
+            ((3.0, None, 0.0), (2221, 18352461383984626860)),
+            ((5.0, Some(10.0), 0.0), (1307, 14602736324947324305)),
+            ((8.0, None, 0.0), (914, 10421643497049895347)),
+            ((0.5, None, 30.0), (16008, 3828908425474527964)),
+            ((3.0, None, 30.0), (2625, 10215742557738257950)),
+            ((5.0, Some(10.0), 30.0), (1755, 13102416351260724298)),
+            ((8.0, None, 30.0), (1058, 11595861973528435010)),
+        ];
+        let mut changed = Vec::new();
+        for ((pitch, width, angle), old) in before {
+            let mut d = Design::new("net", DesignPage::default());
+            let mut r = RegionSewing::new(RegionType::ZigzagNetFill, Thread::rgb(0xff0000));
+            (r.spacing, r.pattern_width, r.angle) = (Some(pitch), width, angle);
+            d.add(DesignObject::shape(
+                vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)],
+                Some(r),
+                None,
+            ));
+            let mut v: serde_json::Value =
+                serde_json::from_slice(&encode(&d).expect("encode")).expect("json");
+            v["version"] = serde_json::json!(5);
+            let migrated = decode(&serde_json::to_vec(&v).expect("bytes")).expect("decode");
+            let now = stitch_print(&migrated);
+            if now != old {
+                changed.push(format!("{pitch} {width:?} {angle}°: {old:?} -> {now:?}"));
+            }
+        }
+        assert!(changed.is_empty(), "{changed:#?}");
+    }
+
+    /// #1130: a motif line's default Run pitch went from 2.5 to PE-DESIGN's 5.0 with no `.osd`
+    /// version step, because every file stores `pitch` on every line (the field is required):
+    /// a version-6 motif line made at the old default loads at 2.5 and sews what it sewed, and
+    /// a line without `pitch` is refused rather than given the new default.
+    #[test]
+    fn older_motif_lines_keep_the_pitch_they_were_saved_with() {
+        let design = |pitch: f64| {
+            let mut d = Design::new("motif", DesignPage::default());
+            let mut l = LineSewing::new(LineType::Motif, Thread::rgb(0xff0000));
+            l.pitch = pitch;
+            // The Run pitch sews the runs between motifs: with the default gap of 0 a motif
+            // line sews the same at either pitch, so this one has a 4 mm gap.
+            l.spacing = Some(4.0);
+            d.add(DesignObject::shape(
+                vec![Contour::rectangle(0.0, 0.0, 400.0, 400.0)],
+                None,
+                Some(l),
+            ));
+            d
+        };
+        assert_eq!(LineSewing::new(LineType::Motif, Thread::rgb(0)).pitch, 5.0);
+        let old = design(2.5);
+        let mut v: serde_json::Value =
+            serde_json::from_slice(&encode(&old).expect("encode")).expect("json");
+        v["version"] = serde_json::json!(6);
+        assert_eq!(
+            v["design"]["objects"][0]["line"]["pitch"],
+            serde_json::json!(2.5)
+        );
+        let loaded = decode(&serde_json::to_vec(&v).expect("bytes")).expect("decode");
+        assert_eq!(loaded.objects[0].line.as_ref().expect("line").pitch, 2.5);
+        let sew = |d: &Design| crate::Compiler::default().compile(d).stitches;
+        let (was, now, new) = (sew(&old), sew(&loaded), sew(&design(5.0)));
+        assert_eq!(was.len(), now.len());
+        assert!(was.iter().zip(&now).all(|(a, b)| a.x == b.x && a.y == b.y));
+        assert_ne!(
+            was.len(),
+            new.len(),
+            "the default changes what a new motif line sews"
+        );
+        v["design"]["objects"][0]["line"]
+            .as_object_mut()
+            .expect("line")
+            .remove("pitch");
+        assert!(decode(&serde_json::to_vec(&v).expect("bytes")).is_err());
     }
 
     #[test]
