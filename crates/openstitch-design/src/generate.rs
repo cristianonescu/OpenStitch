@@ -990,7 +990,10 @@ fn pe_halves(
             go(&mut run, home);
             continue;
         }
-        let odd = half.len() % 2 == 1;
+        // A first row that is only a corner of the outline is a single needle point: there is
+        // nothing to sew out and back.
+        let point = half[0].range.end() - half[0].range.start() < MIN_EDGE_ROW_SPAN;
+        let odd = half.len() % 2 == 1 && !point;
         let mut passes = vec![(half[0], true)];
         if odd {
             passes.push((half[0], false));
@@ -1110,7 +1113,12 @@ fn edge_row_spans(
     if !(h > 0.0 && s > 0.0) {
         return Vec::new();
     }
-    let n = ((h / s) + 1e-6).floor().clamp(1.0, 100_000.0) as usize;
+    let n = if stretch {
+        ((h / s) - 0.5 - 1e-6).ceil()
+    } else {
+        ((h / s) + 1e-6).floor()
+    }
+    .clamp(1.0, 100_000.0) as usize;
     let s = if stretch { h / n as f64 } else { s };
     let inside = 1e-3_f64.min(h / 4.0);
     (0..=n)
@@ -1123,7 +1131,8 @@ fn edge_row_spans(
                 .filter_map(move |sp| {
                     let lo = sp.start() - p.pull_compensation;
                     let hi = sp.end() + p.pull_compensation;
-                    (hi - lo >= MIN_EDGE_ROW_SPAN).then_some(RowSpan {
+                    let corner = stretch && (row == 0 || row == n);
+                    (hi - lo >= MIN_EDGE_ROW_SPAN || corner).then_some(RowSpan {
                         row,
                         y,
                         range: lo..=hi,
