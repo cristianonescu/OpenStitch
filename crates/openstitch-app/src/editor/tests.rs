@@ -1629,6 +1629,11 @@ fn every_inspector_number_field_holds_its_settings_values() {
             "PE-DESIGN's 2.0-10 (round 15); the command keeps 0.5-20 (#1109)",
         ),
         (
+            "candlewick",
+            "width",
+            "PE-DESIGN's Size 3.0-10 (round 15); the command keeps 0.5-10 (#1124)",
+        ),
+        (
             "fill",
             "waveHeight",
             "capped by the wave length in the inspector, 0-20 by command (#1050)",
@@ -1788,4 +1793,40 @@ fn candlewick_density_offers_pe_designs_three_knots() {
     assert_eq!(value, "11");
     assert_eq!(options[0], ("11".into(), "11 (22 points)".into()));
     assert_eq!(options.len(), 4);
+}
+
+/// #1124: a candlewick's Size field is PE-DESIGN's 3.0-10.0 mm, but the command keeps alpha 14's
+/// 0.5-10, so a script's 2 mm knot still works. A `setLine` call that leaves `width` out, here one
+/// that only changes the run pitch, keeps the stored 2 mm instead of refusing it.
+#[test]
+fn a_two_mm_candlewick_is_kept_by_a_set_line_without_width() {
+    use super::inspector::{Control, line_controls};
+    let mut s = Session::new(std::env::temp_dir());
+    s.execute(
+        "shape.ellipse",
+        Some(&json!({"cx": 50, "cy": 50, "rx": 20, "ry": 20, "outline": "Black"})),
+    )
+    .expect("ellipse");
+    s.execute(
+        "object.setLine",
+        Some(&json!({"id": 1, "type": "candlewick", "width": 2.0})),
+    )
+    .expect("a 2 mm candlewick, as alpha 14 took it");
+    s.execute("object.setLine", Some(&json!({"id": 1, "pitch": 3.0})))
+        .expect("pitch alone");
+    let l = s.design().objects[0].line.as_ref().expect("line");
+    assert_eq!((l.width, l.pitch), (2.0, 3.0));
+    let size = line_controls(l)
+        .into_iter()
+        .find(|c| c.param() == "width")
+        .expect("Size");
+    let Control::Number { value, range, .. } = size else {
+        panic!("a number");
+    };
+    assert_eq!((value, range), (2.0, (3.0, 10.0)), "shown as stored");
+    assert!(
+        s.execute("object.setLine", Some(&json!({"id": 1, "width": 0.4})))
+            .is_err(),
+        "below 0.5 is still refused"
+    );
 }

@@ -2226,7 +2226,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "width",
                     "mm",
-                    "Zigzag, motif, stem width; candlewick, chain size; E/V stroke, 0.5-10 (candlewick 3-10, PE-DESIGN's Size range)",
+                    "Zigzag, motif, stem width; candlewick, chain size; E/V stroke, 0.5-10 (candlewick: PE-DESIGN's Size range is 3-10; below 3 is OpenStitch's own)",
                 ),
                 opt(
                     "density",
@@ -2426,10 +2426,10 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         1,
                         max_times.into(),
                     )? as u32;
-                    // PE-DESIGN's candlewick Size runs from 3.0 to 10.0 mm (round 15, #1124).
+                    // PE-DESIGN's candlewick Size runs from 3.0 to 10.0 mm (round 15, #1124);
+                    // the command keeps 0.5-10 so a smaller knot set in alpha 14 still works.
                     let candlewick = l.kind == LineType::Candlewick;
-                    let min_width = if candlewick { 3.0 } else { 0.5 };
-                    l.width = p.opt("width", l.width, min_width, 10.0)?;
+                    l.width = p.opt("width", l.width, 0.5, 10.0)?;
                     // PE-DESIGN's zigzag density runs from 0.1 to 14 lines/mm; a candlewick's
                     // Dense knot is density 16 (32 points, round 15, #1124).
                     let max_density = if candlewick { 16.0 } else { 14.0 };

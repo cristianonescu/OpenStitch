@@ -1542,7 +1542,8 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
         ],
         // #1124: PE-DESIGN 11.50's own fields (round 15): Size 3.0-10.0 mm, Spacing 0.0-100.0
         // mm, and Density a drop-down of Dense, Medium and Light, knots of 32, 24 and 20
-        // points (densities 16, 12 and 10; 1124-candlewick-*-square40.pes).
+        // points (densities 16, 12 and 10; 1124-candlewick-*-square40.pes). The command keeps
+        // Size 0.5-10, and a smaller stored knot is shown as it is (#1121).
         LineType::Candlewick => vec![
             num(
                 "Size",

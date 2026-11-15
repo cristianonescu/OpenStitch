@@ -197,6 +197,39 @@ fn the_inspector_shows_a_stored_value_outside_its_range_without_changing_it() {
     assert!(*app.session.design() == design, "nothing else was edited");
 }
 
+/// #1124: a candlewick stored at 2 mm, which the command takes (0.5-10) though PE-DESIGN's Size
+/// field starts at 3.0, is shown as it is when selected and kept until the user edits it.
+#[test]
+fn the_inspector_keeps_a_two_mm_candlewick() {
+    use openstitch_design::geometry::Contour;
+    use openstitch_design::model::{Design, DesignObject, DesignPage, LineSewing, LineType};
+    let mut d = Design::new("candlewick", DesignPage::default());
+    let mut l = LineSewing::new(LineType::Candlewick, openstitch_core::Thread::rgb(0xff0000));
+    l.width = 2.0;
+    d.add(DesignObject::shape(
+        vec![Contour::rectangle(100.0, 100.0, 200.0, 200.0)],
+        None,
+        Some(l),
+    ));
+    let path = std::env::temp_dir().join(format!("openstitch-1124-{}.osd", std::process::id()));
+    std::fs::write(&path, openstitch_design::project::encode(&d).expect("encode")).expect("write");
+    let mut app = EditorApp::new(Launch {
+        open: Some(path.clone()),
+        select: vec![1],
+        ..Launch::default()
+    });
+    std::fs::remove_file(&path).ok();
+    app.splash = None;
+    let design = app.session.design().clone();
+    assert_eq!(design.objects[0].line.as_ref().expect("line").width, 2.0);
+    let nodes = tree(&mut app);
+    assert!(
+        nodes.iter().any(|(_, n)| n.label() == Some("Size")),
+        "the inspector shows the candlewick's Size field"
+    );
+    assert!(*app.session.design() == design, "drawing the inspector kept 2 mm");
+}
+
 /// #1109: with a stored value outside the field's range shown as it is, the user's own edit is
 /// still kept to the range. A Spacing field (2.0-10.0) holding 0.6 returns nothing while it is
 /// drawn and focused; typing 0.5 and Enter returns 2.0, typing 50 returns 10.0.
