@@ -28,6 +28,13 @@ pub const PROGRAMMABLE_MAX_STITCH: f64 = 120.0;
 /// (compat/reference/stitches/motif-fill-2pt.pes, deco-fill-1line-100mm.pes).
 pub const MOTIF_FILL_TRAVEL_PITCH: f64 = 20.0;
 
+/// A zigzag net's band or line pitch in 0.1 mm, to 1e-6: a version-5 net migrated to a band
+/// and a gap (#1109) gives back the band and pitch the old code sewed with, exactly, not a
+/// float sum 1e-15 off it (a line then fell on the other side of a straight edge).
+fn net_tenths(v: f64) -> f64 {
+    (v * 1e6).round() / 1e6
+}
+
 /// Layers (runs) of region type `r.kind` (not fill or satin), rows at `angle` degrees.
 pub fn generate(
     closed: &[Contour],
@@ -454,7 +461,7 @@ pub fn generate(
             if r.reference.is_none()
                 && let Some(b) = Rect::enclosing(closed.iter().flat_map(|c| c.outline_points()))
             {
-                let inset = pw / 2.0;
+                let inset = net_tenths(pw) / 2.0;
                 shift = back.apply(v2(b.min_x, b.min_y)) + v2(inset, inset);
                 axis.reference = Some(v2(0.0, 0.0));
             }
@@ -481,8 +488,8 @@ pub fn generate(
             // PE-DESIGN's Spacing is the gap between bands (round 15, zigzag-net-circle40 at
             // widths 3, 6 and 10 on Spacing 5: lines 8, 11 and 15 mm apart, #1109): the lines are
             // a band plus that gap apart, and the band is not limited by the gap.
-            let width = pw;
-            let spacing = width + spacing;
+            let width = net_tenths(pw);
+            let spacing = net_tenths(width + spacing);
             let step = 10.0 / r.density.max(0.1);
             // PE-DESIGN 11.50 (o-region-zigzag-net) sews the net on the page axes at Direction 0,
             // its first lines half a band in from the shape's left and top edges; the lines start

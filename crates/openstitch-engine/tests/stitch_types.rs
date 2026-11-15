@@ -2710,6 +2710,37 @@ fn the_spacing_description_names_each_types_default() {
     assert!(summary.contains("the gap between bands"), "{summary}");
 }
 
+/// #1109: `object.setRegion`'s `patternWidth` and `spacing` descriptions name PE-DESIGN's zigzag
+/// net ranges and what happens outside them.
+#[test]
+fn the_zigzag_net_descriptions_name_pe_designs_ranges() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion");
+    let summary = |name: &str| {
+        spec.params
+            .iter()
+            .find(|p| p.name == name)
+            .expect("param")
+            .summary
+            .to_string()
+    };
+    for (name, range) in [("patternWidth", "1.0-10"), ("spacing", "2.0-10")] {
+        let s = summary(name);
+        for words in [
+            format!("PE-DESIGN's range {range}"),
+            "stored and sewn as given".into(),
+            "the inspector shows it unchanged".into(),
+            "writes it as stored, untested in PE-DESIGN".into(),
+        ] {
+            assert!(s.contains(&words), "{name}: {words:?} in {s}");
+        }
+    }
+}
+
 /// #1046: `object.setLine`'s description of `profile` (what command_describe and the per-command
 /// tools give the Assistant) says that linear, smoothstep and stairs need more than 3 passes.
 #[test]

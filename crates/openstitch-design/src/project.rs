@@ -403,6 +403,9 @@ mod tests {
             ((Some(5.0), Some(10.0)), (Some(1.0), Some(4.0))),
             // The default 3 mm band capped by a 3 mm pitch: 2.4 mm.
             ((Some(3.0), None), (Some(3.0 - 3.0 * 0.8), Some(3.0 * 0.8))),
+            // The command's 0.5 mm minimum pitch: a 0.4 mm band and a 0.1 mm gap, below the
+            // inspector's ranges, kept as they are (no validation or clamp on load).
+            ((Some(0.5), None), (Some(0.5 - 0.5 * 0.8), Some(0.5 * 0.8))),
         ] {
             assert_eq!(kept(&as_v5(&net(old.0, old.1))), new, "{old:?}");
         }
@@ -412,6 +415,65 @@ mod tests {
             kept(&decode(&encode(&d).expect("encode")).expect("decode")),
             kept(&d)
         );
+    }
+
+    /// #1109: a version-5 zigzag net loads with its pitch turned into a band and a gap, and sews
+    /// the stitches the code before #1109 sewed, also where the old cap narrowed the band
+    /// (pitch 0.5 and 3.0 with the 3 mm default; width 10 on pitch 5) and on a turned net.
+    /// Each print is the stitch count and an FNV-1a hash of every command and point to
+    /// 0.0001 mm, taken from the same 30 × 20 mm nets compiled at main 61c16a0f (before this
+    /// change, the stored values sewn with the old cap).
+    #[test]
+    fn version_5_zigzag_nets_sew_the_stitches_they_sewed() {
+        let stitch_print = |d: &Design| -> (usize, u64) {
+            let p = crate::Compiler::default().compile(d);
+            let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+            for q in &p.stitches {
+                let s = format!(
+                    "{:?}{}:{};",
+                    q.command,
+                    (q.x * 1000.0).round() as i64,
+                    (q.y * 1000.0).round() as i64
+                );
+                for b in s.bytes() {
+                    h ^= u64::from(b);
+                    h = h.wrapping_mul(0x0100_0000_01b3);
+                }
+            }
+            (p.stitches.len(), h)
+        };
+        // (stored pitch, stored width, Direction) -> the print at 61c16a0f.
+        type Net = (f64, Option<f64>, f64);
+        let before: [(Net, (usize, u64)); 8] = [
+            ((0.5, None, 0.0), (15806, 1429652117529704550)),
+            ((3.0, None, 0.0), (2221, 18352461383984626860)),
+            ((5.0, Some(10.0), 0.0), (1307, 14602736324947324305)),
+            ((8.0, None, 0.0), (914, 10421643497049895347)),
+            ((0.5, None, 30.0), (16008, 3828908425474527964)),
+            ((3.0, None, 30.0), (2625, 10215742557738257950)),
+            ((5.0, Some(10.0), 30.0), (1755, 13102416351260724298)),
+            ((8.0, None, 30.0), (1058, 11595861973528435010)),
+        ];
+        let mut changed = Vec::new();
+        for ((pitch, width, angle), old) in before {
+            let mut d = Design::new("net", DesignPage::default());
+            let mut r = RegionSewing::new(RegionType::ZigzagNetFill, Thread::rgb(0xff0000));
+            (r.spacing, r.pattern_width, r.angle) = (Some(pitch), width, angle);
+            d.add(DesignObject::shape(
+                vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)],
+                Some(r),
+                None,
+            ));
+            let mut v: serde_json::Value =
+                serde_json::from_slice(&encode(&d).expect("encode")).expect("json");
+            v["version"] = serde_json::json!(5);
+            let migrated = decode(&serde_json::to_vec(&v).expect("bytes")).expect("decode");
+            let now = stitch_print(&migrated);
+            if now != old {
+                changed.push(format!("{pitch} {width:?} {angle}°: {old:?} -> {now:?}"));
+            }
+        }
+        assert!(changed.is_empty(), "{changed:#?}");
     }
 
     #[test]

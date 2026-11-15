@@ -420,7 +420,7 @@ fn order_filter(app: &mut EditorApp, ui: &mut egui::Ui, shown: &[objects::Object
 // MARK: inspector
 
 /// A number field that issues one command when the drag ends or typing is confirmed.
-fn number(
+pub(crate) fn number(
     app: &mut EditorApp,
     ui: &mut egui::Ui,
     key: &'static str,
@@ -430,9 +430,14 @@ fn number(
     suffix: &str,
 ) -> Option<f64> {
     let mut v = app.drafts.get(key).copied().unwrap_or(value);
+    // A stored value outside the field's range (a zigzag net migrated from an older file, #1109)
+    // is shown as it is: egui would clamp it on drawing and report a change, which wrote the
+    // clamped value back when the object was only selected. Only the user's edit is kept to the
+    // range.
     let resp = ui.add(
         egui::DragValue::new(&mut v)
             .range(range.0..=range.1)
+            .clamp_existing_to_range(false)
             .speed(speed)
             .max_decimals(2)
             .suffix(suffix),
