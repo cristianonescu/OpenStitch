@@ -4205,7 +4205,8 @@ too; the rows there are sewn since #927 (below). Motif fill keeps the chord warp
 `programmable_fill_along_a_curve_keeps_to_the_curves_offsets`.
 
 Re-measured 2026-11-12 with the U-shaped (C) curve of #927 added. All three rows come from one
-script, through `stitchtool exec` with programmable fill's defaults (2.5 rows/mm), with #927's
+script, through `stitchtool exec` with programmable fill's defaults then (2.5 rows/mm; 4.5 since
+#1102, PE-DESIGN's own), with #927's
 and #947's row fixes in. The figures differ a little from the table above, which was measured
 another way:
 - coverage here counts cells 1 mm in from the square's edges;

@@ -2222,10 +2222,10 @@ impl RegionSewing {
             thread,
             angle: Self::default_angle(kind),
             // PE-DESIGN 11.50 Sewing Attributes (reference files, fill-analysis): fill and satin
-            // 4.5 lines/mm with under sewing on.
+            // 4.5 lines/mm with under sewing on; a programmable fill 4.5 too (the Density field's
+            // reset button with Prog. Fill Stitch, and the programmable-fill-45 capture, #1102).
             density: match kind {
-                RegionType::Fill | RegionType::Satin => 4.5,
-                RegionType::ProgrammableFill => 2.5,
+                RegionType::Fill | RegionType::Satin | RegionType::ProgrammableFill => 4.5,
                 RegionType::Piping => 1.0,
                 // PE-DESIGN 11.50's Concentric Circle, Spiral and Radial Stitch: 2.0 lines/mm
                 // (Radial confirmed with the field's reset button, round 15, #1050).
