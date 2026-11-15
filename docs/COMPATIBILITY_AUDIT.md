@@ -4434,3 +4434,34 @@ Shapes-gallery outlines are PE-DESIGN library geometry: `pe11/o-gallery-heart`,
 capture drawn with the outline tools. The four isosceles-triangle references stay (three
 corners fitted to the dragged box). The formats test now also fails on a `CEmbSpecialShape`
 outside those four files.
+
+### Net travel along the outline, in PE-DESIGN's order, 2026-11-15 (#1043, #1071)
+
+**Measured:** PE-DESIGN 11.50's needle paths on round 13's zigzag nets (30 × 20 mm at nine
+Directions, 40 × 20 at 45° and 90°, 30 × 30 at 45°) and plain nets (net-switch-dir0, net-dir45,
+net-dir90), and round 15's 40 × 20 zigzag net at 90° without under sewing.
+
+**What PE-DESIGN does:**
+- **Zigzag net with under sewing:** it sews the line under every band along the Direction, then
+  those across, then the bands in the same order.
+- **Start of each family:** the line nearest the region's start (the bottom centre), then on to
+  the nearest line left. Into the next family the needle goes back by the start.
+- **Travel:** always along the outline, in 2 mm steps.
+- **No edge run** round the net.
+- **Plain net:** the same order, with no bands.
+
+**What OpenStitch did:** each line and its band in turn, the needle travelling along the net lines,
+after an edge run round the whole outline; the plain net's lines in one sweep.
+
+**Now:** the same order and travel as PE-DESIGN's.
+
+| capture | PE-DESIGN | OpenStitch |
+|---|---:|---:|
+| zigzag net 30 × 20 at 0 / 30 / 45 / 60 / 90° | 981 / 1,148 / 1,141 / 1,144 / 850 | 991 / 1,120 / 1,138 / 1,168 / 877 |
+| zigzag net 30 × 20 at 120 / 135 / 150 / 180° | 1,140 / 1,130 / 1,095 / 923 | 1,134 / 1,093 / 1,117 / 905 |
+| zigzag net 40 × 20 at 45 / 90°, 30 × 30 at 45° | 1,496 / 1,127 / 1,579 | 1,482 / 1,088 / 1,614 |
+| zigzag net 40 × 20 at 90°, no under sewing | 955 | 986 |
+| plain net 30 × 20 at 0 / 45 / 90° | 281 / 336 / 281 | 279 / 330 / 277 |
+
+**Left:** on 40 × 20 at 90° PE-DESIGN laps the right and bottom edges twice between the band
+families, a path not reproduced (−3.5 %).
