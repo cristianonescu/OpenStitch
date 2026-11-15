@@ -422,7 +422,10 @@ mod tests {
     /// (pitch 0.5 and 3.0 with the 3 mm default; width 10 on pitch 5) and on a turned net.
     /// Each print is the stitch count and an FNV-1a hash of every command and point to
     /// 0.0001 mm, taken from the same 30 × 20 mm nets compiled at main 61c16a0f (before this
-    /// change, the stored values sewn with the old cap).
+    /// change, the stored values sewn with the old cap), and taken again with #1043 (a net
+    /// without under sewing starts at the region's start and travels along the outline), which
+    /// re-sews every net: the migration itself is held by
+    /// `a_migrated_version_5_zigzag_net_sews_as_the_same_net_made_now`.
     #[test]
     fn version_5_zigzag_nets_sew_the_stitches_they_sewed() {
         let stitch_print = |d: &Design| -> (usize, u64) {
@@ -442,17 +445,18 @@ mod tests {
             }
             (p.stitches.len(), h)
         };
-        // (stored pitch, stored width, Direction) -> the print at 61c16a0f.
+        // (stored pitch, stored width, Direction) -> the print since #1043 (at 61c16a0f: 15806,
+        // 2221, 1307, 914, 16008, 2625, 1755 and 1058 stitches).
         type Net = (f64, Option<f64>, f64);
         let before: [(Net, (usize, u64)); 8] = [
-            ((0.5, None, 0.0), (15806, 1429652117529704550)),
-            ((3.0, None, 0.0), (2221, 18352461383984626860)),
-            ((5.0, Some(10.0), 0.0), (1307, 14602736324947324305)),
-            ((8.0, None, 0.0), (914, 10421643497049895347)),
-            ((0.5, None, 30.0), (16008, 3828908425474527964)),
-            ((3.0, None, 30.0), (2625, 10215742557738257950)),
-            ((5.0, Some(10.0), 30.0), (1755, 13102416351260724298)),
-            ((8.0, None, 30.0), (1058, 11595861973528435010)),
+            ((0.5, None, 0.0), (15584, 10043033049100166782)),
+            ((3.0, None, 0.0), (2148, 10114182557188246054)),
+            ((5.0, Some(10.0), 0.0), (1294, 13604225808390483077)),
+            ((8.0, None, 0.0), (892, 15481124582009719177)),
+            ((0.5, None, 30.0), (15659, 2497073250540327261)),
+            ((3.0, None, 30.0), (2545, 9637095564317341386)),
+            ((5.0, Some(10.0), 30.0), (1705, 1493625755387456275)),
+            ((8.0, None, 30.0), (988, 7522440042208234022)),
         ];
         let mut changed = Vec::new();
         for ((pitch, width, angle), old) in before {
