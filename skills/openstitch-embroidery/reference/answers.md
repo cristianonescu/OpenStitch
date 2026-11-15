@@ -27,6 +27,8 @@ stays the default.
   stitch, chain, cutting (cutwork needles); beyond PE-DESIGN: satin (width varies along
   the line), back stitch, scribble, chevron, cretan, feather, overlock, alternating
   triangles, double zigzag, lattice, stripes, ripple.
+- **Candlewick Density:** PE-DESIGN's Dense / Medium / Light are `density` 16 / 12 / 10
+  (knots of 32 / 24 / 20 points; Medium is the default).
 - **Lettering:** TrueType/OpenType text with size, spacing and alignment, satin or fill;
   bundled Lato Bold, Pacifico, OpenStitch Line (small text) and OpenStitch Pixel, or the user's own fonts; Fit Text to Outline, 26 Text
   Transform presets, monograms, templates, Name Drop, own embroidery fonts (Font Creator).

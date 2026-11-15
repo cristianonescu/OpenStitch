@@ -984,17 +984,17 @@
   "hoop": "100 × 100 mm",
   "sizeMM": [
    49.8,
-   72.8
+   73.0
   ],
-  "stitches": 4683,
+  "stitches": 4723,
   "trims": 1,
   "threads": [
    "405 Blue"
   ],
-  "sewingMinutes": 5.9,
+  "sewingMinutes": 6.0,
   "image": null,
   "preview": "previews/angle-lines.png",
-  "sha256": "0f1bdb370d6f8f4be69cac129379c6b49b32e76673921d2b8faa796426b5ca04",
+  "sha256": "4bf3f59e9be1049d7ec7d768a04adb9408ba5bb96797b1d7531d0fadebb61a84",
   "renderVersion": 3
  },
  "fills/tartan.pes": {

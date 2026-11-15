@@ -455,7 +455,7 @@ Threads, in sewing order: 405 Blue, 001 White, 800 Red, 208 Orange, 205 Yellow, 
 
 #### Stitch angle lines (beyond PE-DESIGN)
 
-[`fills/angle-lines.pes`](fills/angle-lines.pes) · 100 × 100 mm hoop · 49.8 × 72.8 mm · 4,683 stitches · 1 trim · about 5.9 min
+[`fills/angle-lines.pes`](fills/angle-lines.pes) · 100 × 100 mm hoop · 49.8 × 73 mm · 4,723 stitches · 1 trim · about 6 min
 
 An L whose rows turn round its corner between three angle lines, as one object with no seam.
 

@@ -1602,3 +1602,231 @@ fn the_thickness_profile_control_has_its_hint() {
         Some(openstitch_design::line_looks::PROFILE_PASSES_NOTE)
     );
 }
+
+/// #1124: every inspector number field holds the values its setting can hold. For each region and
+/// line type, from the object the command makes:
+/// - the type's default is inside the field's range;
+/// - both ends of the field are accepted by the command;
+/// - a value just outside either end is refused by the command, or stored inside the range, so the
+///   command cannot store what the field cannot show.
+///
+/// Fields narrower than the command on purpose are named in `NARROWER`, with why. Two fields offer
+/// values inside their range that the command refuses, which a range cannot express: a satin's
+/// Split stitches over (0, or 2-12) and the odd-only pass counts of a line's look (1, 3, ... 9).
+#[test]
+fn every_inspector_number_field_holds_its_settings_values() {
+    use super::inspector::{Control, line_controls, region_controls};
+    /// (type, param): narrower than the command, and why.
+    const NARROWER: &[(&str, &str, &str)] = &[
+        (
+            "zigzagNetFill",
+            "patternWidth",
+            "PE-DESIGN's 1.0-10 (round 15); the command keeps 0.5-50 (#1109)",
+        ),
+        (
+            "zigzagNetFill",
+            "spacing",
+            "PE-DESIGN's 2.0-10 (round 15); the command keeps 0.5-20 (#1109)",
+        ),
+        (
+            "candlewick",
+            "width",
+            "PE-DESIGN's Size 3.0-10 (round 15); the command keeps 0.5-10 (#1124)",
+        ),
+        (
+            "fill",
+            "waveHeight",
+            "capped by the wave length in the inspector, 0-20 by command (#1050)",
+        ),
+    ];
+    let narrower = |kind: &str, param: &str| NARROWER.iter().any(|n| n.0 == kind && n.1 == param);
+    let mut problems = Vec::new();
+    let mut checked = 0;
+    for (setter, kinds) in [
+        (
+            "object.setRegion",
+            RegionType::ALL.iter().map(|k| k.id()).collect::<Vec<_>>(),
+        ),
+        (
+            "object.setLine",
+            openstitch_design::LineType::ALL
+                .iter()
+                .map(|k| k.id())
+                .collect(),
+        ),
+    ] {
+        let region = setter == "object.setRegion";
+        for kind in kinds {
+            // A fresh object of this type, with under sewing and a feathered edge where offered,
+            // so their fields are shown too.
+            let fresh = || {
+                let mut s = Session::new(std::env::temp_dir());
+                s.execute(
+                    "shape.ellipse",
+                    Some(&json!({"cx": 50, "cy": 50, "rx": 20, "ry": 10, "fill": "Red", "outline": "Black"})),
+                )
+                .expect("ellipse");
+                s.execute(setter, Some(&json!({"id": 1, "type": kind})))
+                    .expect("type");
+                if region {
+                    let _ = s.execute(
+                        setter,
+                        Some(&json!({"id": 1, "underlay": true, "underlayStyle": "zigzag"})),
+                    );
+                    let _ = s.execute(setter, Some(&json!({"id": 1, "featherWidth": 1.0})));
+                }
+                s
+            };
+            let controls = |s: &Session| {
+                let o = &s.design().objects[0];
+                if region {
+                    region_controls(o.region.as_ref().expect("region"))
+                } else {
+                    line_controls(o.line.as_ref().expect("line"))
+                }
+            };
+            let s = fresh();
+            for c in controls(&s) {
+                let Control::Number {
+                    key,
+                    param,
+                    value,
+                    range: (lo, hi),
+                    integer,
+                    ..
+                } = c
+                else {
+                    continue;
+                };
+                checked += 1;
+                if value < lo - 1e-9 || value > hi + 1e-9 {
+                    problems.push(format!("{kind} {param}: default {value} outside {lo}-{hi}"));
+                }
+                let send = |v: f64| {
+                    let mut s = fresh();
+                    let mut p = json!({ "id": 1 });
+                    p[param] = if integer {
+                        json!(v.round() as i64)
+                    } else {
+                        json!(v)
+                    };
+                    s.execute(setter, Some(&p)).map(|_| {
+                        controls(&s).into_iter().find_map(|c| match c {
+                            Control::Number { key: k, value, .. } if k == key => Some(value),
+                            _ => None,
+                        })
+                    })
+                };
+                for end in [lo, hi] {
+                    if let Err(e) = send(end) {
+                        problems.push(format!(
+                            "{kind} {param}: the field's end {end} is refused: {e}"
+                        ));
+                    }
+                }
+                if narrower(kind, param) {
+                    continue;
+                }
+                let step = if integer { 1.0 } else { 0.01 };
+                for out in [lo - step, hi + step] {
+                    if let Ok(Some(stored)) = send(out)
+                        && (stored < lo - 1e-9 || stored > hi + 1e-9)
+                    {
+                        problems.push(format!(
+                            "{kind} {param}: the command stores {stored} for {out}, outside the field's {lo}-{hi}"
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(checked > 100, "{checked} fields checked");
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// #1124: a candlewick's Density is PE-DESIGN 11.50's drop-down (round 15): Dense, Medium and
+/// Light, knots of 32, 24 and 20 points, stored as densities 16, 12 and 10. The default shows
+/// Medium; each choice is accepted by the command and stored as its density; a density set by
+/// command to another value is offered as it is.
+#[test]
+fn candlewick_density_offers_pe_designs_three_knots() {
+    use super::inspector::{CANDLEWICK_DENSITIES, Control, line_controls};
+    let density = |s: &Session| {
+        line_controls(s.design().objects[0].line.as_ref().expect("line"))
+            .into_iter()
+            .find(|c| c.param() == "density")
+            .expect("density")
+    };
+    let mut s = Session::new(std::env::temp_dir());
+    s.execute(
+        "shape.ellipse",
+        Some(&json!({"cx": 50, "cy": 50, "rx": 20, "ry": 20, "outline": "Black"})),
+    )
+    .expect("ellipse");
+    s.execute(
+        "object.setLine",
+        Some(&json!({"id": 1, "type": "candlewick"})),
+    )
+    .expect("candlewick");
+    let Control::Choice { value, options, .. } = density(&s) else {
+        panic!("a drop-down");
+    };
+    assert_eq!(value, "12");
+    let names: Vec<(&str, &str)> = options
+        .iter()
+        .map(|(v, l)| (v.as_str(), l.as_str()))
+        .collect();
+    assert_eq!(names, [("16", "Dense"), ("12", "Medium"), ("10", "Light")]);
+    for (d, name) in CANDLEWICK_DENSITIES {
+        let mut p = density(&s).params(json!(format!("{d}")));
+        p["id"] = json!(1);
+        s.execute("object.setLine", Some(&p))
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let l = s.design().objects[0].line.as_ref().expect("line");
+        assert_eq!(l.density, d, "{name}");
+    }
+    s.execute("object.setLine", Some(&json!({"id": 1, "density": 11.0})))
+        .expect("by command");
+    let Control::Choice { value, options, .. } = density(&s) else {
+        panic!("a drop-down");
+    };
+    assert_eq!(value, "11");
+    assert_eq!(options[0], ("11".into(), "11 (22 points)".into()));
+    assert_eq!(options.len(), 4);
+}
+
+/// #1124: a candlewick's Size field is PE-DESIGN's 3.0-10.0 mm, but the command keeps alpha 14's
+/// 0.5-10, so a script's 2 mm knot still works. A `setLine` call that leaves `width` out, here one
+/// that only changes the run pitch, keeps the stored 2 mm instead of refusing it.
+#[test]
+fn a_two_mm_candlewick_is_kept_by_a_set_line_without_width() {
+    use super::inspector::{Control, line_controls};
+    let mut s = Session::new(std::env::temp_dir());
+    s.execute(
+        "shape.ellipse",
+        Some(&json!({"cx": 50, "cy": 50, "rx": 20, "ry": 20, "outline": "Black"})),
+    )
+    .expect("ellipse");
+    s.execute(
+        "object.setLine",
+        Some(&json!({"id": 1, "type": "candlewick", "width": 2.0})),
+    )
+    .expect("a 2 mm candlewick, as alpha 14 took it");
+    s.execute("object.setLine", Some(&json!({"id": 1, "pitch": 3.0})))
+        .expect("pitch alone");
+    let l = s.design().objects[0].line.as_ref().expect("line");
+    assert_eq!((l.width, l.pitch), (2.0, 3.0));
+    let size = line_controls(l)
+        .into_iter()
+        .find(|c| c.param() == "width")
+        .expect("Size");
+    let Control::Number { value, range, .. } = size else {
+        panic!("a number");
+    };
+    assert_eq!((value, range), (2.0, (3.0, 10.0)), "shown as stored");
+    assert!(
+        s.execute("object.setLine", Some(&json!({"id": 1, "width": 0.4})))
+            .is_err(),
+        "below 0.5 is still refused"
+    );
+}

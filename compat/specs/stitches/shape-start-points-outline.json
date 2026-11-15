@@ -3,7 +3,7 @@
   "id": "shape-start-points-outline",
   "area": "stitches",
   "title": "Where shapes drawn with the outline tools start and end",
-  "description": "Six shapes drawn with PE-DESIGN's own drawing tools, not its Shapes gallery: a square and a rectangle (Rectangle tool), an ellipse, and a diamond, a four-point star and a triangle drawn as closed straight lines, in one thread, Fill with under sewing off. Each shape is trimmed from the next, and each part's start and end are compared with PE-DESIGN's. The gallery shapes of shape-start-points (heart, drop) have no outline-tool equivalent; that spec keeps the sew kit's machine-check design (#1075). The diamond, the star and the triangle are drawn too, but their ends are not checked yet: PE-DESIGN starts and ends a closed straight-line shape at its first vertex, OpenStitch at a fill row end (to follow).",
+  "description": "Six shapes drawn with PE-DESIGN's own drawing tools, not its Shapes gallery: a square and a rectangle (Rectangle tool), an ellipse, and a diamond, a four-point star and a triangle drawn as closed straight lines, in one thread, Fill with under sewing off. Each shape is trimmed from the next, and each part's start and end are compared with PE-DESIGN's. The gallery shapes of shape-start-points (heart, drop) have no outline-tool equivalent; that spec keeps the sew kit's machine-check design (#1075). The diamond, the star and the triangle are drawn as closed straight lines: PE-DESIGN starts and ends each at the vertex clicked first, its first point (#1103; round15/polygon-start-vertex shows it is the first vertex whichever corner and direction, not the top one).",
   "covers": {
     "audit": [],
     "featureMatrix": [
@@ -226,6 +226,54 @@
         "part": 2
       },
       "evidence": "where PE-DESIGN 11.50 starts and ends the ellipse (drawn with its own tools, Optimize Entry/Exit Points off), relative to the shape's needle points",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
+    },
+    {
+      "id": "ends-4",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "shapes.pes",
+        "part": 3
+      },
+      "evidence": "where PE-DESIGN 11.50 starts and ends the diamond (Closed Straight Line, Optimize Entry/Exit Points off): its first vertex, relative to the shape's needle points (#1103)",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
+    },
+    {
+      "id": "ends-5",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "shapes.pes",
+        "part": 4
+      },
+      "evidence": "where PE-DESIGN 11.50 starts and ends the four-point star (Closed Straight Line, Optimize Entry/Exit Points off): its first vertex, relative to the shape's needle points (#1103)",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
+    },
+    {
+      "id": "ends-6",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "shapes.pes",
+        "part": 5
+      },
+      "evidence": "where PE-DESIGN 11.50 starts and ends the triangle (Closed Straight Line, Optimize Entry/Exit Points off): its first vertex, relative to the shape's needle points (#1103)",
       "reference": {
         "tolerance": {
           "mm": 0.3
