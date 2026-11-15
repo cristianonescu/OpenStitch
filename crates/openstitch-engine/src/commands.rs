@@ -2190,7 +2190,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "pitch",
                     "mm",
-                    "Running/triple stitch length, run pitch; back stitch: forward stitch; scribble: zigzag point spacing, 1-10",
+                    "Running/triple stitch length, run pitch; back stitch: forward stitch; scribble: zigzag point spacing; motif: the line's Run pitch, the runs between and along the motifs (default 2.5; PE-DESIGN's is 5.0, #1130), stored at PES 11 body +82. 1-10; outside it is refused",
                 ),
                 opt(
                     "runTimes",
@@ -2259,7 +2259,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "startEnd",
                     "feed|run",
-                    "Closed stem, candlewick and chain lines with moved points: the pattern begins and ends at the exit point L2; start with it (feed) or run there from the entry point L1 (run)",
+                    "Closed stem, candlewick and chain lines with moved points: the pattern begins and ends at the exit point L2; start with it (feed) or run there from the entry point L1 (run). Motif line: stored for PE-DESIGN (PES 11 body +84) and changes no stitches; PE-DESIGN sews a closed motif outline the same either way (608-motif-5x8 against 1068-motif-5x8-startend-run: 76 of 76 records identical, #1129); an open motif line is not captured",
                 ),
             ]
             .into_iter()
