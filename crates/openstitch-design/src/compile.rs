@@ -1755,12 +1755,12 @@ fn stroke_columns(
         }
         let column = if fill {
             stroke_fill(
-                &crate::column::sawtooth(fill_rungs(
+                &thin_squeezed(&crate::column::sawtooth(fill_rungs(
                     &b.rungs,
                     fine.as_ref().map_or(&b.rungs, |f| &f[i].rungs),
                     2.0 * spacing,
                     pull,
-                )),
+                ))),
                 stitch,
                 region.fill_stagger(),
             )
@@ -2515,6 +2515,36 @@ const STROKE_FILL_MARGIN: f64 = 3.0;
 /// (3.8 mm, 4 mm steps, 30 %) the needle points of consecutive crossings lie 2.8, 1.6, 0.4, 3.2,
 /// 2.0 mm from the stem's right edge. A grid point within [`STROKE_FILL_MARGIN`] of a crossing's
 /// end is left out.
+/// Most needle points [`thin_squeezed`] steps over at once, so a squeezed stroke keeps a
+/// crossing at least every third rung.
+const SQUEEZED_SKIP: usize = 5;
+
+/// A fill letter's sawtooth (left and right ends of each row in turn) without the stitches in
+/// place where its stroke is squeezed (#1151). Text Transform preset 19 at level 100 squeezes
+/// Lato Bold's O to 0.2-0.3 mm: rows 0.2 mm apart there sewed every step under 0.3 mm, 7 in a
+/// row, where PE-DESIGN 11.50 sews steps of 0.3-0.6 mm and at most 1 in place
+/// (text-transform-19-openstitch-l100). From each needle point kept the next is the first one
+/// on the other side of the stroke (an odd number of points on) at least [`IN_PLACE`] away,
+/// at most [`SQUEEZED_SKIP`] points on; the sawtooth's last point is kept. Where every step is
+/// [`IN_PLACE`] or more the sawtooth is unchanged.
+fn thin_squeezed(saw: &[Vec2]) -> Run {
+    let n = saw.len();
+    let Some(&first) = saw.first() else {
+        return Vec::new();
+    };
+    let mut out = vec![first];
+    let mut i = 0;
+    while i + 1 < n {
+        let mut j = i + 1;
+        while saw[i].distance(saw[j]) < IN_PLACE && j + 2 < n && j + 2 - i <= SQUEEZED_SKIP {
+            j += 2;
+        }
+        out.push(saw[j]);
+        i = j;
+    }
+    out
+}
+
 fn stroke_fill(sawtooth: &[Vec2], stitch: f64, stagger: generate::Stagger) -> Run {
     let mut run: Run = sawtooth.first().copied().into_iter().collect();
     for (k, w) in sawtooth.windows(2).enumerate() {
@@ -3631,5 +3661,26 @@ mod stroke_fill_tests {
             std::slice::from_ref(&bar),
         );
         assert!((length(&edge) - 80.0).abs() < 1e-6, "{edge:?}");
+    }
+
+    /// #1151: a squeezed stroke's sawtooth keeps its sides in turn with no step in place; a
+    /// wide one is unchanged.
+    #[test]
+    fn a_squeezed_fill_stroke_sews_no_stitches_in_place() {
+        // Rows 2 (0.2 mm) apart across a stroke 2 wide: every step about 2.8.
+        let saw: Vec<Vec2> = (0..20)
+            .map(|k| v2(k as f64 * 2.0, if k % 2 == 0 { 0.0 } else { 2.0 }))
+            .collect();
+        let thin = thin_squeezed(&saw);
+        assert_eq!(thin.first(), saw.first());
+        assert_eq!(thin.last(), saw.last());
+        for w in thin.windows(2) {
+            assert!(w[0].distance(w[1]) >= IN_PLACE, "{w:?}");
+            assert_ne!(w[0].y, w[1].y, "each step crosses the stroke: {w:?}");
+        }
+        let wide: Vec<Vec2> = (0..20)
+            .map(|k| v2(k as f64 * 2.0, if k % 2 == 0 { 0.0 } else { 30.0 }))
+            .collect();
+        assert_eq!(thin_squeezed(&wide), wide);
     }
 }
