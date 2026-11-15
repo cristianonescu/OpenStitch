@@ -57,7 +57,7 @@ pub fn commands() -> Vec<CommandSpec> {
             opt(
                 "layers",
                 "int 1-2",
-                "1, or 2 crossed layers at angle and angle + 90 (default 1)",
+                "1, or 2 crossed layers at angle and angle + 90 (default 1); a second layer at 360 or more is stored a turn less, the same direction (300 gives 30, 270 gives 0), so it stays within the -360..360 of angle",
             ),
             opt(
                 "color",
@@ -158,9 +158,11 @@ fn build(s: &mut EngineState, p: &Params, replaces: Option<u64>) -> CommandResul
         .map(|k| {
             let mut r = RegionSewing::new(RegionType::Fill, colour.clone());
             // The second layer crosses the first; kept within the -360..360 that the command
-            // and the inspector accept (450 is stored as 90, the same direction, #1124).
+            // and the inspector accept (450 is stored as 90, the same direction, #1124). A full
+            // turn is stored as 0, the direction every other default reads (nothing tells 360
+            // from 0).
             let a = angle + 90.0 * k as f64;
-            r.angle = if a > 360.0 { a - 360.0 } else { a };
+            r.angle = if a >= 360.0 { a - 360.0 } else { a };
             r.density = 1.0 / spacing;
             r.stitch_length = stitch;
             r.underlay = false;
