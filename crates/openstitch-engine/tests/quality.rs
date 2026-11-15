@@ -261,6 +261,66 @@ fn small_text_is_judged_by_its_own_font() {
     assert!(small("openstitch-line", 3.0).is_none());
 }
 
+/// #1036: `design.check` names the readiness level from its counts alone: ready to sew with no
+/// errors or warnings (notes never count), sewable with small risks with warnings only, fix this
+/// first with any error. A level, not a score.
+#[test]
+fn the_readiness_level_follows_the_errors_and_warnings() {
+    let level = |steps: &[(&str, Value)]| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+        for (c, p) in steps {
+            run(&mut s, c, p.clone());
+        }
+        let c = run(&mut s, "design.check", json!({}));
+        (c["level"].as_str().unwrap_or_default().to_string(), c)
+    };
+    let rect = |x: f64| {
+        (
+            "shape.rectangle",
+            json!({"x": x, "y": 20, "width": 30, "height": 20, "fill": "Blue"}),
+        )
+    };
+    let (l, c) = level(&[rect(20.0)]);
+    assert_eq!(l, "readyToSew", "{c}");
+    // A note only (an open fill, #1036): still ready.
+    let (l, c) = level(&[
+        rect(20.0),
+        (
+            "object.setRegion",
+            json!({"ids": [1], "density": 0.9, "underlay": false}),
+        ),
+    ]);
+    assert_eq!(
+        (l.as_str(), c["notes"].as_u64()),
+        ("readyToSew", Some(1)),
+        "{c}"
+    );
+    // A warning only (3 mm text).
+    let (l, c) = level(&[
+        rect(20.0),
+        (
+            "text.add",
+            json!({"text": "Hi", "size": 3, "x": 50, "y": 70}),
+        ),
+    ]);
+    assert_eq!(
+        (l.as_str(), c["errors"].as_u64()),
+        ("sewableWithSmallRisks", Some(0)),
+        "{c}"
+    );
+    // An error (past the hoop), whatever else.
+    let (l, c) = level(&[
+        rect(80.0),
+        (
+            "text.add",
+            json!({"text": "Hi", "size": 3, "x": 50, "y": 70}),
+        ),
+    ]);
+    assert_eq!(l, "fixThisFirst", "{c}");
+    assert!(c.get("score").is_none(), "no number: {c}");
+}
+
 /// The fixture of #503: each problem is found once, on its own object, and its fix clears it
 /// as one undo step.
 #[test]

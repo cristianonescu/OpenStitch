@@ -250,6 +250,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.setEntryExit` (`regionEntry`, `regionExit`, `lineEntry`, `lineExit`; null clears).
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors;
+   `level` is `readyToSew` (no errors or warnings), `sewableWithSmallRisks` (warnings only) or
+   `fixThisFirst` (any error), as the editor's status bar shows it; notes never count, and there
+   is no score;
    warnings include `untied` thread ends, whose fix adds ties, `tinySection` and
    `shortStitch`, and `textTooSmall` against the text's own font's smallest size (`fonts.list`
    `sizeRange`; its fix switches to the Small Text font where it fits); `moreColoursThanNeedles`
