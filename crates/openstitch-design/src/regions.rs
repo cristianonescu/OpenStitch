@@ -3330,21 +3330,38 @@ fn along_net(
             .collect();
         let mut done = vec![false; pieces.len()];
         for i in 0..pieces.len() {
-            // The nearest piece end along the net (ties: earlier piece, its start), from the
-            // needle, or for a later phase's first piece from `aim` …
-            let from = if i == 0 && phase > 0 { aim.or(here) } else { here };
-            let next = here.zip(from).and_then(|(h, f)| {
+            // The nearest piece end along the net, from the needle, or for a phase's first
+            // piece from `aim`. Ends as near as each other (within 0.01 mm): the one with the
+            // lower x, then y (PE-DESIGN goes on from a line to the one on its left when both
+            // are a spacing away, round 13, zigzag-net-dir0 and zigzag-net-40x20-dir90) …
+            let from = if i == 0 { aim.or(here) } else { here };
+            let chosen = from.and_then(|f| {
                 let best = paths(f);
-                let (_, k, rev, e) = (0..pieces.len())
+                (0..pieces.len())
                     .filter(|&k| !done[k])
                     .flat_map(|k| [(k, false), (k, true)])
                     .filter_map(|(k, rev)| {
                         let e = if rev { ends[k].1 } else { ends[k].0 };
                         best[e].0.is_finite().then_some((best[e].0, k, rev, e))
                     })
-                    .min_by(|x, y| x.0.total_cmp(&y.0).then((x.1, x.2).cmp(&(y.1, y.2))))?;
-                // The way there from the needle.
-                let best = if f == h { best } else { paths(h) };
+                    .min_by(|x, y| {
+                        if (x.0 - y.0).abs() < 0.1 {
+                            let (p, q) = (points[x.3], points[y.3]);
+                            p.x.total_cmp(&q.x)
+                                .then(p.y.total_cmp(&q.y))
+                                .then((x.1, x.2).cmp(&(y.1, y.2)))
+                        } else {
+                            x.0.total_cmp(&y.0)
+                        }
+                    })
+                    .map(|(_, k, rev, e)| (k, rev, e))
+            });
+            // The way there from the needle; the first piece of all starts where it is.
+            let next = chosen.and_then(|(k, rev, e)| {
+                let Some(h) = here else {
+                    return Some((k, rev, vec![points[e]]));
+                };
+                let best = paths(h);
                 if !best[e].0.is_finite() {
                     return None;
                 }
@@ -3359,6 +3376,10 @@ fn along_net(
             });
             let (k, rev) = match next {
                 Some((k, rev, path)) => {
+                    // Straight on through the nodes along the way (line ends on the outline,
+                    // crossings on a line): PE-DESIGN keeps its 2 mm steps through them (round
+                    // 13, zigzag-net-30x30-dir45), so only a turn starts a new set of steps.
+                    let path = straight_through(&path);
                     run.extend(subdivide(&path, pitch).into_iter().skip(1));
                     here = Some(if rev { ends[k].1 } else { ends[k].0 });
                     (k, rev)
@@ -3387,6 +3408,30 @@ fn along_net(
     }
     if run.len() >= 2 {
         out.push(run);
+    }
+    out
+}
+
+/// `path` without the points it runs straight through (within 0.01 mm of the line from the
+/// point before to the next kept one's neighbour), so a run of collinear pieces is one segment.
+fn straight_through(path: &[Vec2]) -> Vec<Vec2> {
+    let mut out: Vec<Vec2> = Vec::with_capacity(path.len());
+    for &p in path {
+        if out.len() >= 2 {
+            let (a, b) = (out[out.len() - 2], out[out.len() - 1]);
+            let d = p - a;
+            let len = d.x.hypot(d.y);
+            let off = if len > 1e-9 {
+                ((b.x - a.x) * d.y - (b.y - a.y) * d.x).abs() / len
+            } else {
+                f64::INFINITY
+            };
+            let ahead = (b.x - a.x) * d.x + (b.y - a.y) * d.y > 0.0;
+            if off < 0.1 && ahead && a.distance(b) < len {
+                out.pop();
+            }
+        }
+        out.push(p);
     }
     out
 }
