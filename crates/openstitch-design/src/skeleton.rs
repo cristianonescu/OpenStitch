@@ -735,14 +735,74 @@ pub fn satin_line_rungs(path: &[Vec2], line: &SatinLine, step: f64) -> Vec<[Vec2
         .collect()
 }
 
-/// The column's outline: the left side along the centre line, then the right side back.
+/// The column's outline: the left side along the centre line, then the right side back. On the
+/// inside of a bend tighter than the column is wide, the rung ends there run backwards and the
+/// side would cross itself in a small loop (#1136: the kit's skeleton satin, a 90° bend 4 mm
+/// wide); each side is cut at its crossing instead, so the outline is a simple polygon.
 pub fn outline(s: &Skeleton) -> Option<Contour> {
+    let c = Centre::new(s)?;
+    let rungs = c.rungs(5.0, 0.0);
+    let left: Vec<Vec2> = rungs.iter().map(|r| r[0]).collect();
+    let right: Vec<Vec2> = rungs.iter().rev().map(|r| r[1]).collect();
+    let mut pts = without_loops(&left);
+    pts.extend(without_loops(&right));
+    pts.dedup_by(|a, b| a.distance(*b) < 1e-6);
+    (pts.len() >= 3).then(|| Contour::new(pts, true))
+}
+
+/// The outline as it was drawn before #1136, its sides uncut: a column saved then keeps this
+/// one, so it still reads as its skeleton's column. The same as [`outline`] without a loop.
+pub fn uncut_outline(s: &Skeleton) -> Option<Contour> {
     let c = Centre::new(s)?;
     let rungs = c.rungs(5.0, 0.0);
     let mut pts: Vec<Vec2> = rungs.iter().map(|r| r[0]).collect();
     pts.extend(rungs.iter().rev().map(|r| r[1]));
     pts.dedup_by(|a, b| a.distance(*b) < 1e-6);
     (pts.len() >= 3).then(|| Contour::new(pts, true))
+}
+
+/// Segments of a side ahead of one that a loop can span (a bend's loop is a few rungs long).
+const LOOP_SPAN: usize = 400;
+
+/// The open polyline `side` with its loops cut: where a segment crosses a later one, the side
+/// goes from the first segment's start to the crossing and on along the later one, leaving out
+/// the points between. The latest crossing within [`LOOP_SPAN`] cuts the whole loop at once.
+fn without_loops(side: &[Vec2]) -> Vec<Vec2> {
+    let mut out = Vec::with_capacity(side.len());
+    let mut i = 0;
+    while i < side.len() {
+        out.push(side[i]);
+        if i + 1 >= side.len() {
+            break;
+        }
+        let (a, b) = (side[i], side[i + 1]);
+        let last = (i + LOOP_SPAN).min(side.len() - 1);
+        let cut = (i + 2..last)
+            .rev()
+            .find_map(|j| crossing(a, b, side[j], side[j + 1]).map(|x| (j, x)));
+        match cut {
+            Some((j, x)) => {
+                out.push(x);
+                i = j + 1;
+            }
+            None => i += 1,
+        }
+    }
+    out
+}
+
+/// Where segments `a`–`b` and `c`–`d` cross, strictly inside both.
+fn crossing(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> Option<Vec2> {
+    let (r, s) = (b - a, d - c);
+    let den = r.x * s.y - r.y * s.x;
+    if den.abs() < 1e-12 {
+        return None;
+    }
+    let q = c - a;
+    let t = (q.x * s.y - q.y * s.x) / den;
+    let u = (q.x * r.y - q.y * r.x) / den;
+    let inside = |v: f64| v > 1e-9 && v < 1.0 - 1e-9;
+    (inside(t) && inside(u)).then(|| a + r * t)
 }
 
 /// Grid cells along the longer side of the region when a skeleton is derived.
@@ -2583,6 +2643,66 @@ mod tests {
         assert!(satin(&cases[2], 3.0, 0.0).is_empty());
         // A centre line that turns straight back still sews.
         assert!(!satin(&cases[4], 3.0, 0.0).is_empty());
+    }
+
+    /// The segments of the closed outline `c` that cross another (not a neighbour).
+    fn self_crossings(c: &Contour) -> usize {
+        let p = &c.points;
+        let n = p.len();
+        let seg = |i: usize| (p[i], p[(i + 1) % n]);
+        let mut found = 0;
+        for i in 0..n {
+            for j in i + 2..n {
+                if (j + 1) % n == i {
+                    continue;
+                }
+                let ((a, b), (c, d)) = (seg(i), seg(j));
+                found += usize::from(crossing(a, b, c, d).is_some());
+            }
+        }
+        found
+    }
+
+    /// #1136: a V skeleton bent tighter than its column is wide folds the inner side of its
+    /// outline into a loop; the outline cuts it, keeps both ends, and stays as it was elsewhere.
+    #[test]
+    fn a_skeleton_outline_does_not_fold_at_a_bend() {
+        // The kit's shape-tools column: 90°, 1.5 / 4 / 1.5 mm; then a 60° V; then a straight
+        // column, which has no loop to cut.
+        let right = skeleton(
+            &[(80.0, 820.0), (200.0, 700.0), (320.0, 820.0)],
+            &[1.5, 4.0, 1.5],
+        );
+        let sixty = skeleton(
+            &[(125.0, 130.0), (200.0, 0.0), (275.0, 130.0)],
+            &[1.5, 4.0, 1.5],
+        );
+        let straight = skeleton(&[(0.0, 0.0), (200.0, 0.0)], &[3.0, 3.0]);
+        for (name, s, folds) in [
+            ("90°", &right, true),
+            ("60°", &sixty, true),
+            ("straight", &straight, false),
+        ] {
+            let cut = outline(s).expect("outline");
+            let uncut = uncut_outline(s).expect("uncut");
+            assert_eq!(
+                self_crossings(&uncut) > 0,
+                folds,
+                "{name}: the uncut outline"
+            );
+            assert_eq!(self_crossings(&cut), 0, "{name}: {:?}", cut.points);
+            assert_eq!(
+                cut.points.first(),
+                uncut.points.first(),
+                "{name}: the start"
+            );
+            assert_eq!(cut.points.last(), uncut.points.last(), "{name}: the end");
+            if !folds {
+                assert_eq!(cut, uncut, "{name}");
+            }
+            // Only the inner side's loop goes: the cut outline loses a few points, no more.
+            assert!(cut.points.len() + 20 >= uncut.points.len(), "{name}");
+        }
     }
 
     #[test]

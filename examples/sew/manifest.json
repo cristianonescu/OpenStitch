@@ -1077,7 +1077,7 @@
    84.5,
    84.0
   ],
-  "stitches": 4564,
+  "stitches": 4550,
   "trims": 10,
   "threads": [
    "405 Blue",
@@ -1094,7 +1094,7 @@
   "sewingMinutes": 6.2,
   "image": null,
   "preview": "previews/shape-tools.png",
-  "sha256": "f836f71e56c10ba7a4d129835bbaf2b3bd31525c09831aea43203c99f30174a0",
+  "sha256": "16ed7352581f01aa560cf3759ca58f6af97194d35f8a6c9a0d1ef09520384df2",
   "renderVersion": 3
  },
  "shapes/decorative-frames.pes": {

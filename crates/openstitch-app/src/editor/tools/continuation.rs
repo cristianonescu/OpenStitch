@@ -37,9 +37,13 @@ fn kind(o: &DesignObject) -> Option<Kind> {
         return None;
     }
     if let Some(r) = &o.region {
+        // The skeleton's outline, or the uncut one a column saved before #1136 keeps.
         if let Some(sk) = &r.skeleton
-            && skeleton::outline(sk)
-                .is_some_and(|c| o.contours.len() == 1 && same_outline(&o.contours[0], &c, 0.05))
+            && o.contours.len() == 1
+            && [skeleton::outline(sk), skeleton::uncut_outline(sk)]
+                .iter()
+                .flatten()
+                .any(|c| same_outline(&o.contours[0], c, 0.05))
         {
             return Some(Kind::Skeleton);
         }
