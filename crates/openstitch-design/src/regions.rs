@@ -631,10 +631,29 @@ pub fn generate(
                 })
                 .filter(|w| w.len() >= 2)
                 .collect();
-            // With under sewing PE-DESIGN sews the lines under one family first and the bands
-            // after (round 13), an order not made here yet: there the travel keeps to the net.
-            let rim: &[Vec<Vec2>] = if r.underlay { &[] } else { &rim };
-            let out = along_net(&net, rim, cut_pieces, pitch, |piece| {
+            // With under sewing PE-DESIGN sews the lines first, those along the Direction (on
+            // the axes here: across the page, x) and then those across it, and then the bands
+            // in the same order, travelling along the outline between them (round 13,
+            // zigzag-net-dir0 and zigzag-net-40x20-dir90): four phases, each starting at the
+            // line nearest the bottom centre of the shape. Without, one.
+            let phases = if r.underlay {
+                let (a, b): (Vec<_>, Vec<_>) = cut_pieces.into_iter().partition(|l| {
+                    let d = l[l.len() - 1] - l[0];
+                    d.x.abs() >= d.y.abs()
+                });
+                vec![a.clone(), b.clone(), a, b]
+            } else {
+                vec![cut_pieces]
+            };
+            let aim = Rect::enclosing(closed.iter().flat_map(|c| c.outline_points()))
+                .map(|b| v2(b.center().x, b.max_y));
+            let out = along_net(&net, &rim, phases, aim, pitch, |phase, piece| {
+                // The line under a band, from end to end.
+                if r.underlay && phase < 2 {
+                    let run = subdivide(piece, pitch);
+                    let end = *run.last()?;
+                    return Some((run, end));
+                }
                 let along = whole.get(&key(piece)).map_or(piece, |w| w.as_slice());
                 let band = zigzag_band(along, width, step, closed, holes, &edges);
                 if band.len() < 2 {
@@ -660,7 +679,7 @@ pub fn generate(
                         );
                     }
                 };
-                let at = if r.underlay || edges(last).len() <= 1 {
+                let at = if !r.underlay && edges(last).len() <= 1 {
                     run.extend(subdivide(piece, pitch));
                     let mut band = band.into_iter().rev();
                     if let Some(b) = band.next() {
@@ -3229,16 +3248,20 @@ fn net_key(p: Vec2) -> (i64, i64) {
     ((p.x * 100.0).round() as i64, (p.y * 100.0).round() as i64)
 }
 
-/// The zigzag net's lines `pieces` (each sewn once, see [`once_each`]) as runs: each piece's
-/// band from `sew`, the needle travelling from one piece to the nearest unsewn piece end along
-/// the net's own lines `net`, which the bands cover, so no travel crosses an open cell (#463).
-/// Pieces the net does not connect start a new run.
+/// The zigzag net's lines as runs, in `phases` (each a list of pieces, each piece sewn once,
+/// see [`once_each`]): each piece sewn by `sew` (with its phase's index), the needle travelling
+/// from one piece to the nearest unsewn piece end of the same phase along the net's own lines
+/// `net`, which the bands cover, so no travel crosses an open cell (#463), or along `rim` (the
+/// outline). A phase after the first starts at its piece end nearest `aim` (PE-DESIGN starts
+/// each phase of a net with under sewing at the line nearest the region's start, round 13,
+/// #1043), else nearest the needle. Pieces the net does not connect start a new run.
 fn along_net(
     net: &[Vec<Vec2>],
     rim: &[Vec<Vec2>],
-    pieces: Vec<Vec<Vec2>>,
+    phases: Vec<Vec<Vec<Vec2>>>,
+    aim: Option<Vec2>,
     pitch: f64,
-    mut sew: impl FnMut(&[Vec2]) -> Option<(Run, Vec2)>,
+    mut sew: impl FnMut(usize, &[Vec2]) -> Option<(Run, Vec2)>,
 ) -> Vec<Run> {
     use std::cmp::Reverse;
     use std::collections::{BinaryHeap, HashMap};
@@ -3250,7 +3273,7 @@ fn along_net(
     // outline) its length.
     for (l, cost) in net
         .iter()
-        .chain(&pieces)
+        .chain(phases.iter().flatten())
         .map(|l| (l, NET_TRAVEL_COST))
         .chain(rim.iter().map(|l| (l, 1.0)))
     {
@@ -3270,13 +3293,10 @@ fn along_net(
         }
     }
     let node = |p: Vec2| ids.get(&key(p)).copied();
-    let ends: Vec<(usize, usize)> = pieces
-        .iter()
-        .map(|p| {
-            let at = |q: Vec2| node(q).expect("a piece end is a net node");
-            (at(p[0]), at(p[p.len() - 1]))
-        })
-        .collect();
+    // The graph's node nearest `aim`.
+    let aim = aim.and_then(|a| {
+        (0..points.len()).min_by(|&i, &j| points[i].distance(a).total_cmp(&points[j].distance(a)))
+    });
     // Shortest paths from `from` along the net: (distance, previous node) per node.
     let paths = |from: usize| {
         let mut best = vec![(f64::INFINITY, usize::MAX); points.len()];
@@ -3297,58 +3317,72 @@ fn along_net(
         }
         best
     };
-    let mut done = vec![false; pieces.len()];
     let mut out = Vec::new();
     let mut run: Run = Vec::new();
     let mut here: Option<usize> = None;
-    for _ in 0..pieces.len() {
-        // The nearest piece end along the net (ties: earlier piece, its start) …
-        let next = here.and_then(|h| {
-            let best = paths(h);
-            (0..pieces.len())
-                .filter(|&k| !done[k])
-                .flat_map(|k| [(k, false), (k, true)])
-                .filter_map(|(k, rev)| {
-                    let e = if rev { ends[k].1 } else { ends[k].0 };
-                    best[e].0.is_finite().then_some((best[e].0, k, rev, e))
-                })
-                .min_by(|x, y| x.0.total_cmp(&y.0).then((x.1, x.2).cmp(&(y.1, y.2))))
-                .map(|(_, k, rev, e)| {
-                    let mut path = vec![points[e]];
-                    let mut n = e;
-                    while n != h {
-                        n = best[n].1;
-                        path.push(points[n]);
-                    }
-                    path.reverse();
-                    (k, rev, path)
-                })
-        });
-        let (k, rev) = match next {
-            Some((k, rev, path)) => {
-                run.extend(subdivide(&path, pitch).into_iter().skip(1));
-                here = Some(if rev { ends[k].1 } else { ends[k].0 });
-                (k, rev)
-            }
-            // … else the first piece left starts a new run.
-            None => {
-                if run.len() >= 2 {
-                    out.push(std::mem::take(&mut run));
+    for (phase, pieces) in phases.into_iter().enumerate() {
+        let ends: Vec<(usize, usize)> = pieces
+            .iter()
+            .map(|p| {
+                let at = |q: Vec2| node(q).expect("a piece end is a net node");
+                (at(p[0]), at(p[p.len() - 1]))
+            })
+            .collect();
+        let mut done = vec![false; pieces.len()];
+        for i in 0..pieces.len() {
+            // The nearest piece end along the net (ties: earlier piece, its start), from the
+            // needle, or for a later phase's first piece from `aim` …
+            let from = if i == 0 && phase > 0 { aim.or(here) } else { here };
+            let next = here.zip(from).and_then(|(h, f)| {
+                let best = paths(f);
+                let (_, k, rev, e) = (0..pieces.len())
+                    .filter(|&k| !done[k])
+                    .flat_map(|k| [(k, false), (k, true)])
+                    .filter_map(|(k, rev)| {
+                        let e = if rev { ends[k].1 } else { ends[k].0 };
+                        best[e].0.is_finite().then_some((best[e].0, k, rev, e))
+                    })
+                    .min_by(|x, y| x.0.total_cmp(&y.0).then((x.1, x.2).cmp(&(y.1, y.2))))?;
+                // The way there from the needle.
+                let best = if f == h { best } else { paths(h) };
+                if !best[e].0.is_finite() {
+                    return None;
                 }
-                let k = done.iter().position(|d| !d).expect("a piece is left");
-                here = Some(ends[k].0);
-                (k, false)
+                let mut path = vec![points[e]];
+                let mut n = e;
+                while n != h {
+                    n = best[n].1;
+                    path.push(points[n]);
+                }
+                path.reverse();
+                Some((k, rev, path))
+            });
+            let (k, rev) = match next {
+                Some((k, rev, path)) => {
+                    run.extend(subdivide(&path, pitch).into_iter().skip(1));
+                    here = Some(if rev { ends[k].1 } else { ends[k].0 });
+                    (k, rev)
+                }
+                // … else the first piece left starts a new run.
+                None => {
+                    if run.len() >= 2 {
+                        out.push(std::mem::take(&mut run));
+                    }
+                    let k = done.iter().position(|d| !d).expect("a piece is left");
+                    here = Some(ends[k].0);
+                    (k, false)
+                }
+            };
+            done[k] = true;
+            let mut piece = pieces[k].clone();
+            if rev {
+                piece.reverse();
             }
-        };
-        done[k] = true;
-        let mut piece = pieces[k].clone();
-        if rev {
-            piece.reverse();
-        }
-        if let Some((sewn, end)) = sew(&piece) {
-            let skip = usize::from(run.last() == sewn.first());
-            run.extend(sewn.into_iter().skip(skip));
-            here = node(end).or(here);
+            if let Some((sewn, end)) = sew(phase, &piece) {
+                let skip = usize::from(run.last() == sewn.first());
+                run.extend(sewn.into_iter().skip(skip));
+                here = node(end).or(here);
+            }
         }
     }
     if run.len() >= 2 {
