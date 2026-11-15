@@ -1092,7 +1092,20 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
             .push(i);
         let mid = v2((from.x + to.x) / 2.0, (from.y + to.y) / 2.0);
         *dense.entry(cell(mid, lim.dense_cell_mm)).or_default() += from.distance(to) / MM;
-        if i > 0 && from.distance(to) < lim.in_place_mm * MM {
+        // In place as the machine file holds it (#1135): between needle points rounded to the
+        // 0.1 mm grid as the writer rounds them, where a step just under 0.3 mm can become
+        // 0.3 mm and end the run (fonts-and-text's Lato read 9 in a row here, 6 in its file).
+        let grid = |s: &openstitch_core::Stitch| {
+            (
+                openstitch_core::round_coordinate(s.x),
+                openstitch_core::round_coordinate(s.y),
+            )
+        };
+        let filed = i.checked_sub(1).map_or(0.0, |j| {
+            let (a, b) = (grid(&st[j]), grid(s));
+            ((a.0 - b.0) as f64).hypot((a.1 - b.1) as f64)
+        });
+        if i > 0 && filed < lim.in_place_mm * MM {
             run.0 += 1;
             if run.0 > run.1 {
                 run = (run.0, run.0, i);
