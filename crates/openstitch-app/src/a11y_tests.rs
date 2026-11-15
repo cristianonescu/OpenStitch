@@ -205,7 +205,7 @@ fn typing_into_an_inspector_field_still_keeps_to_its_range() {
     let ctx = egui::Context::default();
     let mut app = EditorApp::new(Launch::default());
     app.splash = None;
-    let mut run = |app: &mut EditorApp, events: Vec<egui::Event>, focus: bool| {
+    let run = |app: &mut EditorApp, events: Vec<egui::Event>, focus: bool| {
         let mut got = None;
         let mut out = ctx.run_ui(
             egui::RawInput {
@@ -239,10 +239,11 @@ fn typing_into_an_inspector_field_still_keeps_to_its_range() {
         modifiers: egui::Modifiers::NONE,
     };
     for (typed, kept) in [("0.5", 2.0), ("50", 10.0)] {
-        let mut shown = Vec::new();
-        shown.push(run(&mut app, Vec::new(), false));
-        shown.push(run(&mut app, Vec::new(), true));
-        shown.push(run(&mut app, Vec::new(), false));
+        let shown = [
+            run(&mut app, Vec::new(), false),
+            run(&mut app, Vec::new(), true),
+            run(&mut app, Vec::new(), false),
+        ];
         assert!(
             shown.iter().all(Option::is_none),
             "drawn and focused, 0.6 is kept: {shown:?}"

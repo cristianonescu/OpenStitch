@@ -1386,8 +1386,14 @@ mod tests {
         let net = |extra: serde_json::Value| {
             let mut s = crate::Session::new(std::env::temp_dir());
             for (id, p) in [
-                ("design.new", serde_json::json!({"width": 100, "height": 100})),
-                ("shape.ellipse", serde_json::json!({"cx": 50, "cy": 50, "rx": 20})),
+                (
+                    "design.new",
+                    serde_json::json!({"width": 100, "height": 100}),
+                ),
+                (
+                    "shape.ellipse",
+                    serde_json::json!({"cx": 50, "cy": 50, "rx": 20}),
+                ),
                 ("object.setRegion", {
                     let mut p = serde_json::json!({"id": 1, "type": "zigzagNetFill"});
                     for (k, v) in extra.as_object().expect("object") {
@@ -1395,7 +1401,10 @@ mod tests {
                     }
                     p
                 }),
-                ("object.setLine", serde_json::json!({"id": 1, "type": "none"})),
+                (
+                    "object.setLine",
+                    serde_json::json!({"id": 1, "type": "none"}),
+                ),
             ] {
                 s.execute(id, Some(&p)).expect(id);
             }
