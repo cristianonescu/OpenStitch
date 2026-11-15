@@ -610,6 +610,11 @@ pub struct Shape {
     /// Cross Stitch Times as PE-DESIGN writes it (body +284): 2 Single, 4 Double, 6 Triple,
     /// the times each diagonal is covered (614-cross-single/-double/-triple, #614).
     pub cross_passes: u16,
+    /// Zigzag Net Fill's zigzag width and Spacing, mm (body +366 and +370, 0.1 mm; 30 and 50
+    /// for PE-DESIGN's 3.0 / 5.0 defaults, its Density 4.5 in between at +368 and at +136).
+    /// Spacing is the gap between bands (round 15, zigzag-net-circle40-w3p0/w6p0/w10p0, #1109).
+    /// Written only on a zigzag net; other shapes keep the template's values.
+    pub zigzag_net: [f32; 2],
     /// The fields of the sew types the object doesn't use hold their plain values
     /// ([`PLAIN_SETTINGS`]) rather than PE-DESIGN's tool values ([`TOOL_SETTINGS`]): the
     /// Applique Wizard's covering line (a01-rect-applique) and shapes from a vector import
@@ -713,6 +718,7 @@ impl Shape {
             flag_178: 1,
             cross_size: 2.5,
             cross_passes: 2,
+            zigzag_net: [3.0, 5.0],
             plain_settings: false,
             flag_176: 1,
             gallery: false,
@@ -1558,6 +1564,7 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         flag_178: u16_at(body, 178),
         cross_size: f32::from(u16_at(body, 282)) / 10.0,
         cross_passes: u16_at(body, 284),
+        zigzag_net: [366, 370].map(|at| f32::from(u16_at(body, at)) / 10.0),
         plain_settings: SETTINGS_FIELDS
             .iter()
             .zip(PLAIN_SETTINGS)
@@ -2285,6 +2292,10 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     put16(&mut head, 332, s.motif_fields[1]);
     put16(&mut head, 282, tenths(s.cross_size));
     put16(&mut head, 284, s.cross_passes);
+    if s.region == RegionSewType::ZigzagNet {
+        put16(&mut head, 366, tenths(s.zigzag_net[0]));
+        put16(&mut head, 370, tenths(s.zigzag_net[1]));
+    }
     // Reference points: five at the bounds' top-left corner, two at their centre (i32 x, y).
     for at in [204, 262, 286, 354, 378] {
         put32(&mut head, at, i32::from(x0));

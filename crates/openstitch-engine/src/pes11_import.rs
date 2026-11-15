@@ -299,6 +299,17 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
             }
             r.times = CrossTimes::from_count(usize::from(s.cross_passes / 2));
         }
+        if kind == RegionType::ZigzagNetFill {
+            // PE-DESIGN's width and Spacing, the gap between bands, as OpenStitch keeps them
+            // (#1109); its defaults stay unset.
+            let [width, gap] = s.zigzag_net.map(f64::from);
+            if width > 0.0 && (width - r.pattern_size_mm().0).abs() > 0.01 {
+                r.pattern_width = Some(width);
+            }
+            if gap > 0.0 && (gap - r.spacing_mm()).abs() > 0.01 {
+                r.spacing = Some(gap);
+            }
+        }
         if kind == RegionType::Fill {
             r.frequency = Some(f64::from(s.frequency));
             r.running_stitch_path = Some(match s.running_path {
@@ -1121,5 +1132,27 @@ mod tests {
         ));
         let s = &crate::pes11_export::objects(&d).expect("objects").shapes[0];
         assert_eq!((s.sharp_corners, s.miter_limits), (0, [0.0, 7.0]));
+    }
+
+    #[test]
+    fn zigzag_net_width_and_spacing_import_and_export_back() {
+        // #1109: PE-DESIGN 11.50's zigzag net at widths 3, 6 and 10 on its default Spacing 5.0,
+        // the gap between bands: read as OpenStitch's zigzag width and spacing (the defaults
+        // unset) and written back to the same fields.
+        for (name, width) in [("w3p0", 3.0), ("w6p0", 6.0), ("w10p0", 10.0)] {
+            let i = objects(&reference(&format!("stitches/zigzag-net-circle40-{name}")));
+            let r = i.objects[0].region.as_ref().expect("region");
+            assert_eq!(r.kind, RegionType::ZigzagNetFill, "{name}");
+            assert_eq!(
+                (r.pattern_size_mm().0, r.spacing_mm()),
+                (width, 5.0),
+                "{name}"
+            );
+            assert_eq!(r.spacing, None, "{name}: PE-DESIGN's default stays unset");
+            let mut d = Design::default();
+            d.add(i.objects[0].clone());
+            let s = &crate::pes11_export::objects(&d).expect("objects").shapes[0];
+            assert_eq!(s.zigzag_net, [width as f32, 5.0], "{name}");
+        }
     }
 }

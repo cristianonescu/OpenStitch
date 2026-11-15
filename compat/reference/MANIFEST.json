@@ -6446,6 +6446,42 @@
       "settings": "100 x 100 mm page, Optimize Entry/Exit Points off. Home > Shapes > Rectangle, set to 5,00 x 5,00 mm with Home > Size, top-left at (40,0 ; 47,5) mm (read from the file). Line Not Sewn; region Fill Stitch at its defaults: under sewing on, density 4,5, Direction 45, step pitch 4,0, frequency 30 %. The shape's default colour. Save As PES (default type). 5,00 x 5,00 mm, 85 stitches. Saved as 1088-square-5mm-x0.pes; the same square moved by 0,5, 1,0 and 1,5 mm right and 0,5 mm down sews byte-identical stitches (round 15).",
       "sha256": "1df8d1a1e8cdabc4339468b8ba2fb2c359f18569a3268051cdad9ec0ff1c5421",
       "notes": "Header #PES0110. The coordinator's round 15 capture for #1088. Pattern blocks redacted (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 13e3c829c497370c67bc43ea91c95c9bd0d2514520255446b00d81954adf04f2."
+    },
+    {
+      "file": "stitches/zigzag-net-circle40-w3p0.pes",
+      "spec": "zigzag-net-circle40-w3p0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region from Radial (at 7,0) to Zigzag Net Fill Stitch: the pane showed PE-DESIGN's defaults (Pattern first button, Under sewing on, Zigzag width 3,0, Density 4,5, Spacing 5,0, H-Offset 0,0, V-Offset 0,0, Direction 0); Zigzag width 3,0, Spacing 5,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 1974.",
+      "sha256": "22b53f469789d0b1392f51e693da0b686d397231ab5268d373e34efd06aef8b7",
+      "notes": "Round 15 (#1050 part B, #1109), the coordinator's round-15 capture notes; the field ranges: Zigzag width 0,1 kept as 1,0 and 99 as 10,0; Spacing 0,1 kept as 2,0 and 99 as 10,0. Pattern blocks redacted 2026-11-15 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 39a5d5b22a51a7ba84924389f23701f47511548ae87a333293784a850787ad31."
+    },
+    {
+      "file": "stitches/zigzag-net-circle40-w6p0.pes",
+      "spec": "zigzag-net-circle40-w6p0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region from Radial (at 7,0) to Zigzag Net Fill Stitch: the pane showed PE-DESIGN's defaults (Pattern first button, Under sewing on, Zigzag width 3,0, Density 4,5, Spacing 5,0, H-Offset 0,0, V-Offset 0,0, Direction 0); Zigzag width 6,0, Spacing 5,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 1718.",
+      "sha256": "a05b929b8374ba71fc6a2dbff5f43538fe991b727f487da843ea67359ce5021d",
+      "notes": "Round 15 (#1050 part B, #1109), the coordinator's round-15 capture notes; the field ranges: Zigzag width 0,1 kept as 1,0 and 99 as 10,0; Spacing 0,1 kept as 2,0 and 99 as 10,0. Pattern blocks redacted 2026-11-15 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 3516ea9ef35e57d9b9a58b063656f196b26d6924f860ef039eab4d3f3c78e444."
+    },
+    {
+      "file": "stitches/zigzag-net-circle40-w10p0.pes",
+      "spec": "zigzag-net-circle40-w10p0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region from Radial (at 7,0) to Zigzag Net Fill Stitch: the pane showed PE-DESIGN's defaults (Pattern first button, Under sewing on, Zigzag width 3,0, Density 4,5, Spacing 5,0, H-Offset 0,0, V-Offset 0,0, Direction 0); Zigzag width 10,0, Spacing 5,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 1453.",
+      "sha256": "a805dd9be50fa9475554abfe1501d6c544fdd88dd8c408c106d970ccf3be7aa8",
+      "notes": "Round 15 (#1050 part B, #1109), the coordinator's round-15 capture notes; the field ranges: Zigzag width 0,1 kept as 1,0 and 99 as 10,0; Spacing 0,1 kept as 2,0 and 99 as 10,0. Pattern blocks redacted 2026-11-15 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN cd3b6d085802b53e57ecc2258bbd87752252f6e4aa77a0f4257bb08cfb6f3c60."
     }
   ]
 }

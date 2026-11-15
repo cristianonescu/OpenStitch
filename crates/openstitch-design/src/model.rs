@@ -2477,8 +2477,9 @@ impl RegionSewing {
             // PE-DESIGN 11.50's Net Fill: Spacing 3.0 mm, the line pitch (its field's reset
             // button, #1110).
             RegionType::NetFill => 3.0,
-            // PE-DESIGN 11.50's zigzag net (o-region-zigzag-net): bands 8 mm apart.
-            RegionType::ZigzagNetFill => 8.0,
+            // PE-DESIGN 11.50's zigzag net: Spacing 5.0 mm, the gap between bands (its field's
+            // reset button; with the 3 mm band the lines are 8 mm apart, #1109).
+            RegionType::ZigzagNetFill => 5.0,
             RegionType::FlexibleSpiral => 1.0,
             // The contour fill sketch's default row spacing (echo-quilting look).
             RegionType::Contour => 2.0,

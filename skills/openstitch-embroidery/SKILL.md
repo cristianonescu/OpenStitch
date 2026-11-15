@@ -31,7 +31,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   `autoDirection` off unless you pass `autoDirection` in the same call.
 - A net fill (`netFill`, `zigzagNetFill`) lines up on the shape's bounds, its lines half a spacing
   (a zigzag net: half a band) in from the top-left corner, as PE-DESIGN does; with
-  `object.setReferencePoint` its lines run through that point instead.
+  `object.setReferencePoint` its lines run through that point instead. A `netFill`'s `spacing` is
+  the line pitch, default 3.0 mm (pass 4 for the look before alpha 15); a `zigzagNetFill`'s is
+  the gap between bands, default 5.0 mm, its lines `patternWidth` + `spacing` apart (before
+  alpha 15 it was the line pitch: pass the old pitch minus the width).
 - Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
   `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
   save PES version 6.

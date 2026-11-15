@@ -740,6 +740,10 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
     s.frequency = r.frequency.unwrap_or(30.0).round().clamp(0.0, 100.0) as u16;
     s.under_sewing = r.underlay;
     s.gradation = r.gradation.is_some();
+    if r.kind == RegionType::ZigzagNetFill {
+        // Both are PE-DESIGN's own fields: the width and the gap between bands (#1109).
+        s.zigzag_net = [r.pattern_size_mm().0 as f32, r.spacing_mm() as f32];
+    }
     if r.kind == RegionType::CrossStitch {
         s.cross_size = r.spacing_mm() as f32;
         s.cross_passes = 2 * r.cross_times().count() as u16;
@@ -1371,6 +1375,66 @@ mod tests {
 
     fn red() -> Thread {
         PEC_CHART[5].clone().expect("chart colour")
+    }
+
+    /// #1109: a zigzag net set by `object.setRegion` outside PE-DESIGN's ranges (zigzag width
+    /// 1.0-10, Spacing 2.0-10) but inside the command's is stored as given, sewn with its lines
+    /// the width plus the gap apart (many more stitches than the default 3 + 5), and written
+    /// unclamped to PES 0110's +366 and +370, which read back the same.
+    #[test]
+    fn a_zigzag_net_outside_pe_designs_ranges_is_stored_sewn_and_saved_as_given() {
+        let net = |extra: serde_json::Value| {
+            let mut s = crate::Session::new(std::env::temp_dir());
+            for (id, p) in [
+                (
+                    "design.new",
+                    serde_json::json!({"width": 100, "height": 100}),
+                ),
+                (
+                    "shape.ellipse",
+                    serde_json::json!({"cx": 50, "cy": 50, "rx": 20}),
+                ),
+                ("object.setRegion", {
+                    let mut p = serde_json::json!({"id": 1, "type": "zigzagNetFill"});
+                    for (k, v) in extra.as_object().expect("object") {
+                        p[k] = v.clone();
+                    }
+                    p
+                }),
+                (
+                    "object.setLine",
+                    serde_json::json!({"id": 1, "type": "none"}),
+                ),
+            ] {
+                s.execute(id, Some(&p)).expect(id);
+            }
+            s.design().clone()
+        };
+        let d = net(serde_json::json!({"patternWidth": 0.5, "spacing": 1.0}));
+        let r = d.objects[0].region.as_ref().expect("region");
+        assert_eq!((r.pattern_width, r.spacing), (Some(0.5), Some(1.0)));
+        let pattern = openstitch_design::Compiler::default().compile(&d);
+        let default = openstitch_design::Compiler::default()
+            .compile(&net(serde_json::json!({})))
+            .stitches
+            .len();
+        assert!(
+            pattern.stitches.len() > 3 * default,
+            "lines 1.5 mm apart against 8: {} against {default}",
+            pattern.stitches.len()
+        );
+        assert!(
+            pattern
+                .stitches
+                .iter()
+                .all(|q| (q.x - 500.0).hypot(q.y - 500.0) <= 201.0),
+            "inside the circle"
+        );
+        let o = objects(&d).expect("objects");
+        assert_eq!(o.shapes[0].zigzag_net, [0.5, 1.0]);
+        let bytes = openstitch_formats::pes11::write(&o, &pattern).expect("write");
+        let back = openstitch_formats::pes::read_objects(&bytes).expect("objects");
+        assert_eq!(back.shapes[0].zigzag_net, [0.5, 1.0], "+366 and +370");
     }
 
     #[test]

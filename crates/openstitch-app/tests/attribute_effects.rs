@@ -188,10 +188,7 @@ const CONTEXT: &[(&str, &str)] = &[
 /// Settings that change only near one end of their range until a PE-DESIGN capture shows
 /// whether PE-DESIGN caps them too (#1050, round 15): printed as NOTEs. Every other such
 /// plateau fails.
-const PLATEAU_PENDING: &[(&str, &str)] = &[(
-    "r:zigzagNetFill patternWidth",
-    "#1050: the zigzag is at most 0.8 x the spacing; round 15 captures PE-DESIGN's zigzag net at widths 6 and 10 on a 5 mm spacing",
-)];
+const PLATEAU_PENDING: &[(&str, &str)] = &[];
 
 /// `state` with the setting's [`CONTEXT`] added.
 fn in_context(what: &str, state: &Value) -> Value {
