@@ -103,9 +103,13 @@ fn default_import_ignores_names() {
     assert!(r.get("settings").is_none());
     let d = s.design();
     assert_eq!(d.objects.len(), 7);
-    // The layer named "Fill a=45 s=0.4" gets the default fill, as any shape does.
+    // The layer named "Fill a=45 s=0.4" gets the default fill, as any shape does; only its
+    // start and end are set, at the path's first point (#1088).
     let fill = d.objects[0].region.clone().expect("fill");
-    let default = openstitch_design::RegionSewing::new(RegionType::Fill, fill.thread.clone());
+    assert!(fill.entry.is_some() && fill.entry == fill.exit);
+    let mut default = openstitch_design::RegionSewing::new(RegionType::Fill, fill.thread.clone());
+    default.entry = fill.entry;
+    default.exit = fill.exit;
     assert_eq!(fill, default);
     assert_eq!(
         d.objects[1].region.as_ref().map(|r| r.kind),
