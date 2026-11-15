@@ -73,10 +73,10 @@
           ]
         }
       },
-      "evidence": "PE-DESIGN's 85 needle points",
+      "evidence": "PE-DESIGN's 85 needle points: 21 of under sewing (its diagonal row's point at (3.5,3.5) and a zero-length repeat at the (4,1) corner row) and 64 of top fill. OpenStitch sews 20 + 66: the same under sewing without the repeat, which its writer leaves out (#1132), and two more top-fill points, the top fill's own gap (#1131)",
       "reference": {
         "tolerance": {
-          "count": 0
+          "count": 1
         }
       }
     },
