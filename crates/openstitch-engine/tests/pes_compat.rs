@@ -757,3 +757,66 @@ fn pes_version_11_writes_motif_lines_and_fills_as_pe_design() {
         }
     }
 }
+
+/// #1124: PE-DESIGN 11.50's candlewick Density choices, read from the coordinator's round 15
+/// captures (a 40 mm square, Size 5.0, Spacing 1.0): Light, Medium and Dense sew 28 knots of 20,
+/// 24 and 32 points. OpenStitch's densities 10, 12 and 16 sew the same knots. Light and Medium
+/// sew PE-DESIGN's 654 and 766 needle points exactly; Dense sews 990 against 992, because
+/// OpenStitch's rectangle starts its outline mid-edge and PE-DESIGN's square at its top-left
+/// corner, which places the runs between the knots differently (the knots are the same).
+#[test]
+fn candlewick_knots_have_pe_designs_points() {
+    // The knots: runs of stitches 4 to 6 mm long (a 5 mm knot's chords; the runs between knots
+    // are 2.5 mm and shorter).
+    fn knots(p: &openstitch_core::StitchPattern) -> Vec<usize> {
+        let mut runs = Vec::new();
+        let mut n = 0;
+        for w in p.stitches.windows(2) {
+            let d = (w[1].x - w[0].x).hypot(w[1].y - w[0].y);
+            if (40.0..=60.0).contains(&d) {
+                n += 1;
+            } else if n > 0 {
+                runs.push(n);
+                n = 0;
+            }
+        }
+        if n > 0 {
+            runs.push(n);
+        }
+        runs
+    }
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = temp_dir("candlewick-knots");
+    for (name, density, points, off) in [
+        ("light", 10.0, 20, 0),
+        ("medium", 12.0, 24, 0),
+        ("dense", 16.0, 32, 2),
+    ] {
+        let file = format!("compat/reference/stitches/line-candlewick-{name}-square40.pes");
+        let bytes = std::fs::read(root.join(&file)).expect("capture");
+        let pe = pes::read(&bytes).expect("stitches");
+        assert_eq!(knots(&pe), vec![points; 28], "{file}");
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 30, "y": 30, "width": 40, "height": 40, "outline": "Red"}),
+        );
+        run(&mut s, "object.setRegion", json!({"id": 1, "type": "none"}));
+        run(
+            &mut s,
+            "object.setLine",
+            json!({"id": 1, "type": "candlewick", "density": density, "width": 5, "spacing": 1}),
+        );
+        let ours = openstitch_design::Compiler::default().compile(s.design());
+        assert_eq!(knots(&ours), vec![points; 28], "density {density}");
+        let needles = |p: &openstitch_core::StitchPattern| {
+            p.stitches
+                .iter()
+                .filter(|q| q.command == openstitch_core::Command::Stitch)
+                .count()
+        };
+        assert_eq!(needles(&ours) + off, needles(&pe), "density {density}");
+    }
+}

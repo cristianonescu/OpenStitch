@@ -448,10 +448,12 @@ Line references are relative to `crates/`.
   reference pending; the block byte-identical to deco-fill-1line-100mm's); the other Round 3
   region types by their codes at PE-DESIGN's default attributes (their own fields not mapped;
   the zigzag net's zigzag width, +366, and Spacing, the gap between bands, +370, are written and
-  read since #1109, round 15's zigzag-net-circle40-w3p0/w6p0/w10p0; **open:** a band or gap
-  outside PE-DESIGN's ranges, 1.0–10.0 and 2.0–10.0 mm, which a net from an .osd file before
-  version 6 can hold after its migration, is written as stored to 0.1 mm, not clamped, and
-  how PE-DESIGN reads such a file is untested);
+  read since #1109, round 15's zigzag-net-circle40-w3p0/w6p0/w10p0; a band or gap outside
+  PE-DESIGN's ranges, 1.0–10.0 and 2.0–10.0 mm, which a net from an .osd file before version 6
+  can hold after its migration, is written as stored to 0.1 mm, not clamped: PE-DESIGN 11.50
+  opened OpenStitch's width 0.5 / Spacing 1.0 circle without a message, kept both values,
+  re-sewed the net at them, 8,742 stitches against OpenStitch's 9,062, and wrote them back
+  unchanged on a re-save, round 15, #1124);
   stem, candlewick and chain lines by their codes (spec `pes-0110-line-types`, reference
   pending; the 22 owner line-* files read and rewritten byte for byte outside the documented
   differences), a candlewick's Density choice at +110 (0 Dense, 1 Medium, 2 Light: densities
