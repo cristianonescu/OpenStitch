@@ -31,7 +31,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   `autoDirection` off unless you pass `autoDirection` in the same call.
 - A net fill (`netFill`, `zigzagNetFill`) lines up on the shape's bounds, its lines half a spacing
   (a zigzag net: half a band) in from the top-left corner, as PE-DESIGN does; with
-  `object.setReferencePoint` its lines run through that point instead.
+  `object.setReferencePoint` its lines run through that point instead. A `netFill`'s `spacing` is
+  the line pitch, default 3.0 mm (pass 4 for the look before alpha 15); a `zigzagNetFill`'s is
+  the gap between bands, default 5.0 mm, its lines `patternWidth` + `spacing` apart (before
+  alpha 15 it was the line pitch: pass the old pitch minus the width).
 - Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
   `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
   save PES version 6.
@@ -252,7 +255,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `design.check` (sewing problems, errors first; `ready` is false while there are errors;
    warnings include `untied` thread ends, whose fix adds ties, `tinySection` and
    `shortStitch`, and `textTooSmall` against the text's own font's smallest size (`fonts.list`
-   `sizeRange`; its fix switches to the Small Text font where it fits); `moreColoursThanNeedles`
+   `sizeRange`; its fix switches to the Small Text font where it fits), and `crowdedNeedles`
+   (more than 600 pairs of needle points under 0.25 mm within 3 mm of one spot, beyond anything
+   PE-DESIGN's own files sew; over 1,200 it is an error; no fix, and no sew-out evidence yet of
+   what it does to the fabric: spread or thin the objects it names); `moreColoursThanNeedles`
    and `lowCoverage` (a plain fill hiding under 40 % of the fabric, about 1 line/mm: an open
    look, fine when chosen) are notes, not problems).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
@@ -275,7 +281,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 6. Save only when asked: `project.save` `{path: "name.osd"}` (editable) and/or
    `design.export` `{path: "name.pes"}` (machine file; the extension picks the format). It
    reads the file back (`verify`: warn by default; strict deletes a file that differs and
-   fails) and returns `problems`, Check Design's errors: tell the user about any.
+   fails) and returns `problems`, Check Design's errors: tell the user about any. With
+   `checks: "strict"` it writes nothing and fails while `design.check` has any error: use it when
+   the file goes straight to a machine without anyone looking at the problems first.
    To show how it will look worn, `design.mockup {path: "name.png", garment: "tshirt" | "cap" |
    "tote", placement: "centre" | "leftChest" (T-shirt only), color: "#rrggbb"}` draws it at true
    size on the garment; when the result has `fits: false`, tell the user the design is larger

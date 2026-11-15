@@ -14,7 +14,8 @@ letters keep their x positions, the stems of the H's give the envelope's top and
 the highest and lowest needle point of each stem column. Each edge is a least-squares fit of
 those samples (fractions of the straight box) on a constant, a slope and eight cosine terms,
 dropping outliers; for curved presets each knot (u = k/32 along the text) is the outermost
-of the samples near it, so peaks are kept, and the fit fills the gaps between letters. Slants
+of the samples near it, so peaks are kept; the fit fills the gaps between letters, unless it
+ripples outside the knots on either side, where a straight line between them does. Slants
 and fans are fitted from the letters' corners: a fan keeps one edge of the straight box and
 scales the other about the text's centre, each letter sheared linearly between them. The arcs
 (1 and 2) are not envelopes of this kind and are left out of the table.
@@ -162,18 +163,42 @@ def column_preset(n):
     ft, fb = fit(s, 1, n in LINEAR), fit(s, 2, n in LINEAR)
     if n in LINEAR:
         return [(u, ft(u)) for u in us], [(u, fb(u)) for u in us]
-    return [(u, knot(s, 1, ft, u)) for u in us], [(u, knot(s, 2, fb, u)) for u in us]
+    return ([(u, y) for u, y in zip(us, bridged([knot(s, 1, ft, u) for u in us], ft, us))],
+            [(u, y) for u, y in zip(us, bridged([knot(s, 2, fb, u) for u in us], fb, us))])
 
 
 def knot(samples, k, smooth, u):
     """The outermost (highest top, lowest bottom) of the samples within 1/64 of u that lie
-    near the smooth fit (the crossbars and stem edges do not); the smooth fit where there
-    are none."""
+    near the smooth fit (the crossbars and stem edges do not); None where there are none."""
     near = [v[k - 1] for su, *v in samples
             if abs(su - u) <= 1 / 64 and abs(v[k - 1] - smooth(su)) < 0.06]
     if not near:
-        return smooth(u)
+        return None
     return min(near) if k == 1 else max(near)
+
+
+def bridged(knots, smooth, us):
+    """`knots` with each gap between letters (None) given the smooth fit, unless the fit leaves
+    the range of the nearest knots on either side: a ripple, so the gap is bridged on the
+    straight line between them (the nearest knot at an end). Preset 18's flat bottom edge
+    dipped to 0.956 between the H's and lifted p's descender under it (#1079)."""
+    have = [i for i, y in enumerate(knots) if y is not None]
+    out = []
+    for i, y in enumerate(knots):
+        if y is not None:
+            out.append(y)
+            continue
+        a = max((j for j in have if j < i), default=None)
+        b = min((j for j in have if j > i), default=None)
+        if a is None or b is None:
+            line = knots[b if a is None else a]
+            lo, hi = line, line
+        else:
+            line = knots[a] + (i - a) / (b - a) * (knots[b] - knots[a])
+            lo, hi = min(knots[a], knots[b]), max(knots[a], knots[b])
+        fit = smooth(us[i])
+        out.append(fit if lo - 1e-9 <= fit <= hi + 1e-9 else line)
+    return out
 
 
 def true_min_x(n):
@@ -318,6 +343,18 @@ def self_test():
     assert [n for n, _ in differences(src, edited)] == [3], differences(src, edited)
     missing = src.replace(f"    (9, {edge(0.0)}, {edge(1.0)}),\n", "")
     assert differences(src, missing) == [(9, "only in the tool's output")], differences(src, missing)
+    # Gap knots (#1079): a ripple between two agreeing neighbours is flattened onto them; a
+    # fit within a real slope between two different neighbours is kept; an end takes its
+    # nearest knot when the fit leaves it.
+    us = [k / 4 for k in range(5)]
+    ripple = lambda u: 1.0 - 0.04 * (u == 0.5)
+    assert bridged([1.0, 1.0, None, 1.0, 1.0], ripple, us) == [1.0, 1.0, 1.0, 1.0, 1.0]
+    slope = lambda u: 0.2 - 0.3 * u
+    kept = bridged([0.2, 0.125, None, -0.025, -0.1], slope, us)
+    assert abs(kept[2] - 0.05) < 1e-12, kept
+    bulge = lambda u: 0.15 if u == 0.5 else 0.0
+    assert bridged([0.2, 0.125, None, -0.025, -0.1], bulge, us)[2] == 0.05
+    assert bridged([None, 1.0, 1.0, 1.0, 1.0], lambda u: 1.01, us)[0] == 1.0
     committed = TABLE.read_text(encoding="utf-8")
     assert sorted(table(committed)) == sorted(COLUMN + SLANT + FAN), sorted(table(committed))
     print("fit_envelopes self-test passed.")
