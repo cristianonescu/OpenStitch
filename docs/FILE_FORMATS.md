@@ -339,6 +339,7 @@ below is pinned by a test in `tests/pes11.rs`.
 | 42 | line sewn 1, not sewn 0 | r07 |
 | 44 | line sew type: 0 Zigzag, 1 Running, 2 Motif, 3 E or V stitch, 4 Triple, 5 Stem, 6 Candlewick, 7 Cutting (the Applique Wizard's cutting line), 8 Chain, 9 while not sewn | r07, r19, the 22 `line-*` references (compat/reference/stitches), a02-applique-cutting |
 | 84 | a motif line's Start/End Type: 0 Feed (PE-DESIGN's default), 1 Run (read and written since #1068); on stem and candlewick lines 1 with some Start/End options (line-stem-startend-*), meaning not mapped there; 0 otherwise | the `line-*-startend-*` references; 1068-motif-5x8-startend-run against 608-motif-5x8 (+84 and +216 the only fields that differ) |
+| 110 | a candlewick line's Density choice: 0 Dense, 1 Medium (PE-DESIGN's default), 2 Light, knots of 32, 24 and 20 points, read as densities 16, 12 and 10 and written from the nearest (a tie to the denser) since #1142; 1 on every other line. +50 holds 3.0 in the round 15 squares whatever the choice and 14.0 in the default and start/end candlewick captures; what it is has not been identified (#1160) | line-candlewick-dense-, -medium- and -light-square40 (round 15: the only byte that differs) |
 | 86 | on an E or V line 0 for E, 1 for V; on stem, candlewick and chain lines it moves with the Start/End options together with +84 (not mapped there); 1 on a default chain | line-e-default, line-v-default, line-chain-default, the `line-*-startend-*` references |
 | 46 | line colour, a thread-table index | r17 (red 1 → silver 0) |
 | 48 | zigzag width, 0.1 mm | r21 (2.0 → 3.0 mm) |
@@ -496,6 +497,16 @@ open line r11 repeats the vertex instead, and o-rounded-rect keeps a stale handl
 A rectangle starts in the middle of its bottom edge and runs round the corners; an ellipse is
 four smooth vertices whose handles lie 0.5523 × the radius along the tangent. The record ends
 after its last vertex.
+
+The first vertex is where PE-DESIGN 11.50 starts a closed line: the file holds no other start
+point for it. Its Rectangle tool stores five vertices, from the bottom centre leftward (83 rectangles in
+the references, 1068-motif-5x8-* among them; the other 17 five-vertex rectangles, the owner's
+machine-* and satin-length-sweep-* files, start at the top-left corner). OpenStitch wrote its
+rectangle's four corners from the top-left, and PE-DESIGN's re-saves of a motif square
+(1068-openstitch-motif-5x8-*, round 15) started the line there, not at the bottom centre where
+OpenStitch and PE-DESIGN's own square start. Since #1139 OpenStitch writes a closed outline from
+its line's start point (without a line, its region's), adding a vertex there when it falls inside
+a segment; a shape read from a PE-DESIGN file has no start point and keeps its vertices.
 
 Until 2026-10-31 OpenStitch wrote the `CGroupObject` class's archive number there (the objects'
 count + 2), which equals PE-DESIGN's number only when the group holds the last object: PE-DESIGN

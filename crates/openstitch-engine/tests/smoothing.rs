@@ -2,7 +2,7 @@
 
 use openstitch_core::{Command, Stitch};
 use openstitch_design::simplify::hausdorff;
-use openstitch_design::{Compiler, DesignObject, StitchBlock, v2};
+use openstitch_design::{Compiler, DesignObject, StitchBlock, skeleton, v2};
 use openstitch_engine::Session;
 use serde_json::{Value, json};
 
@@ -219,4 +219,48 @@ fn a_closed_run_smooths_all_round() {
     let b = object(&s, st).stitch_block.clone().expect("value").stitches;
     assert_eq!((b[0].x, b[0].y), (b[12].x, b[12].y));
     assert!(v2(b[0].x, b[0].y).length() < 100.0);
+}
+
+/// Gives skeleton satin `id` the uncut outline a file saved before #1136 keeps.
+fn saved_before_1136(s: &mut Session, id: u64) {
+    let mut d = s.design().clone();
+    let i = d.index_of(id).expect("object");
+    let sk = d.objects[i]
+        .region
+        .as_ref()
+        .and_then(|r| r.skeleton.clone())
+        .expect("skeleton");
+    let uncut = skeleton::uncut_outline(&sk).expect("outline");
+    assert_ne!(
+        uncut.points,
+        skeleton::outline(&sk).expect("outline").points,
+        "the bend folds the uncut outline"
+    );
+    d.objects[i].contours = vec![uncut];
+    assert!(s.adopt_design(d));
+}
+
+#[test]
+fn smooth_shape_takes_a_skeleton_satin_saved_before_1136_as_one() {
+    let mut s = Session::new(std::env::temp_dir());
+    // A 60° V with a point midway along each arm, which Smooth Shape drops.
+    let k = id(&run(
+        &mut s,
+        "shape.skeletonSatin",
+        json!({ "points": [[12.5, 83], [16.25, 76.5], [20, 70], [23.75, 76.5], [27.5, 83]], "width": 3 }),
+    ));
+    saved_before_1136(&mut s, k);
+    run(
+        &mut s,
+        "shape.simplify",
+        json!({ "ids": [k], "tolerance": 0.2 }),
+    );
+    let o = object(&s, k);
+    let sk = o
+        .region
+        .as_ref()
+        .and_then(|r| r.skeleton.as_ref())
+        .expect("skeleton");
+    assert_eq!(sk.points.len(), 3);
+    assert_eq!(o.contours, vec![skeleton::outline(sk).expect("outline")]);
 }
