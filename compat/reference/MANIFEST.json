@@ -6482,6 +6482,42 @@
       "settings": "Opened round 4's circle40-concentric.pes (Shapes > Circle dragged (30,30)-(70,70) mm, 40,00 x 40,00; line Not Sewn; 800 EMBROIDERY RED; Hoop Size 100 x 100 mm), switched the region from Radial (at 7,0) to Zigzag Net Fill Stitch: the pane showed PE-DESIGN's defaults (Pattern first button, Under sewing on, Zigzag width 3,0, Density 4,5, Spacing 5,0, H-Offset 0,0, V-Offset 0,0, Direction 0); Zigzag width 10,0, Spacing 5,0; Save As PES (default type, Ver.11.0). Status bar 40,00 x 40,00 mm, Stitches = 1453.",
       "sha256": "a805dd9be50fa9475554abfe1501d6c544fdd88dd8c408c106d970ccf3be7aa8",
       "notes": "Round 15 (#1050 part B, #1109), the coordinator's round-15 capture notes; the field ranges: Zigzag width 0,1 kept as 1,0 and 99 as 10,0; Spacing 0,1 kept as 2,0 and 99 as 10,0. Pattern blocks redacted 2026-11-15 (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN cd3b6d085802b53e57ecc2258bbd87752252f6e4aa77a0f4257bb08cfb6f3c60."
+    },
+    {
+      "file": "stitches/line-candlewick-light-square40.pes",
+      "spec": "line-candlewick-light-square40",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-15",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 15's 40 x 40 mm square (30,30)-(70,70) mm, region Not Sewn, and set its line to Candlewicking, 800 EMBROIDERY RED, Size 5,0, Spacing 1,0, Density Light (a drop-down: Dense, Medium, Light; Size 3,0-10,0 and Spacing 0,0-100,0 mm by typing past both ends). Save As PES (default type). 45,00 x 45,00 mm, 654 stitches in PE-DESIGN's status bar.",
+      "sha256": "6e996e017b65e715acc17619094af1171ee2095970d55ea1f41cfc6d0bccd01a",
+      "notes": "Header #PES0110. Round 15 (#1124), the coordinator's round-15 capture notes (results-2026-11-15). 28 knots of 20 points; the Density choice at the line body's +110 (2). The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. As saved by PE-DESIGN: 5b615a2f843655fee59dfdd418ce37a8f14b555bf5e5f9c6b54d400cb3d000a7."
+    },
+    {
+      "file": "stitches/line-candlewick-medium-square40.pes",
+      "spec": "line-candlewick-medium-square40",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-15",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 15's 40 x 40 mm square (30,30)-(70,70) mm, region Not Sewn, and set its line to Candlewicking, 800 EMBROIDERY RED, Size 5,0, Spacing 1,0, Density Medium (a drop-down: Dense, Medium, Light; Size 3,0-10,0 and Spacing 0,0-100,0 mm by typing past both ends). Save As PES (default type). 45,00 x 45,00 mm, 766 stitches in PE-DESIGN's status bar.",
+      "sha256": "ec8d864b17946f3757d93a121603ede72a168c493fc1d1d8d5ba3b562ff7d5b4",
+      "notes": "Header #PES0110. Round 15 (#1124), the coordinator's round-15 capture notes (results-2026-11-15). 28 knots of 24 points; the Density choice at the line body's +110 (1). The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. As saved by PE-DESIGN: cb57fec85e1b08a5cd242a37a97d60632ef128c54428947eaccf11d320571a80."
+    },
+    {
+      "file": "stitches/line-candlewick-dense-square40.pes",
+      "spec": "line-candlewick-dense-square40",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-15",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened round 15's 40 x 40 mm square (30,30)-(70,70) mm, region Not Sewn, and set its line to Candlewicking, 800 EMBROIDERY RED, Size 5,0, Spacing 1,0, Density Dense (a drop-down: Dense, Medium, Light; Size 3,0-10,0 and Spacing 0,0-100,0 mm by typing past both ends). Save As PES (default type). 45,00 x 45,00 mm, 992 stitches in PE-DESIGN's status bar.",
+      "sha256": "c49fcd6bbe748eaf9ce39e47de29156d335c3bc8c4713b5732679d8426185a1b",
+      "notes": "Header #PES0110. Round 15 (#1124), the coordinator's round-15 capture notes (results-2026-11-15). 28 knots of 32 points; the Density choice at the line body's +110 (0). The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. As saved by PE-DESIGN: fb134d65cace6f01fe6bdcc1da6c6b24182d4cfa29b5a1336e9fafc0becfde5a."
     }
   ]
 }

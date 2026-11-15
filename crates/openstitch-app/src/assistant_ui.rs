@@ -1475,7 +1475,16 @@ mod tests {
         assert_eq!(check["window"], json!("closed"));
         let (errors, warnings) = (check["errors"].as_u64(), check["warnings"].as_u64());
         let (errors, warnings) = (errors.expect("errors"), warnings.expect("warnings"));
-        assert_eq!(check["ready"], json!(errors + warnings == 0), "{check}");
+        // `ready` as design.check's: no errors (#1135); the level says whether warnings remain.
+        assert_eq!(check["ready"], json!(errors == 0), "{check}");
+        assert_eq!(
+            check["level"],
+            json!(openstitch_engine::quality::readiness(
+                errors as usize,
+                warnings as usize
+            )),
+            "{check}"
+        );
         // Notes (#1034), through the command: none without a needle count, one with a
         // one-needle profile (the demo has several colours), and still no problem.
         assert_eq!(check["notes"], json!(0), "{check}");

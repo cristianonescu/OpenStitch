@@ -113,6 +113,124 @@ fn density_reads_one_layer_per_fill_and_stacks() {
     );
 }
 
+/// #1135: stitching in place is counted as the machine file holds it, between needle points
+/// rounded to the 0.1 mm grid. Ten 0.296 mm steps are each under 0.3 mm in the design but 0.3 mm
+/// in the file, so they are no run in place; ten 0.2 mm steps still are. The kit's
+/// fonts-and-text "OpenStitch" text read 9 in a row before (its file 6) and reads no error now.
+#[test]
+fn stitching_in_place_is_counted_on_the_file_grid() {
+    let dir = TempDir::new("check-in-place-grid");
+    let in_place = |step: f64| {
+        let mut s = Session::new(&dir);
+        // A plain run, then the steps: imported, then moved off the grid as a design holds them.
+        let mut st: Vec<Stitch> = (0..10)
+            .map(|k| Stitch::new(f64::from(k) * 20.0, 0.0, Command::Stitch))
+            .collect();
+        st.extend((1..=10).map(|k| Stitch::new(180.0 + f64::from(k) * 3.0, 0.0, Command::Stitch)));
+        st.extend((1..=5).map(|k| Stitch::new(210.0 + f64::from(k) * 20.0, 0.0, Command::Stitch)));
+        import(&mut s, &dir, "steps.pes", st);
+        let mut d = s.design().clone();
+        let block = d
+            .objects
+            .iter_mut()
+            .find_map(|o| o.stitch_block.as_mut())
+            .expect("block");
+        // The import moves the design onto the page: the steps start where a 3-unit step does.
+        let first = block
+            .stitches
+            .windows(2)
+            .position(|w| (w[1].x - w[0].x - 3.0).abs() < 1e-9)
+            .expect("the steps");
+        let x0 = block.stitches[first].x;
+        for k in 1..=10 {
+            block.stitches[first + k].x = x0 + k as f64 * step;
+        }
+        for k in 11..=15 {
+            block.stitches[first + k].x = x0 + 10.0 * step + (k - 10) as f64 * 20.0;
+        }
+        assert!(s.adopt_design(d));
+        let c = run(&mut s, "design.check", json!({"rules": ["inPlace"]}));
+        found(&c, "inPlace").cloned()
+    };
+    assert!(
+        in_place(2.96).is_none(),
+        "0.296 mm steps are 0.3 mm in the file"
+    );
+    let f = in_place(2.0).expect("0.2 mm steps stay in place");
+    assert_eq!(f["value"], json!(10.0), "{f}");
+    // The kit's fonts-and-text title (tools/sew_kit.py): no run in place over 6.
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "OpenStitch", "size": 10, "x": 50, "y": 18, "align": "center"}),
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["inPlace"]}));
+    assert!(found(&c, "inPlace").is_none(), "{c}");
+}
+
+/// #1135: the run in place Check Design reads on a design is the run in the PES OpenStitch
+/// exports from it, read back. These are the three PE-DESIGN references whose finding changed
+/// when the count moved onto the 0.1 mm grid (before: 3, 8 and 7). PE-DESIGN's own files read 5,
+/// 3 and 1. All 508 references agree this way (a release run of 325 s, too slow to keep here).
+#[test]
+fn stitching_in_place_reads_the_same_on_the_design_and_its_file() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../compat/reference");
+    let dir = TempDir::new("check-in-place-file");
+    let longest = |st: &[Stitch]| {
+        let (mut run, mut best) = (0, 0);
+        for (i, s) in st.iter().enumerate() {
+            let tiny = i > 0 && s.command == Command::Stitch && {
+                let p = &st[i - 1];
+                let grid = openstitch_core::round_coordinate;
+                ((grid(p.x) - grid(s.x)) as f64).hypot((grid(p.y) - grid(s.y)) as f64) < 3.0
+            };
+            run = if tiny { run + 1 } else { 0 };
+            best = best.max(run);
+        }
+        best
+    };
+    // The run Check Design reports (only over its limit of 6) and the run in the exported file.
+    let both = |rel: &str, turned: bool| {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 400, "height": 400}));
+        if turned {
+            run(
+                &mut s,
+                "machine.set",
+                json!({"hoop": "160x260", "rotate90": true}),
+            );
+        }
+        let path = root.join(rel).display().to_string();
+        run(&mut s, "import.pes", json!({"path": path}));
+        let c = run(&mut s, "design.check", json!({"rules": ["inPlace"]}));
+        let flagged = found(&c, "inPlace").map(|f| f["value"].as_f64().expect("value"));
+        run(&mut s, "design.export", json!({"path": "x.pes"}));
+        let back = FileType::Pes
+            .read(&std::fs::read(dir.join("x.pes")).expect("x.pes"))
+            .expect("pes");
+        (flagged, longest(&back.stitches))
+    };
+    for (rel, want) in [
+        ("text/text-transform-19-openstitch-l100.pes", 7),
+        ("text/text-transform-25-openstitch-l100.pes", 5),
+        ("stitches/line-zigzag-miter-v-b2-m50.pes", 3),
+    ] {
+        let (flagged, file) = both(rel, false);
+        assert_eq!(file, want, "{rel}: the file");
+        assert_eq!(flagged, (want > 6).then_some(want as f64), "{rel}");
+        // A hoop turned 90°: the PES holds the stitches turned about the design's centre, on
+        // another grid, and Check Design counts them as written.
+        let (flagged, file) = both(rel, true);
+        assert_eq!(
+            flagged,
+            (file > 6).then_some(file as f64),
+            "{rel}, turned: file {file}"
+        );
+    }
+}
+
 /// #1036: the crowding count (the spot with the most pairs of needle points under 0.25 mm
 /// within 3 mm) is the same here as in `tools/sew_check.py`, whose self-test asserts these
 /// numbers too: PE-DESIGN's radial circle at its highest density, the kit's most crowded design

@@ -2779,7 +2779,8 @@ fn the_zigzag_net_descriptions_name_pe_designs_ranges() {
             format!("PE-DESIGN's range {range}"),
             "stored and sewn as given".into(),
             "the inspector shows it unchanged".into(),
-            "writes it as stored, untested in PE-DESIGN".into(),
+            "writes it as stored; PE-DESIGN 11.50 opened such a file".into(),
+            "kept both values".into(),
         ] {
             assert!(s.contains(&words), "{name}: {words:?} in {s}");
         }
