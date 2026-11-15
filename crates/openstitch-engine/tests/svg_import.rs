@@ -318,3 +318,44 @@ fn gradients_import_as_blends() {
         .is_err()
     );
 }
+
+/// #1088 c: PE-DESIGN 11.50 starts and ends an imported SVG rect's fill at its top-left corner,
+/// the path's first point (machine-jumps, -trim-bound, -trim-fine, -rbgb and -rbr: every square
+/// starts at its inset corner, and the last of a colour ends at (0,0)). A WMF/EMF import keeps
+/// no start, as before (no capture). The `path` description says so.
+#[test]
+fn an_imported_rect_starts_and_ends_at_its_top_left_corner() {
+    let dir = TempDir::new("svg-import-ends");
+    std::fs::write(
+        dir.join("sq.svg"),
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="100mm" viewBox="0 0 100 100"><rect x="10" y="20" width="5" height="5" fill="#ff0000"/><rect x="30" y="20" width="8" height="4" fill="#ff0000"/></svg>"##,
+    )
+    .expect("write");
+    let mut s = Session::new(&dir);
+    s.execute(
+        "import.svg",
+        Some(&json!({"path": "sq.svg", "x": 10, "y": 20})),
+    )
+    .expect("import");
+    let d = s.design();
+    assert_eq!(d.objects.len(), 2);
+    for (o, corner) in d.objects.iter().zip([(10.0, 20.0), (30.0, 20.0)]) {
+        let r = o.region.as_ref().expect("fill");
+        let at = r.entry.expect("entry");
+        assert!(
+            (at.x - corner.0 * 10.0).abs() < 1e-3 && (at.y - corner.1 * 10.0).abs() < 1e-3,
+            "{at:?} for {corner:?}"
+        );
+        assert_eq!(r.exit, r.entry);
+    }
+    let doc = s
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "import.svg")
+        .expect("import.svg");
+    let path = doc.params.iter().find(|p| p.name == "path").expect("path");
+    assert!(
+        path.summary
+            .contains("starts and ends at the path's first point")
+    );
+}
