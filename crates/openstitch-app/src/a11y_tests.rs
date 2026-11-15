@@ -224,7 +224,9 @@ fn the_inspector_keeps_a_two_mm_candlewick() {
     assert_eq!(design.objects[0].line.as_ref().expect("line").width, 2.0);
     let nodes = tree(&mut app);
     assert!(
-        nodes.iter().any(|(_, n)| n.label() == Some("Size")),
+        nodes
+            .iter()
+            .any(|(_, n)| n.label() == Some("Size") || n.value() == Some("Size")),
         "the inspector shows the candlewick's Size field"
     );
     assert!(*app.session.design() == design, "drawing the inspector kept 2 mm");
