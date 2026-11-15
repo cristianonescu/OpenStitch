@@ -2807,7 +2807,7 @@ fn the_set_line_pitch_and_start_end_descriptions_cover_the_motif_line() {
     let pitch = summary("pitch");
     assert!(
         pitch.contains("motif: the line's Run pitch")
-            && pitch.contains("default 2.5; PE-DESIGN's is 5.0"),
+            && pitch.contains("default 5.0, PE-DESIGN's, #1130"),
         "{pitch}"
     );
     let start_end = summary("startEnd");
@@ -2817,4 +2817,33 @@ fn the_set_line_pitch_and_start_end_descriptions_cover_the_motif_line() {
             && start_end.contains("an open motif line is not captured"),
         "{start_end}"
     );
+}
+
+/// #1130: a line switched to motif starts at PE-DESIGN's Run pitch 5.0, and switching away and
+/// back gives it again; a pitch set on the motif line stays until the type changes.
+#[test]
+fn a_line_switched_to_motif_starts_at_run_pitch_5() {
+    let (mut s, _tmp) = session_with_circle();
+    let pitch = |s: &Session| s.design().objects[0].line.as_ref().expect("line").pitch;
+    assert_eq!(pitch(&s), 2.0);
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "type": "motif", "motif": "heart"}),
+    );
+    assert_eq!(pitch(&s), 5.0);
+    run(&mut s, "object.setLine", json!({"id": 1, "pitch": 3}));
+    assert_eq!(pitch(&s), 3.0);
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "type": "running"}),
+    );
+    assert_eq!(pitch(&s), 2.0);
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "type": "motif", "motif": "heart"}),
+    );
+    assert_eq!(pitch(&s), 5.0);
 }
