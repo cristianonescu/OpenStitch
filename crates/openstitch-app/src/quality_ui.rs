@@ -68,6 +68,7 @@ pub fn state_json(app: &EditorApp) -> Value {
     let route = app.quality.open && app.quality.tab == Tab::Route;
     json!({
         "ready": errors + warnings == 0,
+        "level": openstitch_engine::quality::readiness(errors as usize, warnings as usize),
         "errors": errors,
         "warnings": warnings,
         "notes": c["notes"].as_u64().unwrap_or(0),
@@ -216,7 +217,8 @@ pub fn run_fix(app: &mut EditorApp, fix: &Value) -> bool {
         .is_some()
 }
 
-/// The status bar's indicator: "Ready to sew", or the problem count and the first reason.
+/// The status bar's indicator (#1036): the readiness level (Ready to sew, Sewable with small
+/// risks, Fix this first) with the error and warning counts, the first reason on hover.
 pub fn indicator(app: &mut EditorApp, ui: &mut egui::Ui) {
     update(app);
     let c = &app.quality.check;
@@ -224,28 +226,31 @@ pub fn indicator(app: &mut EditorApp, ui: &mut egui::Ui) {
         c["errors"].as_u64().unwrap_or(0),
         c["warnings"].as_u64().unwrap_or(0),
     );
-    let text = if errors + warnings == 0 {
-        RichText::new(t("ui-ready-to-sew")).color(READY)
-    } else {
-        let n = errors + warnings;
-        let reason = c["summary"].as_str().unwrap_or_default();
-        let short: String = reason.chars().take(48).collect();
-        let more = if reason.chars().count() > 48 {
-            "…"
-        } else {
-            ""
-        };
-        RichText::new(format!(
-            "{n} problem{}: {short}{more}",
-            if n == 1 { "" } else { "s" }
+    let plural = |n: u64, one: &str| format!("{n} {one}{}", if n == 1 { "" } else { "s" });
+    let text = match openstitch_engine::quality::readiness(errors as usize, warnings as usize) {
+        "readyToSew" => RichText::new(t("ui-ready-to-sew")).color(READY),
+        "sewableWithSmallRisks" => RichText::new(format!(
+            "{} · {}",
+            t("ui-sewable-with-small-risks"),
+            plural(warnings, "warning")
         ))
-        .color(if errors > 0 { ERROR } else { WARNING })
+        .color(WARNING),
+        _ => {
+            let mut counts = plural(errors, "error");
+            if warnings > 0 {
+                counts = format!("{counts}, {}", plural(warnings, "warning"));
+            }
+            RichText::new(format!("{} · {counts}", t("ui-fix-this-first"))).color(ERROR)
+        }
     };
-    if ui
-        .button(text)
-        .on_hover_text(t("ui-check-design-open-the-list-of-tip"))
-        .clicked()
-    {
+    let reason = c["summary"].as_str().unwrap_or_default();
+    let hover = if errors + warnings == 0 {
+        t("ui-check-design-open-the-list-of-tip").to_string()
+    } else {
+        format!("{reason}
+{}", t("ui-check-design-open-the-list-of-tip"))
+    };
+    if ui.button(text).on_hover_text(hover).clicked() {
         open(app, Tab::Check);
     }
 }
@@ -783,6 +788,32 @@ mod tests {
         assert_eq!(s["notes"], json!(1), "{s}");
         assert_eq!((s["errors"].clone(), s["warnings"].clone()), (json!(0), json!(0)), "{s}");
         assert_eq!(s["ready"], json!(true), "{s}");
+        assert_eq!(s["level"], json!("readyToSew"), "a note leaves it ready: {s}");
+    }
+
+    /// #1036: `ui.state`'s description (what the Assistant reads) names the three levels its
+    /// `check` gives.
+    #[test]
+    fn the_ui_state_description_names_the_levels() {
+        let spec = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.state")
+            .expect("ui.state");
+        for level in ["readyToSew", "sewableWithSmallRisks", "fixThisFirst"] {
+            assert!(spec.summary.contains(level), "{level}: {}", spec.summary);
+        }
+    }
+
+    /// #1036: `ui.state`'s `check` names the readiness level with the counts: a shape past the
+    /// hoop is an error, so fix this first.
+    #[test]
+    fn the_check_state_names_the_readiness_level() {
+        let shapes = [json!({"x": 90, "y": 10, "width": 30, "height": 20, "fill": "Red"})];
+        let mut app = app_with(&shapes);
+        update(&mut app);
+        let s = state_json(&app);
+        assert!(s["errors"].as_u64().is_some_and(|n| n > 0), "{s}");
+        assert_eq!(s["level"], json!("fixThisFirst"), "{s}");
     }
 
     #[test]
