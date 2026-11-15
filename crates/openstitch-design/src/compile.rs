@@ -2226,11 +2226,155 @@ fn satin_rungs(fine: &[[Vec2; 2]], corner: bool, pitch: f64) -> Vec<[Vec2; 2]> {
     if fine.len() < 2 {
         return fine.to_vec();
     }
+    // A straight stretch at either end of a block that bends (e's bar before it turns up into
+    // the bowl) is spaced along its middle, as PE-DESIGN 11.50 spaces a straight block: e's
+    // bar 0.31 mm along the counter and 0.45 mm along the aperture, 0.38 mm on the mean
+    // (stroke-satin-lower-e, #1080).
+    let (head, tail) = if corner {
+        (0, fine.len() - 1)
+    } else {
+        straight_ends(fine)
+    };
+    let mut out = respace(&fine[..=head], None, pitch);
+    for (part, along) in [(&fine[head..=tail], Some(corner)), (&fine[tail..], None)] {
+        if part.len() >= 2 {
+            out.extend(respace(part, along, pitch).into_iter().skip(1));
+        }
+    }
+    out
+}
+
+/// A straight stretch counts at either end of a satin block when it is at least this long
+/// (0.1 mm) along its middle.
+const STRAIGHT_END: f64 = 20.0;
+/// A rung's ends lie on a straight stretch when they are within this (0.1 mm) of the lines
+/// between the stretch's first and last rungs.
+const STRAIGHT_OFF: f64 = 1.0;
+
+/// The last rung of the straight stretch at the start of `fine` and the first of the one at
+/// its end (0 and the last rung when there is none): a stretch at least [`STRAIGHT_END`] long,
+/// up to [`STRAIGHT_SKIP`] rungs at the block's end left out of the test (where a junction
+/// cuts it), that ends where a side turns by more than [`STRAIGHT_TURN`] within the next
+/// [`STRAIGHT_END`] / 2.
+fn straight_ends(fine: &[[Vec2; 2]]) -> (usize, usize) {
+    let n = fine.len();
+    if n < 6 {
+        return (0, n - 1);
+    }
+    let straight = |a: usize, b: usize| {
+        (0..2).all(|k| {
+            let (p, q) = (fine[a][k], fine[b][k]);
+            (a.min(b)..=a.max(b))
+                .all(|i| crate::skeleton::segment_distance(fine[i][k], p, q) <= STRAIGHT_OFF)
+        })
+    };
+    let middle = |i: usize| fine[i][0].lerp(fine[i][1], 0.5);
+    // Only a wide stretch (measured on 20 mm letters; narrow ones, 7 mm Pacifico, sewed short
+    // stitches in a row).
+    let wide = |a: usize, b: usize| {
+        let (a, b) = (a.min(b), a.max(b));
+        let mean =
+            fine[a..=b].iter().map(|r| r[0].distance(r[1])).sum::<f64>() / (b - a + 1) as f64;
+        mean >= STRAIGHT_WIDTH
+    };
+    // Whether a side turns sharply just past rung `at`, going `step` (+1 or -1) from `from`.
+    let turns = |from: usize, at: usize, forward: bool| {
+        (0..2).any(|k| {
+            let before = fine[at][k] - fine[from][k];
+            let mut j = at;
+            loop {
+                let next = if forward { j + 1 } else { j.wrapping_sub(1) };
+                if next >= n {
+                    break;
+                }
+                j = next;
+                if fine[j][k].distance(fine[at][k]) >= STRAIGHT_END / 2.0 {
+                    break;
+                }
+            }
+            let after = fine[j][k] - fine[at][k];
+            let cos = (before.x * after.x + before.y * after.y)
+                / (before.length() * after.length()).max(1e-12);
+            after.length() > 1e-9 && cos.clamp(-1.0, 1.0).dacos().to_degrees() > STRAIGHT_TURN
+        })
+    };
+    // From each of the first rungs (a junction bends the block's very end), the farthest the
+    // stretch stays straight; the longest.
+    let skip = STRAIGHT_SKIP.min(n / 3);
+    let (from_h, head) = (0..=skip)
+        .map(|a| {
+            let mut h = a;
+            while h + 1 < n && straight(a, h + 1) {
+                h += 1;
+            }
+            (a, h)
+        })
+        .max_by_key(|&(a, h)| (h - a, std::cmp::Reverse(a)))
+        .unwrap_or((0, 0));
+    let (from_t, tail) = (0..=skip)
+        .map(|a| {
+            let a = n - 1 - a;
+            let mut t = a;
+            while t > 0 && straight(a, t - 1) {
+                t -= 1;
+            }
+            (a, t)
+        })
+        .max_by_key(|&(a, t)| (a - t, a))
+        .unwrap_or((n - 1, n - 1));
+    let head = if head > from_h
+        && wide(0, head)
+        && middle(0).distance(middle(head)) >= STRAIGHT_END
+        && turns(from_h, head, true)
+    {
+        head
+    } else {
+        0
+    };
+    let tail = if tail < from_t
+        && wide(tail, n - 1)
+        && middle(tail).distance(middle(n - 1)) >= STRAIGHT_END
+        && turns(from_t, tail, false)
+    {
+        tail
+    } else {
+        n - 1
+    };
+    if head >= tail {
+        return (0, n - 1);
+    }
+    (head, tail)
+}
+
+/// See [`straight_ends`] (degrees).
+const STRAIGHT_TURN: f64 = 30.0;
+/// A straight end counts in [`straight_ends`] when its crossings are at least this long on
+/// average (0.1 mm).
+const STRAIGHT_WIDTH: f64 = 12.0;
+/// How many of a block's first (last) rungs [`straight_ends`] may leave out of its straight
+/// stretch: e's bar wobbles over its first five, where it leaves the bowl.
+const STRAIGHT_SKIP: usize = 6;
+
+/// `fine` re-spaced `pitch` apart: along its longer side (`Some(false)`), its shorter side
+/// (`Some(true)`, a block turning a corner) or its middle (`None`, the mean of the two sides),
+/// a whole number of equal steps (rounded down), first and last rungs kept.
+fn respace(fine: &[[Vec2; 2]], along: Option<bool>, pitch: f64) -> Vec<[Vec2; 2]> {
+    if fine.len() < 2 {
+        return fine.to_vec();
+    }
     let side_length =
         |k: usize| -> f64 { fine.windows(2).map(|w| w[0][k].distance(w[1][k])).sum() };
     let (a, b) = (side_length(0), side_length(1));
-    let k = usize::from(if corner { b < a } else { b > a });
-    let lengths: Vec<f64> = fine.windows(2).map(|w| w[0][k].distance(w[1][k])).collect();
+    let lengths: Vec<f64> = match along {
+        Some(corner) => {
+            let k = usize::from(if corner { b < a } else { b > a });
+            fine.windows(2).map(|w| w[0][k].distance(w[1][k])).collect()
+        }
+        None => fine
+            .windows(2)
+            .map(|w| (w[0][0].distance(w[1][0]) + w[0][1].distance(w[1][1])) / 2.0)
+            .collect(),
+    };
     let total: f64 = lengths.iter().sum();
     let n = ((total / pitch.max(0.1) + 1e-9).floor() as usize).clamp(1, 100_000);
     let step = total / n as f64;

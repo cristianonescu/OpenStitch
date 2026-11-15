@@ -29,6 +29,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.
 - `object.setRegion` `angle` (degrees, counter-clockwise) is a straight sewing direction: it turns
   `autoDirection` off unless you pass `autoDirection` in the same call.
+- A net fill (`netFill`, `zigzagNetFill`) lines up on the shape's bounds, its lines half a spacing
+  (a zigzag net: half a band) in from the top-left corner, as PE-DESIGN does; with
+  `object.setReferencePoint` its lines run through that point instead.
 - Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
   `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
   save PES version 6.
@@ -69,7 +72,11 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.
 - Wave fill (beyond PE-DESIGN): `object.setRegion` on a fill with `waveHeight` (crest to trough,
-  mm, 0 = off) and `waveLength` (mm, default 16). PES 0110 refuses it; save PES version 6.
+  mm, 0 = off) and `waveLength` (mm, default 16). A `waveHeight` above 0.267 x `waveLength`
+  (4.27 mm at 16) sews the same wave: raise `waveLength` for a higher one. PES 0110 refuses it;
+  save PES version 6.
+- Radial Stitch: `object.setRegion` with `type: "radial"`, `density` 0.2-7.0 lines/mm (default 2.0)
+  (PE-DESIGN's range): the lines are 1/density apart at the outline, in pairs to the centre.
 - Travel hidden under later parts (beyond PE-DESIGN): `object.setRegion` on a fill with
   `runningStitchPath: "insideHidden"` sews its parts in the order that leaves the least travel
   on thread already sewn (a stem between leaves after them; a ring gone round, branches
@@ -159,9 +166,13 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.setLine`; on text a corner style shapes the corners where two strokes are sewn one
    after the other, as Z's, V's and W's, while stems and junctions stay as they are):
    `cornerStyle: auto` for stars, chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
-   `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
+   `cornerOverlap`, `capMaxLength`; a satin line or auto-direction satin reads a corner from its
+   centre line a leg's length either side, so it reads blunter than drawn: a 36° star tip still
+   mitres at the default 45°, and its corners cap only with `capBelow` raised, or with
+   `cornerStyle: cap`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
    thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
    `pullPercent` (3 for tapered columns; `pullMax` caps it) compensate per side and by width;
+   on a satin `underlayStyle: edgeFill` reads back as `edgeZigzag` (the same PE-DESIGN type);
    `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
    `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`; on a skeleton or Auto
    satin it sews rows along the column that follow its width instead), `centreWalk` for thin
@@ -218,7 +229,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    quilt outlines (two stitches forward, one back); `{type: scribble, width, runTimes,
    noiseScale, seed}` for sketchy doodles; on a running line `profile: arc` (or `linear`,
    `sine`, `smoothstep`, `stairs`, `profilePoints`) with `minPasses`/`maxPasses` (odd) and
-   `passSpacing` swells it like a brush stroke ("calligraphic", "brush" lines); `hand: true`
+   `passSpacing` swells it like a brush stroke ("calligraphic", "brush" lines; `linear`,
+   `smoothstep` and `stairs` differ only with `maxPasses` 5 or more, as 1 to 3 passes give two
+   thicknesses); `hand: true`
    (`handLength`, `handAngle`, `handPasses`, `handExtra`) on running or triple lines, or
    `object.setRegion {handSide: a|b|both, handAmount}` on a satin, gives the uneven
    hand-sewn look for "folk", "naive" or "hand-drawn" requests. The same `seed` always sews
@@ -238,7 +251,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors;
    warnings include `untied` thread ends, whose fix adds ties, `tinySection` and
-   `shortStitch`; `moreColoursThanNeedles` is a note, not a problem).
+   `shortStitch`, and `textTooSmall` against the text's own font's smallest size (`fonts.list`
+   `sizeRange`; its fix switches to the Small Text font where it fits); `moreColoursThanNeedles`
+   and `lowCoverage` (a plain fill hiding under 40 % of the fabric, about 1 line/mm: an open
+   look, fine when chosen) are notes, not problems).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
    (untrimmed jumps, long moves), `design.density` shows where thread piles up; it and
@@ -339,7 +355,9 @@ then style them in the next.
   tieCount, tieLength, between}`. For a machine without an automatic cutter: `trim: off`
   (jumps instead of trims; the user cuts them by hand), and on text `between: word` or
   `never` so letters of a word are not trimmed apart. Slippery or thick threads: `tie:
-  always` with `tieCount: 2`. `reset: true` goes back to PE-DESIGN's rules; check the result
+  always` with `tieCount: 2`. With `tie: auto`, a short join sewn across between two objects
+  of one thread carries no lock or tie-in, as PE-DESIGN sews it (#987); `tie: always` on both
+  objects puts the knots back. `reset: true` goes back to PE-DESIGN's rules; check the result
   with `design.info` (trims, jumps).
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`

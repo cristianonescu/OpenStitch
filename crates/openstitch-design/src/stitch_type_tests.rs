@@ -2012,6 +2012,9 @@ fn stitch_limit(r: &RegionSewing) -> f64 {
         // A blended spiral turn may run 0.05 mm over the pitch, as PE-DESIGN 11.50's does
         // (2.04 mm at a 2 mm pitch, spiral-circle40).
         RegionType::Spiral => pitch + 0.5,
+        // PE-DESIGN 11.50's radial stitches reach 2.34 mm at a 2 mm pitch where a line meets
+        // the outline or its apex (radial-circle40-*, round 15, #1050).
+        RegionType::Radial => pitch + 3.5,
         _ => pitch,
     }
 }
@@ -2510,18 +2513,67 @@ fn zigzag_net_stays_inside_and_its_rungs_do_not_cross() {
                 let first = (0..run.len().saturating_sub(3))
                     .find(|&i| crosses(i))
                     .map(|i| (i, &run[i.saturating_sub(4)..(i + 6).min(run.len())]));
-                // At 0° only: the net code puts one crossing rung on a circle polygon turned by
-                // most angles (5°-35°, 50°, 55°-80°) even at Direction 0, which a turned net
-                // meets on every circle (#1058).
-                if angle == 0.0 {
-                    assert_eq!(
-                        crossing, 0,
-                        "{name} {id} {angle}°: a rung crosses the next {first:?}"
-                    );
+                assert_eq!(
+                    crossing, 0,
+                    "{name} {id} {angle}°: a rung crosses the next {first:?}"
+                );
+            }
+        }
+    }
+}
+
+/// #1058: on a circle polygon turned by any angle, no rung of a zigzag net crosses the next (a
+/// crossing more than 0.3 mm from all four ends), for the square, diamond, triangle and
+/// honeycomb patterns at Direction 0. Before, a band ending at the outline put one crossing rung
+/// there at most turns (5° to 35°, 50° to 80°).
+#[test]
+fn zigzag_net_rungs_do_not_cross_on_a_turned_circle() {
+    let proper_cross = |a: Vec2, b: Vec2, c: Vec2, d: Vec2| {
+        let side =
+            |p: Vec2, q: Vec2, r: Vec2| (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+        let (d1, d2) = (side(a, b, c), side(a, b, d));
+        let (d3, d4) = (side(c, d, a), side(c, d, b));
+        if d1 * d2 >= -1e-6 || d3 * d4 >= -1e-6 {
+            return false;
+        }
+        let x = c.lerp(d, d1 / (d1 - d2));
+        [a, b, c, d].iter().all(|p| p.distance(x) > 3.0)
+    };
+    let mut found = Vec::new();
+    for id in ["square", "diamond", "triangle", "honeycomb"] {
+        let lines: &[f64] = match id {
+            "square" => &[0.0, 90.0],
+            "diamond" => &[45.0, -45.0],
+            _ => &[0.0, 60.0, 120.0],
+        };
+        for turn in (0..18).map(|k| k as f64 * 5.0) {
+            let c = vec![circle().transformed(&crate::geometry::Transform::rotation(
+                turn,
+                v2(200.0, 200.0),
+            ))];
+            let mut r = region(RegionType::ZigzagNetFill);
+            r.pattern = Some(id.into());
+            let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+            for run in &runs {
+                let along_line = |j: usize| {
+                    let d = run[j + 1] - run[j];
+                    let a = d.y.atan2(d.x).to_degrees();
+                    lines.iter().any(|l| {
+                        let off = (a + l).rem_euclid(180.0);
+                        off.min(180.0 - off) < 2.0
+                    })
+                };
+                if let Some(i) = (0..run.len().saturating_sub(3)).find(|&i| {
+                    !along_line(i)
+                        && !along_line(i + 2)
+                        && proper_cross(run[i], run[i + 1], run[i + 2], run[i + 3])
+                }) {
+                    found.push(format!("{id} {turn}°: {:?}", &run[i..i + 4]));
                 }
             }
         }
     }
+    assert!(found.is_empty(), "rungs cross: {found:#?}");
 }
 
 #[test]
@@ -2611,19 +2663,28 @@ fn circles_and_spirals_start_where_asked() {
 
 #[test]
 fn radial_lines_thin_out_towards_the_centre() {
-    let c = vec![circle()];
-    let runs = crate::region::layers(&c, &region(RegionType::Radial), &[]);
-    let pts: Vec<&Vec2> = runs[0].iter().flatten().collect();
-    let centre = v2(200.0, 200.0);
-    let density = |r0: f64, r1: f64| {
-        let n = pts
-            .iter()
-            .filter(|p| (r0..r1).contains(&p.distance(centre)))
-            .count() as f64;
-        n / (std::f64::consts::PI * (r1 * r1 - r0 * r0))
-    };
-    let (inner, outer) = (density(10.0, 40.0), density(110.0, 140.0));
-    assert!(inner < outer * 4.0, "inner {inner} outer {outer}");
+    // PE-DESIGN 11.50's 40 mm circles (round 15, #1050) put 3.53-3.63 times as many needle
+    // points per area 1-4 mm from the centre as 15-19 mm out, at densities 2, 3, 5 and 7; every
+    // line run in to the centre would be about 7. Here under 3.8: PE-DESIGN's plus about 0.2.
+    // The outer band is two run stitches wide, so it holds two needle points of every line
+    // whatever their phase.
+    let c = vec![Contour::ellipse(v2(200.0, 200.0), 200.0, 200.0, 64)];
+    for density in [2.0, 7.0] {
+        let mut r = region(RegionType::Radial);
+        r.density = density;
+        let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+        let pts: Vec<&Vec2> = runs.iter().flatten().collect();
+        let centre = v2(200.0, 200.0);
+        let area_density = |r0: f64, r1: f64| {
+            let n = pts
+                .iter()
+                .filter(|p| (r0..r1).contains(&p.distance(centre)))
+                .count() as f64;
+            n / (std::f64::consts::PI * (r1 * r1 - r0 * r0))
+        };
+        let ratio = area_density(10.0, 40.0) / area_density(150.0, 190.0);
+        assert!(ratio < 3.8, "density {density}: ratio {ratio:.2}");
+    }
 }
 
 /// The sewn stretches of a compiled design: needle points between jumps and trims.
@@ -2714,38 +2775,57 @@ fn circles_spirals_and_rings_never_run_straight_back_across_their_rows() {
 #[test]
 fn radial_lines_keep_their_needle_points_apart_at_the_centre() {
     // The lines converged on the centre, needle points of neighbouring lines 0.1-0.25 mm apart
-    // there (#461): within 3 mm of the centre no two needle points are closer than 0.4 mm,
-    // unless they are the same point sewn over again. On centre and off it.
+    // there (#461), where thread breaks and the fabric is cut. PE-DESIGN keeps some that close:
+    // on its 40 mm circles (round 15, #1050), within 3 mm of the centre on the machine file's
+    // 0.1 mm grid, 125 needle points and 31 pairs under 0.25 mm at density 2, 397 and 592 at 7
+    // (compat `centreCrowding`). Here no more than PE-DESIGN's plus 10 %, about the centre and
+    // about a centre moved 6.4 mm off it, where the lines reach 26.4 mm, not 20, so there are
+    // that many more of them (PE-DESIGN's numbers scaled by the reach).
+    let big = vec![Contour::ellipse(v2(200.0, 200.0), 200.0, 200.0, 64)];
+    let crowding = |density: f64, centre: Option<Vec2>| {
+        let mut r = region(RegionType::Radial);
+        r.density = density;
+        r.center = centre;
+        let mid = centre.unwrap_or(v2(200.0, 200.0));
+        let runs = crate::region::layers(&big, &r, &[]).pop().expect("top");
+        let mut pts: Vec<(i64, i64)> = runs
+            .iter()
+            .flatten()
+            .filter(|p| p.distance(mid) < 30.0)
+            .map(|p| (p.x.round() as i64, p.y.round() as i64))
+            .collect();
+        pts.sort_unstable();
+        pts.dedup();
+        let mut close = 0;
+        for i in 0..pts.len() {
+            for j in i + 1..pts.len() {
+                let (dx, dy) = ((pts[i].0 - pts[j].0) as f64, (pts[i].1 - pts[j].1) as f64);
+                if dx.hypot(dy) < 2.5 {
+                    close += 1;
+                }
+            }
+        }
+        (pts.len(), close)
+    };
+    for (density, pe_points, pe_pairs) in [(2.0, 125, 31), (7.0, 397, 592)] {
+        for centre in [None, Some(v2(245.0, 155.0))] {
+            let (points, pairs) = crowding(density, centre);
+            let reach = 200.0 + centre.map_or(0.0, |c| c.distance(v2(200.0, 200.0)));
+            let bound = |pe: usize| pe as f64 * 1.1 * reach / 200.0;
+            eprintln!("density {density} {centre:?}: {points} points, {pairs} pairs");
+            assert!(
+                points as f64 <= bound(pe_points) && pairs as f64 <= bound(pe_pairs),
+                "density {density} {centre:?}: {points} needle points and {pairs} pairs under                  0.25 mm within 3 mm of the centre; PE-DESIGN {pe_points} and {pe_pairs}"
+            );
+        }
+    }
+    // On centre and off it.
     let c = vec![circle()];
     for centre in [None, Some(v2(245.0, 155.0))] {
         let mut r = region(RegionType::Radial);
         r.center = centre;
         r.entry = Some(v2(200.0, 350.0));
         let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
-        let mid = centre.unwrap_or(v2(200.0, 200.0));
-        let mut pts: Vec<Vec2> = runs
-            .iter()
-            .flatten()
-            .copied()
-            .filter(|p| p.distance(mid) < 30.0)
-            .collect();
-        pts.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
-        pts.dedup_by(|a, b| a.distance(*b) < 1e-6);
-        let mut close = 0;
-        for i in 0..pts.len() {
-            for j in i + 1..pts.len() {
-                let d = pts[i].distance(pts[j]);
-                if d < 3.9 {
-                    close += 1;
-                }
-            }
-        }
-        assert_eq!(
-            close,
-            0,
-            "{centre:?}: {close} pairs under 0.4 mm of {}",
-            pts.len()
-        );
         // It starts and ends on the outline, near the start point.
         let (first, last) = (
             runs[0][0],

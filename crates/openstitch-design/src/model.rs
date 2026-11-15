@@ -1000,6 +1000,8 @@ impl RegionType {
     pub fn density_range(self) -> (f64, f64) {
         match self {
             RegionType::Fill | RegionType::Satin => (0.1, 14.0),
+            // PE-DESIGN 11.50's Radial Stitch keeps 0.2 to 7.0 line/mm (round 15, #1050).
+            RegionType::Radial => (0.2, 7.0),
             _ => (0.5, 10.0),
         }
     }
@@ -1755,7 +1757,10 @@ pub struct Gradation {
     pub max: f64,
     /// Density at the far side, % (5–100).
     pub min: f64,
-    /// Number of step values (2–20); `None`: a gradation saved before patterns.
+    /// `Some`: PE-DESIGN's gradation pattern, whose Gradation Pattern Setting always has nine
+    /// points (round 15, #1039), so the count is 9 (designs saved before #1039 may hold
+    /// another, which sews the same: rows follow the straight fall from `max` to `min`);
+    /// `None`: a gradation saved before patterns, a continuous fall from 100 %.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub steps: Option<u32>,
     /// How the density goes from `max` to `min` across the region (#532, beyond PE-DESIGN):
@@ -2222,8 +2227,9 @@ impl RegionSewing {
                 RegionType::Fill | RegionType::Satin => 4.5,
                 RegionType::ProgrammableFill => 2.5,
                 RegionType::Piping => 1.0,
-                // PE-DESIGN 11.50's Concentric Circle and Spiral Stitch: 2.0 lines/mm.
-                RegionType::ConcentricCircle | RegionType::Spiral => 2.0,
+                // PE-DESIGN 11.50's Concentric Circle, Spiral and Radial Stitch: 2.0 lines/mm
+                // (Radial confirmed with the field's reset button, round 15, #1050).
+                RegionType::ConcentricCircle | RegionType::Spiral | RegionType::Radial => 2.0,
                 // PE-DESIGN 11.50's zigzag net: a rung every 0.44 mm.
                 RegionType::ZigzagNetFill => 2.25,
                 _ => 1.5,
@@ -2468,7 +2474,9 @@ impl RegionSewing {
         self.spacing.unwrap_or(match self.kind {
             RegionType::CrossStitch => 2.5,
             RegionType::Stippling => 2.0,
-            RegionType::NetFill => 4.0,
+            // PE-DESIGN 11.50's Net Fill: Spacing 3.0 mm, the line pitch (its field's reset
+            // button, #1110).
+            RegionType::NetFill => 3.0,
             // PE-DESIGN 11.50's zigzag net (o-region-zigzag-net): bands 8 mm apart.
             RegionType::ZigzagNetFill => 8.0,
             RegionType::FlexibleSpiral => 1.0,

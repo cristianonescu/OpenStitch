@@ -155,6 +155,112 @@ fn sew_check_failures_are_errors() {
     assert_eq!(c["findings"][0]["severity"], json!("error"), "{c}");
 }
 
+/// #1036: a plain fill whose rows hide less than 40 % of the fabric (on the coverage curve
+/// measured on the T1 sew-outs) gets the `lowCoverage` note, without a fix: about 1.06 lines/mm
+/// hides 40 %, so 0.9 lines/mm is just under and 1.3 just over. A gradation (open on purpose) is
+/// not judged.
+#[test]
+fn a_fill_the_fabric_shows_through_gets_a_low_coverage_note() {
+    let check = |params: Value| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+        let id = run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 20, "y": 20, "width": 40, "height": 30, "fill": "Blue"}),
+        )["id"]
+            .as_u64()
+            .expect("id");
+        let mut p = params;
+        p["ids"] = json!([id]);
+        run(&mut s, "object.setRegion", p);
+        let c = run(&mut s, "design.check", json!({"rules": ["lowCoverage"]}));
+        (id, c.clone(), found(&c, "lowCoverage").cloned())
+    };
+    let (id, c, f) = check(json!({"density": 0.9, "underlay": false}));
+    let f = f.expect("0.9 lines/mm shows the fabric");
+    assert_eq!(f["ids"], json!([id]));
+    assert_eq!(
+        (f["severity"].as_str(), f["limit"].as_f64()),
+        (Some("info"), Some(40.0)),
+        "{f}"
+    );
+    assert!(f["value"].as_f64().is_some_and(|v| v < 40.0), "{f}");
+    assert!(
+        f["fix"].is_null(),
+        "no fix: the density is the user's choice: {f}"
+    );
+    assert!(
+        f["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("1.1 lines/mm")),
+        "{f}"
+    );
+    // A note: the design stays ready, with no warning.
+    assert_eq!(
+        (c["ready"].as_bool(), c["warnings"].as_u64()),
+        (Some(true), Some(0)),
+        "{c}"
+    );
+    assert!(
+        check(json!({"density": 1.3, "underlay": false}))
+            .2
+            .is_none()
+    );
+    assert!(
+        check(json!({"density": 0.5, "underlay": false, "gradationPattern": true}))
+            .2
+            .is_none(),
+        "a gradation is open on purpose"
+    );
+}
+
+/// #1036: small text is judged by its own font's smallest good size (fonts.list sizeRange), not
+/// one size for every font. The fix offers the Small Text font where the text is big enough
+/// for it, else the font's smallest size, and clears the finding.
+#[test]
+fn small_text_is_judged_by_its_own_font() {
+    let small = |font: &str, size: f64| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+        run(
+            &mut s,
+            "text.add",
+            json!({"text": "Hi", "font": font, "size": size, "x": 50, "y": 50}),
+        );
+        let c = run(&mut s, "design.check", json!({"rules": ["textTooSmall"]}));
+        let f = found(&c, "textTooSmall").cloned();
+        if let Some(f) = &f {
+            let fix = f["fix"].clone();
+            run(
+                &mut s,
+                fix["command"].as_str().expect("command"),
+                fix["params"].clone(),
+            );
+            let c = run(&mut s, "design.check", json!({"rules": ["textTooSmall"]}));
+            assert!(found(&c, "textTooSmall").is_none(), "{font} {size}: {c}");
+        }
+        f
+    };
+    // Lato Bold sews well from 6 mm: 5 mm is small (the old single limit, 4 mm, let it pass).
+    let f = small("lato-bold", 5.0).expect("5 mm Lato Bold");
+    assert_eq!(
+        (f["value"].as_f64(), f["limit"].as_f64()),
+        (Some(5.0), Some(6.0)),
+        "{f}"
+    );
+    assert_eq!(f["fix"]["params"]["font"], json!("openstitch-line"), "{f}");
+    assert!(small("lato-bold", 6.0).is_none());
+    // Pacifico from 7 mm.
+    let f = small("pacifico", 6.5).expect("6.5 mm Pacifico");
+    assert_eq!(f["limit"], json!(7.0), "{f}");
+    assert!(small("pacifico", 7.0).is_none());
+    // The Small Text font itself, under its own 3 mm: the fix is its smallest size.
+    let f = small("openstitch-line", 2.5).expect("2.5 mm Small Text");
+    assert_eq!(f["fix"]["params"]["size"], json!(3.0), "{f}");
+    assert!(small("openstitch-line", 3.0).is_none());
+}
+
 /// The fixture of #503: each problem is found once, on its own object, and its fix clears it
 /// as one undo step.
 #[test]
@@ -264,10 +370,11 @@ fn just_inside_the_limits_is_clean() {
         "shape.rectangle",
         json!({"x": 40, "y": 10, "width": 2, "height": 30, "fill": "Red"}),
     );
+    // Lato Bold's smallest good size, its own limit since #1036 (4 mm for every font before).
     run(
         &mut s,
         "text.add",
-        json!({"text": "Hi", "size": 4, "x": 50, "y": 60}),
+        json!({"text": "Hi", "size": 6, "x": 50, "y": 60}),
     );
     let c = run(&mut s, "design.check", json!({}));
     assert_eq!(c["findings"], json!([]), "{c}");

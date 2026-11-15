@@ -62,10 +62,10 @@
       "source": {
         "export": "text.pes"
       },
-      "evidence": "PE-DESIGN 11.50 reference: needle points of the satin letter",
+      "evidence": "PE-DESIGN 11.50 reference: needle points of the satin letter, within 2 % (#1080)",
       "reference": {
         "tolerance": {
-          "percent": 25.0
+          "percent": 2.0
         }
       }
     },
