@@ -113,6 +113,241 @@ fn density_reads_one_layer_per_fill_and_stacks() {
     );
 }
 
+/// #1036: the crowding count (the spot with the most pairs of needle points under 0.25 mm
+/// within 3 mm) is the same here as in `tools/sew_check.py`, whose self-test asserts these
+/// numbers too: PE-DESIGN's radial circle at its highest density, the kit's most crowded design
+/// and a plain one.
+#[test]
+fn crowding_counts_agree_with_sew_check() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let lim = &openstitch_engine::quality::LIMITS;
+    for (rel, want) in [
+        ("compat/reference/stitches/radial-circle40-dmax.pes", 591),
+        (
+            "examples/sew/image-tools/L-autopunch-storybook-openstitch.pes",
+            227,
+        ),
+        ("examples/sew/fills/fill-options.pes", 29),
+    ] {
+        let p = FileType::Pes
+            .read(&std::fs::read(root.join(rel)).expect("read"))
+            .expect("pes");
+        let c = openstitch_engine::quality::crowding(
+            &p.stitches,
+            lim.crowd_check_mm,
+            lim.crowd_close_mm,
+            0,
+        )
+        .expect("stitches");
+        assert_eq!(c.pairs, want, "{rel}");
+    }
+}
+
+/// #1036: the quick bound that lets most designs skip the count is never below the count (so it
+/// never hides a crowded spot), and a design just over the warning is counted, not skipped.
+#[test]
+fn the_crowding_bound_never_hides_a_crowded_spot() {
+    use openstitch_engine::quality::{crowding, crowding_bound};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for rel in [
+        "compat/reference/stitches/radial-circle40-dmax.pes",
+        "examples/sew/image-tools/L-autopunch-storybook-openstitch.pes",
+        "examples/sew/fills/fill-options.pes",
+    ] {
+        let p = FileType::Pes
+            .read(&std::fs::read(root.join(rel)).expect("read"))
+            .expect("pes");
+        let exact = crowding(&p.stitches, 3.0, 0.25, 0).expect("stitches").pairs;
+        let bound = crowding_bound(&p.stitches, 3.0, 0.25).expect("bound");
+        assert!(bound >= exact, "{rel}: bound {bound} under {exact}");
+        // Skipped under the floor exactly when the count is under it too.
+        assert_eq!(
+            crowding(&p.stitches, 3.0, 0.25, 600).is_none(),
+            exact <= 600,
+            "{rel}"
+        );
+    }
+    let mut s = Session::new(std::env::temp_dir());
+    radial_pair(&mut s, WARN_DENSITY, WARN_OFF);
+    let t = Traced::new(s.design());
+    let exact = crowding(&t.pattern.stitches, 3.0, 0.25, 0)
+        .expect("stitches")
+        .pairs;
+    assert!(exact > 600, "{exact}");
+    assert!(crowding_bound(&t.pattern.stitches, 3.0, 0.25).expect("bound") >= exact);
+    assert_eq!(
+        crowding(&t.pattern.stitches, 3.0, 0.25, 600).map(|c| c.pairs),
+        Some(exact),
+        "just over the warning: counted, not skipped"
+    );
+}
+
+/// #1036: no PE-DESIGN reference file and no kit design reaches the crowding warning (PE-DESIGN's
+/// own most crowded file, its radial circle at density 7, has 591 pairs; the warning is over 600).
+#[test]
+fn no_reference_or_kit_design_is_crowded() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let lim = &openstitch_engine::quality::LIMITS;
+    let mut seen = 0;
+    for dir in ["compat/reference", "examples/sew"] {
+        let mut todo = vec![root.join(dir)];
+        while let Some(d) = todo.pop() {
+            for e in std::fs::read_dir(d).expect("dir").flatten() {
+                let f = e.path();
+                if f.is_dir() {
+                    todo.push(f);
+                } else if f.extension().is_some_and(|x| x.eq_ignore_ascii_case("pes")) {
+                    let Ok(p) = FileType::Pes.read(&std::fs::read(&f).expect("read")) else {
+                        continue;
+                    };
+                    seen += 1;
+                    let c = openstitch_engine::quality::crowding(
+                        &p.stitches,
+                        lim.crowd_check_mm,
+                        lim.crowd_close_mm,
+                        lim.max_crowd_pairs_warn,
+                    );
+                    assert!(
+                        c.is_none(),
+                        "{}: {:?} pairs",
+                        f.display(),
+                        c.map(|c| c.pairs)
+                    );
+                }
+            }
+        }
+    }
+    assert!(seen > 500, "{seen} files");
+}
+
+/// Radial circles just over the crowding warning: 662 pairs (two at density 3 0.1 mm apart
+/// have 574, just under it; two at density 5 0.2 mm apart 1,242, over the error).
+const WARN_DENSITY: f64 = 3.5;
+const WARN_OFF: f64 = 0.2;
+
+/// Two radial circles 40 mm across, the second `off` mm to the right: a real generator setting
+/// whose needle points crowd where the two centres overlap.
+fn radial_pair(s: &mut Session, density: f64, off: f64) {
+    for (id, dx) in [(1, 0.0), (2, off)] {
+        run(
+            s,
+            "shape.ellipse",
+            json!({"cx": 50.0 + dx, "cy": 50, "rx": 20, "ry": 20, "fill": "Red"}),
+        );
+        run(
+            s,
+            "object.setRegion",
+            json!({"ids": [id], "type": "radial", "density": density}),
+        );
+    }
+}
+
+/// #1036: needle crowding is a warning over 600 pairs (beyond anything PE-DESIGN's own files sew)
+/// and an error over 1,200 (twice that), on real generator settings: radial circles laid over each
+/// other. OpenStitch's own radial at its highest density stays under PE-DESIGN's 591.
+#[test]
+fn crowded_needles_warn_then_stop_a_strict_export() {
+    let crowd = |density: f64, off: Option<f64>| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+        match off {
+            Some(off) => radial_pair(&mut s, density, off),
+            None => {
+                run(
+                    &mut s,
+                    "shape.ellipse",
+                    json!({"cx": 50, "cy": 50, "rx": 20, "ry": 20, "fill": "Red"}),
+                );
+                run(
+                    &mut s,
+                    "object.setRegion",
+                    json!({"ids": [1], "type": "radial", "density": density}),
+                );
+            }
+        }
+        let c = run(&mut s, "design.check", json!({"rules": ["crowdedNeedles"]}));
+        (s, found(&c, "crowdedNeedles").cloned())
+    };
+    // OpenStitch's radial at its highest density (#1112): clear of the warning.
+    assert!(crowd(7.0, None).1.is_none());
+    // Just under the warning: none.
+    assert!(crowd(3.0, Some(0.1)).1.is_none());
+    // Just over: a warning naming both circles and the spot.
+    let (_, f) = crowd(WARN_DENSITY, Some(WARN_OFF));
+    let f = f.expect("over 600 pairs");
+    assert_eq!(
+        (f["severity"].as_str(), f["limit"].as_f64()),
+        (Some("warning"), Some(600.0)),
+        "{f}"
+    );
+    assert!(
+        f["value"]
+            .as_f64()
+            .is_some_and(|v| v > 600.0 && v <= 1200.0),
+        "{f}"
+    );
+    assert_eq!(f["ids"], json!([1, 2]), "{f}");
+    assert!(f["bbox"].is_array() && f["fix"].is_null(), "{f}");
+    assert!(
+        f["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("no sew-out evidence")),
+        "{f}"
+    );
+    // Over 1,200: an error, which a strict export refuses; the default export writes and lists it.
+    let (mut s, f) = crowd(5.0, Some(0.2));
+    let f = f.expect("over 1,200 pairs");
+    assert_eq!(
+        (f["severity"].as_str(), f["limit"].as_f64()),
+        (Some("error"), Some(1200.0)),
+        "{f}"
+    );
+    let dir = TempDir::new("check-crowd-export");
+    let strict = dir.join("strict.pes");
+    let e = s
+        .execute(
+            "design.export",
+            Some(&json!({"path": strict.display().to_string(), "checks": "strict"})),
+        )
+        .expect_err("strict refuses a design with an error");
+    assert!(e.to_string().contains("nothing was written"), "{e}");
+    assert!(!strict.exists());
+    let warn = dir.join("warn.pes");
+    let r = run(
+        &mut s,
+        "design.export",
+        json!({"path": warn.display().to_string()}),
+    );
+    assert!(warn.exists());
+    assert!(
+        r["problems"].to_string().contains("pairs of needle points"),
+        "{r}"
+    );
+    // A design without errors exports under strict (two radial centres 0.1 mm apart also stack
+    // 30 needle drops in one spot, an error of its own, so a plain fill here).
+    let mut s = Session::new(std::env::temp_dir());
+    run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 20, "y": 20, "width": 30, "height": 20, "fill": "Blue"}),
+    );
+    let clean = dir.join("clean.pes");
+    run(
+        &mut s,
+        "design.export",
+        json!({"path": clean.display().to_string(), "checks": "strict"}),
+    );
+    assert!(clean.exists());
+    assert!(
+        s.execute(
+            "design.export",
+            Some(&json!({"path": "x.pes", "checks": "loose"}))
+        )
+        .is_err()
+    );
+}
+
 /// `sew_check`'s limits are errors here too, so every kit file it fails fails this check.
 #[test]
 fn sew_check_failures_are_errors() {

@@ -1,5 +1,5 @@
 {
-  "about": "Limits Check Design (crates/openstitch-engine/src/quality.rs) and tools/sew_check.py share, so the app and the tool agree (#866). Edit them here only. maxShortPer1000: the highest rate in all 482 PE-DESIGN 11.50 reference files (compat/reference) is 154.8, its own satin lettering, whose short stitches are at the column turns; 160 sits just above it. minCoverage (#1036): the share of the fabric a plain fill hides, on the coverage curve measured on the T1 sew-outs (tanh(0.4 rows/mm), #291); 0.4 is about 1 row per mm. Of the 364 plain fills in PE-DESIGN's 497 PE-DESIGN 11 references only its own density sweep at 0.1 lines/mm (sweep-fill-density-min, 6 %) is under it; a note in Check Design; sew_check.py reads it too but checks no fills (a stitch file holds no regions).",
+  "about": "Limits Check Design (crates/openstitch-engine/src/quality.rs) and tools/sew_check.py share, so the app and the tool agree (#866). Edit them here only. maxShortPer1000: the highest rate in all 482 PE-DESIGN 11.50 reference files (compat/reference) is 154.8, its own satin lettering, whose short stitches are at the column turns; 160 sits just above it. minCoverage (#1036): the share of the fabric a plain fill hides, on the coverage curve measured on the T1 sew-outs (tanh(0.4 rows/mm), #291); 0.4 is about 1 row per mm. Measured 2026-11-15 on the 501 #PES0110 reference files then in compat/reference (files), opened with import.pes: only one plain fill (sweep-fill-density-min, PE-DESIGN's own 0.1 lines/mm sweep, 5.8 %) is under it; an earlier pass over the 497 files of 2026-11-14 found 364 plain fills (fill regions), the same one under it; a note in Check Design; sew_check.py reads it too but checks no fills (a stitch file holds no regions). crowdCheckMm, crowdCloseMm, maxCrowdPairsWarn, maxCrowdPairsError (#1036): pairs of distinct needle points (0.1 mm grid) closer than 0.25 mm within 3 mm of one needle point, at the design's most crowded spot (#1112's centreCrowding, anywhere). PE-DESIGN's own files reach 591 (radial-circle40-dmax, 502 files); the warning is over 600, beyond anything they sew, and the error over 1,200, twice that. Neither is a measured breakage point: there is no sew-out evidence yet of what crowding does to the fabric.",
   "stackCellMm": 0.5,
   "maxDropsPerCell": 20,
   "denseCellMm": 2.0,
@@ -8,5 +8,9 @@
   "maxInPlaceRun": 6,
   "shortStitchMm": 0.3,
   "maxShortPer1000": 160.0,
-  "minCoverage": 0.4
+  "minCoverage": 0.4,
+  "crowdCheckMm": 3.0,
+  "crowdCloseMm": 0.25,
+  "maxCrowdPairsWarn": 600,
+  "maxCrowdPairsError": 1200
 }
