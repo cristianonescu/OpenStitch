@@ -473,7 +473,9 @@ pub fn generate(
                 let end = *run.last()?;
                 Some((run, end))
             });
-            vec![region.sequence_raw(out)]
+            let mut runs = region.sequence_raw(out);
+            uncross(&mut runs);
+            vec![runs]
         }
         RegionType::ZigzagNetFill if angle.rem_euclid(360.0).abs() > 1e-9 => {
             // PE-DESIGN 11.50 turns the net by the Direction (round 13, zigzag-net-dir0/30/45/90,
@@ -762,7 +764,9 @@ pub fn generate(
                 kept.push(end);
                 Some((kept, end))
             });
-            vec![region.sequence_raw(out)]
+            let mut runs = region.sequence_raw(out);
+            uncross(&mut runs);
+            vec![runs]
         }
     }
 }
@@ -3463,11 +3467,16 @@ fn along_net(
     if run.len() >= 2 {
         out.push(run);
     }
-    // Where the travel along the outline meets a band, the needle may run on past a line's
-    // end and come back along the outline, so a step crosses the step after next (the
-    // triangle pattern on a circle turned 15°, `zigzag_net_rungs_do_not_cross_on_a_turned_
-    // circle`): the needle point between is left out, as within a band (#1058).
-    for run in &mut out {
+    uncross(&mut out);
+    out
+}
+
+/// Where a net's travel meets a band, the needle may run on past a line's end and come back
+/// along the outline, or the travel joining two runs may cut back across the last stitch, so
+/// a step crosses the step after next (the triangle pattern on a circle turned 15°, the
+/// honeycomb at 50° to 80°): the needle point between is left out, as within a band (#1058).
+fn uncross(runs: &mut [Run]) {
+    for run in runs {
         let mut i = 0;
         while i + 3 < run.len() {
             if crossing(run[i], run[i + 1], run[i + 2], run[i + 3]).is_some() {
@@ -3477,7 +3486,6 @@ fn along_net(
             }
         }
     }
-    out
 }
 
 /// The outline paths with every point of `ends` lying on them inserted as a vertex, so a net's
