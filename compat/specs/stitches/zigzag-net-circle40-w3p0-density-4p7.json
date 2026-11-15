@@ -1,0 +1,119 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "zigzag-net-circle40-w3p0-density-4p7",
+  "area": "stitches",
+  "title": "Zigzag Net Fill on a 40 mm circle, zigzag width 3.0 mm, Spacing 5.0 mm, Density 4.7",
+  "description": "PE-DESIGN 11.50's Zigzag Net Fill at Density 4.7 line/mm (#1122): the w3p0 capture with only the Density changed. PE-DESIGN keeps it at shape body +368 (47; +136 stays 45) and sews 2032 stitches against 1974 at 4.5. OpenStitch keeps the density as rungs per mm, a rung across and the diagonal back being two of PE-DESIGN's lines, so 4.7 is 2.35 here. Count within 5 % and the bounds.",
+  "covers": {
+    "audit": [],
+    "featureMatrix": [
+      {
+        "area": "Region sew types",
+        "feature": "Zigzag net fill"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "compat/reference/stitches/zigzag-net-circle40-w3p0-density-4p7.pes (PE-DESIGN 11.50, 2026-11-15): 40,00 x 40,00 mm, 2032 stitches"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.ellipse",
+      "params": {
+        "cx": 50,
+        "cy": 50,
+        "rx": 20
+      }
+    },
+    {
+      "command": "object.setRegion",
+      "params": {
+        "id": 1,
+        "type": "zigzagNetFill",
+        "patternWidth": 3.0,
+        "spacing": 5.0,
+        "underlay": true,
+        "color": "Red",
+        "density": 2.35
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "id": 1,
+        "type": "none"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "region.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/zigzag-net-circle40-w3p0-density-4p7.pes",
+      "make": "Opened the repository's redacted compat/reference/stitches/zigzag-net-circle40-w3p0.pes (SHA-256 22b53f469789d0b1392f51e693da0b686d397231ab5268d373e34efd06aef8b7) in PE-DESIGN 11.50, changed the region's Density from 4,5 to 4,7 line/mm, nothing else; Save As PES (default type, Ver.11.0). Stitches = 2032."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "region.pes"
+      },
+      "evidence": "PE-DESIGN 11.50's file: 2032 stitches; OpenStitch within 5 %",
+      "reference": {
+        "tolerance": {
+          "percent": 5
+        }
+      }
+    },
+    {
+      "id": "bounds-width",
+      "measure": {
+        "kind": "bounds",
+        "property": "width"
+      },
+      "source": {
+        "export": "region.pes"
+      },
+      "evidence": "PE-DESIGN 11.50's file",
+      "reference": {
+        "tolerance": {
+          "mm": 0.35
+        }
+      }
+    },
+    {
+      "id": "bounds-height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "region.pes"
+      },
+      "evidence": "PE-DESIGN 11.50's file",
+      "reference": {
+        "tolerance": {
+          "mm": 0.35
+        }
+      }
+    }
+  ]
+}

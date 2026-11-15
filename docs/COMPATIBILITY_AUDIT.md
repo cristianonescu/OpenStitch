@@ -453,7 +453,10 @@ Line references are relative to `crates/`.
   can hold after its migration, is written as stored to 0.1 mm, not clamped: PE-DESIGN 11.50
   opened OpenStitch's width 0.5 / Spacing 1.0 circle without a message, kept both values,
   re-sewed the net at them, 8,742 stitches against OpenStitch's 9,062, and wrote them back
-  unchanged on a re-save, round 15, #1124);
+  unchanged on a re-save, round 15, #1124); its Density, +368 only (a capture changing it 4.5 to
+  4.7 changed +368 45 to 47 and left +136 at 45), read and written since #1122 as two lines a
+  rung (OpenStitch's 2.25 rungs/mm is 4.5; inferred from the 0.44 mm rung pitch), +136 written as
+  PE-DESIGN's 4.5 (spec `zigzag-net-circle40-w3p0-density-4p7`);
   stem, candlewick and chain lines by their codes (spec `pes-0110-line-types`, reference
   pending; the 22 owner line-* files read and rewritten byte for byte outside the documented
   differences), a candlewick's Density choice at +110 (0 Dense, 1 Medium, 2 Light: densities
