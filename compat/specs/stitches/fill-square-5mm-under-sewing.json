@@ -81,6 +81,64 @@
       }
     },
     {
+      "id": "under-sewing-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "square.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        },
+        "cut": {
+          "at": [
+            2.5,
+            5
+          ],
+          "keep": "before"
+        }
+      },
+      "evidence": "The under sewing alone: the needle points before the step out to the entry (2.5, 5), where the top fill starts. PE-DESIGN 21, OpenStitch 20: the zero-length repeat at the (4,1) corner row, which OpenStitch's writer leaves out (#1132)",
+      "reference": {
+        "tolerance": {
+          "count": 1
+        }
+      }
+    },
+    {
+      "id": "top-fill-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "square.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        },
+        "cut": {
+          "at": [
+            2.5,
+            5
+          ],
+          "keep": "from"
+        }
+      },
+      "evidence": "The top fill alone: the needle points from the entry (2.5, 5) on. PE-DESIGN 64, OpenStitch 66: the top fill's own gap (#1131)",
+      "reference": {
+        "tolerance": {
+          "count": 2
+        }
+      }
+    },
+    {
       "id": "ends",
       "measure": {
         "kind": "needleEnds"
