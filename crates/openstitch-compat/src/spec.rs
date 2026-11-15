@@ -214,6 +214,28 @@ pub struct Source {
     /// `colorBlock` and `align`, to OpenStitch's file and the reference alike).
     #[serde(default)]
     pub exclude: Option<Exclude>,
+    /// Only the stitches before, or from, the first stitch at a point (mm, after `align`;
+    /// applied before `exclude`): a layer of an object whose layers meet there, e.g. a fill's
+    /// under sewing and its top fill at the entry point (#1103).
+    #[serde(default)]
+    pub cut: Option<Cut>,
+}
+
+/// Where a [`Source`] splits its stitches, and which side it keeps.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Cut {
+    pub at: [f64; 2],
+    pub keep: CutKeep,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CutKeep {
+    /// The stitches before the first stitch at `at`.
+    Before,
+    /// The first stitch at `at` and everything after it.
+    From,
 }
 
 /// Stitches a measurement leaves out: the first and last `first` / `last` stitch segments

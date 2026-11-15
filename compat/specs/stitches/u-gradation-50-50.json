@@ -188,6 +188,21 @@
           "percent": 15
         }
       }
+    },
+    {
+      "id": "ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "evidence": "PE-DESIGN 11.50 starts and ends this Closed Straight Line shape at its first vertex (10, 10) (#1103), relative to the shape's needle points",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
     }
   ]
 }
