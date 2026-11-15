@@ -543,6 +543,64 @@ fn pes_version_11_keeps_every_group() {
 }
 
 #[test]
+fn a_motif_lines_run_pitch_and_start_end_come_back_from_pe_design() {
+    // #1068: PE-DESIGN 11.50's 608-motif-5x8 at Run pitch 5.0 and saved again at 3.0, 7.0 and
+    // with Start/End Type Run. Imported, the line's pitch is its Run pitch (+82), not the 2.0 mm
+    // running pitch (+52); exported, both fields and +84 come back as PE-DESIGN wrote them.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = temp_dir("v11-motif-pitch");
+    for (file, pitch, start_run) in [
+        (
+            "crates/openstitch-formats/tests/fixtures/pe11/608-motif-5x8.pes",
+            5.0,
+            false,
+        ),
+        (
+            "compat/reference/stitches/1068-motif-5x8-runpitch-3p0.pes",
+            3.0,
+            false,
+        ),
+        (
+            "compat/reference/stitches/1068-motif-5x8-runpitch-7p0.pes",
+            7.0,
+            false,
+        ),
+        (
+            "compat/reference/stitches/1068-motif-5x8-startend-run.pes",
+            5.0,
+            true,
+        ),
+    ] {
+        let pe_bytes = std::fs::read(root.join(file)).expect("capture");
+        let pe = pes::read_objects(&pe_bytes).expect("objects");
+        std::fs::write(dir.join("in.pes"), &pe_bytes).expect("copy");
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        run(&mut s, "import.pes", json!({"path": "in.pes"}));
+        let l = s.design().objects[0].line.clone().expect("line");
+        assert_eq!(l.pitch, pitch, "{file}");
+        assert_eq!(
+            l.start_end == openstitch_design::model::StartEnd::Run,
+            start_run,
+            "{file}"
+        );
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": "out.pes", "pesVersion": "11"}),
+        );
+        let ours = pes::read_objects(&std::fs::read(dir.join("out.pes")).expect("out.pes"))
+            .expect("objects");
+        let (a, b) = (&ours.shapes[0], &pe.shapes[0]);
+        assert_eq!(
+            (a.motif_pitch, a.run_pitch, a.line_flag_84),
+            (b.motif_pitch, b.run_pitch, b.line_flag_84),
+            "{file}"
+        );
+    }
+}
+
+#[test]
 fn pes_version_11_writes_motif_lines_and_fills_as_pe_design() {
     // #608: PE-DESIGN 11.50's motif captures (round 12 and 13, the project's own motif)
     // imported and exported again: the motif line's width, height and spacing, the motif fill's

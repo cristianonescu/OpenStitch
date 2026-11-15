@@ -233,6 +233,40 @@ fn a_reference_with_provenance_reaches_the_reference_tier() {
 }
 
 #[test]
+fn a_capture_listed_for_two_specs_is_each_ones_reference() {
+    // #1068: a scripted spec and the spec that imports the same capture each have an entry.
+    let root = temp_root("shared");
+    write_spec(&root, &satin("satin-g"));
+    let mut other = satin("satin-h");
+    other["references"][0]["file"] = json!("stitches/satin-g.pes");
+    write_spec(&root, &other);
+    run(&config(&root)).expect("first run");
+    let bytes = supply_reference(&root, "satin-g", None, "Owner");
+    let entry = |spec: &str| {
+        json!({
+            "file": "stitches/satin-g.pes", "spec": spec, "reference": "pe-design",
+            "madeBy": "Owner", "peDesignVersion": "11.30", "date": "2026-10-19", "os": "test",
+            "settings": "defaults", "sha256": sha256::hex(&bytes)
+        })
+    };
+    let manifest = json!({
+        "schema": "openstitch-compat-reference/1",
+        "files": [entry("satin-g"), entry("satin-h")]
+    });
+    std::fs::write(
+        root.join("reference/MANIFEST.json"),
+        serde_json::to_string_pretty(&manifest).expect("json"),
+    )
+    .expect("manifest");
+    let r = run(&config(&root)).expect("run");
+    for id in ["satin-g", "satin-h"] {
+        let s = spec_result(&r, id);
+        assert_eq!(s.status, Status::Pass, "{id}: {}", summary_markdown(&r));
+        assert_eq!(s.tier, Some(Tier::Reference), "{id}");
+    }
+}
+
+#[test]
 fn a_failing_lower_tier_blocks_the_higher_ones() {
     let root = temp_root("lower");
     let mut s = satin("satin-e");
