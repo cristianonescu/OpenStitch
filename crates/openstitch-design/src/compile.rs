@@ -3674,8 +3674,12 @@ mod stroke_fill_tests {
         let thin = thin_squeezed(&saw);
         assert_eq!(thin.first(), saw.first());
         assert_eq!(thin.last(), saw.last());
-        for w in thin.windows(2) {
-            assert!(w[0].distance(w[1]) >= IN_PLACE, "{w:?}");
+        assert!(thin.len() < saw.len() / 2, "{thin:?}");
+        for (k, w) in thin.windows(2).enumerate() {
+            // The last point is the stroke's end and is kept, so only the last step may be short.
+            if k + 2 < thin.len() {
+                assert!(w[0].distance(w[1]) >= IN_PLACE, "{w:?}");
+            }
             assert_ne!(w[0].y, w[1].y, "each step crosses the stroke: {w:?}");
         }
         let wide: Vec<Vec2> = (0..20)
