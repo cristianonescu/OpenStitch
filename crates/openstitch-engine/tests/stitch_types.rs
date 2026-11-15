@@ -2893,3 +2893,41 @@ fn a_line_switched_to_motif_starts_at_run_pitch_5() {
     );
     assert_eq!(pitch(&s), 5.0);
 }
+
+/// #1123: a motif line cuts a sharp corner with one motif laid straight across it, as
+/// PE-DESIGN 11.50 does (608-motif-5x8: at the top-left corner of the 40 mm square
+/// (0, 3.3) -> (3.2, 3.1) -> (3.8, 0) mm, no needle point on the corner); where a run between
+/// motifs crosses a corner, the run keeps the corner point.
+#[test]
+fn a_motif_line_cuts_the_corners_of_a_square() {
+    let tmp = temp_dir();
+    let pmf = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../openstitch-design/tests/fixtures/patterns/psc-motif-zigzag-3pt.pmf");
+    std::fs::copy(&pmf, tmp.path().join("zz3.pmf")).expect("motif");
+    let mut s = Session::new(tmp.path());
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "pattern.import",
+        json!({"path": "zz3.pmf", "id": "zz3"}),
+    );
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 30, "y": 30, "width": 40, "height": 40, "outline": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"ids": [1], "type": "motif", "motif": "zz3", "width": 5, "height": 8,
+               "spacing": 2, "pitch": 5, "startEnd": "feed"}),
+    );
+    let st = Compiler::default().compile(s.design()).stitches;
+    // 0.1 mm units.
+    let near = |x: f64, y: f64| st.iter().any(|p| (p.x - x).hypot(p.y - y) < 3.0);
+    assert!(!near(300.0, 300.0), "a motif spans the top-left corner");
+    assert!(near(332.0, 331.0), "its point, straight across the corner");
+    assert!(!near(700.0, 700.0), "a motif spans the bottom-right corner");
+    assert!(near(700.0, 300.0), "a run keeps the top-right corner");
+    assert!(near(300.0, 700.0), "a run keeps the bottom-left corner");
+}
