@@ -1075,7 +1075,7 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
     let turned = d
         .machine
         .rotate90
-        .then(|| openstitch_formats::pec::turned_for_hoop(&t.pattern));
+        .then(|| openstitch_core::turned_for_hoop(&t.pattern));
     let filed_st = turned
         .as_ref()
         .map_or(st.as_slice(), |p| p.stitches.as_slice());
