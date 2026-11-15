@@ -1682,27 +1682,212 @@ impl GlyphStrokes {
                 if l.len() < 2 || r.len() < 2 || spacing <= 0.0 {
                     return Vec::new();
                 }
-                let line = |v: &[(f64, Vec2)]| v.iter().map(|q| q.1).collect::<Vec<_>>();
-                let (pl, pr) = (line(&l), line(&r));
-                let (ll, lr) = (length(&pl), length(&pr));
-                let n = (ll.max(lr) / spacing).ceil().clamp(1.0, 10_000.0) as usize;
                 // Only a bending stroke needs the progress pairing: on a straight one the two
                 // agree, except where a junction cuts one side short (A's legs at the bar),
                 // where the progress pairing fans.
                 let progress = pairing == Pairing::Progress && bends(st);
-                (0..=n)
-                    .map(|k| {
-                        let f = k as f64 / n as f64;
-                        if progress {
-                            [progress_at(&l, f), progress_at(&r, f)]
-                        } else {
-                            [point_at(&pl, f * ll), point_at(&pr, f * lr)]
-                        }
-                    })
-                    .collect()
+                if !progress {
+                    return span_rungs(&l, &r, spacing, Spans::Length);
+                }
+                // A sharp bend with an outline corner on each side (e's bar into its bowl):
+                // the corners are joined, and within CORNER_REACH widths of them each side's
+                // crossings are spaced by its length; elsewhere by progress as before.
+                let width = st.widths.iter().copied().fold(0.0, f64::max);
+                let mut sorted = st.widths.clone();
+                sorted.sort_by(f64::total_cmp);
+                let median = sorted.get(sorted.len() / 2).copied().unwrap_or(0.0);
+                if median < CORNER_WIDTH {
+                    return span_rungs(&l, &r, spacing, Spans::Progress);
+                }
+                let (wl, wr) = (walk_order(&l), walk_order(&r));
+                let pairs = corner_pairs(&wl, &wr, width);
+                if pairs.is_empty() {
+                    return span_rungs(&l, &r, spacing, Spans::Progress);
+                }
+                let (l, r) = (wl, wr);
+                // Where the sides are cut: (left index, right index, how the stretch up to it
+                // is paired).
+                let at_place = |side: &[(f64, Vec2)], place: f64| {
+                    side.iter()
+                        .position(|q| q.0 >= place)
+                        .unwrap_or(side.len() - 1)
+                };
+                let reach = CORNER_REACH * width;
+                let mut cuts: Vec<(usize, usize, Spans)> = Vec::new();
+                for (cl, cr) in pairs {
+                    let mid = (l[cl].0 + r[cr].0) / 2.0;
+                    let (bl, br) = (at_place(&l, mid - reach), at_place(&r, mid - reach));
+                    let (last_l, last_r) = cuts.last().map_or((0, 0), |c| (c.0, c.1));
+                    if bl > last_l && br > last_r && bl < cl && br < cr {
+                        cuts.push((bl, br, Spans::Progress));
+                    }
+                    let (last_l, last_r) = cuts.last().map_or((0, 0), |c| (c.0, c.1));
+                    if cl > last_l && cr > last_r {
+                        cuts.push((cl, cr, Spans::Corner));
+                    }
+                    let (al, ar) = (at_place(&l, mid + reach), at_place(&r, mid + reach));
+                    if al > cl && ar > cr && al + 1 < l.len() && ar + 1 < r.len() {
+                        cuts.push((al, ar, Spans::Corner));
+                    }
+                }
+                let mut out: Vec<[Vec2; 2]> = Vec::new();
+                let (mut li, mut ri) = (0, 0);
+                for (cl, cr, how) in cuts {
+                    if cl <= li || cr <= ri {
+                        continue;
+                    }
+                    let part = span_rungs(&l[li..=cl], &r[ri..=cr], spacing, how);
+                    out.extend(part.into_iter().skip(usize::from(!out.is_empty())));
+                    (li, ri) = (cl, cr);
+                }
+                let part = span_rungs(&l[li..], &r[ri..], spacing, Spans::Progress);
+                out.extend(part.into_iter().skip(usize::from(!out.is_empty())));
+                out
             })
             .collect()
     }
+}
+
+/// How [`span_rungs`] joins two sides.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Spans {
+    /// At equal fractions of the progress over each side.
+    Progress,
+    /// At equal fractions of each side's length.
+    Length,
+    /// At equal fractions of each side's length: the stretches within [`CORNER_REACH`] of a
+    /// pair of corners ([`corner_pairs`]), their points in outline order ([`walk_order`]).
+    Corner,
+}
+
+/// Rungs `spacing` apart along the longer of two sides (points with their place along the
+/// stroke), joined as `how` says.
+fn span_rungs(l: &[(f64, Vec2)], r: &[(f64, Vec2)], spacing: f64, how: Spans) -> Vec<[Vec2; 2]> {
+    let progress = how == Spans::Progress;
+    if l.len() < 2 || r.len() < 2 {
+        return Vec::new();
+    }
+    let line = |v: &[(f64, Vec2)]| v.iter().map(|q| q.1).collect::<Vec<_>>();
+    let (pl, pr) = (line(l), line(r));
+    let (ll, lr) = (length(&pl), length(&pr));
+    let n = (ll.max(lr) / spacing).ceil().clamp(1.0, 10_000.0) as usize;
+    (0..=n)
+        .map(|k| {
+            let f = k as f64 / n as f64;
+            if progress {
+                [progress_at(l, f), progress_at(r, f)]
+            } else {
+                [point_at(&pl, f * ll), point_at(&pr, f * lr)]
+            }
+        })
+        .collect()
+}
+
+/// An outline corner on a stroke's side turns by more than this (degrees) between the
+/// stretches [`CORNER_ARM`] long on either side of it.
+const CORNER_TURN: f64 = 45.0;
+/// See [`CORNER_TURN`] (0.1 mm).
+const CORNER_ARM: f64 = 8.0;
+/// Corners are joined ([`corner_pairs`]) on strokes this wide or wider at their median (0.1 mm,
+/// a swelling script stroke is thin for most of its length): measured on
+/// 20 mm letters (strokes 2-4 mm wide); on small ones (4 mm Lato, 7 mm Pacifico) the joined
+/// corners put crossings off the outline and short stitches in a row.
+const CORNER_WIDTH: f64 = 12.0;
+/// How far either side of a pair of corners ([`corner_pairs`]) the crossings are spaced by each
+/// side's length, in stroke widths.
+const CORNER_REACH: f64 = 2.0;
+
+/// A side's points (ordered by their place along the stroke) as a line along the outline: where
+/// the centre line bends, a stretch of outline projects onto one place and its points come in
+/// the outline's direction, which may run against the stroke's. Each such group is walked from
+/// the point nearest the one before.
+fn walk_order(side: &[(f64, Vec2)]) -> Vec<(f64, Vec2)> {
+    let mut out: Vec<(f64, Vec2)> = Vec::with_capacity(side.len());
+    let mut i = 0;
+    while i < side.len() {
+        let mut j = i + 1;
+        while j < side.len() && side[j].0 - side[i].0 < 0.5 {
+            j += 1;
+        }
+        let mut group: Vec<(f64, Vec2)> = side[i..j].to_vec();
+        while !group.is_empty() {
+            let k = match out.last() {
+                Some(&(_, p)) => (0..group.len())
+                    .min_by(|&a, &b| group[a].1.distance(p).total_cmp(&group[b].1.distance(p)))
+                    .unwrap_or(0),
+                None => 0,
+            };
+            out.push(group.remove(k));
+        }
+        i = j;
+    }
+    out
+}
+
+/// Where a bending stroke's two sides each turn a sharp outline corner at about the same place
+/// (within the stroke's `width` of each other along it, and away from the sides' ends): the
+/// indices of the corner points on the left and the right side, in order. PE-DESIGN 11.50 joins
+/// such corners with one crossing and spaces the crossings evenly over each side's length on
+/// either side of it (stroke-satin-lower-e: the bar's crossings slant from the counter's corner
+/// to the aperture's, 0.3 mm apart above and 0.4-0.6 mm below, and the counter's side keeps
+/// moving 0.1-0.2 mm a crossing round the bowl, where the progress pairing kept the bar's
+/// crossings upright and then pivoted 16 of them round the counter's corner, #1080).
+fn corner_pairs(l: &[(f64, Vec2)], r: &[(f64, Vec2)], width: f64) -> Vec<(usize, usize)> {
+    // The turn at side point `i` between the stretches CORNER_ARM long before and after it.
+    let turn = |side: &[(f64, Vec2)], i: usize| -> f64 {
+        let p = side[i].1;
+        let back = side[..i]
+            .iter()
+            .rev()
+            .find(|q| q.1.distance(p) >= CORNER_ARM);
+        let ahead = side[i + 1..].iter().find(|q| q.1.distance(p) >= CORNER_ARM);
+        let (Some(a), Some(b)) = (back, ahead) else {
+            return 0.0;
+        };
+        let (u, v) = (p - a.1, b.1 - p);
+        let cos = (u.x * v.x + u.y * v.y) / (u.length() * v.length()).max(1e-12);
+        cos.clamp(-1.0, 1.0).dacos().to_degrees()
+    };
+    // The sharpest point of each run of side points turning more than CORNER_TURN, away from
+    // the side's ends.
+    let corners = |side: &[(f64, Vec2)]| -> Vec<usize> {
+        let n = side.len();
+        let (first, last) = (side[0].0, side[n - 1].0);
+        let mut out: Vec<usize> = Vec::new();
+        let mut run: Option<(usize, f64)> = None;
+        for i in 1..n.saturating_sub(1) {
+            let at = side[i].0;
+            let t = if at - first < width || last - at < width {
+                0.0
+            } else {
+                turn(side, i)
+            };
+            if t > CORNER_TURN {
+                if run.is_none_or(|(_, best)| t > best) {
+                    run = Some((i, t));
+                }
+            } else if let Some((k, _)) = run.take() {
+                out.push(k);
+            }
+        }
+        out.extend(run.map(|(k, _)| k));
+        out
+    };
+    let (cl, cr) = (corners(l), corners(r));
+    let mut pairs: Vec<(usize, usize)> = Vec::new();
+    for &i in &cl {
+        let Some(&j) = cr
+            .iter()
+            .filter(|&&j| (l[i].0 - r[j].0).abs() < width)
+            .min_by(|&&a, &&b| (l[i].0 - r[a].0).abs().total_cmp(&(l[i].0 - r[b].0).abs()))
+        else {
+            continue;
+        };
+        if pairs.last().is_none_or(|&(pi, pj)| i > pi && j > pj) {
+            pairs.push((i, j));
+        }
+    }
+    pairs
 }
 
 /// A stroke bends when its centre line turns by more than this (degrees) at its median step,
@@ -2800,6 +2985,51 @@ mod tests {
         let contours = l.contours();
         let b = Rect::enclosing(contours.iter().flat_map(Contour::outline_points)).expect("box");
         (strokes(&contours).expect("strokes"), b)
+    }
+
+    /// e's bar turns up into its bowl with an outline corner on each side: the counter's
+    /// (10.0, 5.8 mm from the box's top-left in PE-DESIGN's stroke-satin-lower-e) and the
+    /// aperture's (12.9, 7.9). PE-DESIGN joins the two with one crossing (#1080); one such pair
+    /// is found, within 0.5 mm of each, and a straight stroke (l) has none.
+    #[test]
+    fn e_joins_the_corners_where_its_bar_turns_into_the_bowl() {
+        let pairs_of = |ch: &str| {
+            let spec = TextSpec::new(ch, DEFAULT_FONT, 20.0);
+            let l = layout(&spec, None).expect("layout");
+            let contours = l.contours();
+            let g = strokes(&contours).expect("strokes");
+            let b =
+                Rect::enclosing(contours.iter().flat_map(Contour::outline_points)).expect("box");
+            let cols = g.columns();
+            let merged = GlyphStrokes {
+                strokes: cols.iter().map(|c| g.column_stroke(c)).collect(),
+                junctions: g.junctions.clone(),
+            };
+            let mut out = Vec::new();
+            for ([l, r], st) in merged
+                .sides_along(&contours, Pairing::Progress)
+                .into_iter()
+                .zip(&merged.strokes)
+            {
+                if !bends(st) {
+                    continue;
+                }
+                let width = st.widths.iter().copied().fold(0.0, f64::max);
+                let (l, r) = (walk_order(&l), walk_order(&r));
+                for (i, j) in corner_pairs(&l, &r, width) {
+                    let at = |p: Vec2| v2(p.x - b.min_x, p.y - b.min_y);
+                    out.push((at(l[i].1), at(r[j].1)));
+                }
+            }
+            out
+        };
+        let e = pairs_of("e");
+        assert_eq!(e.len(), 1, "{e:?}");
+        let (a, c) = e[0];
+        let (aperture, counter) = if a.x > c.x { (a, c) } else { (c, a) };
+        assert!(aperture.distance(v2(129.0, 79.0)) < 5.0, "{aperture:?}");
+        assert!(counter.distance(v2(100.0, 58.0)) < 5.0, "{counter:?}");
+        assert!(pairs_of("l").is_empty());
     }
 
     fn count(g: &GlyphStrokes) -> (usize, usize, usize) {

@@ -155,6 +155,66 @@ fn sew_check_failures_are_errors() {
     assert_eq!(c["findings"][0]["severity"], json!("error"), "{c}");
 }
 
+/// #1036: a plain fill whose rows hide less than 40 % of the fabric (on the coverage curve
+/// measured on the T1 sew-outs) gets the `lowCoverage` note, without a fix: about 1.06 lines/mm
+/// hides 40 %, so 0.9 lines/mm is just under and 1.3 just over. A gradation (open on purpose) is
+/// not judged.
+#[test]
+fn a_fill_the_fabric_shows_through_gets_a_low_coverage_note() {
+    let check = |params: Value| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+        let id = run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 20, "y": 20, "width": 40, "height": 30, "fill": "Blue"}),
+        )["id"]
+            .as_u64()
+            .expect("id");
+        let mut p = params;
+        p["ids"] = json!([id]);
+        run(&mut s, "object.setRegion", p);
+        let c = run(&mut s, "design.check", json!({"rules": ["lowCoverage"]}));
+        (id, c.clone(), found(&c, "lowCoverage").cloned())
+    };
+    let (id, c, f) = check(json!({"density": 0.9, "underlay": false}));
+    let f = f.expect("0.9 lines/mm shows the fabric");
+    assert_eq!(f["ids"], json!([id]));
+    assert_eq!(
+        (f["severity"].as_str(), f["limit"].as_f64()),
+        (Some("info"), Some(40.0)),
+        "{f}"
+    );
+    assert!(f["value"].as_f64().is_some_and(|v| v < 40.0), "{f}");
+    assert!(
+        f["fix"].is_null(),
+        "no fix: the density is the user's choice: {f}"
+    );
+    assert!(
+        f["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("1.1 lines/mm")),
+        "{f}"
+    );
+    // A note: the design stays ready, with no warning.
+    assert_eq!(
+        (c["ready"].as_bool(), c["warnings"].as_u64()),
+        (Some(true), Some(0)),
+        "{c}"
+    );
+    assert!(
+        check(json!({"density": 1.3, "underlay": false}))
+            .2
+            .is_none()
+    );
+    assert!(
+        check(json!({"density": 0.5, "underlay": false, "gradationPattern": true}))
+            .2
+            .is_none(),
+        "a gradation is open on purpose"
+    );
+}
+
 /// #1036: small text is judged by its own font's smallest good size (fonts.list sizeRange), not
 /// one size for every font. The fix offers the Small Text font where the text is big enough
 /// for it, else the font's smallest size, and clears the finding.
