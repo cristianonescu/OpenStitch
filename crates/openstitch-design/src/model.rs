@@ -2962,7 +2962,7 @@ impl LineGap {
 impl LineSewing {
     /// A line of `kind` with the attributes PE-DESIGN 11.50 gives that type (measured from
     /// compat/reference/stitches/line-*-default.pes): run pitch 2.0 mm for running, triple
-    /// and E/V; zigzag 2.0 mm wide at 4.5 lines/mm with under sewing and half stitch; E/V
+    /// and E/V; motif Run pitch 5.0 mm; zigzag 2.0 mm wide at 4.5 lines/mm with under sewing and half stitch; E/V
     /// strokes 2.5 mm every 5.0 mm; stem 2.0 mm every 1.5 mm at 45°; candlewicking knots of
     /// 5.0 mm (Medium: 24 points) 1.0 mm apart; chain triangles of 4.0 mm sewn 5 times.
     pub fn new(kind: LineType, thread: Thread) -> Self {
@@ -2975,6 +2975,9 @@ impl LineSewing {
             pitch: match kind {
                 LineType::Running | LineType::Triple | LineType::Zigzag | LineType::Satin => 2.0,
                 LineType::Scribble => 1.0,
+                // PE-DESIGN's motif line Run pitch: 5.0, the 50 its tools write at PES 11
+                // body +82 (608-motif-5x8, #1130).
+                LineType::Motif => 5.0,
                 _ if stroke => 2.0,
                 _ => 2.5,
             },
