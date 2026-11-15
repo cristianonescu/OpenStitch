@@ -2216,7 +2216,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "pitch",
                     "mm",
-                    "Running/triple stitch length, run pitch; back stitch: forward stitch; scribble: zigzag point spacing; motif: the line's Run pitch, the runs between and along the motifs (default 2.5; PE-DESIGN's is 5.0, #1130), stored at PES 11 body +82. 1-10; outside it is refused",
+                    "Running/triple stitch length, run pitch; back stitch: forward stitch; scribble: zigzag point spacing; motif: the line's Run pitch, the runs between and along the motifs (default 5.0, PE-DESIGN's, #1130), stored at PES 11 body +82. 1-10; outside it is refused",
                 ),
                 opt(
                     "runTimes",

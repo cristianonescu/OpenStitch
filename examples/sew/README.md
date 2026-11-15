@@ -489,7 +489,7 @@ Every line sew type.
 
 #### Line sew types
 
-[`lines/line-sew-types.pes`](lines/line-sew-types.pes) · 100 × 100 mm hoop · 87 × 87.5 mm · 3,261 stitches · 9 trims · about 4.5 min
+[`lines/line-sew-types.pes`](lines/line-sew-types.pes) · 100 × 100 mm hoop · 86 × 87.5 mm · 3,443 stitches · 9 trims · about 4.8 min
 
 Top to bottom: running, triple, zigzag, motif (wave), stem, candlewick, E stitch, V stitch, chain.
 

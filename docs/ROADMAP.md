@@ -745,9 +745,13 @@ and Redwork lines in triple stitch whose retraced stretches are sewn once, so th
 one weight (#925, an option on `shape.autoRoute`, with B4), an idea for Future.
 
 From the competitor scan of 2026-11-14 (same document, Updates; filum, concepts only): nested
-groups with group rows that fold in the Sewing Order list, and saving designs and exports
-through a temporary file so a save that is cut off leaves the earlier file whole. Both are ideas
-for Future; their issues are #1092 and #1093.
+groups with group rows that fold in the Sewing Order list (#1092), an idea for Future, and
+saving designs and exports through a temporary file so a save that is cut off leaves the earlier
+file whole (#1093), which shipped in the alpha 15 work (#1097).
+
+From the competitor scan of 2026-11-15 (same document, Updates; filum, concepts only): a command
+and an editor action that convert a satin between its centre-line form and its two-sides form
+(a Manual Punch column), both ways, keeping the stitches (#1145), an idea for Future.
 
 Deferred: shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin

@@ -1047,10 +1047,10 @@
   "about": "Top to bottom: running, triple, zigzag, motif (wave), stem, candlewick, E stitch, V stitch, chain.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
-   87.0,
+   86.0,
    87.5
   ],
-  "stitches": 3261,
+  "stitches": 3443,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -1063,10 +1063,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 4.5,
+  "sewingMinutes": 4.8,
   "image": null,
   "preview": "previews/line-sew-types.png",
-  "sha256": "50094121fde783f9b44844ad18d3ddd994e4b9253c19e3d730660fd5816b2426",
+  "sha256": "ec227efe68420e44ef789bd98d9338694bea95015a697492445faa862425fe0e",
   "renderVersion": 3
  },
  "shapes/shape-tools.pes": {
