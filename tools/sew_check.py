@@ -401,10 +401,18 @@ def check(path, hoop):
     if density > MAX_DENSITY:
         problems.append(f"DENSE: {density:.1f} mm of thread per mm² around "
                         f"({dcell[0] * DENS_CELL_MM - min(xs):.0f}, {dcell[1] * DENS_CELL_MM - min(ys):.0f}) mm")
+    # In whole 0.1 mm units, as the file stores them and Check Design counts (#1135): in mm floats
+    # an exact 0.3 mm step (38.3 - 38.0) reads 0.29999... and counted as shorter than 0.3 mm.
     run = best = 0
     prev = None
+    tiny_units = TINY_MM * 10
+
+    def units(v):
+        return round(v * 10)
+
     for s in st:
-        if s[2] == "stitch" and prev is not None and math.hypot(s[0] - prev[0], s[1] - prev[1]) < TINY_MM:
+        if s[2] == "stitch" and prev is not None and math.hypot(
+                units(s[0]) - units(prev[0]), units(s[1]) - units(prev[1])) < tiny_units:
             run += 1
             best = max(best, run)
         else:
@@ -543,6 +551,13 @@ def self_test():
         got = crowding([s for s in st if s[2] == "stitch"])[0]
         if got != want:
             fails.append(f"crowding of {rel}: {got} pairs, Check Design counts {want}")
+    # Stitching in place, counted on the file (#1135): the two kit designs Check Design read as 9
+    # and 10 in a row before it counted on the 0.1 mm grid read 6 in their files, as it does now.
+    for rel in ("examples/sew/lettering/fonts-and-text.pes",
+                "examples/sew/image-tools/L-autopunch-storybook-pe-compatible.pes"):
+        run = check(root / rel, (260.0, 260.0))["tiny_run"]
+        if run != 6:
+            fails.append(f"{rel}: {run} stitches in place in a row, Check Design counts 6")
     # The quick bound never hides a crowded spot. A 0.24 mm grid (430 pairs at its fullest spot):
     # the bound says skip, and the full count agrees it is under the warning. A 0.2 mm grid just
     # over the warning (612): not skipped, the same count with the floor as without.

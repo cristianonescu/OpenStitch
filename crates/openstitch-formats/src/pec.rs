@@ -428,32 +428,9 @@ pub(crate) fn write_section(input: &StitchPattern, w: &mut ByteWriter) -> Result
     Ok(list)
 }
 
-/// `pattern` turned 90° clockwise as the machine sees it (x right, y down: (x, y) about the
-/// centre becomes (−y, x)), as PE-DESIGN 11.50 writes the machine stitches for a hoop with
-/// Rotate 90 Degrees (round 6: `hoops/s-130x180-rot90.pes` against `s-130x180.pes`).
-pub fn turned_for_hoop(pattern: &StitchPattern) -> StitchPattern {
-    let b = pattern.bounds();
-    let (cx, cy) = ((b.min_x + b.max_x) / 2.0, (b.min_y + b.max_y) / 2.0);
-    let mut out = pattern.clone();
-    for s in &mut out.stitches {
-        let (dx, dy) = (s.x - cx, s.y - cy);
-        s.x = cx - dy;
-        s.y = cy + dx;
-    }
-    // Turning about the centre can carry a design wider than it is tall left of or above the
-    // origin, outside the PEC frame the machine sews within (the ready-to-sew kit's storybook
-    // picture, 55 mm left of it in the turned 260 × 160 mm hoop): it is moved back onto the
-    // page by that much.
-    let t = out.bounds();
-    let (sx, sy) = ((-t.min_x).max(0.0), (-t.min_y).max(0.0));
-    if sx > 0.0 || sy > 0.0 {
-        for s in &mut out.stitches {
-            s.x += sx;
-            s.y += sy;
-        }
-    }
-    out
-}
+/// `pattern` turned for a hoop with Rotate 90 Degrees; in `openstitch_core` since #1135, so
+/// Check Design counts the same turn without this crate.
+pub use openstitch_core::turned_for_hoop;
 
 /// Maps each colour block's thread to a PEC chart index: the nearest of the 61 entries
 /// PE-DESIGN matches to (`pec_basic_chart`, equal-weight squared Euclidean, later entry on

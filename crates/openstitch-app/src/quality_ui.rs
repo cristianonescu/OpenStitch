@@ -55,8 +55,9 @@ pub fn open(app: &mut EditorApp, tab: Tab) {
     update(app);
 }
 
-/// What the status bar's indicator and the window show, for `ui.state` (#599): whether the
-/// design is ready to sew, its error, warning and note counts (#1034: notes, such as more
+/// What the status bar's indicator and the window show, for `ui.state` (#599): `ready` (no
+/// errors, as design.check's, #1135), the readiness level (#1036), its error, warning and note
+/// counts (#1034: notes, such as more
 /// colours than needles, are not problems) and first reason, which tab is open
 /// (`closed` when none) and the Review Sewing Order step the window is on.
 pub fn state_json(app: &EditorApp) -> Value {
@@ -67,7 +68,8 @@ pub fn state_json(app: &EditorApp) -> Value {
     );
     let route = app.quality.open && app.quality.tab == Tab::Route;
     json!({
-        "ready": errors + warnings == 0,
+        // As design.check's `ready`: no errors (#1135; no warnings either is `level`'s readyToSew).
+        "ready": errors == 0,
         "level": openstitch_engine::quality::readiness(errors as usize, warnings as usize),
         "errors": errors,
         "warnings": warnings,
