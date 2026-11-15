@@ -454,7 +454,8 @@ Line references are relative to `crates/`.
   how PE-DESIGN reads such a file is untested);
   stem, candlewick and chain lines by their codes (spec `pes-0110-line-types`, reference
   pending; the 22 owner line-* files read and rewritten byte for byte outside the documented
-  differences), their Start/End options at PE-DESIGN's defaults (open: the sewing end
+  differences), a candlewick's Density choice at +110 (0 Dense, 1 Medium, 2 Light: densities
+  16, 12 and 10, read and written since #1142, round 15's line-candlewick-*-square40), their Start/End options at PE-DESIGN's defaults (open: the sewing end
   PE-DESIGN stores for them, +84 and +86 on the line-*-startend-* files, and the field behind
   their sewn extent). Groups: the group's number is one more than its last
   member's archive number (a01, o-group-two-rects, group-partial); OpenStitch wrote the class's
