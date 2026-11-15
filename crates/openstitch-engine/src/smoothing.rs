@@ -26,11 +26,11 @@ fn punch_column(o: &DesignObject) -> Option<&RegionSewing> {
     same_outline(&o.contours[0], &own, SAME).then_some(r)
 }
 
-/// The skeleton satin `o` is, if its outline is the one its skeleton makes.
+/// The skeleton satin `o` is, if its outline is the one its skeleton makes (or made before
+/// its loops were cut, #1136).
 fn skeleton_satin(o: &DesignObject) -> Option<&Skeleton> {
     let sk = o.region.as_ref()?.skeleton.as_ref()?;
-    let own = skeleton::outline(sk)?;
-    (o.contours.len() == 1 && same_outline(&o.contours[0], &own, SAME)).then_some(sk)
+    (o.contours.len() == 1 && skeleton::is_outline_of(&o.contours[0], sk, SAME)).then_some(sk)
 }
 
 fn column_outline(lines: &[[Vec2; 2]], curved: bool) -> Contour {
