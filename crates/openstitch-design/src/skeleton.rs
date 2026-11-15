@@ -750,6 +750,16 @@ pub fn outline(s: &Skeleton) -> Option<Contour> {
     (pts.len() >= 3).then(|| Contour::new(pts, true))
 }
 
+/// Whether the stored contour `c` is `s`'s outline within `tolerance` (0.1 mm): the one
+/// [`outline`] draws, or the uncut one a column saved before #1136 keeps. Every place that tells
+/// a stored skeleton satin by its outline asks this, so none misses the older files.
+pub fn is_outline_of(c: &Contour, s: &Skeleton, tolerance: f64) -> bool {
+    [outline(s), uncut_outline(s)]
+        .iter()
+        .flatten()
+        .any(|own| crate::extend::same_outline(c, own, tolerance))
+}
+
 /// The outline as it was drawn before #1136, its sides uncut: a column saved then keeps this
 /// one, so it still reads as its skeleton's column. The same as [`outline`] without a loop.
 pub fn uncut_outline(s: &Skeleton) -> Option<Contour> {

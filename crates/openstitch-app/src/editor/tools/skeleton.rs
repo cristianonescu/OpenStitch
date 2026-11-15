@@ -105,21 +105,12 @@ fn width_from(points: &[Vec2], i: usize, p: Vec2) -> Option<f64> {
 /// Whether `o`'s outline is the column of its skeleton (made by the tool or by `reshape`), so
 /// an edit should reshape it too.
 /// A column saved before its loops were cut (#1136) keeps the uncut outline, and follows too.
+/// Points within 0.1 mm, as before.
 fn follows_column(o: &DesignObject, sk: &Skeleton) -> bool {
     let [c] = o.contours.as_slice() else {
         return false;
     };
-    [skeleton::outline(sk), skeleton::uncut_outline(sk)]
-        .iter()
-        .flatten()
-        .any(|column| {
-            column.points.len() == c.points.len()
-                && column
-                    .points
-                    .iter()
-                    .zip(&c.points)
-                    .all(|(a, b)| a.distance(*b) < 1.0)
-        })
+    skeleton::is_outline_of(c, sk, 1.0)
 }
 
 fn skeleton_params(sk: &Skeleton) -> (serde_json::Value, serde_json::Value) {

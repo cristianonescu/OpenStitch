@@ -1,7 +1,7 @@
 //! Manual Punch shapes and several direction lines.
 
 use openstitch_core::Command;
-use openstitch_design::{Compiler, RegionType, v2};
+use openstitch_design::{Compiler, RegionType, skeleton, v2};
 use openstitch_engine::{Session, project};
 use serde_json::{Value, json};
 
@@ -402,4 +402,64 @@ fn deriving_a_skeleton_fails_cleanly() {
         );
         assert_eq!(s.design(), &before, "{params}");
     }
+}
+
+/// Gives skeleton satin `id` the uncut outline a file saved before #1136 keeps.
+fn saved_before_1136(s: &mut Session, id: u64) {
+    let mut d = s.design().clone();
+    let i = d.index_of(id).expect("object");
+    let sk = d.objects[i]
+        .region
+        .as_ref()
+        .and_then(|r| r.skeleton.clone())
+        .expect("skeleton");
+    let uncut = skeleton::uncut_outline(&sk).expect("outline");
+    assert_ne!(
+        uncut.points,
+        skeleton::outline(&sk).expect("outline").points,
+        "the bend folds the uncut outline"
+    );
+    d.objects[i].contours = vec![uncut];
+    assert!(s.adopt_design(d));
+}
+
+fn self_crossings(s: &mut Session) -> usize {
+    let c = run(s, "design.check", json!({}));
+    c["findings"]
+        .as_array()
+        .expect("findings")
+        .iter()
+        .filter(|f| f["rule"] == "selfCrossing")
+        .count()
+}
+
+/// A skeleton satin saved before #1136 keeps its folded outline, and Check Design its
+/// selfCrossing, until the skeleton is set again with `reshape` (what the Satin Skeleton tool
+/// sends when a width handle is dragged): the outline is rebuilt, cut.
+#[test]
+fn a_skeleton_satin_saved_before_1136_is_refreshed_by_reshaping() {
+    let mut s = Session::new(std::env::temp_dir());
+    let k = run(
+        &mut s,
+        "shape.skeletonSatin",
+        json!({ "points": [[12.5, 83], [20, 70], [27.5, 83]], "width": 3 }),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    assert_eq!(self_crossings(&mut s), 0);
+    saved_before_1136(&mut s, k);
+    assert_eq!(self_crossings(&mut s), 1);
+    run(
+        &mut s,
+        "object.setSkeleton",
+        json!({ "id": k, "points": [[12.5, 83], [20, 70], [27.5, 83]], "width": 3, "reshape": true }),
+    );
+    assert_eq!(self_crossings(&mut s), 0);
+    let o = &s.design().objects[s.design().index_of(k).expect("object")];
+    let sk = o
+        .region
+        .as_ref()
+        .and_then(|r| r.skeleton.as_ref())
+        .expect("skeleton");
+    assert_eq!(o.contours, vec![skeleton::outline(sk).expect("outline")]);
 }

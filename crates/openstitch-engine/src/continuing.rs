@@ -34,11 +34,7 @@ fn skeleton_satin(o: &DesignObject) -> Option<&Skeleton> {
     let [c] = o.contours.as_slice() else {
         return None;
     };
-    [skeleton::outline(sk), skeleton::uncut_outline(sk)]
-        .iter()
-        .flatten()
-        .any(|own| same_outline(c, own, SAME))
-        .then_some(sk)
+    skeleton::is_outline_of(c, sk, SAME).then_some(sk)
 }
 
 fn column_outline(lines: &[[Vec2; 2]], curved: bool) -> Contour {
