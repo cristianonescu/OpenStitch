@@ -483,7 +483,9 @@ fn commands_documented_and_unique() {
 /// one-step tie-in on its 100 x 100 Hoop Size page started on a stitch in place (#1013, 2 more), and
 /// on 2026-11-15 when a fill's under sewing started on its edge run and followed PE-DESIGN's path
 /// (#1088; 5902 → 5959 stitches: only the ellipse's under sewing changes, from the first record to
-/// its step out to the entry, and the last 5237 records are identical). The same design
+/// its step out to the entry, and the last 5237 records are identical), and again that day when
+/// the under sewing's rows took PE-DESIGN's needle grid and short row ends (#1132; 5959 → 5971:
+/// the first 152 and the last 5259 records are identical, only the ellipse's rows change). The same design
 /// exported as `1t`
 /// must keep writing the identical bytes; the
 /// script's default export is now version 6 with objects and sews the same stitches.
