@@ -15,9 +15,40 @@ The coordinators (Mac: image digitizing, the AI assistant, the kit and calibrati
 tooling, tests; Windows: the stitch engine, formats, lettering and the release gate) refresh
 this file at each day's close-out.
 
-Updated 2026-11-14: alpha.13 and alpha.14 have shipped their plans (summaries below). The open
-work is the Future milestone. The sections after the summaries are the 2026-11-04 round, kept
-for history.
+Updated 2026-11-16: alpha.13, alpha.14 and alpha.15 have shipped their plans (summaries below).
+Development pauses after alpha.15 by the owner's decision. The open work is the Future
+milestone. The sections after the summaries are the 2026-11-04 round, kept for history.
+
+## Shipped in alpha.15 (2026-11-16)
+
+41 pull requests merged after `v0.1.0-alpha.14`, on 2026-11-14 and 2026-11-15. By area:
+
+- **Stitches as PE-DESIGN 11.50 sews them:** a fill's under sewing path and needle points
+  (#1088 in part, #1132), the radial fill (#1050), the plain net's start and default Spacing
+  (#1071 in part, #1110), the zigzag net's Spacing and rungs (#1109, #1058), the programmable
+  fill's default density (#1102), motif lines (#1068, #1123, #1130), start and end points of
+  closed straight-line and imported SVG shapes (#1103, #1088), satin e (#1080), Text Transform
+  (#1079, #1151, #1157), section starts that tie in (#1076), satin corners (#1040, #1048) and
+  the skeleton satin's outline (#1136).
+- **Formats:** PES 0110 keeps a motif line's Run pitch and Start/End Type (#1068), a
+  candlewick's Density choice (#1142), a zigzag net's Spacing and Density (#1109, #1122) and a
+  closed line's start (#1139); `.osd` version 6; safe saving (#1093).
+- **Editor:** inspector ranges that hold every stored value (#1109, #1124), the Realistic
+  view's freeze on piled-up rows (#1084), controls without effect removed (#1039, #1041).
+- **Checks and tests:** Check Design's readiness level, crowded needle points, low coverage
+  and small text per font (#1036), stitches in place counted on the file's grid (#1135), the
+  settings test over each whole range (#1050, #1046), clean references (#1075).
+
+Parked, still open:
+
+- #1043 and #1071 (net fills: PE-DESIGN's travel along the outline and its stitch counts), on
+  the branch `fix/zigzag-net-outline-travel-1043`, not merged.
+- #1131 and #1088 (a fill's own row count on small squares).
+
+Development pauses after this release by the owner's decision. Nothing is planned for a next
+alpha; the open issues stay in the Future milestone.
+
+What shipped, by area: [releases/v0.1.0-alpha.15.md](releases/v0.1.0-alpha.15.md).
 
 ## Shipped in alpha.14 (2026-11-14)
 
