@@ -1070,6 +1070,15 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
     let mut dense: HashMap<(i64, i64), f64> = HashMap::new();
     let lim = &*LIMITS;
     let mut run = (0usize, 0usize, 0usize);
+    // A hoop turned 90° (#1135): the PES holds the stitches turned about the design's centre,
+    // which can fall between grid points, so the run in place is counted on them as written.
+    let turned = d
+        .machine
+        .rotate90
+        .then(|| openstitch_formats::pec::turned_for_hoop(&t.pattern));
+    let filed_st = turned
+        .as_ref()
+        .map_or(st.as_slice(), |p| p.stitches.as_slice());
     // Short stitches (#866): stitch-to-stitch moves, and the short ones by object.
     let (mut moves, mut short) = (0usize, HashMap::<Option<u64>, usize>::new());
     for (i, s) in st.iter().enumerate() {
@@ -1102,7 +1111,7 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
             )
         };
         let filed = i.checked_sub(1).map_or(0.0, |j| {
-            let (a, b) = (grid(&st[j]), grid(s));
+            let (a, b) = (grid(&filed_st[j]), grid(&filed_st[i]));
             ((a.0 - b.0) as f64).hypot((a.1 - b.1) as f64)
         });
         if i > 0 && filed < lim.in_place_mm * MM {

@@ -191,23 +191,43 @@ fn stitching_in_place_reads_the_same_on_the_design_and_its_file() {
         }
         best
     };
+    // The run Check Design reports (only over its limit of 6) and the run in the exported file.
+    let both = |rel: &str, turned: bool| {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 400, "height": 400}));
+        if turned {
+            run(
+                &mut s,
+                "machine.set",
+                json!({"hoop": "160x260", "rotate90": true}),
+            );
+        }
+        let path = root.join(rel).display().to_string();
+        run(&mut s, "import.pes", json!({"path": path}));
+        let c = run(&mut s, "design.check", json!({"rules": ["inPlace"]}));
+        let flagged = found(&c, "inPlace").map(|f| f["value"].as_f64().expect("value"));
+        run(&mut s, "design.export", json!({"path": "x.pes"}));
+        let back = FileType::Pes
+            .read(&std::fs::read(dir.join("x.pes")).expect("x.pes"))
+            .expect("pes");
+        (flagged, longest(&back.stitches))
+    };
     for (rel, want) in [
         ("text/text-transform-19-openstitch-l100.pes", 7),
         ("text/text-transform-25-openstitch-l100.pes", 5),
         ("stitches/line-zigzag-miter-v-b2-m50.pes", 3),
     ] {
-        let mut s = Session::new(&dir);
-        run(&mut s, "design.new", json!({"width": 400, "height": 400}));
-        let path = root.join(rel).display().to_string();
-        run(&mut s, "import.pes", json!({"path": path}));
-        let c = run(&mut s, "design.check", json!({"rules": ["inPlace"]}));
-        let flagged = found(&c, "inPlace").map(|f| f["value"].as_f64().expect("value"));
-        assert_eq!(flagged, (want > 6).then_some(f64::from(want)), "{rel}: {c}");
-        run(&mut s, "design.export", json!({"path": "x.pes"}));
-        let back = FileType::Pes
-            .read(&std::fs::read(dir.join("x.pes")).expect("x.pes"))
-            .expect("pes");
-        assert_eq!(longest(&back.stitches), want as usize, "{rel}: the file");
+        let (flagged, file) = both(rel, false);
+        assert_eq!(file, want, "{rel}: the file");
+        assert_eq!(flagged, (want > 6).then_some(want as f64), "{rel}");
+        // A hoop turned 90°: the PES holds the stitches turned about the design's centre, on
+        // another grid, and Check Design counts them as written.
+        let (flagged, file) = both(rel, true);
+        assert_eq!(
+            flagged,
+            (file > 6).then_some(file as f64),
+            "{rel}, turned: file {file}"
+        );
     }
 }
 
