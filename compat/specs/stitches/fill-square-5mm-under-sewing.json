@@ -98,7 +98,7 @@
       "evidence": "the start on the inset edge run nearest the entry, the end at the entry on the outline",
       "reference": {
         "tolerance": {
-          "mm": 0.15
+          "mm": 0
         }
       }
     },
