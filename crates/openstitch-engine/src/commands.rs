@@ -95,7 +95,7 @@ static SPACING_SUMMARY: std::sync::LazyLock<String> = std::sync::LazyLock::new(|
         })
         .collect();
     format!(
-        "Cross size, stippling / net / flexible spiral spacing, motif gaps; a netFill's is the line pitch, a zigzagNetFill's the gap between bands (its lines patternWidth + spacing apart, as PE-DESIGN's, #1109), PE-DESIGN's range 2.0-10 (a gap outside it is stored and sewn as given, the inspector shows it unchanged, and a PES 0110 save writes it as stored, untested in PE-DESIGN); 0-20 (0.5 minimum except motif fill). Left out, the type's default in mm: {}",
+        "Cross size, stippling / net / flexible spiral spacing, motif gaps; a netFill's is the line pitch, a zigzagNetFill's the gap between bands (its lines patternWidth + spacing apart, as PE-DESIGN's, #1109), PE-DESIGN's range 2.0-10 (a gap outside it is stored and sewn as given, the inspector shows it unchanged, and a PES 0110 save writes it as stored; PE-DESIGN 11.50 opened such a file (width 0.5, Spacing 1.0) without a message, kept both values, re-sewed the net at them (8,742 stitches against OpenStitch's 9,062) and wrote them back unchanged on a re-save (round 15)); 0-20 (0.5 minimum except motif fill). Left out, the type's default in mm: {}",
         defaults.join(", ")
     )
 });
@@ -1491,12 +1491,12 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "patternWidth",
                     "mm",
-                    "Pattern width; zigzag net: zigzag width, PE-DESIGN's range 1.0-10 (a width outside it, 0.5-50 here, is stored and sewn as given, the inspector shows it unchanged, and a PES 0110 save writes it as stored, untested in PE-DESIGN, #1109); meander fill: tile width (default 8), 0.5-50 (decorative fill 0.5-100)",
+                    "Pattern width; zigzag net: zigzag width, PE-DESIGN's range 1.0-10 (a width outside it, 0.5-50 here, is stored and sewn as given, the inspector shows it unchanged, and a PES 0110 save writes it as stored; PE-DESIGN 11.50 opened such a file (width 0.5, Spacing 1.0) without a message, kept both values, re-sewed the net at them (8,742 stitches against OpenStitch's 9,062) and wrote them back unchanged on a re-save (round 15), #1109); meander fill: tile width (default 8), 0.5-50 (decorative fill 0.5-500: PE-DESIGN's range is 10-500, below 10 is OpenStitch's own, #1124)",
                 ),
                 opt(
                     "patternHeight",
                     "mm",
-                    "Pattern height; meander fill: tile height, the distance between its rows (default 8), 0.5-50 (decorative fill 0.5-100)",
+                    "Pattern height; meander fill: tile height, the distance between its rows (default 8), 0.5-50 (decorative fill 0.5-500: PE-DESIGN's range is 10-500, below 10 is OpenStitch's own, #1124)",
                 ),
                 opt("spacing", "mm", SPACING_SUMMARY.as_str()),
                 opt(
@@ -1972,9 +1972,10 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         }
                         r.pattern = Some(id);
                     }
-                    // PE-DESIGN 11.50's Decorative Fill defaults to a 100 mm tile.
+                    // PE-DESIGN 11.50's Decorative Fill defaults to a 100 mm tile and takes
+                    // 10.0-500.0 mm (round 15, #1124).
                     let max_size = if r.kind == RegionType::DecorativeFill {
-                        100.0
+                        500.0
                     } else {
                         50.0
                     };
@@ -2225,12 +2226,12 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "width",
                     "mm",
-                    "Zigzag, motif, stem width; candlewick, chain size; E/V stroke, 0.5-10",
+                    "Zigzag, motif, stem width; candlewick, chain size; E/V stroke, 0.5-10 (candlewick 3-10, PE-DESIGN's Size range)",
                 ),
                 opt(
                     "density",
                     "stitches/mm",
-                    "Zigzag density (lines/mm: along an open line; on a closed outline along its outer edge, as PE-DESIGN, so a 40 mm square at 2 mm sews 4.5 x 42 / 40 along its sides); candlewick spokes ÷ 2, 0.1-14",
+                    "Zigzag density (lines/mm: along an open line; on a closed outline along its outer edge, as PE-DESIGN, so a 40 mm square at 2 mm sews 4.5 x 42 / 40 along its sides); candlewick: the knot's points ÷ 2, PE-DESIGN's Density choices Light 10, Medium 12 (the default) and Dense 16 (knots of 20, 24 and 32 points, round 15). 0.1-14 (candlewick 0.1-16)",
                 ),
                 opt(
                     "motif",
@@ -2245,7 +2246,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "spacing",
                     "mm",
-                    "Gap between motifs (0-20), stem stitches, knots, E/V strokes (0.5-20)",
+                    "Gap between motifs (0-20), stem stitches, knots (candlewick 0-100, PE-DESIGN's Spacing range), E/V strokes (0.5-20)",
                 ),
                 opt(
                     "angle",
@@ -2425,9 +2426,14 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         1,
                         max_times.into(),
                     )? as u32;
-                    l.width = p.opt("width", l.width, 0.5, 10.0)?;
-                    // PE-DESIGN's zigzag density runs from 0.1 to 14 lines/mm.
-                    l.density = p.opt("density", l.density, 0.1, 14.0)?;
+                    // PE-DESIGN's candlewick Size runs from 3.0 to 10.0 mm (round 15, #1124).
+                    let candlewick = l.kind == LineType::Candlewick;
+                    let min_width = if candlewick { 3.0 } else { 0.5 };
+                    l.width = p.opt("width", l.width, min_width, 10.0)?;
+                    // PE-DESIGN's zigzag density runs from 0.1 to 14 lines/mm; a candlewick's
+                    // Dense knot is density 16 (32 points, round 15, #1124).
+                    let max_density = if candlewick { 16.0 } else { 14.0 };
+                    l.density = p.opt("density", l.density, 0.1, max_density)?;
                     if motif.is_some() {
                         l.motif.clone_from(&motif);
                     }
@@ -2435,8 +2441,13 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         l.height = Some(p.req("height", 0.5, 20.0)?);
                     }
                     if p.has("spacing") {
-                        let lo = if l.kind == LineType::Motif { 0.0 } else { 0.5 };
-                        l.spacing = Some(p.req("spacing", lo, 20.0)?);
+                        // PE-DESIGN's candlewick Spacing runs from 0.0 to 100.0 mm (round 15).
+                        let (lo, hi) = match l.kind {
+                            LineType::Motif => (0.0, 20.0),
+                            LineType::Candlewick => (0.0, 100.0),
+                            _ => (0.5, 20.0),
+                        };
+                        l.spacing = Some(p.req("spacing", lo, hi)?);
                     }
                     if p.has("angle") {
                         l.angle = Some(p.req("angle", 45.0, 135.0)?);

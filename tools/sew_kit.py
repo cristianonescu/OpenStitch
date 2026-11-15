@@ -450,7 +450,8 @@ LINE_TYPES = [
     {"type": "zigzag", "width": 2},
     {"type": "motif", "motif": "wave", "height": 4},
     {"type": "stem", "width": 2},
-    {"type": "candlewick", "width": 2},
+    # PE-DESIGN 11.50's candlewick Size starts at 3.0 mm (round 15, #1124).
+    {"type": "candlewick", "width": 3},
     {"type": "eStitch", "width": 3},
     {"type": "vStitch", "width": 3},
     {"type": "chain", "width": 2},

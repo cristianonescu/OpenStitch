@@ -157,7 +157,10 @@ fn build(s: &mut EngineState, p: &Params, replaces: Option<u64>) -> CommandResul
     let stages: Vec<DesignObject> = (0..layers)
         .map(|k| {
             let mut r = RegionSewing::new(RegionType::Fill, colour.clone());
-            r.angle = angle + 90.0 * k as f64;
+            // The second layer crosses the first; kept within the -360..360 that the command
+            // and the inspector accept (450 is stored as 90, the same direction, #1124).
+            let a = angle + 90.0 * k as f64;
+            r.angle = if a > 360.0 { a - 360.0 } else { a };
             r.density = 1.0 / spacing;
             r.stitch_length = stitch;
             r.underlay = false;

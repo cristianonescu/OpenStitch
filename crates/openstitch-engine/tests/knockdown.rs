@@ -146,3 +146,25 @@ fn knockdown_keeps_large_holes() {
     );
     assert_eq!(r["contours"], 1);
 }
+
+/// #1124: the second layer crosses the first within the -360..360 that the command and the
+/// inspector accept: at 300 degrees it is stored as 30 (390 less a turn), the same direction.
+#[test]
+fn a_second_layer_past_a_turn_is_stored_within_one() {
+    let tmp = TempDir::new("knockdown-turn");
+    let mut s = Session::new(tmp.path());
+    let a = rect(&mut s, 20.0, 20.0, 20.0, 20.0, "#ff0000");
+    for (angle, second) in [(300.0, 30.0), (270.0, 360.0), (-300.0, -210.0)] {
+        run(
+            &mut s,
+            "wizard.knockdown",
+            json!({"ids": [a], "layers": 2, "angle": angle}),
+        );
+        let angles: Vec<f64> = s.design().objects[..2]
+            .iter()
+            .map(|o| o.region.as_ref().expect("present").angle)
+            .collect();
+        assert_eq!(angles, vec![angle, second], "at {angle}");
+        run(&mut s, "history.undo", json!({}));
+    }
+}
