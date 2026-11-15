@@ -549,7 +549,8 @@ def self_test():
     for spacing, n, want, skipped in [(0.24, 20, 430, True), (0.2, 18, 612, False)]:
         grid = [(x * spacing, y * spacing, "stitch", 0) for x in range(n) for y in range(n)]
         full, bound = crowding(grid), crowd_bound(grid)
-        if full[0] != want or bound < full[0] or (bound <= MAX_CROWD_WARN) != skipped                 or crowding(grid, floor=MAX_CROWD_WARN) != ((0, 0) if skipped else full):
+        if (full[0] != want or bound < full[0] or (bound <= MAX_CROWD_WARN) != skipped
+                or crowding(grid, floor=MAX_CROWD_WARN) != ((0, 0) if skipped else full)):
             fails.append(f"a {spacing} mm grid: {full} by the full count, bound {bound}")
     for f in fails:
         print("FAIL", f)

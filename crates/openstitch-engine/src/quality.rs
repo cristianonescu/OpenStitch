@@ -426,6 +426,9 @@ fn fill_coverage(o: &DesignObject, st: &[openstitch_core::Stitch]) -> Option<f64
 /// pairs of them closer than `closer_mm`; the spot with the most pairs.
 pub struct Crowd {
     pub pairs: usize,
+    /// The spot's distinct needle points. Informational: where two spots have the same pairs,
+    /// the one with more points is kept, and a run with a floor may meet them in another order
+    /// than a full run, so only `pairs` is asserted to agree.
     pub points: usize,
     /// The spot's centre, design units.
     pub centre: Vec2,
@@ -1737,7 +1740,7 @@ pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "design.check",
-            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, lowCoverage (a note: a plain fill, not a gradation, hiding under 40 % of the fabric on the coverage curve measured on sew-outs; no fix: raise its density if the open look is not wanted), textTooSmall (text below its own font's smallest good size, fonts.list sizeRange.minMm, else 4 mm; the fix switches to the Small Text font where the text is big enough for it, else sets that size), tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors. Run it before reporting a design done",
+            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, lowCoverage (a note: a plain fill, not a gradation, hiding under 40 % of the fabric on the coverage curve measured on sew-outs; no fix: raise its density if the open look is not wanted), textTooSmall (text below its own font's smallest good size, fonts.list sizeRange.minMm, else 4 mm; the fix switches to the Small Text font where the text is big enough for it, else sets that size), tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, crowdedNeedles (the most crowded spot: a warning over 600 pairs of needle points under 0.25 mm within 3 mm of one spot, beyond what PE-DESIGN's own files sew, and an error over 1,200; no sew-out evidence yet of what it does to the fabric; no fix; names the objects whose needle points are there), untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors. Run it before reporting a design done",
             Effect::Read,
             vec![
                 opt(
@@ -1846,6 +1849,36 @@ pub(crate) fn errors(d: &Design) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::Session;
+
+    /// #1036: design.check's description (what command_describe gives) names every rule the check
+    /// can emit, read from this file's own `rule: "…"` literals, so a new rule cannot be left out.
+    #[test]
+    fn the_check_description_names_every_rule() {
+        let source = include_str!("quality.rs");
+        let rules: BTreeSet<&str> = source
+            .split("rule: \"")
+            .skip(1)
+            .filter_map(|s| s.split('"').next())
+            .filter(|r| !r.is_empty() && r.chars().all(|c| c.is_ascii_alphanumeric()))
+            .collect();
+        assert!(
+            rules.contains("crowdedNeedles") && rules.contains("lowCoverage"),
+            "{rules:?}"
+        );
+        let spec = commands()
+            .into_iter()
+            .find(|c| c.id == "design.check")
+            .expect("design.check");
+        let words: BTreeSet<&str> = spec
+            .summary
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .collect();
+        let missing: Vec<&&str> = rules.iter().filter(|r| !words.contains(**r)).collect();
+        assert!(
+            missing.is_empty(),
+            "design.check's description leaves out {missing:?}"
+        );
+    }
 
     /// The coverage of one fill rectangle `w` × `h` mm at `density` lines/mm, underlay off.
     fn covered(w: f64, h: f64, density: f64) -> f64 {
