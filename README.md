@@ -116,7 +116,7 @@ on macOS and Windows (12/12 there too); on Linux, CI runs its tests and the keyc
 
 ## Status at a glance
 
-Current release: **v0.1.0-alpha.12** ([notes](docs/releases/v0.1.0-alpha.12.md)).
+Current release: **v0.1.0-alpha.15** ([notes](docs/releases/v0.1.0-alpha.15.md)).
 
 OpenStitch is checked against PE-DESIGN 11.50 itself. Simple test designs made in a licensed copy
 through its normal interface are committed under `compat/reference/`. The compatibility harness
@@ -125,11 +125,11 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 330: 281 implemented (4 of them partially compatible), 0 documented only, 9 blocked, 15 partial beyond PE-DESIGN, 25 planned beyond PE-DESIGN |
-| Compatibility specs | 505: 504 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
-| Matrix rows covered by specs | 41: 31 at the reference tier, 7 at the internal-regression tier, 2 at the oracle tier, 1 at the reference (partly) tier |
+| Feature matrix rows | 332: 282 implemented (4 of them partially compatible), 0 documented only, 9 blocked, 15 partial beyond PE-DESIGN, 26 planned beyond PE-DESIGN |
+| Compatibility specs | 524: 524 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
+| Matrix rows covered by specs | 42: 33 at the reference tier, 7 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 9 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 74 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 73 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -545,7 +545,8 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - **Printing:** actual size (tiled), reduced size, positioning sheets and Print and Stitch, as PDF
   or to the system printer.
 - (+) **Check Design:** finds long stitches, too-wide satins, tiny objects, stitches outside the
-  hoop and more, with one-click fixes ([#503]).
+  hoop and more, with one-click fixes ([#503]), and gives a readiness level: ready to sew,
+  sewable with small risks, or fix this first ([#1036]).
 - (+) **Density map:** where the design is too dense for the chosen fabric ([#504]).
 - (+) **Review Sewing Order:** every move, trim and colour change in order, with warnings ([#505]).
 - (+) **Basting box or outline** sewn first to hold the fabric ([#509]).
@@ -789,6 +790,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#547]: https://github.com/cristianonescu/OpenStitch/issues/547
 [#548]: https://github.com/cristianonescu/OpenStitch/issues/548
 [#549]: https://github.com/cristianonescu/OpenStitch/issues/549
+[#1036]: https://github.com/cristianonescu/OpenStitch/issues/1036
 [#1093]: https://github.com/cristianonescu/OpenStitch/issues/1093
 [#550]: https://github.com/cristianonescu/OpenStitch/issues/550
 [#551]: https://github.com/cristianonescu/OpenStitch/issues/551
@@ -896,23 +898,19 @@ Bugs reported on GitHub:
 - [#941](https://github.com/cristianonescu/OpenStitch/issues/941) Satin W at 8 mm sews 4.5 % more needle points than PE-DESIGN
 - [#991](https://github.com/cristianonescu/OpenStitch/issues/991) Cross Stitch PE-compatible: PE-DESIGN's threads for the pixel strawberry's dark outline and light green, its part-covered edge cells, and its grid phase at 3.6 mm
 - [#1028](https://github.com/cristianonescu/OpenStitch/issues/1028) Short stitches by stitch kind: compare Auto Punch and Cross Stitch kit designs with PE-DESIGN's own output of the same images
-- [#1039](https://github.com/cristianonescu/OpenStitch/issues/1039) Sewing setting without effect: gradation steps change nothing (fill and satin regions)
-- [#1040](https://github.com/cristianonescu/OpenStitch/issues/1040) Auto-direction satin: Mitre and Cap corners sew the same
-- [#1041](https://github.com/cristianonescu/OpenStitch/issues/1041) Sewing setting without effect: satin region: "edge fill" under sewing sews as "edge zigzag"
 - [#1043](https://github.com/cristianonescu/OpenStitch/issues/1043) Zigzag net: travel along the outline as PE-DESIGN's (Direction now turns the net; 40 x 20 mm nets still 6 % short)
-- [#1046](https://github.com/cristianonescu/OpenStitch/issues/1046) Sewing setting without effect: running line: thickness profiles linear, smoothstep and stairs sew the same
-- [#1048](https://github.com/cristianonescu/OpenStitch/issues/1048) Sewing setting without effect: satin line: Mitre and Cap corners sew the same; Cap below and Cap max length change nothing
-- [#1050](https://github.com/cristianonescu/OpenStitch/issues/1050) Sewing settings that stop changing the stitches above a low value (radial density, motif and V-stitch pitch, maze straightness and others)
-- [#1058](https://github.com/cristianonescu/OpenStitch/issues/1058) Zigzag net: a rung crosses the next on circles whose polygon is turned (even at Direction 0)
 - [#1064](https://github.com/cristianonescu/OpenStitch/issues/1064) Satin text: M's and W's middle V sewn as one sideways block, as PE-DESIGN does
 - [#1065](https://github.com/cristianonescu/OpenStitch/issues/1065) Satin text: PE-DESIGN's row direction on slanted strokes (V, N, A, X, Z)
-- [#1068](https://github.com/cristianonescu/OpenStitch/issues/1068) Motif line sews 118 stitches where PE-DESIGN sews 75 for the same object
 - [#1071](https://github.com/cristianonescu/OpenStitch/issues/1071) Plain net fill: stitch counts and line origin against PE-DESIGN's round 13 captures
-- [#1076](https://github.com/cristianonescu/OpenStitch/issues/1076) Auto Punch: two section starts still untied after #1032 (a tie-in collapsed to one point; a jump landing 2.7 mm before the tie-in)
-- [#1079](https://github.com/cristianonescu/OpenStitch/issues/1079) Text Transform: p's descender satin ends 0.6 mm above PE-DESIGN's (text-transform-18-openstitch-l100)
-- [#1080](https://github.com/cristianonescu/OpenStitch/issues/1080) Satin e and A: the satin after the start sews 14 and 4 stitches more than PE-DESIGN
-- [#1084](https://github.com/cristianonescu/OpenStitch/issues/1084) Paste Attributes on a large selection freezes the editor for over 30 s (monkey seed 5000, step 292)
 - [#1088](https://github.com/cristianonescu/OpenStitch/issues/1088) Small fill squares: under sewing, start and end placement differ from PE-DESIGN's (machine-jumps / -trim-bound / -trim-fine 16-49 needle points short)
+- [#1125](https://github.com/cristianonescu/OpenStitch/issues/1125) PES 0110 import: region and line attribute fields stored unclamped
+- [#1131](https://github.com/cristianonescu/OpenStitch/issues/1131) Fill top layer: row count and row ends differ from PE-DESIGN (15 mm squares +12 to +15, the U -45 to -64)
+- [#1137](https://github.com/cristianonescu/OpenStitch/issues/1137) An Auto Punch fill region's traced contour crosses itself (storybook-openstitch object 754)
+- [#1144](https://github.com/cristianonescu/OpenStitch/issues/1144) Engraved region stamp: 28 needle points more than PE-DESIGN on a 14.5 mm circle (308 against 280)
+- [#1154](https://github.com/cristianonescu/OpenStitch/issues/1154) Satin on Closed Straight Line shapes sews more needle points than PE-DESIGN (U +26, 120 degree band +10)
+- [#1155](https://github.com/cristianonescu/OpenStitch/issues/1155) Candlewick: a 40 mm square imported from PE-DESIGN sews 29 knots where PE-DESIGN sews 28
+- [#1160](https://github.com/cristianonescu/OpenStitch/issues/1160) PES 0110: what a candlewick line's +48 and +50 hold (3.0 or 14.0 at +50, not the density)
+- [#1163](https://github.com/cristianonescu/OpenStitch/issues/1163) Zigzag net Density shows 2.25 /mm in the inspector where PE-DESIGN's dialog shows 4.5
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
@@ -973,7 +971,6 @@ Open enhancement issues:
 - [#883](https://github.com/cristianonescu/OpenStitch/issues/883) Design Database: favourites, a fits-my-hoop filter, column sorting, and ZIP archives with duplicate detection
 - [#884](https://github.com/cristianonescu/OpenStitch/issues/884) Mobile/Android app ideas
 - [#902](https://github.com/cristianonescu/OpenStitch/issues/902) Auto Punch: sew mosaic-like tiles with rows that follow each tile's outline (contour fill)
-- [#907](https://github.com/cristianonescu/OpenStitch/issues/907) Realistic view: moiré stripes in dense fills when zoomed out (supersample the thread layer)
 - [#925](https://github.com/cristianonescu/OpenStitch/issues/925) Redwork and routed lines in triple stitch: retraced stretches sewn once, for an even line weight
 - [#937](https://github.com/cristianonescu/OpenStitch/issues/937) Interface translation: a first real language
 - [#939](https://github.com/cristianonescu/OpenStitch/issues/939) Satin V, M, W: PE-DESIGN's sewing order at a run-on foot (the foot tip as a second pass)
@@ -983,9 +980,13 @@ Open enhancement issues:
 - [#994](https://github.com/cristianonescu/OpenStitch/issues/994) Cross Stitch, OpenStitch mode: follow a pixel-art image's own grid
 - [#1023](https://github.com/cristianonescu/OpenStitch/issues/1023) Kit previews: measure whether macOS draws the same pixels as Windows (a platform stamp only if not)
 - [#1024](https://github.com/cristianonescu/OpenStitch/issues/1024) PES 0110 export: the object kinds that each need a PE-DESIGN capture first (hole pairs, two patterns, tiles, several outlines, fonts and per-character text)
-- [#1036](https://github.com/cristianonescu/OpenStitch/issues/1036) Check Design: low coverage, per-font small text, one readiness score, and warn-or-block needle crowding
-- [#1075](https://github.com/cristianonescu/OpenStitch/issues/1075) Replace the withdrawn compat references with clean PE-DESIGN captures (programmable fill, shape start points, motif)
 - [#1082](https://github.com/cristianonescu/OpenStitch/issues/1082) Short moves into or out of a letter: does PE-DESIGN drop the lock and tie-in there? (capture needed)
+- [#1092](https://github.com/cristianonescu/OpenStitch/issues/1092) Nested groups: a group inside a group, with folding group rows in the Sewing Order list
+- [#1104](https://github.com/cristianonescu/OpenStitch/issues/1104) Gradation Pattern Setting: PE-DESIGN's nine sliders and Blend
+- [#1120](https://github.com/cristianonescu/OpenStitch/issues/1120) Check Design: judge a blend's, gradient's or tartan's colour layers together for lowCoverage
+- [#1127](https://github.com/cristianonescu/OpenStitch/issues/1127) Check Design on every edit runs on the editor's UI thread; move it to a worker
+- [#1141](https://github.com/cristianonescu/OpenStitch/issues/1141) Fill Direction: normalise to PE-DESIGN's 0 to 359 on input and import
+- [#1145](https://github.com/cristianonescu/OpenStitch/issues/1145) Convert a satin between its centre-line form and its two-sides form, both ways, keeping the stitches
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN
@@ -1005,7 +1006,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Rebuilt objects keep the original's sewing: object.toShapes blocks carry the measured satin spacing, stitch length and tatami pattern, and close satin rings (#818)
 - Routed and Redwork lines in triple stitch with an even weight: the stretches the route goes back over are sewn once instead of as a second full triple (#925; an option on shape.autoRoute, #546)
 - Fabric pull preview in Check Design: the estimated shift of each object on the chosen fabric, registrationGap and puckering findings, every finding tagged rule or estimate, and a calibration from one sewn and measured test bar (#865)
-- Check Design additions: low coverage, small text per font, and a readiness score from 0 to 100 (#1036; untied thread ends, sections under three stitches, short stitches and more colours than needles are in the Check Design row since #866)
 - USB transfer pre-flight: drive format, free space, top folder and item count, file-name rules and a short name for older machines, a machine connected by USB cable shown as such with its used space, a transfer history and Copy diagnostics (#867)
 - Machine list by model name: sewing area, hoops, format, thread cutter, needle count and transfer methods from the makers' documents, each marked tested or from the manual (#868)
 - Back up and restore all user settings and libraries in one file, without secrets (#869)
@@ -1020,6 +1020,8 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Font chooser: favourites, filters by kind and script, fonts lacking a typed character greyed out, licence shown, optional open-font catalogue (#882)
 - Design Database: favourites, a fits-my-hoop filter, column sorting, ZIP archives as folders and duplicate detection on import (#883)
 - Mobile and Android app ideas, kept as one list: touch editing, share-sheet intake, phone to machine over USB-OTG, voice input and more (#884)
+- Nested groups: a group kept as a member of another group instead of merged into it, ungroup taking off one level, and group rows that fold and unfold in the Sewing Order list (#1092; competitor scan 2026-11-14)
+- Convert a satin between its centre-line form (satin line or skeleton satin with width keys) and its two-sides form (Manual Punch column), both ways, as a command and an editor action, keeping the stitches (#1145; competitor scan 2026-11-15)
 <!-- /status:beyond-planned -->
 
 ## Download a build
