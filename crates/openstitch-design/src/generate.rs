@@ -850,7 +850,11 @@ const PE_END_GAP: f64 = 3.0;
 
 /// Where PE-DESIGN's needle grid starts (rotated space): the start of the first row, on the
 /// outline's extreme point across the rows (a square's corner, a pentagon's top vertex).
-fn grid_anchor(contours: &[Contour], p: &RegionParams, holes: &[Contour]) -> Option<f64> {
+pub(crate) fn grid_anchor(
+    contours: &[Contour],
+    p: &RegionParams,
+    holes: &[Contour],
+) -> Option<f64> {
     let b = crate::region::rotated_bounds(contours, p.angle)?;
     let y = b.min_y + 1e-3_f64.min(b.height() / 4.0);
     Some(
@@ -862,7 +866,7 @@ fn grid_anchor(contours: &[Contour], p: &RegionParams, holes: &[Contour]) -> Opt
 
 /// PE-DESIGN's needle grid inside `span` (its ends left out): every `l` from `phase`, without
 /// points closer than [`PE_END_GAP`] to an end.
-fn pe_grid(span: &Span, phase: f64, l: f64) -> Vec<f64> {
+pub(crate) fn pe_grid(span: &Span, phase: f64, l: f64) -> Vec<f64> {
     let (lo, hi) = (*span.start(), *span.end());
     let mut j = ((lo - phase) / l).floor();
     let mut xs = Vec::new();

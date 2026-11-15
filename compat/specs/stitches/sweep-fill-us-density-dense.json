@@ -98,10 +98,29 @@
       "source": {
         "export": "a.pes"
       },
-      "evidence": "PE-DESIGN's count (status bar); the reference file",
+      "evidence": "PE-DESIGN's count (status bar); the reference file. Within 7, the distance before #1088 moved the under sewing (#1132)",
       "reference": {
         "tolerance": {
-          "percent": 8
+          "count": 7
+        }
+      }
+    },
+    {
+      "id": "under-sewing-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes",
+        "exclude": {
+          "first": 0,
+          "last": 2021
+        }
+      },
+      "evidence": "The under sewing alone: the needle points before the top fill's last 2021, which are the same in both files (PE-DESIGN 399). OpenStitch sews one more, its first point before the tie-in, so the tolerance is 1 (#1132)",
+      "reference": {
+        "tolerance": {
+          "count": 1
         }
       }
     },
