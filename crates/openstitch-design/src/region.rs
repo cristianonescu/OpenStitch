@@ -1111,8 +1111,29 @@ fn fill_underlay(
     let rows = if parts.zigzag {
         let l = p.stitch_length;
         let spans = inset_row_spans(&inset, &p);
+        // The rows' needle grid is placed as the top fill's (generate::grid_anchor), seen across
+        // the rows the other way (angle − 90°): row k, counted from that side's outermost row
+        // (the edge run's), has its grid (k + 1) shifts from the outline's first row start, and
+        // only points closer than 0.3 mm to a row's end are left out, so a row keeps PE-DESIGN's
+        // short end stitches (#1132: the sweep-fill-us-* rows at every density, 0.6 to 1.4 mm
+        // ends on a 38 mm row). In this frame that is −anchor, −(k + 1) shifts.
+        let back = RegionParams {
+            angle: p.angle - 180.0,
+            ..p
+        };
+        let grid = generate::grid_anchor(closed, &back, holes).map(|a| -a);
+        let last = spans.iter().map(|s| s.row).max().unwrap_or(0);
         let tatami = |span: &Span, row: usize, forward: bool| {
-            let mut xs = tatami_points(span, row, l, Stagger::Regular(FILL_UNDERLAY_SHIFT));
+            let k = last - row;
+            let mut xs = match (grid, Stagger::Regular(FILL_UNDERLAY_SHIFT).anchored(k)) {
+                (Some(a), Some(f)) => {
+                    let mut xs = vec![*span.start()];
+                    xs.extend(generate::pe_grid(span, a - f * l, l));
+                    xs.push(*span.end());
+                    xs
+                }
+                _ => tatami_points(span, row, l, Stagger::Regular(FILL_UNDERLAY_SHIFT)),
+            };
             if !forward {
                 xs.reverse();
             }
