@@ -503,7 +503,7 @@ The shape tools and decorative frames.
 
 #### Shape tools
 
-[`shapes/shape-tools.pes`](shapes/shape-tools.pes) · 100 × 100 mm hoop · 84.5 × 84 mm · 4,564 stitches · 10 trims · about 6.2 min
+[`shapes/shape-tools.pes`](shapes/shape-tools.pes) · 100 × 100 mm hoop · 84.5 × 84 mm · 4,550 stitches · 10 trims · about 6.2 min
 
 Preset star, heart, crescent, arrow, teardrop and hexagon; then a skeleton satin of changing width, a curved Manual Punch column, and a floral pattern inside a circle.
 

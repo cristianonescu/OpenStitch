@@ -1025,7 +1025,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                 req(
                     "path",
                     "string",
-                    "SVG file (relative to the session directory)",
+                    "SVG file (relative to the session directory); a closed path's fill starts and ends at the path's first point, as PE-DESIGN's SVG import (a <rect> at its top-left corner)",
                 ),
                 opt(
                     "width",
@@ -1085,7 +1085,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                         names::prepare(import.shapes, &names::names_by_id(&data), &mut named);
                     let (shapes, sets): (Vec<SvgShape>, Vec<names::Settings>) =
                         prepared.into_iter().unzip();
-                    let mut out = import_shapes(s, p, shapes, "the SVG")?;
+                    let mut out = import_shapes(s, p, shapes, "the SVG", true)?;
                     let ids: Vec<u64> = out["ids"]
                         .as_array()
                         .into_iter()
@@ -1103,7 +1103,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                     });
                     out
                 } else {
-                    import_shapes(s, p, import.shapes, "the SVG")?
+                    import_shapes(s, p, import.shapes, "the SVG", true)?
                 };
                 out["skipped"] = report["skipped"].clone();
                 out["approximated"] = report["approximated"].clone();
@@ -1137,7 +1137,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                 let (_, data) = read_file(s, p, crate::metafile::MAX_METAFILE_BYTES)?;
                 let shapes =
                     crate::metafile::parse_metafile(&data).map_err(|e| p.failed(e.to_string()))?;
-                import_shapes(s, p, shapes, "the metafile")
+                import_shapes(s, p, shapes, "the metafile", false)
             },
         ),
     ];
@@ -1146,12 +1146,14 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
     v
 }
 
-/// Matches colours to the thread chart unless `exactColors`, then places the shapes.
+/// Matches colours to the thread chart unless `exactColors`, then places the shapes;
+/// `first_point_ends`: see [`place`].
 fn import_shapes(
     s: &mut EngineState,
     p: &Params,
     mut shapes: Vec<SvgShape>,
     what: &str,
+    first_point_ends: bool,
 ) -> crate::CommandResult {
     // PE-DESIGN 11.50 gives every imported fill and stroke the nearest BROTHER
     // EMBROIDERY chart thread (thread-match-swatches); `exactColors` keeps the RGB.
@@ -1168,10 +1170,20 @@ fn import_shapes(
     let Some(b) = bounds(&shapes) else {
         return Err(p.failed(format!("{what} has no visible filled or stroked shapes")));
     };
-    place(s, p, shapes, b)
+    place(s, p, shapes, b, first_point_ends)
 }
 
-fn place(s: &mut EngineState, p: &Params, shapes: Vec<SvgShape>, b: Rect) -> crate::CommandResult {
+/// Adds the shapes, scaled and moved into place. With `first_point_ends` a closed shape's fill
+/// starts and ends at its outline's first point, as PE-DESIGN 11.50 sews an imported SVG path (an
+/// SVG `<rect>` at its top-left corner: machine-jumps, machine-trim-bound/-fine, machine-rbgb
+/// and machine-rbr, #1088).
+fn place(
+    s: &mut EngineState,
+    p: &Params,
+    shapes: Vec<SvgShape>,
+    b: Rect,
+    first_point_ends: bool,
+) -> crate::CommandResult {
     let natural = b.width().max(1e-6);
     let width = p.opt("width", (natural / MM).clamp(0.1, 2000.0), 0.1, 2000.0)? * MM;
     let scale = width / natural;
@@ -1198,7 +1210,16 @@ fn place(s: &mut EngineState, p: &Params, shapes: Vec<SvgShape>, b: Rect) -> cra
             .stroke
             .or_else(|| (!closed).then(|| shape.fill.clone()).flatten())
             .map(|t| LineSewing::new(LineType::Running, t));
-        let contours = shape.contours.iter().map(|c| c.transformed(&t)).collect();
+        let contours: Vec<_> = shape.contours.iter().map(|c| c.transformed(&t)).collect();
+        let mut region = region;
+        if let (true, Some(r), Some(at)) = (
+            first_point_ends,
+            region.as_mut(),
+            contours.first().and_then(|c| c.points.first().copied()),
+        ) {
+            r.entry = Some(at);
+            r.exit = Some(at);
+        }
         let mut object = DesignObject::shape(contours, region, line);
         object.group = group;
         // A gradient imported as a blend (#532): one fill per stop, the stroke on the last.

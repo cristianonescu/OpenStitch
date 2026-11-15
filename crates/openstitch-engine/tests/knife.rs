@@ -2,7 +2,7 @@
 
 use openstitch_core::Command;
 use openstitch_design::boolean::{region_area, simplify};
-use openstitch_design::{Compiler, DesignObject, v2};
+use openstitch_design::{Compiler, DesignObject, skeleton, v2};
 use openstitch_engine::Session;
 use serde_json::{Value, json};
 
@@ -328,4 +328,54 @@ fn a_satin_skeleton_is_cut_across() {
         .skeleton
         .expect("skeleton");
     assert_eq!(sk.points.last(), Some(&v2(300.0, 100.0)));
+}
+
+/// Gives skeleton satin `id` the uncut outline a file saved before #1136 keeps.
+fn saved_before_1136(s: &mut Session, id: u64) {
+    let mut d = s.design().clone();
+    let i = d.index_of(id).expect("object");
+    let sk = d.objects[i]
+        .region
+        .as_ref()
+        .and_then(|r| r.skeleton.clone())
+        .expect("skeleton");
+    let uncut = skeleton::uncut_outline(&sk).expect("outline");
+    assert_ne!(
+        uncut.points,
+        skeleton::outline(&sk).expect("outline").points,
+        "the bend folds the uncut outline"
+    );
+    d.objects[i].contours = vec![uncut];
+    assert!(s.adopt_design(d));
+}
+
+#[test]
+fn a_satin_skeleton_saved_before_1136_is_cut_across_too() {
+    let mut s = session();
+    let k = id(&run(
+        &mut s,
+        "shape.skeletonSatin",
+        json!({ "points": [[12.5, 83], [20, 70], [27.5, 83]], "width": 3 }),
+    ));
+    saved_before_1136(&mut s, k);
+    // Across the left arm at its middle, (16.25, 76.5) mm.
+    let r = run(
+        &mut s,
+        "shape.knife",
+        json!({ "line": [[13.65, 75.0], [18.85, 78.0]] }),
+    );
+    assert_eq!(r["ids"].as_array().expect("ids").len(), 2);
+    let sk = object(&s, k)
+        .region
+        .clone()
+        .expect("region")
+        .skeleton
+        .expect("skeleton");
+    let end = *sk.points.last().expect("point");
+    assert!(end.distance(v2(162.5, 765.0)) < 1.0, "{end:?}");
+    // The piece's outline is its own skeleton's, cut.
+    assert_eq!(
+        object(&s, k).contours,
+        vec![skeleton::outline(&sk).expect("outline")]
+    );
 }

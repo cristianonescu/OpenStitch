@@ -2507,14 +2507,6 @@ fn fill_rungs(coarse: &[[Vec2; 2]], fine: &[[Vec2; 2]], pitch: f64, pull: f64) -
 /// 0.4 mm from its start (`text-defaults-fill`).
 const STROKE_FILL_MARGIN: f64 = 3.0;
 
-/// Fill rows of a letter's stroke as PE-DESIGN 11.50 sews them (`text-defaults-fill`, the round-5
-/// `stroke-fill-*` captures): the satin sawtooth of the block, a row across the stroke and a
-/// slanting row back, two crossings per two row spacings with no step along the edge, every
-/// crossing split on a grid of `stitch` (the Step pitch). The grid is measured from the rungs'
-/// first side and moves back by the Frequency from one crossing to the next: on the H's stems
-/// (3.8 mm, 4 mm steps, 30 %) the needle points of consecutive crossings lie 2.8, 1.6, 0.4, 3.2,
-/// 2.0 mm from the stem's right edge. A grid point within [`STROKE_FILL_MARGIN`] of a crossing's
-/// end is left out.
 /// Most needle points [`thin_squeezed`] steps over at once, so a squeezed stroke keeps a
 /// crossing at least every third rung.
 const SQUEEZED_SKIP: usize = 5;
@@ -2545,6 +2537,14 @@ fn thin_squeezed(saw: &[Vec2]) -> Run {
     out
 }
 
+/// Fill rows of a letter's stroke as PE-DESIGN 11.50 sews them (`text-defaults-fill`, the round-5
+/// `stroke-fill-*` captures): the satin sawtooth of the block, a row across the stroke and a
+/// slanting row back, two crossings per two row spacings with no step along the edge, every
+/// crossing split on a grid of `stitch` (the Step pitch). The grid is measured from the rungs'
+/// first side and moves back by the Frequency from one crossing to the next: on the H's stems
+/// (3.8 mm, 4 mm steps, 30 %) the needle points of consecutive crossings lie 2.8, 1.6, 0.4, 3.2,
+/// 2.0 mm from the stem's right edge. A grid point within [`STROKE_FILL_MARGIN`] of a crossing's
+/// end is left out.
 fn stroke_fill(sawtooth: &[Vec2], stitch: f64, stagger: generate::Stagger) -> Run {
     let mut run: Run = sawtooth.first().copied().into_iter().collect();
     for (k, w) in sawtooth.windows(2).enumerate() {

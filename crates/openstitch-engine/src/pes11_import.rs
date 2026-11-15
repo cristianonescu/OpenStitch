@@ -347,6 +347,13 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
             s.zigzag_width
         });
         l.density = f64::from(s.zigzag_density);
+        // A candlewick's knot is its Density choice (+110), not +50, which PE-DESIGN leaves at
+        // 3.0 whatever the choice (a 6-point knot read as density): Dense, Medium and Light are
+        // knots of 32, 24 and 20 points, densities 16, 12 and 10 (#1142). A value other than 0-2
+        // has not been seen; it is read as Medium, PE-DESIGN's default.
+        if kind == LineType::Candlewick {
+            l.density = candlewick_density(s.candlewick_density);
+        }
         // An E or V line's spacing (+88, #982): kept unset at PE-DESIGN's default 5.0.
         if matches!(kind, LineType::EStitch | LineType::VStitch)
             && s.ev_spacing > 0.0
@@ -381,6 +388,16 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
         o.name = Some("Manual punch".into());
     }
     Ok(o)
+}
+
+/// The density of PE-DESIGN's candlewick Density choice (body +110, #1142): 0 Dense 16,
+/// 1 Medium 12, 2 Light 10; any other value as Medium.
+fn candlewick_density(choice: u16) -> f64 {
+    match choice {
+        0 => 16.0,
+        2 => 10.0,
+        _ => 12.0,
+    }
 }
 
 /// The shape's stamps (Stamp/Emboss > Convert from Outline) as the region's stamps. Each takes
