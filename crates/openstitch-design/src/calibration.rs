@@ -26,6 +26,13 @@ pub fn coverage(rows_per_mm: f64) -> f64 {
     (1.0 - e) / (1.0 + e)
 }
 
+/// Rows per mm that hide `share` (0-1, below 1) of the fabric: the inverse of [`coverage`].
+pub fn rows_for_coverage(share: f64) -> f64 {
+    let s = share.clamp(0.0, 0.999);
+    // atanh s = ln((1 + s) / (1 - s)) / 2.
+    ((1.0 + s) / (1.0 - s)).dln() / 2.0 / COVER_K
+}
+
 /// Width (mm) to draw a stitch so rows `rows_per_mm` apart hide [`coverage`] of the fabric:
 /// 0.4 mm where rows are sparse, about 0.21 mm at 4.5 rows/mm.
 pub fn covered_width_mm(rows_per_mm: f64) -> f64 {

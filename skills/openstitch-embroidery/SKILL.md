@@ -256,7 +256,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    warnings include `untied` thread ends, whose fix adds ties, `tinySection` and
    `shortStitch`, and `textTooSmall` against the text's own font's smallest size (`fonts.list`
    `sizeRange`; its fix switches to the Small Text font where it fits); `moreColoursThanNeedles`
-   is a note, not a problem).
+   and `lowCoverage` (a plain fill hiding under 40 % of the fabric, about 1 line/mm: an open
+   look, fine when chosen) are notes, not problems).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
    (untrimmed jumps, long moves), `design.density` shows where thread piles up; it and
