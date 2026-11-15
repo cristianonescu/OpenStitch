@@ -3380,22 +3380,36 @@ fn along_net(
                     })
                     .map(|(_, k, rev, e)| (k, rev, e))
             });
-            // The way there from the needle; the first piece of all starts where it is.
-            let next = chosen.and_then(|(k, rev, e)| {
-                let Some(h) = here else {
-                    return Some((k, rev, vec![points[e]]));
-                };
-                let best = paths(h);
-                if !best[e].0.is_finite() {
+            // The way there from the needle; the first piece of all starts where it is. Into
+            // a later phase the needle goes by `aim` (PE-DESIGN goes back by the region's start
+            // to the next family, round 13, zigzag-net-40x20-dir90: down the right edge and
+            // along the whole bottom edge to the line at the left).
+            let way = |from: usize, to: usize| -> Option<Vec<Vec2>> {
+                let best = paths(from);
+                if !best[to].0.is_finite() {
                     return None;
                 }
-                let mut path = vec![points[e]];
-                let mut n = e;
-                while n != h {
+                let mut path = vec![points[to]];
+                let mut n = to;
+                while n != from {
                     n = best[n].1;
                     path.push(points[n]);
                 }
                 path.reverse();
+                Some(path)
+            };
+            let next = chosen.and_then(|(k, rev, e)| {
+                let Some(h) = here else {
+                    return Some((k, rev, vec![points[e]]));
+                };
+                let path = match aim {
+                    Some(a) if i == 0 && phase > 0 => {
+                        let mut path = way(h, a)?;
+                        path.extend(way(a, e)?.into_iter().skip(1));
+                        path
+                    }
+                    _ => way(h, e)?,
+                };
                 Some((k, rev, path))
             });
             let (k, rev) = match next {
