@@ -603,7 +603,7 @@
    81.0,
    79.0
   ],
-  "stitches": 4591,
+  "stitches": 4612,
   "trims": 9,
   "threads": [
    "900 Black",
@@ -612,7 +612,7 @@
   "sewingMinutes": 6.2,
   "image": null,
   "preview": "previews/satin-and-underlay.png",
-  "sha256": "b027672518af5f8ec0d8cc09454d1347a9dbfac54da677a920ba852c1de79548",
+  "sha256": "37c078bcd10e4f5a8b63561afafd63c5fa98bd8a0b4657f48fc231b0878a6d1f",
   "renderVersion": 3
  },
  "machine-checks/satin-zigzag-rect.pes": {
@@ -708,7 +708,7 @@
    86.0,
    86.0
   ],
-  "stitches": 7130,
+  "stitches": 7157,
   "trims": 11,
   "threads": [
    "405 Blue",
@@ -724,7 +724,7 @@
   "sewingMinutes": 9.5,
   "image": null,
   "preview": "previews/region-sew-types-1.png",
-  "sha256": "bbbdd324b3383087089c5d54ab454c140b4a603542e807165352bba946c68d9e",
+  "sha256": "9de9003d51f01673870830fd7a5d5b85c268cd34e05ce594044ef76d77606d70",
   "renderVersion": 3
  },
  "fills/region-sew-types-2.pes": {
@@ -735,7 +735,7 @@
    86.0,
    86.0
   ],
-  "stitches": 4675,
+  "stitches": 4689,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -751,7 +751,7 @@
   "sewingMinutes": 6.3,
   "image": null,
   "preview": "previews/region-sew-types-2.png",
-  "sha256": "780fbbd8797d8dbed6d5e188d294d26a08f8fd3d5910807fda1896515bfef34d",
+  "sha256": "f748e0908b4c6516a98080ab420fc6a1bab939eb0821427f60733752dad52f3b",
   "renderVersion": 3
  },
  "fills/fill-options.pes": {
@@ -762,7 +762,7 @@
    86.0,
    86.4
   ],
-  "stitches": 8255,
+  "stitches": 8363,
   "trims": 10,
   "threads": [
    "405 Blue",
@@ -775,10 +775,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 10.8,
+  "sewingMinutes": 11.0,
   "image": null,
   "preview": "previews/fill-options.png",
-  "sha256": "92fb054b8d3475fe6fb762b554838687224b96901da1925dd8539f53e8149e9b",
+  "sha256": "116281873a6bf6665388e25167e051beebfde751bc84998dd2ce533c7beb8643",
   "renderVersion": 3
  },
  "fills/tatami-textures-1.pes": {
@@ -789,7 +789,7 @@
    86.0,
    86.0
   ],
-  "stitches": 9469,
+  "stitches": 9505,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -805,7 +805,7 @@
   "sewingMinutes": 12.3,
   "image": null,
   "preview": "previews/tatami-textures-1.png",
-  "sha256": "3108f01522d7401e0d00709f0059d45a16874658cbeee736ebf4b10c3969bd7c",
+  "sha256": "5b6c171cf73d3027374b0e34d365dcd26319583380e7c57f8e7e47c7e9b818fb",
   "renderVersion": 3
  },
  "fills/tatami-textures-2.pes": {
@@ -816,7 +816,7 @@
    86.0,
    56.0
   ],
-  "stitches": 5366,
+  "stitches": 5386,
   "trims": 5,
   "threads": [
    "405 Blue",
@@ -828,7 +828,7 @@
   "sewingMinutes": 7.0,
   "image": null,
   "preview": "previews/tatami-textures-2.png",
-  "sha256": "ef29e2d556839726ef8866f6b113f0358d1fbf2fb39892fa1f35d03aca766079",
+  "sha256": "387cc900be27f803629aaacd92e1d650dd11ee70ee9f5a705e2f0555c892f3ac",
   "renderVersion": 3
  },
  "fills/underlay-styles.pes": {
@@ -839,7 +839,7 @@
    86.0,
    86.0
   ],
-  "stitches": 8868,
+  "stitches": 8894,
   "trims": 15,
   "threads": [
    "405 Blue",
@@ -855,7 +855,7 @@
   "sewingMinutes": 11.9,
   "image": null,
   "preview": "previews/underlay-styles.png",
-  "sha256": "182aec289dd67d8b7713533c507a536aa838dd114ef47eabf8e108a18823acb1",
+  "sha256": "7569f901b50f1bea19e11e027451867d7b679f05d80e681fba91aae0200df2c1",
   "renderVersion": 3
  },
  "fills/holes-and-emboss.pes": {
@@ -866,17 +866,17 @@
    86.0,
    86.0
   ],
-  "stitches": 10117,
+  "stitches": 10199,
   "trims": 5,
   "threads": [
    "405 Blue",
    "205 Yellow",
    "800 Red"
   ],
-  "sewingMinutes": 12.9,
+  "sewingMinutes": 13.0,
   "image": null,
   "preview": "previews/holes-and-emboss.png",
-  "sha256": "94f9c7d2a3f5da4216ec13d64597c1345013aa2db8efd7d862f6027e73d4c500",
+  "sha256": "8b20896fc95d07ec73a2ea0aae66d8a7e2c558005bbab9c5e5a0a7c69c239329",
   "renderVersion": 3
  },
  "fills/wave-fill.pes": {
@@ -887,7 +887,7 @@
    86.0,
    56.0
   ],
-  "stitches": 13612,
+  "stitches": 13667,
   "trims": 6,
   "threads": [
    "405 Blue",
@@ -897,10 +897,10 @@
    "620 Magenta",
    "406 Ultra Marine"
   ],
-  "sewingMinutes": 17.3,
+  "sewingMinutes": 17.4,
   "image": null,
   "preview": "previews/wave-fill.png",
-  "sha256": "f7f0812aee41ac7e6346b152d54ca3f57d85d149265929be471dc757440a7ed0",
+  "sha256": "c869689c8a928e504a57b2a38116fcc8facff16b2c8110bca1c8a4ce355281dc",
   "renderVersion": 3
  },
  "fills/meander-tiles-1.pes": {
@@ -986,15 +986,15 @@
    49.8,
    72.8
   ],
-  "stitches": 4632,
+  "stitches": 4667,
   "trims": 1,
   "threads": [
    "405 Blue"
   ],
-  "sewingMinutes": 5.8,
+  "sewingMinutes": 5.9,
   "image": null,
   "preview": "previews/angle-lines.png",
-  "sha256": "9ea553afdb08a30c03dde41e609fdd81be6df6f239ce1623b07df576c1c213e2",
+  "sha256": "5c89c15ba1e8210fbd6c200539226bc04530b1b597ab416464b81f8e32ab8a5f",
   "renderVersion": 3
  },
  "fills/tartan.pes": {
@@ -1077,7 +1077,7 @@
    84.5,
    84.0
   ],
-  "stitches": 4485,
+  "stitches": 4547,
   "trims": 10,
   "threads": [
    "405 Blue",
@@ -1091,10 +1091,10 @@
    "900 Black",
    "620 Magenta"
   ],
-  "sewingMinutes": 6.1,
+  "sewingMinutes": 6.2,
   "image": null,
   "preview": "previews/shape-tools.png",
-  "sha256": "e82757e8a6abe86fc17150e768d283edd66353c852755fce191054bbb7116ab8",
+  "sha256": "5383b52dac53414cf23989d604c8674e187573d6703cf0dc5445a67fbae49c57",
   "renderVersion": 3
  },
  "shapes/decorative-frames.pes": {
@@ -1105,7 +1105,7 @@
    82.7,
    82.2
   ],
-  "stitches": 2095,
+  "stitches": 2100,
   "trims": 15,
   "threads": [
    "800 Red",
@@ -1123,7 +1123,7 @@
   "sewingMinutes": 3.4,
   "image": null,
   "preview": "previews/decorative-frames.png",
-  "sha256": "78b9a47d99932b8963aab7554a79193fb648af346b78e92296a13bcd9640269e",
+  "sha256": "1071e35e022e16b7b4a33db4ffbb56ed38f741f98955f2bf4b64a96e759794e4",
   "renderVersion": 3
  },
  "lettering/fonts-and-text.pes": {
@@ -1156,7 +1156,7 @@
    123.9,
    117.5
   ],
-  "stitches": 7606,
+  "stitches": 7705,
   "trims": 15,
   "threads": [
    "900 Black",
@@ -1168,10 +1168,10 @@
    "208 Orange",
    "406 Ultra Marine"
   ],
-  "sewingMinutes": 10.3,
+  "sewingMinutes": 10.4,
   "image": null,
   "preview": "previews/monograms.png",
-  "sha256": "6884765417aabcb26cce916c5036d9199818b6653c60112397e4acf686684208",
+  "sha256": "30e9375e34aa7d5a7dc601e9bc7a718e2818d9b0823caf057efbcbe45a79f7dc",
   "renderVersion": 3
  },
  "wizards/applique.pes": {
@@ -1203,17 +1203,17 @@
    62.0,
    62.0
   ],
-  "stitches": 2906,
+  "stitches": 2874,
   "trims": 3,
   "threads": [
    "800 Red",
    "406 Ultra Marine",
    "406 Ultra Marine"
   ],
-  "sewingMinutes": 3.8,
+  "sewingMinutes": 3.7,
   "image": null,
   "preview": "previews/patch.png",
-  "sha256": "13352c90f95604cd854e573f66fe7103b124d863c44bde6ffe5a2aeca7b7fd99",
+  "sha256": "7231630efaf7a7e1357d51709d9c795cd5f322423420c3550895ac4b335bd40d",
   "renderVersion": 3
  },
  "wizards/cutwork.pes": {
@@ -1245,7 +1245,7 @@
    88.0,
    88.0
   ],
-  "stitches": 4122,
+  "stitches": 4121,
   "trims": 3,
   "threads": [
    "019 Sky Blue",
@@ -1255,7 +1255,7 @@
   "sewingMinutes": 5.3,
   "image": null,
   "preview": "previews/background-fill.png",
-  "sha256": "0519c4d362844252258bdb6d129dc96bf6cb169833e12984e0b3da9617d6aca6",
+  "sha256": "ca4722753c71c14a4e8c940c32045467adb91f755f48002a06111dbffc7a459a",
   "renderVersion": 3
  },
  "image-tools/S-autopunch-balloon-openstitch.pes": {
@@ -1291,7 +1291,7 @@
    89.6,
    62.1
   ],
-  "stitches": 5802,
+  "stitches": 5760,
   "trims": 13,
   "threads": [
    "001 White",
@@ -1303,7 +1303,7 @@
   "sewingMinutes": 7.9,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-pe-compatible.png",
-  "sha256": "3b4b99ec9add45a8359419ca83fa3aed3586fbc6c1bc1fe29775d40ea9b5a235",
+  "sha256": "60c9ed9a567540ac9eaf4883636f522a518994fd7c48b27882578d75fa3c5f17",
   "renderVersion": 3
  },
  "image-tools/S-cross-stitch-strawberry-openstitch.pes": {
@@ -1581,7 +1581,7 @@
    199.3,
    150.9
   ],
-  "stitches": 113921,
+  "stitches": 114235,
   "trims": 2047,
   "threads": [
    "307 Linen",
@@ -1595,10 +1595,10 @@
    "330 Russet Brown",
    "517 Dark Olive"
   ],
-  "sewingMinutes": 247.3,
+  "sewingMinutes": 247.7,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "cce30738da16d77edd8230d8a4d1507ca6a42878ebfbbd16ecc4cd9cae18dae2",
+  "sha256": "5f25b7315e6e12006046ba6ebab2f64884a9b2b7c32dfd1c55d280181a673de0",
   "renderVersion": 3
  }
 }
