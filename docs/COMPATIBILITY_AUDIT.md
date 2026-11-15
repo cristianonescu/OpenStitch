@@ -575,7 +575,13 @@ Line references are relative to `crates/`.
   blocks and junction squares keep their 3 mm rungs (fine rungs fanned where a junction cuts a
   side short: A's legs at the bar); a bending satin stroke's sides are joined by the centre
   line's progress, so crossings stay across S's spine as PE-DESIGN's do (fill rows keep the
-  length pairing their spacing was measured with); and the stroke cut's grid has 200 cells across every letter (it never went
+  length pairing their spacing was measured with), except where such a stroke turns sharply with
+  an outline corner on each side (e's bar into its bowl, #1080): PE-DESIGN joins the two corners
+  with one crossing and spaces the crossings within two stroke widths of them along each side's
+  length, and a straight stretch ending in that turn along its middle (e's bar: 0.31 mm along the
+  counter, 0.45 mm along the aperture), where the progress pairing kept the bar upright and then
+  pivoted 16 crossings round the counter's corner (stroke-satin-lower-e 281 → 267, PE-DESIGN 267;
+  on strokes 1.2 mm wide or more at their median, not measured on smaller letters); and the stroke cut's grid has 200 cells across every letter (it never went
   under 0.02 mm cells, which coarsened 4 mm letters: n lost its stem's top and fell back to
   region). The 13 satin captures and text-defaults-h are now 5.6 % from PE-DESIGN's needle points on average (was
   9.3 %), none further than before: O 338 (was 310) against 358, S 267 (215) against 278, 8 357
