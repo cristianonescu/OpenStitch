@@ -2238,7 +2238,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "density",
                     "stitches/mm",
-                    "Zigzag density (lines/mm: along an open line; on a closed outline along its outer edge, as PE-DESIGN, so a 40 mm square at 2 mm sews 4.5 x 42 / 40 along its sides); candlewick: the knot's points ÷ 2, PE-DESIGN's Density choices Light 10, Medium 12 (the default) and Dense 16 (knots of 20, 24 and 32 points, round 15). 0.1-14 (candlewick 0.1-16)",
+                    "Zigzag density (lines/mm: along an open line; on a closed outline along its outer edge, as PE-DESIGN, so a 40 mm square at 2 mm sews 4.5 x 42 / 40 along its sides); candlewick: the knot's points ÷ 2, PE-DESIGN's Density choices Light 10, Medium 12 (the default) and Dense 16 (knots of 20, 24 and 32 points, round 15); PES version 11 stores only Dense, Medium or Light, so another candlewick density is written as the nearest of 16, 12 and 10, a tie to the denser (#1142). 0.1-14 (candlewick 0.1-16)",
                 ),
                 opt(
                     "motif",

@@ -554,6 +554,11 @@ pub struct Shape {
     /// and end options on stem and candlewick lines (line-stem-startend-*), meaning not mapped
     /// there; 0 otherwise.
     pub line_flag_84: u16,
+    /// Body +110: on a candlewick line its Density choice, 0 Dense, 1 Medium (PE-DESIGN's
+    /// default), 2 Light: the only byte that differs between line-candlewick-dense-,
+    /// -medium- and -light-square40 (round 15, #1142). The body template's 1 on every other
+    /// line; written on candlewick lines only.
+    pub candlewick_density: u16,
     /// Zigzag width, mm.
     pub zigzag_width: f32,
     /// Zigzag density, line/mm.
@@ -700,6 +705,7 @@ impl Shape {
             line_color: 0,
             line_variant: 0,
             line_flag_84: 0,
+            candlewick_density: 1,
             zigzag_width: 2.0,
             zigzag_density: 4.5,
             sharp_corners: 0,
@@ -1544,6 +1550,7 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         line_color: u16_at(body, 46),
         line_variant: u16_at(body, 86),
         line_flag_84: u16_at(body, 84),
+        candlewick_density: u16_at(body, 110),
         zigzag_width: f32::from(u16_at(body, 48)) / 10.0,
         zigzag_density: f32::from(u16_at(body, 50)) / 10.0,
         sharp_corners: u16_at(body, 62),
@@ -2230,6 +2237,9 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     put16(&mut head, 46, s.line_color);
     put16(&mut head, 84, s.line_flag_84);
     put16(&mut head, 86, s.line_variant);
+    if s.line_type == Shape::LINE_CANDLEWICK {
+        put16(&mut head, 110, s.candlewick_density);
+    }
     for (k, v) in s.transform.iter().enumerate() {
         head[16 + 4 * k..20 + 4 * k].copy_from_slice(&v.to_le_bytes());
     }

@@ -785,6 +785,16 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
     Ok(())
 }
 
+/// PE-DESIGN's candlewick Density choice (body +110, #1142) for a stored density: 0 Dense (16),
+/// 1 Medium (12), 2 Light (10), the nearest of the three. A density halfway between two, 14 or
+/// 11, takes the denser one, so the knot has at least the points it was set to.
+pub(crate) fn candlewick_choice(density: f64) -> u16 {
+    [(16.0, 0), (12.0, 1), (10.0, 2)]
+        .into_iter()
+        .min_by(|a, b| (a.0 - density).abs().total_cmp(&(b.0 - density).abs()))
+        .map_or(1, |(_, choice)| choice)
+}
+
 fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Result<(), String> {
     s.line_type = match l.kind {
         LineType::Zigzag => Shape::LINE_ZIGZAG,
@@ -792,7 +802,10 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
         LineType::Triple => Shape::LINE_TRIPLE,
         LineType::EStitch | LineType::VStitch => Shape::LINE_E_OR_V,
         LineType::Stem => Shape::LINE_STEM,
-        LineType::Candlewick => Shape::LINE_CANDLEWICK,
+        LineType::Candlewick => {
+            s.candlewick_density = candlewick_choice(l.density);
+            Shape::LINE_CANDLEWICK
+        }
         LineType::Chain => Shape::LINE_CHAIN,
         LineType::Cutting => Shape::LINE_CUTTING,
         // The motif's width along the line, height across it and the spacing between motifs
@@ -1729,6 +1742,36 @@ mod tests {
         ));
         let s = &objects(&d5).expect("objects").shapes[0];
         assert_eq!((s.ev_spacing, s.ev_opening), (5.0, 2.0));
+    }
+
+    /// #1142: a candlewick writes its Density choice at +110: the default (12) Medium 1, 16
+    /// Dense 0, 10 Light 2, other densities the nearest, a tie the denser.
+    #[test]
+    fn a_candlewick_writes_its_density_choice() {
+        for (density, choice) in [
+            (None, 1),
+            (Some(16.0), 0),
+            (Some(12.0), 1),
+            (Some(10.0), 2),
+            (Some(3.0), 2),
+            (Some(10.9), 2),
+            (Some(11.0), 1),
+            (Some(13.9), 1),
+            (Some(14.0), 0),
+        ] {
+            let mut l = LineSewing::new(LineType::Candlewick, red());
+            if let Some(d) = density {
+                l.density = d;
+            }
+            let mut design = Design::new("t", openstitch_design::DesignPage::default());
+            design.add(DesignObject::shape(
+                vec![Contour::rectangle(100.0, 100.0, 400.0, 400.0)],
+                None,
+                Some(l),
+            ));
+            let s = &objects(&design).expect("objects").shapes[0];
+            assert_eq!(s.candlewick_density, choice, "{density:?}");
+        }
     }
 
     #[test]
