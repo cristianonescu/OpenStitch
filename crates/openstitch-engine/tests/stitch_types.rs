@@ -2632,6 +2632,51 @@ fn a_plain_net_runs_through_its_reference_point() {
     );
 }
 
+/// #1102: a new programmable fill, and a fill switched to one, start at PE-DESIGN 11.50's
+/// density 4.5 lines/mm (the Density field's reset button with Prog. Fill Stitch); a density
+/// given with the switch still wins.
+#[test]
+fn a_programmable_fill_starts_at_density_four_and_a_half() {
+    let mut s = Session::new(std::env::temp_dir());
+    for x in [10, 60, 110] {
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": x, "y": 10, "width": 40, "height": 40, "outline": "Black"}),
+        );
+    }
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "programmableFill"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 2, "type": "fill", "density": 3.0}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 2, "type": "programmableFill"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 3, "type": "programmableFill", "density": 2.5}),
+    );
+    let density = |id: u64| {
+        let o = s
+            .design()
+            .objects
+            .iter()
+            .find(|o| o.id == id)
+            .expect("object");
+        o.region.as_ref().expect("region").density
+    };
+    assert_eq!([density(1), density(2), density(3)], [4.5, 4.5, 2.5]);
+}
+
 /// #1117: a plain net set by `object.setRegion` with no `spacing` sews its lines 3.0 mm apart,
 /// PE-DESIGN 11.50's default (#1110), both ways, measured in the compiled stitches.
 #[test]
