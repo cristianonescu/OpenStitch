@@ -174,7 +174,9 @@ pub struct MotifLine<'a> {
 
 /// Motif line: copies of a library motif along the path, joined by running stitches over the
 /// gaps. The copies (and gaps) are stretched along the path to fit a whole number of them
-/// from end to end, on open and closed paths alike.
+/// from end to end, on open and closed paths alike. A motif or gap that would span a sharp
+/// corner of the path is measured in a straight line instead, and a motif there is laid
+/// straight across the corner (#1123, see [`Corners`]).
 pub fn motif(path: &[Vec2], closed: bool, m: &MotifLine) -> Run {
     let w = Walker::new(path);
     let len = w.length();
@@ -182,6 +184,10 @@ pub fn motif(path: &[Vec2], closed: bool, m: &MotifLine) -> Run {
     let period = m.width + m.gap;
     if len <= 0.0 || period <= 0.0 || m.width > len {
         return subdivide(path, m.pitch);
+    }
+    let corners = Corners::new(path);
+    if !corners.arcs.is_empty() {
+        return motif_cornered(&w, &corners, closed, m);
     }
     // A whole number of motifs, scaled along the line so they fill it from end to end
     // (PE-DESIGN 11.50 sews 8 motifs of 4.94 mm on a 39.5 mm line at the 5 mm size:
@@ -216,6 +222,185 @@ pub fn motif(path: &[Vec2], closed: bool, m: &MotifLine) -> Run {
     extend(&mut run, run_between(&w, s, len, m.pitch));
     // A motif's own vertices can lie closer than a stitch should be (a wave's crests, the
     // turns of a small motif): drop those, keeping the line's ends (#617).
+    crate::generate::drop_close(&run, crate::generate::MOTIF_MIN_STITCH, m.pitch)
+}
+
+/// A turn this sharp (degrees) at a vertex of a motif line's path is a corner the motifs cut
+/// across ([`Corners`]); the gentler turns of a curve's polyline are not.
+const MOTIF_CORNER: f64 = 30.0;
+
+/// The sharp corners of a motif line's path. PE-DESIGN 11.50 places a motif line's motifs and
+/// gaps by straight-line distance: a motif whose ends lie on either side of a corner is sewn
+/// straight across it, its ends one motif width apart, with no needle point on the corner; a
+/// run between motifs across a corner follows the outline, corner point included, its ends one
+/// gap apart (608-motif-5x8 and 608-motif-size-spacing: at the top-left corner of the 40 mm
+/// square (0, 3.3) -> (3.2, 3.1) -> (3.8, 0) mm, 5.0 mm from end to end; at the top right
+/// (38.8, 0) -> (40, 0) -> (40, 1.6), 2.0 mm, #1123).
+struct Corners<'a> {
+    path: &'a [Vec2],
+    /// The arc length of each vertex.
+    cum: Vec<f64>,
+    /// The arc lengths of the sharp corners, in order.
+    arcs: Vec<f64>,
+}
+
+impl<'a> Corners<'a> {
+    fn new(path: &'a [Vec2]) -> Self {
+        let cum = arcs(path);
+        let mut out = Vec::new();
+        for i in 1..path.len().saturating_sub(1) {
+            let (u, v) = (path[i] - path[i - 1], path[i + 1] - path[i]);
+            if u.length() < 1e-9 || v.length() < 1e-9 {
+                continue;
+            }
+            let turn = (u.x * v.y - u.y * v.x)
+                .datan2(u.x * v.x + u.y * v.y)
+                .abs()
+                .to_degrees();
+            if turn >= MOTIF_CORNER {
+                out.push(cum[i]);
+            }
+        }
+        Corners {
+            path,
+            cum,
+            arcs: out,
+        }
+    }
+
+    /// Whether a sharp corner lies strictly between arc lengths `a` and `b`.
+    fn between(&self, a: f64, b: f64) -> bool {
+        self.arcs.iter().any(|&c| c > a + 1e-6 && c < b - 1e-6)
+    }
+
+    /// Where an element `d` long that starts at arc length `a` ends: `d` further along the path,
+    /// or, when a corner lies within that, at the first point `d` away from its start in a
+    /// straight line. Past the path's end it carries on in a straight line, for the fitting.
+    fn advance(&self, w: &Walker, a: f64, d: f64) -> f64 {
+        if d <= 0.0 || !self.between(a, a + d) {
+            return a + d;
+        }
+        let p = w.at(a);
+        let last = self.path.len() - 1;
+        for j in 0..last {
+            if self.cum[j + 1] <= a {
+                continue;
+            }
+            let start = self.cum[j].max(a);
+            let from = if self.cum[j] < a { p } else { self.path[j] };
+            let to = self.path[j + 1];
+            if to.distance(p) < d {
+                continue;
+            }
+            // The point of from..to that is `d` from p: |f + t u| = d, f = from - p.
+            let (u, f) = (to - from, from - p);
+            let qa = u.x * u.x + u.y * u.y;
+            if qa < 1e-12 {
+                return start;
+            }
+            let qb = 2.0 * (f.x * u.x + f.y * u.y);
+            let qc = f.x * f.x + f.y * f.y - d * d;
+            let t =
+                ((-qb + (qb * qb - 4.0 * qa * qc).max(0.0).sqrt()) / (2.0 * qa)).clamp(0.0, 1.0);
+            return start + t * (self.cum[j + 1] - start);
+        }
+        self.cum[last] + (d - self.path[last].distance(p)).max(0.0)
+    }
+
+    /// The arc length where `n` motifs `mw` long with `mg` gaps end, starting at `from`: after
+    /// every motif's gap on a closed line, after the last motif on an open one.
+    fn end(&self, w: &Walker, from: f64, n: usize, mw: f64, mg: f64, closed: bool) -> f64 {
+        let mut s = from;
+        for k in 0..n {
+            s = self.advance(w, s, mw);
+            if closed || k + 1 < n {
+                s = self.advance(w, s, mg);
+            }
+        }
+        s
+    }
+}
+
+/// The scale in `lo..hi` at which `f`, increasing with the scale, reaches 0.
+fn solve_scale(f: impl Fn(f64) -> f64) -> f64 {
+    let (mut lo, mut hi) = (0.25, 4.0);
+    for _ in 0..60 {
+        let mid = (lo + hi) / 2.0;
+        if f(mid) < 0.0 {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    (lo + hi) / 2.0
+}
+
+/// [`motif`] on a path with sharp corners: the count is the whole number of motifs (with their
+/// gaps) that fits best at the motif's own size, motifs and gaps measured as [`Corners`] does,
+/// and one scale for all of them fills the line. PE-DESIGN 11.50 sews the square of
+/// 608-motif-5x8 with 22 motifs, the last one and its gap taking up the 0.3 mm left over
+/// (5.2 and 2.1 mm); OpenStitch shares that out over every motif.
+fn motif_cornered(w: &Walker, c: &Corners, closed: bool, m: &MotifLine) -> Run {
+    let len = w.length();
+    let unit = &m.pattern.paths[0];
+    // Open: n motifs and n - 1 gaps fill the line less the margins at its ends, as above.
+    let target = |s: f64| if closed { len } else { len + m.gap * (1.0 - s) };
+    let mut best = (1usize, f64::INFINITY);
+    let mut n = 1;
+    loop {
+        let e = c.end(w, 0.0, n, m.width, m.gap, closed);
+        let miss = (e - target(1.0)).abs();
+        if miss < best.1 {
+            best = (n, miss);
+        }
+        if e > target(1.0) || n > 100_000 {
+            break;
+        }
+        n += 1;
+    }
+    let n = best.0;
+    // An open line is centred: its margins depend on where the corners fall, so settle them.
+    let mut from = 0.0;
+    let mut scale = 1.0;
+    for _ in 0..if closed { 1 } else { 4 } {
+        scale =
+            solve_scale(|s| c.end(w, from, n, m.width * s, m.gap * s, closed) - from - target(s));
+        if !closed {
+            let used = c.end(w, from, n, m.width * scale, m.gap * scale, false) - from;
+            from = ((len - used) / 2.0).max(0.0);
+        }
+    }
+    let (mw, mg) = (m.width * scale, m.gap * scale);
+    let mut s = from;
+    let mut run = run_between(w, 0.0, s, m.pitch);
+    for k in 0..n {
+        let sign = side(m.arrange, k);
+        let b = c.advance(w, s, mw).min(len);
+        let mapped: Vec<Vec2> = if c.between(s, b) {
+            // Straight across the corner, from where the motif starts to where it ends.
+            let (pa, pb) = (w.at(s), w.at(b));
+            let along = pb - pa;
+            let across = normal(along * (1.0 / along.length().max(1e-9)));
+            unit.iter()
+                .map(|q| pa + along * q.x + across * (q.y * m.height * sign))
+                .collect()
+        } else {
+            unit.iter()
+                .map(|q| {
+                    let at = s + q.x * (b - s);
+                    w.at(at) + normal(w.tangent(at)) * (q.y * m.height * sign)
+                })
+                .collect()
+        };
+        extend(&mut run, subdivide(&mapped, m.pitch));
+        s = b;
+        if k + 1 < n {
+            let g = c.advance(w, s, mg).min(len);
+            extend(&mut run, run_between(w, s, g, m.pitch));
+            s = g;
+        }
+    }
+    extend(&mut run, run_between(w, s, len, m.pitch));
     crate::generate::drop_close(&run, crate::generate::MOTIF_MIN_STITCH, m.pitch)
 }
 
