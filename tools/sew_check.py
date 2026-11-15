@@ -28,12 +28,15 @@ is removed when the issue is fixed).
     python3 -I tools/sew_check.py file.vp3 --hoop 100x100   # VP3 (#480): no PEC frame to check
     python3 -I tools/sew_check.py file.u01 --hoop 100x100   # also .tbf and .tap (#481)
 
-    python3 -I tools/sew_check.py --self-test   # the no-stitches check on synthetic files (#922)
+    python3 -I tools/sew_check.py --self-test   # synthetic files (#922) and crowding (#1036)
 
 Reads the PEC block's stitches directly (the part the machine sews), not OpenStitch's objects.
 A PEC block with no stitches (PE-DESIGN writes a stub when a design lies outside the Design Page)
 is reported as unreadable with that reason, as OpenStitch's importer refuses it (#922).
 The hoop comes from `--hoop`, else from examples/sew/manifest.json, else 100 × 100 mm.
+Needle crowding (#1036) is counted exactly as Check Design counts it, so the tool and the app agree:
+that pass costs about as much as all the other checks together (examples/sew: about 5.7 s of
+CPU on 8.3 s, about 1 s on a 100,000-stitch file).
 Exits 1 when any file fails or is unreadable.
 """
 
@@ -57,6 +60,10 @@ TINY_MM = SHARED["inPlaceMm"]
 MAX_TINY_RUN = SHARED["maxInPlaceRun"]     # consecutive stitches shorter than 0.3 mm (tie-ins use 3 to 4)
 SHORT_MM = SHARED["shortStitchMm"]
 MAX_SHORT_PER_1000 = SHARED["maxShortPer1000"]  # PE-DESIGN's references reach 154.8 (#866)
+CROWD_CHECK_MM = SHARED["crowdCheckMm"]
+CROWD_CLOSE_MM = SHARED["crowdCloseMm"]
+MAX_CROWD_WARN = SHARED["maxCrowdPairsWarn"]    # beyond PE-DESIGN's own files (591, #1036)
+MAX_CROWD_ERROR = SHARED["maxCrowdPairsError"]  # twice that; no sew-out evidence of harm yet
 MIN_COVERAGE = SHARED["minCoverage"]  # Check Design's lowCoverage note (#1036); a stitch file holds no fills to judge
 FIELD_SLACK_MM = 0.0       # sewing field must not be exceeded at all
 DENS_CELL_MM = SHARED["denseCellMm"]
@@ -260,6 +267,91 @@ def read_records(path):
     return _framed(out, colour + 1)
 
 
+def crowding_bound(pts, steps, key, cell, reach):
+    """An upper bound on any spot's pairs (#1036), as the engine's `crowding_bound`: each close
+    pair counted at the 1 mm cell of its second point (the set work runs in C), and the pairs of
+    the square of cells `reach` round each cell (which holds every cell a spot there reaches)
+    summed from a summed-area table. `pts` are keys x * key + y with x, y >= 0."""
+    pairs = Counter()
+    mask = key - 1
+    for s in steps:
+        second = pts.intersection(map(s.__add__, pts))
+        pairs.update(((k >> 20) // cell, (k & mask) // cell) for k in second)
+    if not pairs:
+        return 0
+    xs = [c[0] for c in pairs]
+    ys = [c[1] for c in pairs]
+    gx, gy = min(xs), min(ys)
+    w, h = max(xs) - gx + 1, max(ys) - gy + 1
+    table = [[0] * (w + 1) for _ in range(h + 1)]
+    for (cx, cy), n in pairs.items():
+        table[cy - gy + 1][cx - gx + 1] += n
+    for y in range(1, h + 1):
+        row, above, run = table[y], table[y - 1], 0
+        for x in range(1, w + 1):
+            run += row[x]
+            row[x] = run + above[x]
+    best = 0
+    for y in range(h):
+        y0, y1 = max(y - reach, 0), min(y + reach + 1, h)
+        top, bottom = table[y0], table[y1]
+        for x in range(w):
+            x0, x1 = max(x - reach, 0), min(x + reach + 1, w)
+            v = bottom[x1] - top[x1] - bottom[x0] + top[x0]
+            if v > best:
+                best = v
+    return best
+
+
+def crowd_bound(drops):
+    """`crowding_bound` for drops as `crowding` takes them (for the self-test)."""
+    key, shift = 1 << 20, 1 << 19
+    pts = {(round(s[0] * 10) + shift) * key + round(s[1] * 10) + shift for s in drops}
+    r = math.ceil(CROWD_CLOSE_MM * 10)
+    steps = [dx * key + dy for dx in range(0, r + 1) for dy in range(-r, r + 1)
+             if (dx > 0 or dy > 0) and math.hypot(dx, dy) < CROWD_CLOSE_MM * 10]
+    return crowding_bound(pts, steps, key, 10, math.ceil(CROWD_CHECK_MM))
+
+
+def crowding(drops, floor=0):
+    """The most crowded spot (#1036), as Check Design's crowdedNeedles counts it
+    (`quality::crowding` in the engine): over every needle point, the distinct needle points
+    (0.1 mm grid) within CROWD_CHECK_MM and the pairs of them closer than CROWD_CLOSE_MM. Returns
+    (pairs, points) of the spot with the most pairs. With a `floor`, a design whose most crowded
+    spot cannot hold more than `floor` pairs (`crowding_bound`) reads (0, 0) at once: what the
+    check needs, and fast."""
+    key, shift = 1 << 20, 1 << 19
+    pts = {(round(s[0] * 10) + shift) * key + round(s[1] * 10) + shift for s in drops}
+    if not pts:
+        return 0, 0
+    within, close = CROWD_CHECK_MM * 10, CROWD_CLOSE_MM * 10
+    r = math.ceil(close)
+    offsets = [(dx, dy) for dx in range(0, r + 1) for dy in range(-r, r + 1)
+               if (dx > 0 or dy > 0) and math.hypot(dx, dy) < close]
+    steps = [dx * key + dy for dx, dy in offsets]
+    cell, reach = 10, math.ceil(within / 10)
+    if floor and crowding_bound(pts, steps, key, cell, reach) <= floor:
+        return 0, 0
+    # The full count: every spot, its points from the cells round it.
+    xy = [((k >> 20) - shift, (k & (key - 1)) - shift) for k in pts]
+    members = {}
+    for p in xy:
+        members.setdefault((p[0] // cell, p[1] // cell), []).append(p)
+    best = None
+    for (cx, cy), own in members.items():
+        nearby = [p for dx in range(-reach, reach + 1) for dy in range(-reach, reach + 1)
+                  for p in members.get((cx + dx, cy + dy), ())]
+        for c in own:
+            near = [p for p in nearby if math.hypot(p[0] - c[0], p[1] - c[1]) < within]
+            inside = {x * key + y for x, y in near}
+            pairs = sum(1 for x, y in near for s in steps if x * key + y + s in inside)
+            if best is None or pairs > best[0] or (pairs == best[0] and len(near) > best[1]):
+                best = (pairs, len(near))
+    if best is None or (floor and best[0] <= floor):
+        return 0, 0
+    return best
+
+
 def check(path, hoop):
     suffix = Path(path).suffix.lower()
     reader = read_vp3 if suffix == ".vp3" else read_records if suffix in (".tap", ".tbf", ".u01") else read_pec
@@ -361,11 +453,20 @@ def check(path, hoop):
         else:
             run, step = 0, None
         prev = s
+    crowd_pairs, crowd_points = crowding(drops, floor=MAX_CROWD_WARN)
+    if crowd_pairs > MAX_CROWD_ERROR:
+        problems.append(f"CROWDED NEEDLES: {crowd_pairs} pairs of needle points under {CROWD_CLOSE_MM:g} mm "
+                        f"within {CROWD_CHECK_MM:g} mm of one spot (over {MAX_CROWD_ERROR}, twice anything "
+                        f"PE-DESIGN's own files sew; no sew-out evidence yet of harm)")
+    elif crowd_pairs > MAX_CROWD_WARN:
+        warnings.append(f"CROWDED NEEDLES: {crowd_pairs} pairs of needle points under {CROWD_CLOSE_MM:g} mm "
+                        f"within {CROWD_CHECK_MM:g} mm of one spot (over {MAX_CROWD_WARN}, beyond anything "
+                        f"PE-DESIGN's own files sew; no sew-out evidence yet of harm)")
     if hairline > MAX_HAIRLINE_RUN:
         problems.append(f"HAIRLINE: {hairline} zigzag stitches in a row under {HAIRLINE_MM:g} mm wide")
     return {
         "size": (w, h), "header": (hw, hh), "stitches": len(drops), "colours": ncol,
-        "max_cell": n, "max_cell_colour": pn, "tiny_run": best, "density": density,
+        "max_cell": n, "max_cell_colour": pn, "crowd_pairs": crowd_pairs, "crowd_points": crowd_points, "tiny_run": best, "density": density,
         "trims_per_1000": per_1000, "hairline": hairline, "short_per_1000": short_rate,
         "problems": problems, "warnings": warnings,
     }
@@ -394,6 +495,14 @@ def synthetic_pes(path, block_len, records, width=668, height=996):
     data += struct.pack("<hh", width, height) + b"\xe0\x01\xb0\x01"
     data += bytes(records) + b"\xff\x00" + bytes(64)
     Path(path).write_bytes(bytes(data))
+
+
+# Files and the pairs Check Design's crowding counts on them (#1036); both sides assert these.
+CROWD_AGREES = [
+    ("compat/reference/stitches/radial-circle40-dmax.pes", 591),
+    ("examples/sew/image-tools/L-autopunch-storybook-openstitch.pes", 227),
+    ("examples/sew/fills/fill-options.pes", 29),
+]
 
 
 def self_test():
@@ -426,6 +535,22 @@ def self_test():
         if run.returncode != 1 or "unreadable: the PEC section holds no stitches" not in run.stdout \
                 or "ok   " not in run.stdout or "1/2 pass" not in run.stdout:
             fails.append(f"the command line: exit {run.returncode}, output {run.stdout!r}")
+    # The crowding count agrees with Check Design's (crates/openstitch-engine/tests/quality.rs,
+    # `crowding_counts_agree_with_sew_check`): the same numbers on three files.
+    root = Path(__file__).resolve().parents[1]
+    for rel, want in CROWD_AGREES:
+        st, _, _ = read_pec(root / rel)
+        got = crowding([s for s in st if s[2] == "stitch"])[0]
+        if got != want:
+            fails.append(f"crowding of {rel}: {got} pairs, Check Design counts {want}")
+    # The quick bound never hides a crowded spot. A 0.24 mm grid (430 pairs at its fullest spot):
+    # the bound says skip, and the full count agrees it is under the warning. A 0.2 mm grid just
+    # over the warning (612): not skipped, the same count with the floor as without.
+    for spacing, n, want, skipped in [(0.24, 20, 430, True), (0.2, 18, 612, False)]:
+        grid = [(x * spacing, y * spacing, "stitch", 0) for x in range(n) for y in range(n)]
+        full, bound = crowding(grid), crowd_bound(grid)
+        if full[0] != want or bound < full[0] or (bound <= MAX_CROWD_WARN) != skipped                 or crowding(grid, floor=MAX_CROWD_WARN) != ((0, 0) if skipped else full):
+            fails.append(f"a {spacing} mm grid: {full} by the full count, bound {bound}")
     for f in fails:
         print("FAIL", f)
     print(f"sew_check self-test: {len(fails)} problem(s)")

@@ -45,6 +45,13 @@ pub struct Limits {
     /// Low coverage (#1036): a fill hiding less than this share of the fabric, on the coverage
     /// curve measured on the T1 sew-outs (`openstitch_design::calibration::coverage`).
     pub min_coverage: f64,
+    /// Needle crowding (#1036): pairs of distinct needle points closer than `crowd_close_mm`
+    /// within `crowd_check_mm` of one needle point; a warning over `max_crowd_pairs_warn`, an
+    /// error over `max_crowd_pairs_error`.
+    pub crowd_check_mm: f64,
+    pub crowd_close_mm: f64,
+    pub max_crowd_pairs_warn: usize,
+    pub max_crowd_pairs_error: usize,
 }
 
 /// [`Limits`] as the table holds them.
@@ -412,6 +419,281 @@ fn fill_coverage(o: &DesignObject, st: &[openstitch_core::Stitch]) -> Option<f64
         .sum::<f64>()
         / MM;
     (thread > 0.0).then(|| openstitch_design::calibration::coverage(thread / area))
+}
+
+/// The most crowded spot of a stitch list (#1036, #1112's `centreCrowding` anywhere): over every
+/// needle point, the distinct needle points (on the 0.1 mm grid) within `within_mm` of it and the
+/// pairs of them closer than `closer_mm`; the spot with the most pairs.
+pub struct Crowd {
+    pub pairs: usize,
+    pub points: usize,
+    /// The spot's centre, design units.
+    pub centre: Vec2,
+    /// Indexes of the stitches on its points.
+    pub stitches: Vec<usize>,
+}
+
+/// See [`Crowd`]. Needle points lie on the 0.1 mm grid, so a point's close neighbours are a fixed
+/// set of grid offsets (each pair once); a window's pairs all start in the 3 × 3 cells round it,
+/// so the close pairs of those cells bound it, and cells that cannot beat the best (or `floor`)
+/// are skipped, the most promising first. With a `floor`, a design whose most crowded spot has at
+/// most `floor` pairs gives `None` (what the check needs, much faster); `tools/sew_check.py`'s
+/// `crowding` is the same count.
+pub fn crowding(
+    st: &[openstitch_core::Stitch],
+    within_mm: f64,
+    closer_mm: f64,
+    floor: usize,
+) -> Option<Crowd> {
+    // Most designs end here: no spot can hold more than `floor` pairs.
+    if floor > 0 && crowding_bound(st, within_mm, closer_mm).is_some_and(|b| b <= floor) {
+        return None;
+    }
+    // Distinct needle points on the 0.1 mm grid, sorted, each with its stitches.
+    let mut drops: Vec<((i64, i64), usize)> = st
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.command == Command::Stitch)
+        .map(|(i, s)| ((s.x.round() as i64, s.y.round() as i64), i))
+        .collect();
+    if drops.is_empty() {
+        return None;
+    }
+    drops.sort_unstable();
+    let mut pts: Vec<(i64, i64)> = drops.iter().map(|d| d.0).collect();
+    pts.dedup();
+    let n = pts.len();
+    let (within, close) = (within_mm * MM, closer_mm * MM);
+    let dist = |a: (i64, i64), b: (i64, i64)| ((a.0 - b.0) as f64).hypot((a.1 - b.1) as f64);
+    // Which grid points hold a needle point: a bit per point of the design's extent (a 260 ×
+    // 160 mm hoop is half a megabyte), or a hash set for a very large one.
+    let (x0, y0) = pts
+        .iter()
+        .fold((i64::MAX, i64::MAX), |a, p| (a.0.min(p.0), a.1.min(p.1)));
+    let (x1, y1) = pts
+        .iter()
+        .fold((i64::MIN, i64::MIN), |a, p| (a.0.max(p.0), a.1.max(p.1)));
+    let (w, h) = ((x1 - x0 + 1) as u64, (y1 - y0 + 1) as u64);
+    let bits: Option<Vec<u64>> = (w.saturating_mul(h) <= 64_000_000).then(|| {
+        let mut v = vec![0u64; (w * h).div_ceil(64) as usize];
+        for p in &pts {
+            let k = (p.1 - y0) as u64 * w + (p.0 - x0) as u64;
+            v[(k / 64) as usize] |= 1 << (k % 64);
+        }
+        v
+    });
+    let set: std::collections::HashSet<(i64, i64)> = if bits.is_none() {
+        pts.iter().copied().collect()
+    } else {
+        Default::default()
+    };
+    let has = |q: (i64, i64)| match &bits {
+        Some(v) => {
+            if q.0 < x0 || q.0 > x1 || q.1 < y0 || q.1 > y1 {
+                return false;
+            }
+            let k = (q.1 - y0) as u64 * w + (q.0 - x0) as u64;
+            v[(k / 64) as usize] >> (k % 64) & 1 == 1
+        }
+        None => set.contains(&q),
+    };
+    // A point's close neighbours after it: a fixed set of grid offsets, each pair once.
+    let r = close.ceil() as i64;
+    let offsets: Vec<(i64, i64)> = (0..=r)
+        .flat_map(|dx| (-r..=r).map(move |dy| (dx, dy)))
+        .filter(|&(dx, dy)| (dx > 0 || dy > 0) && ((dx * dx + dy * dy) as f64).sqrt() < close)
+        .collect();
+    let close_count: Vec<usize> = pts
+        .iter()
+        .map(|p| {
+            offsets
+                .iter()
+                .filter(|o| has((p.0 + o.0, p.1 + o.1)))
+                .count()
+        })
+        .collect();
+    // A window's pairs all start among its points, which lie in the 1 mm cells that come within
+    // `within` of its centre's cell: the close pairs of those cells bound it. Cells (an array over
+    // the extent) that cannot beat the best (or `floor`) are skipped, the most promising first.
+    let cell = MM as i64;
+    let reach = (within / cell as f64).ceil() as i64;
+    let (cw, ch) = (
+        ((x1 - x0) / cell + 1) as usize,
+        ((y1 - y0) / cell + 1) as usize,
+    );
+    let cell_of = |p: (i64, i64)| (((p.0 - x0) / cell) as usize, ((p.1 - y0) / cell) as usize);
+    let mut members: Vec<Vec<usize>> = vec![Vec::new(); cw * ch];
+    let mut pairs_in = vec![0usize; cw * ch];
+    for (i, &p) in pts.iter().enumerate() {
+        let (cx, cy) = cell_of(p);
+        members[cy * cw + cx].push(i);
+        pairs_in[cy * cw + cx] += close_count[i];
+    }
+    // The cells a window centred in a cell can reach: their nearest corners within `within`.
+    let reachable: Vec<(i64, i64)> = (-reach..=reach)
+        .flat_map(|dx| (-reach..=reach).map(move |dy| (dx, dy)))
+        .filter(|&(dx, dy)| {
+            let gap = |d: i64| ((d.abs() - 1).max(0) * cell) as f64;
+            gap(dx).hypot(gap(dy)) < within
+        })
+        .collect();
+    let around = |cx: usize, cy: usize| {
+        reachable.iter().filter_map(move |&(dx, dy)| {
+            let (x, y) = (cx as i64 + dx, cy as i64 + dy);
+            (x >= 0 && y >= 0 && (x as usize) < cw && (y as usize) < ch)
+                .then(|| y as usize * cw + x as usize)
+        })
+    };
+    let mut ranked: Vec<(usize, usize)> = (0..cw * ch)
+        .filter(|&k| !members[k].is_empty())
+        .map(|k| (k, around(k % cw, k / cw).map(|c| pairs_in[c]).sum()))
+        .collect();
+    ranked.sort_unstable_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let index = |q: (i64, i64)| pts.binary_search(&q).ok();
+    let mut stamp = vec![usize::MAX; n];
+    let mut best: Option<(usize, usize, usize)> = None;
+    for (k, bound) in ranked {
+        if bound <= floor.max(best.map_or(0, |b| b.0)) && (best.is_some() || bound <= floor) {
+            break;
+        }
+        let nearby: Vec<usize> = around(k % cw, k / cw)
+            .flat_map(|c| members[c].iter().copied())
+            .collect();
+        for &i in &members[k] {
+            let c = pts[i];
+            let near: Vec<usize> = nearby
+                .iter()
+                .copied()
+                .filter(|&j| dist(pts[j], c) < within)
+                .collect();
+            for &j in &near {
+                stamp[j] = i;
+            }
+            let pairs = near
+                .iter()
+                .map(|&j| {
+                    offsets
+                        .iter()
+                        .map(|o| (pts[j].0 + o.0, pts[j].1 + o.1))
+                        .filter(|&q| has(q) && index(q).is_some_and(|m| stamp[m] == i))
+                        .count()
+                })
+                .sum::<usize>();
+            if best.is_none_or(|b| pairs > b.0 || (pairs == b.0 && near.len() > b.1)) {
+                best = Some((pairs, near.len(), i));
+            }
+        }
+    }
+    let (pairs, points, ci) = best?;
+    if pairs <= floor && floor > 0 {
+        return None;
+    }
+    let c = pts[ci];
+    let stitches = drops
+        .iter()
+        .filter(|d| dist(d.0, c) < within)
+        .map(|d| d.1)
+        .collect();
+    Some(Crowd {
+        pairs,
+        points,
+        centre: v2(c.0 as f64, c.1 as f64),
+        stitches,
+    })
+}
+
+/// An upper bound on any spot's pairs in [`crowding`] (#1036), without sorting: each close pair
+/// counted at its first point's 1 mm cell, and the pairs of the square of cells round each
+/// occupied cell (which holds every cell a spot centred in it reaches) summed from a summed-area
+/// table. `None` for no stitches or an extent too large for its bitmap (then nothing is skipped).
+pub fn crowding_bound(
+    st: &[openstitch_core::Stitch],
+    within_mm: f64,
+    closer_mm: f64,
+) -> Option<usize> {
+    let raw: Vec<(i64, i64)> = st
+        .iter()
+        .filter(|s| s.command == Command::Stitch)
+        .map(|s| (s.x.round() as i64, s.y.round() as i64))
+        .collect();
+    let (x0, y0) = raw
+        .iter()
+        .fold((i64::MAX, i64::MAX), |a, p| (a.0.min(p.0), a.1.min(p.1)));
+    let (x1, y1) = raw
+        .iter()
+        .fold((i64::MIN, i64::MIN), |a, p| (a.0.max(p.0), a.1.max(p.1)));
+    if raw.is_empty() {
+        return None;
+    }
+    let (w, h) = ((x1 - x0 + 1) as u64, (y1 - y0 + 1) as u64);
+    if w.saturating_mul(h) > 64_000_000 {
+        return None;
+    }
+    let bit = |p: (i64, i64)| (p.1 - y0) as u64 * w + (p.0 - x0) as u64;
+    let mut bits = vec![0u64; (w * h).div_ceil(64) as usize];
+    let mut pts = Vec::with_capacity(raw.len());
+    for p in raw {
+        let k = bit(p);
+        let (word, mask) = ((k / 64) as usize, 1u64 << (k % 64));
+        if bits[word] & mask == 0 {
+            bits[word] |= mask;
+            pts.push(p);
+        }
+    }
+    let close = closer_mm * MM;
+    let r = close.ceil() as i64;
+    let offsets: Vec<(i64, i64)> = (0..=r)
+        .flat_map(|dx| (-r..=r).map(move |dy| (dx, dy)))
+        .filter(|&(dx, dy)| (dx > 0 || dy > 0) && ((dx * dx + dy * dy) as f64).sqrt() < close)
+        .collect();
+    let has = |q: (i64, i64)| {
+        q.0 >= x0 && q.0 <= x1 && q.1 >= y0 && q.1 <= y1 && {
+            let k = bit(q);
+            bits[(k / 64) as usize] >> (k % 64) & 1 == 1
+        }
+    };
+    let cell = MM as i64;
+    let reach = (within_mm * MM / MM).ceil() as usize;
+    let (cw, ch) = (
+        ((x1 - x0) / cell + 1) as usize,
+        ((y1 - y0) / cell + 1) as usize,
+    );
+    let mut pairs = vec![0usize; cw * ch];
+    let mut occupied = vec![false; cw * ch];
+    for &p in &pts {
+        let c = ((p.1 - y0) / cell) as usize * cw + ((p.0 - x0) / cell) as usize;
+        occupied[c] = true;
+        pairs[c] += offsets
+            .iter()
+            .filter(|o| has((p.0 + o.0, p.1 + o.1)))
+            .count();
+    }
+    // Summed-area table, one row and column of zeros in front.
+    let mut sat = vec![0usize; (cw + 1) * (ch + 1)];
+    for y in 0..ch {
+        let mut run = 0;
+        for x in 0..cw {
+            run += pairs[y * cw + x];
+            sat[(y + 1) * (cw + 1) + x + 1] = run + sat[y * (cw + 1) + x + 1];
+        }
+    }
+    let area = |xa: usize, ya: usize, xb: usize, yb: usize| {
+        sat[yb * (cw + 1) + xb] + sat[ya * (cw + 1) + xa]
+            - sat[ya * (cw + 1) + xb]
+            - sat[yb * (cw + 1) + xa]
+    };
+    (0..cw * ch)
+        .filter(|&c| occupied[c])
+        .map(|c| {
+            let (x, y) = (c % cw, c / cw);
+            area(
+                x.saturating_sub(reach),
+                y.saturating_sub(reach),
+                (x + reach + 1).min(cw),
+                (y + reach + 1).min(ch),
+            )
+        })
+        .max()
 }
 
 fn sews(o: &DesignObject) -> bool {
@@ -939,6 +1221,48 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
             value: peak,
             limit: opts.fabric.1,
             fix: fix("shape.removeOverlap", json!({ "ids": ids })),
+        });
+    }
+    // Needle crowding (#1036): the spot with the most pairs of needle points close together.
+    if let Some(c) = crowding(
+        st,
+        LIMITS.crowd_check_mm,
+        LIMITS.crowd_close_mm,
+        LIMITS.max_crowd_pairs_warn,
+    ) && c.pairs > LIMITS.max_crowd_pairs_warn
+    {
+        let error = c.pairs > LIMITS.max_crowd_pairs_error;
+        let limit = if error {
+            LIMITS.max_crowd_pairs_error
+        } else {
+            LIMITS.max_crowd_pairs_warn
+        };
+        let ids: BTreeSet<u64> = c.stitches.iter().filter_map(|&i| t.owner(i)).collect();
+        let r = LIMITS.crowd_check_mm * MM;
+        out.push(Finding {
+            rule: "crowdedNeedles",
+            severity: if error {
+                Severity::Error
+            } else {
+                Severity::Warning
+            },
+            ids: ids.into_iter().collect(),
+            bbox: bbox_of([c.centre - v2(r, r), c.centre + v2(r, r)]),
+            message: format!(
+                "{} pairs of needle points closer than {} mm within {} mm of one spot ({} points): over {limit}, {}; there is no sew-out evidence yet of what this does to the fabric",
+                c.pairs,
+                LIMITS.crowd_close_mm,
+                LIMITS.crowd_check_mm,
+                c.points,
+                if error {
+                    "twice anything PE-DESIGN's own files sew"
+                } else {
+                    "beyond anything PE-DESIGN's own files sew (591 at most)"
+                }
+            ),
+            value: c.pairs as f64,
+            limit: limit as f64,
+            fix: None,
         });
     }
     out.sort_by_key(|f| f.severity);

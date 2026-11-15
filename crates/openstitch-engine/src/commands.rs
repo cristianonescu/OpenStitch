@@ -3699,6 +3699,11 @@ fn codec_commands() -> Vec<CommandSpec> {
                     "warn|strict|off",
                     "Read every written file back and compare it with the stitches meant for it (#457): warn (default) adds a mismatch to the warnings, strict removes the files and fails",
                 ),
+                opt(
+                    "checks",
+                    "warn|strict",
+                    "Check Design before writing (#1036): warn (default) writes the file and lists design.check's errors as problems; strict writes nothing and fails while design.check has any error (crowdedNeedles over its error limit, stacked needle drops, stitches outside the hoop and the others). Use strict for a file going straight to a machine unattended. Separate from verify, which checks the written file reads back",
+                ),
             ],
             |s, p| {
                 let raw_path = p.string("path", None)?;
@@ -3707,6 +3712,20 @@ fn codec_commands() -> Vec<CommandSpec> {
                 let verify = p.string("verify", Some("warn"))?;
                 if !["warn", "strict", "off"].contains(&verify.as_str()) {
                     return Err(p.invalid("verify", "must be warn, strict or off"));
+                }
+                let checks = p.string("checks", Some("warn"))?;
+                if !["warn", "strict"].contains(&checks.as_str()) {
+                    return Err(p.invalid("checks", "must be warn or strict"));
+                }
+                if checks == "strict" {
+                    let errors = crate::quality::errors(&s.design);
+                    if !errors.is_empty() {
+                        return Err(p.failed(format!(
+                            "design.check has {} error(s), so nothing was written (checks strict): {}",
+                            errors.len(),
+                            errors.join("; ")
+                        )));
+                    }
                 }
                 // Stitch lists and G-code (#488): not machine files, written whole.
                 let extra = if p.has("format") {
