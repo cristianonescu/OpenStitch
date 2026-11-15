@@ -600,6 +600,95 @@ fn a_motif_lines_run_pitch_and_start_end_come_back_from_pe_design() {
     }
 }
 
+/// #1142: PE-DESIGN 11.50's candlewick Density choice (line body +110: Dense 0, Medium 1, Light
+/// 2) comes in as densities 16, 12 and 10, not the 3.0 at +50 that PE-DESIGN leaves whatever
+/// the choice, so the imported square sews PE-DESIGN's knots of 32, 24 and 20 points (round 15,
+/// line-candlewick-*-square40). Exported as PES 0110, +110 comes back as PE-DESIGN wrote it.
+#[test]
+fn a_candlewick_density_choice_comes_back_from_pe_design() {
+    /// Runs of stitches 4 to 6 mm long: a 5 mm knot's chords (the runs between knots are 2.5 mm
+    /// and shorter).
+    fn knot_points(p: &openstitch_core::StitchPattern) -> Vec<usize> {
+        let mut runs = Vec::new();
+        let mut n = 0;
+        for w in p.stitches.windows(2) {
+            let d = (w[1].x - w[0].x).hypot(w[1].y - w[0].y);
+            if (40.0..=60.0).contains(&d) {
+                n += 1;
+            } else if n > 0 {
+                runs.push(n);
+                n = 0;
+            }
+        }
+        if n > 0 {
+            runs.push(n);
+        }
+        runs
+    }
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = temp_dir("v11-candlewick-density");
+    for (name, choice, density, points) in [
+        ("dense", 0, 16.0, 32),
+        ("medium", 1, 12.0, 24),
+        ("light", 2, 10.0, 20),
+    ] {
+        let file = format!("compat/reference/stitches/line-candlewick-{name}-square40.pes");
+        let pe_bytes = std::fs::read(root.join(&file)).expect("capture");
+        let pe = pes::read_objects(&pe_bytes).expect("objects");
+        assert_eq!(pe.shapes[0].candlewick_density, choice, "{file}");
+        std::fs::write(dir.join("in.pes"), &pe_bytes).expect("copy");
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        run(&mut s, "import.pes", json!({"path": "in.pes"}));
+        let l = s.design().objects[0].line.clone().expect("line");
+        assert_eq!(l.density, density, "{file}");
+        let ours = knot_points(&openstitch_design::Compiler::default().compile(s.design()));
+        let theirs = knot_points(&pes::read(&pe_bytes).expect("pattern"));
+        assert_eq!(theirs, vec![points; 28], "{file}: PE-DESIGN's knots");
+        assert!(ours.iter().all(|&n| n == points), "{file}: {ours:?}");
+        // PE-DESIGN sews 28 knots round the square; OpenStitch sews 29, one over (#1155). The
+        // size of each knot is this test's.
+        assert!(
+            (theirs.len()..=theirs.len() + 1).contains(&ours.len()),
+            "{file}: {} knots against PE-DESIGN's {}",
+            ours.len(),
+            theirs.len()
+        );
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": "out.pes", "pesVersion": "11"}),
+        );
+        let back = pes::read_objects(&std::fs::read(dir.join("out.pes")).expect("out.pes"))
+            .expect("objects");
+        assert_eq!(back.shapes[0].candlewick_density, choice, "{file}");
+    }
+}
+
+/// #1142 (the owner's rule of 2026-11-14): `object.setLine`'s `density` says that PES version 11
+/// stores a candlewick's density only as Dense, Medium or Light, so another value is written as
+/// the nearest, a tie to the denser.
+#[test]
+fn the_density_description_says_pes_11_stores_a_candlewick_choice() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setLine")
+        .expect("object.setLine");
+    let density = spec
+        .params
+        .iter()
+        .find(|p| p.name == "density")
+        .expect("density");
+    for words in [
+        "PES version 11 stores only Dense, Medium or Light",
+        "written as the nearest of 16, 12 and 10, a tie to the denser",
+    ] {
+        assert!(density.summary.contains(words), "{}", density.summary);
+    }
+}
+
 #[test]
 fn a_motif_lines_pitch_and_start_end_set_by_command_come_back_from_pes_11() {
     // #1129: object.setLine's pitch and startEnd on a motif line, saved as PES version 11 and
