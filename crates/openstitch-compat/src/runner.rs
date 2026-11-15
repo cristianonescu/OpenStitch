@@ -385,6 +385,9 @@ fn shaped(mut trace: Trace, source: &Source) -> Trace {
     if let Some(a) = source.align {
         trace.align(a.anchor, (a.to[0], a.to[1]));
     }
+    if let Some(c) = source.cut {
+        trace = trace.cut((c.at[0], c.at[1]), c.keep == crate::spec::CutKeep::From);
+    }
     if let Some(x) = source.exclude {
         trace = trace.excluding(x.first, x.last);
     }

@@ -108,7 +108,10 @@ The fields:
     with the jumps leading into them, so one object of a design whose objects are trimmed
     apart, #1088), an `align` anchor and an `exclude` (`{"first": n, "last": m}`: the first
     and last stitch segments are left out, e.g. a tie-in and an end lock; the measurement's
-    evidence says why);
+    evidence says why) and a `cut` (`{"at": [x, y], "keep": "before" | "from"}`: only the
+    stitches before, or from, the first stitch within 0.05 mm of the point, after `align` and
+    before `exclude`; one layer of an object whose layers meet there, such as a fill's under
+    sewing and its top fill at the entry point, #1103);
   - an `expected` value with a `tolerance`, a `reference` check, or both;
   - an `evidence` string saying where the expected value comes from.
 - **Expected values** are compared structurally:

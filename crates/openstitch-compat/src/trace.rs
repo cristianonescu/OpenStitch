@@ -224,6 +224,26 @@ impl Trace {
         }
     }
 
+    /// The trace split at its first stitch within 0.05 mm of `at`: the entries before it
+    /// (`keep_from` false) or from it on (`keep_from` true), e.g. a fill's under sewing and its
+    /// top fill split at the entry point the top fill starts from. Empty when no stitch is there.
+    pub fn cut(&self, at: (f64, f64), keep_from: bool) -> Self {
+        let Some(i) = self
+            .entries
+            .iter()
+            .position(|e| e.command == Command::Stitch && distance((e.x, e.y), at) <= 0.05)
+        else {
+            return Trace::default();
+        };
+        Trace {
+            entries: if keep_from {
+                self.entries[i..].to_vec()
+            } else {
+                self.entries[..i].to_vec()
+            },
+        }
+    }
+
     /// Consecutive stitch points (stitch entries only, other entries skipped) per block.
     pub fn stitch_pairs(&self) -> Vec<(Entry, Entry)> {
         let pts: Vec<Entry> = self.stitches().copied().collect();
@@ -308,6 +328,30 @@ mod tests {
         );
         assert_eq!(t.excluding(0, 0), t);
         assert_eq!(t.excluding(4, 3), Trace::default());
+    }
+
+    #[test]
+    fn a_cut_splits_at_the_first_stitch_on_the_point() {
+        // An under sewing that passes (10,12) once as a jump, then a top fill from (10,12).
+        let mut p = StitchPattern::new();
+        p.jump_to(100.0, 100.0);
+        p.stitch_to(100.0, 110.0);
+        p.jump_to(100.0, 120.0);
+        p.stitch_to(110.0, 110.0);
+        for (x, y) in [(100.0, 120.0), (120.0, 120.0), (100.0, 120.0)] {
+            p.stitch_to(x, y);
+        }
+        let t = Trace::from_pattern(&p);
+        let n = t.stitches().count();
+        let before = t.cut((10.0, 12.0), false);
+        let from = t.cut((10.0, 12.0), true);
+        assert_eq!(before.stitches().count(), 2);
+        assert_eq!(from.stitches().count(), n - 2);
+        assert_eq!(
+            from.stitches().next().map(|e| (e.x, e.y)),
+            Some((10.0, 12.0))
+        );
+        assert_eq!(t.cut((50.0, 50.0), true), Trace::default());
     }
 
     #[test]

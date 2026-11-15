@@ -3,7 +3,7 @@
   "id": "spiral-triangle",
   "area": "stitches",
   "title": "Spiral Stitch: isosceles Triangle, round 5",
-  "description": "PE-DESIGN 11.50's Spiral Stitch: the outline offset a row (1 / density) inwards per turn. Round 5 settles the winding and the end: from a start point on an outline vertex (circle, ellipse, triangle corner) the spiral turns counter-clockwise and ends in the middle; from a start point inside an edge (a rectangle's bottom middle) it runs clockwise to the next corner, spirals from there and, after a trim, returns to that corner and runs back to the start. PE: starts at the bottom-left corner (-19.9,+19.6) and ends at (0,+7.2) near the centroid; runs right. The width matches since 2026-10-31: the spiral starts with a tie-in at the start corner, as PE-DESIGN's does (the corner had been only a jump target, 39.0 mm wide against PE's 39.7).",
+  "description": "PE-DESIGN 11.50's Spiral Stitch: the outline offset a row (1 / density) inwards per turn. Round 5 settles the winding and the end: from a start point on an outline vertex (circle, ellipse, triangle corner) the spiral turns counter-clockwise and ends in the middle; from a start point inside an edge (a rectangle's bottom middle) it runs clockwise to the next corner, spirals from there and, after a trim, returns to that corner and runs back to the start. PE: starts at the bottom-left corner (-19.9,+19.6) and ends at (0,+7.2) near the centroid; runs right. The width matches since 2026-10-31: the spiral starts with a tie-in at the start corner, as PE-DESIGN's does (the corner had been only a jump target, 39.0 mm wide against PE's 39.7). The triangle is the Shapes gallery's, as the reference was made (shape.preset, starting at its bottom-left corner); a polygon clicked from the top starts at the top since #1103.",
   "covers": {
     "audit": [],
     "featureMatrix": [
@@ -28,22 +28,13 @@
       }
     },
     {
-      "command": "shape.polygon",
+      "command": "shape.preset",
       "params": {
-        "points": [
-          [
-            50,
-            30
-          ],
-          [
-            70,
-            70
-          ],
-          [
-            30,
-            70
-          ]
-        ]
+        "kind": "triangle",
+        "cx": 50,
+        "cy": 50,
+        "width": 40,
+        "height": 40
       }
     },
     {
