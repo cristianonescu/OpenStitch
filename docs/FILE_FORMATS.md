@@ -498,6 +498,16 @@ A rectangle starts in the middle of its bottom edge and runs round the corners; 
 four smooth vertices whose handles lie 0.5523 × the radius along the tangent. The record ends
 after its last vertex.
 
+The first vertex is where PE-DESIGN 11.50 starts a closed line: the file holds no other start
+point for it. Its Rectangle tool stores five vertices, from the bottom centre leftward (83 rectangles in
+the references, 1068-motif-5x8-* among them; the other 17 five-vertex rectangles, the owner's
+machine-* and satin-length-sweep-* files, start at the top-left corner). OpenStitch wrote its
+rectangle's four corners from the top-left, and PE-DESIGN's re-saves of a motif square
+(1068-openstitch-motif-5x8-*, round 15) started the line there, not at the bottom centre where
+OpenStitch and PE-DESIGN's own square start. Since #1139 OpenStitch writes a closed outline from
+its line's start point (without a line, its region's), adding a vertex there when it falls inside
+a segment; a shape read from a PE-DESIGN file has no start point and keeps its vertices.
+
 Until 2026-10-31 OpenStitch wrote the `CGroupObject` class's archive number there (the objects'
 count + 2), which equals PE-DESIGN's number only when the group holds the last object: PE-DESIGN
 11.50 refused ("Unexpected file format") the appliqué export, whose group held the four lines

@@ -498,9 +498,29 @@ fn shape(object: &DesignObject, table: &mut Vec<Thread>) -> Result<Shape, String
     if !s.line_sewn {
         s.line_color = s.region_color;
     }
+    let contour = &starting_where_sewn(object, contour);
     s.vertices = vertices(contour);
     s.bounds = bounds(contour);
     Ok(s)
+}
+
+/// A closed outline as PE-DESIGN stores it: from the point its line starts at (the line's
+/// entry; without a line, the region's), a vertex added there when it falls inside a segment.
+/// PE-DESIGN 11.50 holds no start point for a closed line; it sews the line from the first
+/// vertex. Its Rectangle tool stores five vertices from the bottom centre, leftward (the
+/// 1068-motif-5x8-* captures and every other rectangle in the references), where
+/// `shape.rectangle` puts the entry; its re-saves of OpenStitch's four-corner square started
+/// the motif line at the top-left corner (#1139). An open outline, or one with no entry (a PE
+/// file's shapes as imported), is unchanged.
+fn starting_where_sewn(object: &DesignObject, contour: &Contour) -> Contour {
+    let entry = match &object.line {
+        Some(l) => l.entry,
+        None => object.region.as_ref().and_then(|r| r.entry),
+    };
+    match entry {
+        Some(p) if contour.closed => contour.starting_at(p),
+        _ => contour.clone(),
+    }
 }
 
 /// A Manual Punch column as PE-DESIGN's block object: a closed `CEmbLine` with one vertex per
