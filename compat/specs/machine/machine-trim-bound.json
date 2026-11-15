@@ -3,7 +3,7 @@
   "id": "machine-trim-bound",
   "area": "machine",
   "title": "The trim bound: gaps of 0.5, 0.8 and 1.0 mm are sewn across, 1.2 mm and up are trimmed",
-  "description": "Eight 5 x 5 mm red fill squares with gaps of 0.5, 0.8, 1.0, 1.2, 1.5, 1.8 and 2.0 mm: PE-DESIGN 11.50 sews the three shortest gaps across as plain stitches (no jump at all) and trims the four others (needle-to-needle moves of 2.42 mm and more). The squares' y position is OpenStitch's choice. OpenStitch's optimized exit and entry points lie on the squares' edges where PE-DESIGN's lie 0.5 mm inside them and 1 mm apart in y (its moves are sqrt((gap + 1)^2 + 1) mm), so the squares are drawn at PE-DESIGN's needle-to-needle moves and the trimming rule is compared at equal moves; where PE puts its exit and entry inside the edge is the fill track's open item.",
+  "description": "Eight 5 x 5 mm red fill squares with gaps of 0.5, 0.8, 1.0, 1.2, 1.5, 1.8 and 2.0 mm: PE-DESIGN 11.50 sews the three shortest gaps across as plain stitches (no jump at all) and trims the four others (needle-to-needle moves of 2.42 mm and more). The squares' y position is OpenStitch's choice. The squares are drawn where PE-DESIGN's are (the bounds of each square's needle points in its file). Each square starts on its under sewing's edge run at the inset corner, 1 mm in from the top-left, and leaves at its top-right corner, in OpenStitch since #1088 as in PE-DESIGN, so the needle-to-needle moves are PE-DESIGN's: sqrt((gap + 1)^2 + 1) mm.",
   "covers": {
     "audit": [
       4
@@ -33,27 +33,7 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 10.0,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 16.8,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 23.86,
+        "x": 25.6,
         "y": 47.5,
         "width": 5,
         "height": 5,
@@ -73,7 +53,7 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 38.52,
+        "x": 36.9,
         "y": 47.5,
         "width": 5,
         "height": 5,
@@ -83,7 +63,7 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 46.21,
+        "x": 42.9,
         "y": 47.5,
         "width": 5,
         "height": 5,
@@ -93,7 +73,7 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 54.18,
+        "x": 49.1,
         "y": 47.5,
         "width": 5,
         "height": 5,
@@ -103,7 +83,27 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 62.34,
+        "x": 55.6,
+        "y": 47.5,
+        "width": 5,
+        "height": 5,
+        "fill": "Red"
+      }
+    },
+    {
+      "command": "shape.rectangle",
+      "params": {
+        "x": 62.4,
+        "y": 47.5,
+        "width": 5,
+        "height": 5,
+        "fill": "Red"
+      }
+    },
+    {
+      "command": "shape.rectangle",
+      "params": {
+        "x": 69.4,
         "y": 47.5,
         "width": 5,
         "height": 5,

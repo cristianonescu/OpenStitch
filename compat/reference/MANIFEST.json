@@ -6436,6 +6436,18 @@
       "notes": "Header #PES0110, no pattern list. The coordinator's round 15 capture (#1075), replacing the withdrawn gallery-shape reference of shape-start-points. Pattern blocks redacted (#1060): every shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 8fca630cb276e4c13a2b6e456e41410bf85c247a5855b4165711f74695ebe98b."
     },
     {
+      "file": "stitches/fill-square-5mm-under-sewing.pes",
+      "spec": "fill-square-5mm-under-sewing",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "100 x 100 mm page, Optimize Entry/Exit Points off. Home > Shapes > Rectangle, set to 5,00 x 5,00 mm with Home > Size, top-left at (40,0 ; 47,5) mm (read from the file). Line Not Sewn; region Fill Stitch at its defaults: under sewing on, density 4,5, Direction 45, step pitch 4,0, frequency 30 %. The shape's default colour. Save As PES (default type). 5,00 x 5,00 mm, 85 stitches. Saved as 1088-square-5mm-x0.pes; the same square moved by 0,5, 1,0 and 1,5 mm right and 0,5 mm down sews byte-identical stitches (round 15).",
+      "sha256": "1df8d1a1e8cdabc4339468b8ba2fb2c359f18569a3268051cdad9ec0ff1c5421",
+      "notes": "Header #PES0110. The coordinator's round 15 capture for #1088. Pattern blocks redacted (#1060): the shape's pattern block (PE-DESIGN's default decorative pattern) rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged; SHA-256 as saved by PE-DESIGN 13e3c829c497370c67bc43ea91c95c9bd0d2514520255446b00d81954adf04f2."
+    },
+    {
       "file": "stitches/zigzag-net-circle40-w3p0.pes",
       "spec": "zigzag-net-circle40-w3p0",
       "reference": "pe-design",

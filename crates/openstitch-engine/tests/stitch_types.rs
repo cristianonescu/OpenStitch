@@ -2786,3 +2786,35 @@ fn the_gradation_steps_description_says_it_is_ignored() {
         steps.summary
     );
 }
+
+/// #1129: `object.setLine`'s `pitch` names a motif line's Run pitch and its stored default, and
+/// `startEnd` says it changes no stitches on a motif line (what command_describe gives).
+#[test]
+fn the_set_line_pitch_and_start_end_descriptions_cover_the_motif_line() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setLine")
+        .expect("object.setLine");
+    let summary = |name: &str| {
+        spec.params
+            .iter()
+            .find(|p| p.name == name)
+            .unwrap_or_else(|| panic!("{name}"))
+            .summary
+    };
+    let pitch = summary("pitch");
+    assert!(
+        pitch.contains("motif: the line's Run pitch")
+            && pitch.contains("default 2.5; PE-DESIGN's is 5.0"),
+        "{pitch}"
+    );
+    let start_end = summary("startEnd");
+    assert!(
+        start_end.contains("Motif line: stored for PE-DESIGN")
+            && start_end.contains("changes no stitches")
+            && start_end.contains("an open motif line is not captured"),
+        "{start_end}"
+    );
+}
