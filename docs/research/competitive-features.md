@@ -1606,3 +1606,46 @@ No comparison-matrix row changes (the open-source projects are tracked here, not
 New "Planned (beyond PE-DESIGN)" rows in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
 PE-DESIGN): nested groups with a folding tree in the Sewing Order list, and saving that never
 leaves a half-written file. They are issues #1092 and #1093.
+
+### 2026-11-15 scan
+
+Period checked: 2026-11-14 to 2026-11-15.
+
+**Commercial products.** No material release or feature announcement in the period.
+Checked: Wilcom blog (newest post still the staff appointment of 2026-11-11) and Hatch blog
+(newest still the beginner projects post of 2026-11-12); BERNINA, mySewnet, Embrilliance, Janome
+Artistic Digitizer, Floriani Total Control U and SewWhat-Pro (one search, no dated release
+found); Tajima DG by Pulse (DG17.5, 17.5.1.8445, unchanged); Embird (the "what is new" page
+still headlines Embird 2026 without a date); Ink/Stitch (newest post still v3.3.0 of
+2026-07-31); PE-DESIGN 11 one-click update history (11.50 of September 2026 still the newest).
+Sources: https://wilcom.com/resources/blog, https://hatchembroidery.com/resources/blog,
+https://inkstitch.org/news, https://www.embird.net/what-is-new/,
+https://cloud.pulsemicro.com/Download,
+https://support.brother.com/g/s/hf/ped_info/ped11/one_click_update/en/ped11update_info.html.
+
+#### Open-source projects
+
+Ideas only, read from release notes and commit titles; no code may be copied, ported or
+paraphrased (openhoop, filum and myembro are GPL-3.0; lb2002/openstitch is AGPL-3.0-or-later).
+
+- **vomitselfie/Morale**, **alexandra03/threadspool**, **lork-fork/Roidery**,
+  **bastanja/stitch_generator**, **EvenDog/openhoop** (still 0.13.6 of 2026-11-10),
+  **lb2002/openstitch** (the other project that shares OpenStitch's name) and
+  **linker2k/myembro** (still v0.4.0-beta.11): no commits or releases since 2026-11-14.
+- **benkl/filum** (GPL-3.0; release 0.2.2 on 2026-11-14, two commits the same day).
+  - One satin can be switched between two forms, back and forth: a centre line with a width, or
+    two sides that are shaped separately. OpenStitch has both forms (the satin line and skeleton
+    satin with per-side width keys, #524, and Manual Punch columns with rung editing, #525), but
+    no command or editor action that turns one into the other, so the form is chosen before
+    drawing: new idea, issue #1145 (new row).
+  - Already in OpenStitch or tracked, no issue: the lines that set a satin's stitch angle can be
+    deleted (rungs of a Manual Punch column, #525) and stay on the column when it is edited or
+    moved (OpenStitch's direction lines are part of the object); saving through a temporary
+    file (#1093, from the 2026-11-14 scan); a radial or circular fill keeps its centre when
+    mirrored or turned.
+  - Not material: smaller project files by rounding numbers.
+  https://github.com/benkl/filum/releases/tag/v0.2.2 (single source)
+
+No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
+New "Planned (beyond PE-DESIGN)" row in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
+PE-DESIGN): converting a satin between its centre-line form and its two-sides form (#1145).

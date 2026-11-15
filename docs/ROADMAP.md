@@ -749,6 +749,10 @@ groups with group rows that fold in the Sewing Order list, and saving designs an
 through a temporary file so a save that is cut off leaves the earlier file whole. Both are ideas
 for Future; their issues are #1092 and #1093.
 
+From the competitor scan of 2026-11-15 (same document, Updates; filum, concepts only): a command
+and an editor action that convert a satin between its centre-line form and its two-sides form
+(a Manual Punch column), both ways, keeping the stitches (#1145), an idea for Future.
+
 Deferred: shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
 rework and an intelligent multi-hoop split with editable lines (VP3, TAP, TBF, U01, DSB, DSZ,
