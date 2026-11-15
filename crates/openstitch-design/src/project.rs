@@ -476,6 +476,53 @@ mod tests {
         assert!(changed.is_empty(), "{changed:#?}");
     }
 
+    /// #1130: a motif line's default Run pitch went from 2.5 to PE-DESIGN's 5.0 with no `.osd`
+    /// version step, because every file stores `pitch` on every line (the field is required):
+    /// a version-6 motif line made at the old default loads at 2.5 and sews what it sewed, and
+    /// a line without `pitch` is refused rather than given the new default.
+    #[test]
+    fn older_motif_lines_keep_the_pitch_they_were_saved_with() {
+        let design = |pitch: f64| {
+            let mut d = Design::new("motif", DesignPage::default());
+            let mut l = LineSewing::new(LineType::Motif, Thread::rgb(0xff0000));
+            l.pitch = pitch;
+            // The Run pitch sews the runs between motifs: with the default gap of 0 a motif
+            // line sews the same at either pitch, so this one has a 4 mm gap.
+            l.spacing = Some(4.0);
+            d.add(DesignObject::shape(
+                vec![Contour::rectangle(0.0, 0.0, 400.0, 400.0)],
+                None,
+                Some(l),
+            ));
+            d
+        };
+        assert_eq!(LineSewing::new(LineType::Motif, Thread::rgb(0)).pitch, 5.0);
+        let old = design(2.5);
+        let mut v: serde_json::Value =
+            serde_json::from_slice(&encode(&old).expect("encode")).expect("json");
+        v["version"] = serde_json::json!(6);
+        assert_eq!(
+            v["design"]["objects"][0]["line"]["pitch"],
+            serde_json::json!(2.5)
+        );
+        let loaded = decode(&serde_json::to_vec(&v).expect("bytes")).expect("decode");
+        assert_eq!(loaded.objects[0].line.as_ref().expect("line").pitch, 2.5);
+        let sew = |d: &Design| crate::Compiler::default().compile(d).stitches;
+        let (was, now, new) = (sew(&old), sew(&loaded), sew(&design(5.0)));
+        assert_eq!(was.len(), now.len());
+        assert!(was.iter().zip(&now).all(|(a, b)| a.x == b.x && a.y == b.y));
+        assert_ne!(
+            was.len(),
+            new.len(),
+            "the default changes what a new motif line sews"
+        );
+        v["design"]["objects"][0]["line"]
+            .as_object_mut()
+            .expect("line")
+            .remove("pitch");
+        assert!(decode(&serde_json::to_vec(&v).expect("bytes")).is_err());
+    }
+
     #[test]
     fn version_2_texts_keep_their_capital_height_metrics() {
         let mut d = Design::new("t", DesignPage::default());
