@@ -1864,6 +1864,19 @@ mod tests {
     use super::*;
     use crate::Session;
 
+    /// #1036: design.check's description names the three readiness levels it returns.
+    #[test]
+    fn the_check_description_names_the_levels() {
+        let spec = commands()
+            .into_iter()
+            .find(|c| c.id == "design.check")
+            .expect("design.check");
+        for level in ["readyToSew", "sewableWithSmallRisks", "fixThisFirst"] {
+            assert!(spec.summary.contains(level), "{level}: {}", spec.summary);
+            assert!([readiness(0, 0), readiness(0, 1), readiness(1, 0)].contains(&level));
+        }
+    }
+
     /// #1036: design.check's description (what command_describe gives) names every rule the check
     /// can emit, read from this file's own `rule: "…"` literals, so a new rule cannot be left out.
     #[test]

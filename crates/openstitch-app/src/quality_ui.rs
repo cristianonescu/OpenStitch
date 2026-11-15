@@ -791,6 +791,19 @@ mod tests {
         assert_eq!(s["level"], json!("readyToSew"), "a note leaves it ready: {s}");
     }
 
+    /// #1036: `ui.state`'s description (what the Assistant reads) names the three levels its
+    /// `check` gives.
+    #[test]
+    fn the_ui_state_description_names_the_levels() {
+        let spec = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.state")
+            .expect("ui.state");
+        for level in ["readyToSew", "sewableWithSmallRisks", "fixThisFirst"] {
+            assert!(spec.summary.contains(level), "{level}: {}", spec.summary);
+        }
+    }
+
     /// #1036: `ui.state`'s `check` names the readiness level with the counts: a shape past the
     /// hoop is an error, so fix this first.
     #[test]
