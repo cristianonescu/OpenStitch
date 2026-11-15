@@ -198,7 +198,13 @@ pub fn resolve(
         Ok(p) => reference_root.join(p),
         Err(e) => return Reference::Invalid(e),
     };
-    let entry = manifest.files.iter().find(|p| p.file == file);
+    // A capture can be the reference of more than one spec (a scripted spec and the spec that
+    // imports the same file, #1068): each has its own entry, so take this spec's first.
+    let entry = manifest
+        .files
+        .iter()
+        .find(|p| p.file == file && p.spec == spec && p.reference == reference)
+        .or_else(|| manifest.files.iter().find(|p| p.file == file));
     let bytes = match read_limited(&path) {
         Ok(b) => b,
         Err(e) => return Reference::Invalid(e),
