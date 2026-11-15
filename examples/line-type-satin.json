@@ -4,7 +4,7 @@
   "params": {
    "name": "line type: Satin line",
    "width": 100,
-   "height": 22
+   "height": 52
   }
  },
  {
@@ -41,6 +41,39 @@
   "params": {
    "id": 1,
    "type": "satin"
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     20,
+     28
+    ],
+    [
+     50,
+     28
+    ],
+    [
+     80,
+     46
+    ],
+    [
+     20,
+     46
+    ]
+   ],
+   "closed": true,
+   "outline": "Black"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 2,
+   "type": "satin",
+   "cornerStyle": "auto"
   }
  }
 ]

@@ -29,7 +29,7 @@ OpenStitch's own; PE-DESIGN's defaults are unchanged.
 
 ![Satin line](images/engine-line-type-satin.png)
 
-`object.setLine {"type": "satin"}`
+`object.setLine {"type": "satin"}` (the curve); `object.setLine {"type": "satin", "cornerStyle": "auto"}` (the closed outline below it: mitred and capped corners, #1040, #1048)
 
 ## Back stitch
 
