@@ -665,6 +665,30 @@ fn a_candlewick_density_choice_comes_back_from_pe_design() {
     }
 }
 
+/// #1142 (the owner's rule of 2026-11-14): `object.setLine`'s `density` says that PES version 11
+/// stores a candlewick's density only as Dense, Medium or Light, so another value is written as
+/// the nearest, a tie to the denser.
+#[test]
+fn the_density_description_says_pes_11_stores_a_candlewick_choice() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setLine")
+        .expect("object.setLine");
+    let density = spec
+        .params
+        .iter()
+        .find(|p| p.name == "density")
+        .expect("density");
+    for words in [
+        "PES version 11 stores only Dense, Medium or Light",
+        "written as the nearest of 16, 12 and 10, a tie to the denser",
+    ] {
+        assert!(density.summary.contains(words), "{}", density.summary);
+    }
+}
+
 #[test]
 fn a_motif_lines_pitch_and_start_end_set_by_command_come_back_from_pes_11() {
     // #1129: object.setLine's pitch and startEnd on a motif line, saved as PES version 11 and
