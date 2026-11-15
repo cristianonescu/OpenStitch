@@ -861,23 +861,25 @@ fn region_entry_and_exit_points() {
         "snapped to the left edge"
     );
     assert_eq!(r["regionExit"], json!([40.0, 12.0]));
+    // A fill with under sewing (the default) starts on the under sewing's edge run 1 mm
+    // inside the outline, at its point nearest the entry, as PE-DESIGN 11.50 does (#1088).
     let (first, last) = first_and_last_stitch(&s);
-    assert_eq!(first, (10.0, 22.0));
+    assert_eq!(first, (11.0, 22.0));
     assert_eq!(last, (40.0, 12.0));
     // Moving the shape moves its points; the .osd keeps them.
     run(&mut s, "object.move", json!({"id": 1, "dx": 5}));
     let (first, _) = first_and_last_stitch(&s);
-    assert_eq!(first, (15.0, 22.0));
+    assert_eq!(first, (16.0, 22.0));
     let saved = openstitch_engine::project::encode(s.design()).expect("encode");
     let back = openstitch_engine::project::decode(&saved).expect("decode");
     assert_eq!(&back, s.design());
-    // Underlay starts at the entry too.
+    // Underlay starts nearest the entry too.
     run(
         &mut s,
         "object.setRegion",
         json!({"id": 1, "underlay": true}),
     );
-    assert_eq!(first_and_last_stitch(&s).0, (15.0, 22.0));
+    assert_eq!(first_and_last_stitch(&s).0, (16.0, 22.0));
     // Clearing.
     run(
         &mut s,
