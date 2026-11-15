@@ -419,5 +419,32 @@ pub fn round_coordinate(v: f64) -> i64 {
     v.round_ties_even() as i64
 }
 
+/// `pattern` turned 90° clockwise as the machine sees it (x right, y down: (x, y) about the
+/// centre becomes (−y, x)), as PE-DESIGN 11.50 writes the machine stitches for a hoop with
+/// Rotate 90 Degrees (round 6: `hoops/s-130x180-rot90.pes` against `s-130x180.pes`).
+pub fn turned_for_hoop(pattern: &StitchPattern) -> StitchPattern {
+    let b = pattern.bounds();
+    let (cx, cy) = ((b.min_x + b.max_x) / 2.0, (b.min_y + b.max_y) / 2.0);
+    let mut out = pattern.clone();
+    for s in &mut out.stitches {
+        let (dx, dy) = (s.x - cx, s.y - cy);
+        s.x = cx - dy;
+        s.y = cy + dx;
+    }
+    // Turning about the centre can carry a design wider than it is tall left of or above the
+    // origin, outside the PEC frame the machine sews within (the ready-to-sew kit's storybook
+    // picture, 55 mm left of it in the turned 260 × 160 mm hoop): it is moved back onto the
+    // page by that much.
+    let t = out.bounds();
+    let (sx, sy) = ((-t.min_x).max(0.0), (-t.min_y).max(0.0));
+    if sx > 0.0 || sy > 0.0 {
+        for s in &mut out.stitches {
+            s.x += sx;
+            s.y += sy;
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests;
