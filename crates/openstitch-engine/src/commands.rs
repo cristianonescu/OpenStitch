@@ -922,13 +922,20 @@ fn shape_commands() -> Vec<CommandSpec> {
             "Add a polygon (closed) or polyline (closed: false)",
             Effect::Edit,
             shape_docs(vec![
-                req("points", "[[x, y]] mm", "Vertices"),
+                req(
+                    "points",
+                    "[[x, y]] mm",
+                    "Vertices; a closed polygon's region starts and ends at the first (PE-DESIGN's Closed Straight Line: the corner clicked first)",
+                ),
                 opt("closed", "bool", "Closed region (default true)"),
             ]),
             |s, p| {
                 let closed = p.bool("closed", Some(true))?;
                 let points = p.points("points", if closed { 3 } else { 2 })?;
-                add_shape(s, p, Contour::new(points, closed))
+                // PE-DESIGN 11.50 starts and ends a closed straight-line shape's region at the
+                // vertex clicked first, whichever corner and drawing direction (#1103).
+                let first: fn(&Contour) -> Option<Vec2> = |c| c.points.first().copied();
+                add_shape_ending(s, p, Contour::new(points, closed), closed.then_some(first))
             },
         ),
         spec(
