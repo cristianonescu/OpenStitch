@@ -1875,7 +1875,13 @@ pub fn reroute_with(
         });
         match walk.or(inside) {
             Some(way) => {
-                last.extend(crate::paths::stitches(&way, 25.0).into_iter().skip(1));
+                // A warped outline is sampled every 0.2-0.3 mm (a Text Transform's letters),
+                // and the walk put a needle point on each sample: 16 in a row under 0.3 mm round
+                // the O's counter in text-transform-22-openstitch-l100 (#1157). Such a run is
+                // thinned as the fill's rows are.
+                let mut travel = crate::paths::stitches(&way, 25.0);
+                crate::generate::join_short_stitches(&mut travel);
+                last.extend(travel.into_iter().skip(1));
                 last.extend(piece.into_iter().skip(1));
             }
             None => out.push(piece),

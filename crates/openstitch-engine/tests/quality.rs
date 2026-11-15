@@ -170,6 +170,52 @@ fn stitching_in_place_is_counted_on_the_file_grid() {
     assert!(found(&c, "inPlace").is_none(), "{c}");
 }
 
+/// #1157: a fill letter that is not cut into strokes (Lato Bold's O under Text Transform
+/// preset 22 or 24 at a high level) is sewn as a region fill, whose travel between sections
+/// walked the warped outline with a needle point on every sample, 0.2-0.3 mm apart: 16 and 13
+/// stitches in place in a row in the exported file, where PE-DESIGN 11.50's references have 2
+/// and 3. The walk is thinned as the fill's rows are: no run over 6 in the file, and Check
+/// Design reports none.
+#[test]
+fn a_warped_fill_letters_travel_sews_no_stitches_in_place() {
+    let dir = TempDir::new("warped-fill-travel");
+    for (preset, level) in [(22, 94.0), (24, 84.0)] {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        run(
+            &mut s,
+            "text.add",
+            json!({"text": "OpenStitch", "font": "lato-bold", "size": 10, "x": 50, "y": 50,
+                   "fill": "Red", "envelope": preset, "envelopeLevel": level}),
+        );
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "type": "fill", "underlay": false, "density": 5}),
+        );
+        let c = run(&mut s, "design.check", json!({"rules": ["inPlace"]}));
+        assert!(found(&c, "inPlace").is_none(), "preset {preset}: {c}");
+        run(&mut s, "design.export", json!({"path": "w.pes"}));
+        let back = FileType::Pes
+            .read(&std::fs::read(dir.join("w.pes")).expect("w.pes"))
+            .expect("pes");
+        let grid = openstitch_core::round_coordinate;
+        let (mut run_len, mut longest) = (0, 0);
+        for (i, st) in back.stitches.iter().enumerate() {
+            let tiny = i > 0 && st.command == Command::Stitch && {
+                let p = &back.stitches[i - 1];
+                ((grid(p.x) - grid(st.x)) as f64).hypot((grid(p.y) - grid(st.y)) as f64) < 3.0
+            };
+            run_len = if tiny { run_len + 1 } else { 0 };
+            longest = longest.max(run_len);
+        }
+        assert!(
+            longest <= 6,
+            "preset {preset}: {longest} in a row under 0.3 mm"
+        );
+    }
+}
+
 /// #1135: the run in place Check Design reads on a design is the run in the PES OpenStitch
 /// exports from it, read back. These are the three PE-DESIGN references whose finding changed
 /// when the count moved onto the 0.1 mm grid (before: 3, 8 and 7). PE-DESIGN's own files read 5,

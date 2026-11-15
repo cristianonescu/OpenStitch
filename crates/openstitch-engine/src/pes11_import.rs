@@ -309,6 +309,11 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
             if gap > 0.0 && (gap - r.spacing_mm()).abs() > 0.01 {
                 r.spacing = Some(gap);
             }
+            // The net's Density is +368, PE-DESIGN's lines, two a rung (#1122); 0 keeps the
+            // default.
+            if s.net_density > 0.0 {
+                r.density = f64::from(s.net_density) / crate::pes11_export::NET_LINES_PER_RUNG;
+            }
         }
         if kind == RegionType::Fill {
             r.frequency = Some(f64::from(s.frequency));
@@ -1170,6 +1175,51 @@ mod tests {
             d.add(i.objects[0].clone());
             let s = &crate::pes11_export::objects(&d).expect("objects").shapes[0];
             assert_eq!(s.zigzag_net, [width as f32, 5.0], "{name}");
+        }
+    }
+
+    #[test]
+    fn zigzag_net_density_is_pe_designs_lines_per_mm() {
+        // #1122: PE-DESIGN 11.50 keeps a zigzag net's Density at body +368, as lines/mm; +136
+        // stays 45. The coordinator's capture changed only the Density, 4.5 to 4.7: +368 went
+        // 45 to 47 and nothing else in the shape's header moved. OpenStitch counts rungs, a rung
+        // across and the diagonal back being two lines (inferred from the 0.44 mm rung pitch at
+        // 4.5): 2.25 and 2.35 a mm.
+        for (name, at_368, rungs) in [("", 4.5, 2.25), ("-density-4p7", 4.7, 2.35)] {
+            let section = reference(&format!("stitches/zigzag-net-circle40-w3p0{name}"));
+            let pe = &section.shapes[0];
+            assert_eq!(
+                (pe.density, pe.net_density),
+                (4.5, at_368),
+                "{name}: +136, +368"
+            );
+            let r = objects(&section).objects[0].region.clone().expect("region");
+            assert!((r.density - rungs).abs() < 1e-6, "{name}: {}", r.density);
+        }
+        let i = objects(&reference("stitches/zigzag-net-circle40-w3p0"));
+        // Written back as PE-DESIGN writes it (+136 its 4.5 whatever the net's Density), and
+        // read back to the same sewing: at the default and at another density.
+        for (density, written) in [(2.25, 4.5), (3.0, 6.0)] {
+            let mut o = i.objects[0].clone();
+            o.region.as_mut().expect("region").density = density;
+            let mut d = Design::default();
+            d.add(o);
+            let pattern = openstitch_design::Compiler::default().compile(&d);
+            let out = crate::pes11_export::objects(&d).expect("objects");
+            let bytes = openstitch_formats::pes11::write(&out, &pattern).expect("write");
+            let back = openstitch_formats::pes::read_objects(&bytes).expect("objects");
+            let s = &back.shapes[0];
+            assert_eq!((s.density, s.net_density), (4.5, written), "+136 and +368");
+            let again = objects(&back);
+            let r = again.objects[0].region.as_ref().expect("region");
+            assert_eq!(r.density, density);
+            let mut e = Design::default();
+            e.add(again.objects[0].clone());
+            assert_eq!(
+                openstitch_design::Compiler::default().compile(&e).stitches,
+                pattern.stitches,
+                "{density}: the same stitches"
+            );
         }
     }
 }

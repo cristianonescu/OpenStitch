@@ -1266,7 +1266,7 @@
    90.0,
    67.9
   ],
-  "stitches": 7914,
+  "stitches": 7908,
   "trims": 16,
   "threads": [
    "001 White",
@@ -1280,7 +1280,7 @@
   "sewingMinutes": 10.7,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-openstitch.png",
-  "sha256": "32094a1f13dbc63cccb56669d07dc864efc9370828b213431a25ee34894158d9",
+  "sha256": "903ede46054e4a689b24c8892561dcd8ef50ddfce8415afd9ad32df3242f4875",
   "renderVersion": 3
  },
  "image-tools/S-autopunch-balloon-pe-compatible.pes": {
@@ -1553,7 +1553,7 @@
    199.0,
    150.1
   ],
-  "stitches": 95061,
+  "stitches": 95055,
   "trims": 1082,
   "threads": [
    "017 Light Blue",
@@ -1570,7 +1570,7 @@
   "sewingMinutes": 174.3,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "dc898b49c3f5afe41e3bafc9b40f31d98530c8d647ffec7d05f0bdb94e373146",
+  "sha256": "d61d5dc36c1e4d1d436c7d2069c0a0f07654be31eac4def2f43d6569e3f567c8",
   "renderVersion": 3
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
@@ -1581,7 +1581,7 @@
    199.3,
    150.9
   ],
-  "stitches": 114372,
+  "stitches": 114368,
   "trims": 2047,
   "threads": [
    "307 Linen",
@@ -1598,7 +1598,7 @@
   "sewingMinutes": 247.9,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "a3a48c04a9898dbc1cf98a697e10d6f0209582cfdf0290b44211f34b592dc9e8",
+  "sha256": "a12d6809cdb52f2eea64e49ffea31e228daea414ed5480ac6ad416752249383d",
   "renderVersion": 3
  }
 }
