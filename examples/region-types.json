@@ -2826,7 +2826,7 @@
    "id": 11,
    "type": "zigzagNetFill",
    "pattern": "diamond",
-   "spacing": 5,
+   "spacing": 3.8,
    "patternWidth": 1.2,
    "density": 4
   }

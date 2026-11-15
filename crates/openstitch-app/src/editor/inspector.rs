@@ -1170,7 +1170,21 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                     .unwrap_or_else(|| patterns::NET_PATTERNS[0].id.to_string()),
                 options: net_options(zigzag),
             });
-            v.push(spacing("Spacing", 0.5));
+            if zigzag {
+                // PE-DESIGN 11.50's ranges: Spacing (the gap between bands) 2.0 to 10.0 mm, zigzag
+                // width 1.0 to 10.0 mm (#1109).
+                v.push(num(
+                    "Spacing",
+                    "region.spacing",
+                    "spacing",
+                    r.spacing_mm(),
+                    (2.0, 10.0),
+                    0.05,
+                    " mm",
+                ));
+            } else {
+                v.push(spacing("Spacing", 0.5));
+            }
             v.push(pitch);
             if zigzag {
                 v.push(num(
@@ -1178,7 +1192,7 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                     "region.patternWidth",
                     "patternWidth",
                     pw,
-                    (0.5, 50.0),
+                    (1.0, 10.0),
                     0.05,
                     " mm",
                 ));

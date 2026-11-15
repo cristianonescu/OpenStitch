@@ -71,6 +71,35 @@ pub(crate) const fn opt(name: &'static str, kind: &'static str, summary: &'stati
     }
 }
 
+/// The region types whose `spacing` has a default of its own, in the order
+/// `object.setRegion`'s `spacing` description lists them.
+pub const SPACING_TYPES: [RegionType; 8] = [
+    RegionType::CrossStitch,
+    RegionType::Stippling,
+    RegionType::NetFill,
+    RegionType::ZigzagNetFill,
+    RegionType::FlexibleSpiral,
+    RegionType::MotifFill,
+    RegionType::Contour,
+    RegionType::Maze,
+];
+
+/// `object.setRegion`'s `spacing` description, its defaults read from
+/// [`RegionSewing::spacing_mm`] so the text cannot drift from what is sewn (#1117).
+static SPACING_SUMMARY: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    let defaults: Vec<String> = SPACING_TYPES
+        .iter()
+        .map(|&k| {
+            let mm = RegionSewing::new(k, Thread::rgb(0)).spacing_mm();
+            format!("{} {mm}", k.id())
+        })
+        .collect();
+    format!(
+        "Cross size, stippling / net / flexible spiral spacing, motif gaps; a netFill's is the line pitch, a zigzagNetFill's the gap between bands (its lines patternWidth + spacing apart, as PE-DESIGN's, #1109), PE-DESIGN's range 2.0-10 (a gap outside it is stored and sewn as given, the inspector shows it unchanged, and a PES 0110 save writes it as stored, untested in PE-DESIGN); 0-20 (0.5 minimum except motif fill). Left out, the type's default in mm: {}",
+        defaults.join(", ")
+    )
+});
+
 pub type RunFn = fn(&mut EngineState, &Params) -> CommandResult;
 
 #[derive(Clone)]
@@ -1462,18 +1491,14 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "patternWidth",
                     "mm",
-                    "Pattern width; zigzag net: zigzag width; meander fill: tile width (default 8), 0.5-50 (decorative fill 0.5-100)",
+                    "Pattern width; zigzag net: zigzag width, PE-DESIGN's range 1.0-10 (a width outside it, 0.5-50 here, is stored and sewn as given, the inspector shows it unchanged, and a PES 0110 save writes it as stored, untested in PE-DESIGN, #1109); meander fill: tile width (default 8), 0.5-50 (decorative fill 0.5-100)",
                 ),
                 opt(
                     "patternHeight",
                     "mm",
                     "Pattern height; meander fill: tile height, the distance between its rows (default 8), 0.5-50 (decorative fill 0.5-100)",
                 ),
-                opt(
-                    "spacing",
-                    "mm",
-                    "Cross size, stippling / net / flexible spiral spacing, motif gaps, 0-20 (0.5 minimum except motif fill)",
-                ),
+                opt("spacing", "mm", SPACING_SUMMARY.as_str()),
                 opt(
                     "runPitch",
                     "mm",
