@@ -102,6 +102,18 @@
       "evidence": "RegionSewing::new: programmable fill starts at 45°"
     },
     {
+      "id": "stored-density",
+      "measure": {
+        "kind": "replyValue",
+        "pointer": "/region/density"
+      },
+      "source": {
+        "step": "object"
+      },
+      "expected": 4.5,
+      "evidence": "PE-DESIGN 11.50 shows Density 4,5 for this new programmable fill (the capture's pane, round 15), and the Density field's reset button with Prog. Fill Stitch sets 4,5 line/mm (checked 2026-11-14, #1102)"
+    },
+    {
       "id": "dominant-direction",
       "measure": {
         "kind": "dominantAngle",
@@ -116,6 +128,21 @@
       },
       "evidence": "audit item 14; PE-DESIGN 11.50 reference stitches/programmable-fill-45-psc-square.pes (the project's square tile, Direction 45 as PE-DESIGN sets it): the dominant direction of its stitches, ±1°",
       "reference": {}
+    },
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "pfill.pes"
+      },
+      "evidence": "PE-DESIGN's 2,686 stitches in the capture; within 3 % (#1102: 1,612 at the old 2.5 default)",
+      "reference": {
+        "tolerance": {
+          "percent": 3
+        }
+      }
     }
   ],
   "inputs": [
