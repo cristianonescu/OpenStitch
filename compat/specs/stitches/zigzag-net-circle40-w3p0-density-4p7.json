@@ -64,7 +64,7 @@
     {
       "id": "pe-design",
       "file": "stitches/zigzag-net-circle40-w3p0-density-4p7.pes",
-      "make": "Opened compat/reference/stitches/zigzag-net-circle40-w3p0.pes as PE-DESIGN saved it (SHA-256 39a5d5b22a51a7ba84924389f23701f47511548ae87a333293784a850787ad31) in PE-DESIGN 11.50, changed the region's Density from 4,5 to 4,7 line/mm, nothing else; Save As PES (default type, Ver.11.0). Stitches = 2032."
+      "make": "Opened the repository's redacted compat/reference/stitches/zigzag-net-circle40-w3p0.pes (SHA-256 22b53f469789d0b1392f51e693da0b686d397231ab5268d373e34efd06aef8b7) in PE-DESIGN 11.50, changed the region's Density from 4,5 to 4,7 line/mm, nothing else; Save As PES (default type, Ver.11.0). Stitches = 2032."
     }
   ],
   "measurements": [
