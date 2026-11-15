@@ -69,7 +69,8 @@ pub const APPLIQUE_KIND: u32 = 2;
 
 /// Body offsets of fields that belong to the sew types an object doesn't use: they hold either
 /// PE-DESIGN's tool values or plain ones ([`Shape::plain_settings`]); the meaning of each is not
-/// mapped.
+/// mapped, except on a motif line, where +70 and +72 are its size and +82 its Run pitch, written
+/// from the shape.
 pub const SETTINGS_FIELDS: [usize; 13] =
     [58, 70, 72, 82, 218, 220, 238, 240, 260, 334, 336, 346, 364];
 /// [`SETTINGS_FIELDS`] as the Shape, Text and Manual Punch tools write them (r01 and every
@@ -548,8 +549,10 @@ pub struct Shape {
     /// rectangles); on stem, candlewick and chain lines it moves with the start and end options
     /// together with +84 (line-*-startend-*), meaning not mapped there (1 on a default chain).
     pub line_variant: u16,
-    /// Body +84: 1 with some start and end options on stem and candlewick lines
-    /// (line-stem-startend-*), 0 otherwise; meaning not mapped.
+    /// Body +84: on a motif line its Start/End Type, 0 Feed (PE-DESIGN's default), 1 Run
+    /// (1068-motif-5x8-startend-run against 608-motif-5x8, round 15, #1068); 1 with some start
+    /// and end options on stem and candlewick lines (line-stem-startend-*), meaning not mapped
+    /// there; 0 otherwise.
     pub line_flag_84: u16,
     /// Zigzag width, mm.
     pub zigzag_width: f32,
@@ -575,6 +578,13 @@ pub struct Shape {
     pub ev_opening: f32,
     /// Running stitch pitch, mm. Kept while another line type is chosen, as PE's tool keeps it.
     pub run_pitch: f32,
+    /// A motif line's Run pitch, mm (body +82, 0.1 mm; PE-DESIGN's default 5.0). Written on
+    /// motif lines only; other line types write the settings value there ([`SETTINGS_FIELDS`]),
+    /// which is 5.0 from PE-DESIGN's tools. The stitches between and along the motifs, apart from the running
+    /// pitch (+52). The only field of 608-motif-5x8 that moves when Run pitch alone is set to
+    /// 3.0 and 7.0 (1068-motif-5x8-runpitch-3p0, -7p0, round 15, #1068), besides +216 (0 at
+    /// 5.0, 1 at both others; not mapped).
+    pub motif_pitch: f32,
     pub line_under_sewing: bool,
     pub region: RegionSewType,
     /// Region colour: an index into [`Objects::threads`].
@@ -694,6 +704,7 @@ impl Shape {
             ev_spacing: 5.0,
             ev_opening: 2.0,
             run_pitch: 2.0,
+            motif_pitch: 5.0,
             line_under_sewing: true,
             region: RegionSewType::Fill,
             region_color: 0,
@@ -1539,6 +1550,7 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         ev_spacing: f32::from(u16_at(body, 88)) / 10.0,
         ev_opening: f32::from(u16_at(body, 92)) / 10.0,
         run_pitch: f32::from(u16_at(body, 52)) / 10.0,
+        motif_pitch: f32::from(u16_at(body, 82)) / 10.0,
         line_under_sewing: u16_at(body, 60) != 0,
         region: RegionSewType::from_raw(u16_at(body, 134)),
         region_color: u16_at(body, 170),
@@ -2253,6 +2265,10 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     };
     for (&at, v) in SETTINGS_FIELDS.iter().zip(settings) {
         put16(&mut head, at, v);
+    }
+    // +82 is one of the settings fields, but on a motif line it is the line's Run pitch (#1068).
+    if s.line_type == Shape::LINE_MOTIF {
+        put16(&mut head, 82, tenths(s.motif_pitch));
     }
     put16(&mut head, 180, u16::from(s.under_sewing));
     put16(&mut head, 182, s.under_sewing_type);

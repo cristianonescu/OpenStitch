@@ -359,7 +359,18 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
         l.sharp_corners.miter_limit = s
             .miter_limits
             .map(|mm| f64::from(mm).clamp(0.0, openstitch_design::model::SharpCorners::MAX_LIMIT));
-        l.pitch = f64::from(s.run_pitch);
+        // A motif line's pitch is its own Run pitch (+82), not the running pitch PE-DESIGN keeps
+        // from the running line tool (+52, 2.0 in 608-motif-5x8 where the motifs are sewn at
+        // 5.0: read as 2.0, each 3.2 mm motif stitch was split, 118 stitches against 75, #1068).
+        // A motif line's Start/End Type (+84: 0 Feed, 1 Run, #1068).
+        if kind == LineType::Motif && s.line_flag_84 == 1 {
+            l.start_end = openstitch_design::model::StartEnd::Run;
+        }
+        l.pitch = f64::from(if kind == LineType::Motif {
+            s.motif_pitch
+        } else {
+            s.run_pitch
+        });
         l.underlay = s.line_under_sewing;
         Some(l)
     } else {

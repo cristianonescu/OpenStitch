@@ -783,6 +783,10 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
                 l.spacing_mm() as f32,
             ]);
             s.motif_fields = [1, 1];
+            // Its own Run pitch (+82, #1068); the running pitch keeps PE-DESIGN's default. Its
+            // Start/End Type (+84: 0 Feed, 1 Run).
+            s.motif_pitch = l.pitch as f32;
+            s.line_flag_84 = u16::from(l.start_end == openstitch_design::model::StartEnd::Run);
             Shape::LINE_MOTIF
         }
         other => {
@@ -844,7 +848,9 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
         .sharp_corners
         .miter_limit
         .map(|mm| mm.clamp(0.0, openstitch_design::model::SharpCorners::MAX_LIMIT) as f32);
-    s.run_pitch = l.pitch as f32;
+    if l.kind != LineType::Motif {
+        s.run_pitch = l.pitch as f32;
+    }
     s.line_under_sewing = l.underlay;
     Ok(())
 }

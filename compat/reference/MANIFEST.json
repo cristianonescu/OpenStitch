@@ -6256,6 +6256,78 @@
       "notes": "Header #PES0110. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. Also a formats fixture (crates/openstitch-formats/tests/fixtures/pe11, PROVENANCE.md). The header lists only the project's own motifs. As saved by PE-DESIGN: 972c0b75e323f1c665bb1f3e5df14bc5f65be68093a57a87e55e55b48126475d."
     },
     {
+      "file": "stitches/608-motif-5x8.pes",
+      "spec": "line-motif-zigzag-5x8-import",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-13",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Layout & Editing, 100 x 100 mm page: Home > Shapes > Rectangle, a 40 x 40 mm square; region Not Sewn; line Motif Stitch with the project's own psc-motif-zigzag-3pt.pmf (compat/reference/pes, drawn in Programmable Stitch Creator in round 4), Maintain aspect ratio off, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Run pitch 5,0, Start/End Type Feed, motif 5,0 mm wide (the lower field, horizontal arrow) and 8,0 mm high (the upper field, vertical arrow). Save As PES (default type). 40,00 x 40,00 mm, 75 st in PE-DESIGN's status bar.",
+      "sha256": "93c51c89ad0d85022edd0d30414607c6d51269c5d658b5c3ea4b741fda2b890a",
+      "notes": "Header #PES0110. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. Also a formats fixture (crates/openstitch-formats/tests/fixtures/pe11, PROVENANCE.md). The header lists only the project's own motifs. As saved by PE-DESIGN: 972c0b75e323f1c665bb1f3e5df14bc5f65be68093a57a87e55e55b48126475d."
+    },
+    {
+      "file": "stitches/1068-motif-5x8-runpitch-3p0.pes",
+      "spec": "line-motif-zigzag-5x8-pitch3",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 608-motif-5x8.pes (round 13: the 40 x 40 mm square, line Motif Stitch with the project's psc-motif-zigzag-3pt.pmf, motif 5,0 mm wide and 8,0 mm high, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Start/End Type Feed). Run pitch 3,0 (was 5,0), nothing else changed. Save As PES (default type). 117 stitches by OpenStitch's reader.",
+      "sha256": "34a1d23a204d884c7ed527c9c13f67a8b0d81b94f4c0cf914912548b9be9cfda",
+      "notes": "Header #PES0110. Round 15 (#1068), the coordinator's capture. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. The header lists only the project's own motif. As saved by PE-DESIGN: 25a944f9f1e9c20ce25c93e29d6f892b9ea4fc53a1b5172ac5d20d46ca698b38."
+    },
+    {
+      "file": "stitches/1068-motif-5x8-runpitch-3p0.pes",
+      "spec": "line-motif-zigzag-5x8-import-pitch3",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 608-motif-5x8.pes (round 13: the 40 x 40 mm square, line Motif Stitch with the project's psc-motif-zigzag-3pt.pmf, motif 5,0 mm wide and 8,0 mm high, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Start/End Type Feed). Run pitch 3,0 (was 5,0), nothing else changed. Save As PES (default type). 117 stitches by OpenStitch's reader.",
+      "sha256": "34a1d23a204d884c7ed527c9c13f67a8b0d81b94f4c0cf914912548b9be9cfda",
+      "notes": "Header #PES0110. Round 15 (#1068), the coordinator's capture. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. The header lists only the project's own motif. As saved by PE-DESIGN: 25a944f9f1e9c20ce25c93e29d6f892b9ea4fc53a1b5172ac5d20d46ca698b38."
+    },
+    {
+      "file": "stitches/1068-motif-5x8-runpitch-7p0.pes",
+      "spec": "line-motif-zigzag-5x8-pitch7",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 608-motif-5x8.pes (round 13: the 40 x 40 mm square, line Motif Stitch with the project's psc-motif-zigzag-3pt.pmf, motif 5,0 mm wide and 8,0 mm high, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Start/End Type Feed). Run pitch 7,0 (was 5,0), nothing else changed. Save As PES (default type). 76 stitches by OpenStitch's reader.",
+      "sha256": "ecf65714104a0aea1362d8e7e96e21cf9f922d6af0975605c80c700c4b33f99a",
+      "notes": "Header #PES0110. Round 15 (#1068), the coordinator's capture. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. The header lists only the project's own motif. As saved by PE-DESIGN: e209e4ebb0911e316710ced3c8eb391ccacac27ea94b09051bdcb67a47194aa2."
+    },
+    {
+      "file": "stitches/1068-motif-5x8-runpitch-7p0.pes",
+      "spec": "line-motif-zigzag-5x8-import-pitch7",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 608-motif-5x8.pes (round 13: the 40 x 40 mm square, line Motif Stitch with the project's psc-motif-zigzag-3pt.pmf, motif 5,0 mm wide and 8,0 mm high, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Start/End Type Feed). Run pitch 7,0 (was 5,0), nothing else changed. Save As PES (default type). 76 stitches by OpenStitch's reader.",
+      "sha256": "ecf65714104a0aea1362d8e7e96e21cf9f922d6af0975605c80c700c4b33f99a",
+      "notes": "Header #PES0110. Round 15 (#1068), the coordinator's capture. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. The header lists only the project's own motif. As saved by PE-DESIGN: e209e4ebb0911e316710ced3c8eb391ccacac27ea94b09051bdcb67a47194aa2."
+    },
+    {
+      "file": "stitches/1068-motif-5x8-startend-run.pes",
+      "spec": "line-motif-zigzag-5x8-import-startend-run",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-14",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Opened 608-motif-5x8.pes (round 13: the 40 x 40 mm square, line Motif Stitch with the project's psc-motif-zigzag-3pt.pmf, motif 5,0 mm wide and 8,0 mm high, H-Arrange and V-Arrange first buttons, Offset 0,0, Spacing 2,0, Run pitch 5,0). Start/End Type Run (was Feed), nothing else changed. Save As PES (default type). 75 st in PE-DESIGN's status bar.",
+      "sha256": "fa36484ec2a81e5fdac7aa010d494b7f404e1004c82bc2650cb354e247b42087",
+      "notes": "Header #PES0110. Round 15 (#1068), the coordinator's capture. The shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length before it was committed, every other byte unchanged. The header lists only the project's own motif. As saved by PE-DESIGN: bb613d9aede6a5d08777a26a3d5829301abd0020b60664cbf4e0d989ace1b164."
+    },
+    {
       "file": "stitches/motif-fill-clean-p1.pes",
       "spec": "motif-fill-clean-p1",
       "reference": "pe-design",
