@@ -174,6 +174,8 @@ fn stitching_in_place_is_counted_on_the_file_grid() {
 /// exports from it, read back. These are the three PE-DESIGN references whose finding changed
 /// when the count moved onto the 0.1 mm grid (before: 3, 8 and 7). PE-DESIGN's own files read 5,
 /// 3 and 1. All 508 references agree this way (a release run of 325 s, too slow to keep here).
+/// Since #1151 a squeezed fill stroke sews no stitches in place: text-transform-19's run is 3
+/// (its O) and text-transform-25's 4.
 #[test]
 fn stitching_in_place_reads_the_same_on_the_design_and_its_file() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../compat/reference");
@@ -213,8 +215,8 @@ fn stitching_in_place_reads_the_same_on_the_design_and_its_file() {
         (flagged, longest(&back.stitches))
     };
     for (rel, want) in [
-        ("text/text-transform-19-openstitch-l100.pes", 7),
-        ("text/text-transform-25-openstitch-l100.pes", 5),
+        ("text/text-transform-19-openstitch-l100.pes", 3),
+        ("text/text-transform-25-openstitch-l100.pes", 4),
         ("stitches/line-zigzag-miter-v-b2-m50.pes", 3),
     ] {
         let (flagged, file) = both(rel, false);
