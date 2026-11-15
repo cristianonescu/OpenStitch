@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="100mm" viewBox="0 0 100 100">
+  <!-- machine-jumps: six 5 x 5 mm red squares at x = 10, 16, 23, 31, 40, 51 mm (gaps 1, 2, 3, 4, 6 mm), the SVG the reference's make describes. -->
+  <rect x="10" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="16" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="23" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="31" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="40" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="51" y="47.5" width="5" height="5" fill="#ff0000"/>
+</svg>

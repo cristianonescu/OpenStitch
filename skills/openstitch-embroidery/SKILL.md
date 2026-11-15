@@ -150,6 +150,12 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 2. Shapes and lettering: `shape.rectangle`, `shape.ellipse`, `shape.preset`, `shape.path`,
    `shape.polygon`, `text.add`, `monogram.add`, `import.svg`, or a `digitize.*` wizard.
    Each returns the new object's `id` (`{"id": 3}`); wizards return `ids`.
+   Where a fill starts and ends follows PE-DESIGN:
+   - A rectangle or ellipse starts at the middle of its bottom edge.
+   - A closed `shape.polygon` starts at its first point, so the order of the points picks the
+     start and end corner, as PE-DESIGN's Closed Straight Line does.
+   - An `import.svg` path starts at its own first point (a `<rect>` at its top-left corner).
+   - `object.setEntryExit` moves the start and end.
 3. Sew types and colours: `object.setRegion` (fill, satin, ...) and `object.setLine`
    (running, triple, zigzag, ...). A shape made with `fill` gets a fill region; with `outline`,
    a running line. Text is satin by default. A satin border or outline is a line:
