@@ -57,6 +57,7 @@ TINY_MM = SHARED["inPlaceMm"]
 MAX_TINY_RUN = SHARED["maxInPlaceRun"]     # consecutive stitches shorter than 0.3 mm (tie-ins use 3 to 4)
 SHORT_MM = SHARED["shortStitchMm"]
 MAX_SHORT_PER_1000 = SHARED["maxShortPer1000"]  # PE-DESIGN's references reach 154.8 (#866)
+MIN_COVERAGE = SHARED["minCoverage"]  # Check Design's lowCoverage note (#1036); a stitch file holds no fills to judge
 FIELD_SLACK_MM = 0.0       # sewing field must not be exceeded at all
 DENS_CELL_MM = SHARED["denseCellMm"]
 MAX_DENSITY = SHARED["maxThreadPerMm2"]    # PE-DESIGN's wide satin references reach 75
