@@ -162,7 +162,7 @@
       "source": {
         "export": "line.pes"
       },
-      "evidence": "PE-DESIGN's longest is 2.10 mm, 2.1 mm of run into the start point; ours is 2.36 mm, at the top-left corner. PE-DESIGN cuts each corner with a motif ((0, 3.3) to (3.2, 3.1) to (3.8, 0) mm from the corner), ours runs a motif into it; 608-motif-5x8 at Run pitch 5 shows the same, apart from #1068, so 0.3 mm until motif corners are matched",
+      "evidence": "PE-DESIGN's longest is 2.10 mm, 2.1 mm of run into the start point; ours is 2.36 mm, at the top-left corner. PE-DESIGN cuts each corner with a motif ((0, 3.3) to (3.2, 3.1) to (3.8, 0) mm from the corner), ours runs a motif into it; 608-motif-5x8 at Run pitch 5 shows the same, apart from #1068: 0.3 mm is set by this known gap (#1123), until motif corners are matched",
       "reference": {
         "tolerance": {
           "mm": 0.3
