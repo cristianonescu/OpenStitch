@@ -1191,10 +1191,22 @@ fn run_job(app: &mut EditorApp, job: Job) {
     app.assistant.panel.offers.from_assistant = false;
     // #1186: a command that closes, saves or replaces something is named in the chat.
     let params = job.request.get("params").cloned().unwrap_or(json!({}));
-    if reply["ok"] == json!(true)
-        && let Some(n) = assistant_chat::consequence_notice(&command, &params, app.revision != revision)
-    {
-        app.assistant.panel.items.push(Item::Notice(n));
+    if reply["ok"] == json!(true) {
+        match assistant_chat::consequence_notice(&command, &params, app.revision != revision) {
+            Some(n) => app.assistant.panel.items.push(Item::Notice(n)),
+            // #1199: every file a model-run command writes, by its full path, one line each.
+            None if effect == Some(Effect::File) => {
+                for key in openstitch_engine::commands::BESIDE_DESIGN_KEYS {
+                    if let Some(p) = params[key].as_str().filter(|p| !p.trim().is_empty()) {
+                        app.assistant
+                            .panel
+                            .items
+                            .push(Item::Notice(format!("The assistant wrote {p} ({command}).")));
+                    }
+                }
+            }
+            None => {}
+        }
     }
     if reply["ok"] == json!(true)
         && let Some(effect) = effect
@@ -1225,6 +1237,19 @@ fn handle_job(app: &mut EditorApp, mut job: Job) {
     // the gate and for the command alike.
     if resolve_scratch_names(&mut params, app.assistant.scratch.as_deref()) {
         job.request["params"] = params.clone();
+    }
+    // #1199: a relative path to write is beside the design's file, before the gate, so the card
+    // shows the full path; refused while the design has no file.
+    match app.beside_the_design(&command, &job.request) {
+        Ok(Some(r)) => {
+            job.request = r;
+            params = job.request.get("params").unwrap_or(&empty).clone();
+        }
+        Ok(None) => {}
+        Err(e) => {
+            reply_err(job, e);
+            return;
+        }
     }
     // #491: with memory off the notes are neither read nor written, and nobody is asked.
     if !app.ui.prefs.ai.memory && matches!(command.as_str(), "ui.notesRead" | "ui.notesWrite") {
@@ -5727,6 +5752,85 @@ Attached: rose.png".into())];
             .find(|c| c.id == "ui.state")
             .expect("ui.state");
         assert!(state.summary.contains("unsavedConversationOnly: only the Assistant's conversation did"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1199: every family of file-writing commands from a socket client writes a relative name
+    /// beside the design's file, never in the working folder, and is refused while the design
+    /// has no file, with an answer that says to ask the user where.
+    #[test]
+    fn every_file_writing_command_writes_beside_the_design() {
+        let dir = project_dir("beside");
+        let (mut app, _) = app_with(Vec::new());
+        save_to(&mut app, &dir.join("design.osd"));
+        let first = app.session.design().objects[0].id;
+        for (command, params, written) in [
+            ("design.export", json!({ "path": "out.pes" }), "out.pes"),
+            ("design.exportBundle", json!({ "path": "bundle.zip" }), "bundle.zip"),
+            ("design.exportPicture", json!({ "path": "picture.png" }), "picture.png"),
+            ("design.exportThreads", json!({ "path": "threads.txt" }), "threads.txt"),
+            ("design.mockup", json!({ "path": "mockup.png" }), "mockup.png"),
+            ("threads.exportCsv", json!({ "builtin": "brother", "path": "chart.csv" }), "chart.csv"),
+            ("nameDrop.writeCsv", json!({ "path": "names.csv", "rows": [["Ana"]] }), "names.csv"),
+            ("library.createFolder", json!({ "path": ".", "name": "made" }), "made"),
+            ("design.testSwatch", json!({ "ids": [first], "path": "swatch.pes" }), "swatch.pes"),
+        ] {
+            let r = app.remote_request(&json!({ "command": command, "params": params }));
+            assert_eq!(r["ok"], json!(true), "{command}: {r}");
+            assert!(dir.join(written).exists(), "{command}: {written} beside the design");
+            assert!(!std::path::Path::new(written).exists() || written == "made", "{command}: not in the working folder");
+        }
+        let (mut untitled, _) = app_with(Vec::new());
+        let r = untitled.remote_request(&json!({ "command": "design.export", "params": { "path": "x.pes" } }));
+        assert_eq!(r["ok"], json!(false), "{r}");
+        assert!(r["error"].as_str().is_some_and(|e| e.contains("ask the user where to write it")), "{r}");
+        // Every file-writing command's description says so, read from the registry.
+        for c in app.session.commands() {
+            if c.effect != openstitch_engine::Effect::File {
+                continue;
+            }
+            for p in &c.params {
+                if openstitch_engine::commands::BESIDE_DESIGN_KEYS.contains(&p.name) && p.kind == "string" {
+                    assert!(p.summary.contains("design's own file"), "{}: {}", c.id, p.summary);
+                }
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1199 on the Assistant's path: the card shows the full path before anything is written,
+    /// the chat names the file written by its full path, and the saved chat keeps that path
+    /// scrubbed (the temporary folder, under the home folder on Windows, as `<temp>`).
+    #[test]
+    fn the_assistants_export_card_and_notice_show_the_full_path() {
+        let dir = project_dir("card-path");
+        let file = dir.join("design.osd");
+        let (mut maker, _) = app_with(Vec::new());
+        save_to(&mut maker, &file);
+        let (mut app, _) = app_with(vec![
+            reply(&[("design.export", json!({ "path": "out.pes" }))], "", "tool_use"),
+            reply(&[], "Exported.", "end_turn"),
+        ]);
+        app.open_path(&file);
+        send(&mut app, "export it as out.pes".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let full = dir.join("out.pes").display().to_string();
+        assert!(app.assistant.panel.approvals[0].what.contains(&full), "{}", app.assistant.panel.approvals[0].what);
+        answer(&mut app, 0, Answer::Once);
+        run(&mut app, idle);
+        assert!(dir.join("out.pes").is_file());
+        let notice = format!("The assistant wrote {full} (design.export).");
+        assert!(app.assistant.panel.items.contains(&Item::Notice(notice)), "{:?}", app.assistant.panel.items);
+        save_to(&mut app, &file);
+        let raw = std::fs::read_to_string(&file).expect("read");
+        let temp = std::env::temp_dir().display().to_string();
+        let temp = temp.trim_end_matches(['/', '\\']);
+        // JSON doubles each backslash.
+        assert!(
+            !raw.to_lowercase().contains(&temp.to_lowercase().replace('\\', "\\\\")),
+            "the temp path in the clear"
+        );
+        assert!(raw.contains("The assistant wrote <temp>"), "{raw}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

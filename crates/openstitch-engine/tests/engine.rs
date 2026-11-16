@@ -1111,3 +1111,18 @@ fn a_brother_thread_named_two_ways_is_one_colour_block() {
         .count();
     assert_eq!(changes, 0, "one colour block in the machine file");
 }
+
+/// #1199: on its own (stitchtool, openstitch-mcp without the editor) a relative path is taken
+/// from the session's working folder, as a command-line user expects.
+#[test]
+fn a_relative_path_without_the_editor_is_the_working_folders() {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 10, "height": 10, "fill": "Red"}),
+    );
+    run(&mut s, "design.export", json!({"path": "here.pes"}));
+    assert!(tmp.path().join("here.pes").is_file());
+}

@@ -62,13 +62,13 @@ impl EditorApp {
             // The Assistant's own saves and a socket client's write the document's conversation
             // as File ▸ Save does (#1176).
             crate::assistant_panel::chat_to_session(self);
-            // A relative path is taken from the design's own folder, never from the process's
-            // working folder (#1187).
-            match self.beside_the_design(&request) {
-                Ok(Some(r)) => request = std::borrow::Cow::Owned(r),
-                Ok(None) => {}
-                Err(e) => return failed(&request, &e),
-            }
+        }
+        // A relative path of a file-writing command is taken from the design's own folder, never
+        // from the process's working folder (#1187, #1199).
+        match self.beside_the_design(command, &request) {
+            Ok(Some(r)) => request = std::borrow::Cow::Owned(r),
+            Ok(None) => {}
+            Err(e) => return failed(&request, &e),
         }
         let request = request.as_ref();
         let unsaved_before = self.is_dirty();
@@ -82,21 +82,38 @@ impl EditorApp {
     /// `request` with its relative `path` joined to the folder of the design's file (#1187);
     /// `None` when the path is absolute or missing (the engine says what is wrong), an error
     /// when it is relative and the design has no file.
-    fn beside_the_design(&self, request: &Value) -> Result<Option<Value>, String> {
-        let Some(path) = request.pointer("/params/path").and_then(Value::as_str) else {
-            return Ok(None);
-        };
-        if std::path::Path::new(path).is_absolute() {
+    ///
+    /// Every file-writing command (Effect::File) is handled so, on its `path`, `output` and `dir`
+    /// params (#1199); `stitchtool` and `openstitch-mcp` on their own keep their working folder.
+    pub(crate) fn beside_the_design(
+        &self,
+        command: &str,
+        request: &Value,
+    ) -> Result<Option<Value>, String> {
+        if self.session.permits(command).map(|c| c.effect) != Ok(Effect::File) {
             return Ok(None);
         }
-        let Some(folder) = self.path.as_ref().and_then(|p| p.parent()) else {
-            return Err(format!(
-                "the design has no file yet, so '{path}' has no folder to be relative to: give a full path"
-            ));
-        };
         let mut r = request.clone();
-        r["params"]["path"] = json!(folder.join(path).display().to_string());
-        Ok(Some(r))
+        let mut changed = false;
+        for key in openstitch_engine::commands::BESIDE_DESIGN_KEYS {
+            let Some(path) = request.pointer(&format!("/params/{key}")).and_then(Value::as_str)
+            else {
+                continue;
+            };
+            // A rooted path ("/x" on Windows too) is not a bare name: it stays as given.
+            let p = std::path::Path::new(path);
+            if path.trim().is_empty() || p.is_absolute() || p.has_root() {
+                continue;
+            }
+            let Some(folder) = self.path.as_ref().and_then(|p| p.parent()) else {
+                return Err(format!(
+                    "the design has no file yet, so '{path}' has no folder to be relative to: ask the user where to write it, then give a full path"
+                ));
+            };
+            r["params"][key] = json!(folder.join(path).display().to_string());
+            changed = true;
+        }
+        Ok(changed.then_some(r))
     }
 
     /// What the editor does after the menu's own Open, New and Save, for the same commands from

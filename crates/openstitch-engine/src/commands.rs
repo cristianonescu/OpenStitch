@@ -555,7 +555,44 @@ pub fn all() -> Vec<CommandSpec> {
         vec![],
         |_, _| Ok(Value::Null),
     ));
+    note_editor_paths(&mut v);
     v
+}
+
+/// Param names of a file-writing command whose relative value the editor takes from the design's
+/// own folder (#1199).
+pub const BESIDE_DESIGN_KEYS: [&str; 3] = ["path", "output", "dir"];
+
+/// What a file-writing command's path, output or dir param adds in its description (#1199).
+pub const EDITOR_RELATIVE_NOTE: &str = " In the editor (the Assistant, socket clients) a relative     path is taken from the folder of the design's own file, and refused while the design has no     file; stitchtool and openstitch-mcp on their own take it from their working folder.";
+
+/// Adds [`EDITOR_RELATIVE_NOTE`] to the path params of every file-writing command (#1199). The
+/// descriptions are made once per process.
+fn note_editor_paths(v: &mut [CommandSpec]) {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static NOTED: OnceLock<Mutex<HashMap<&'static str, &'static str>>> = OnceLock::new();
+    let mut noted = NOTED
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for c in v.iter_mut().filter(|c| c.effect == Effect::File) {
+        for p in c
+            .params
+            .iter_mut()
+            .filter(|p| BESIDE_DESIGN_KEYS.contains(&p.name) && p.kind == "string")
+        {
+            if p.summary.contains("design's own file") {
+                continue;
+            }
+            let s = p.summary;
+            p.summary = noted.entry(s).or_insert_with(|| {
+                Box::leak(
+                    format!("{}.{EDITOR_RELATIVE_NOTE}", s.trim_end_matches('.')).into_boxed_str(),
+                )
+            });
+        }
+    }
 }
 
 fn list() -> Value {
