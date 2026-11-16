@@ -5266,6 +5266,76 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// A project that kept its own chat, saved by File ▸ Save.
+    fn project_with_chat(file: &std::path::Path, said: &str) {
+        let (mut app, _) = app_with(Vec::new());
+        app.assistant.panel.owner = Some(app.chat_doc);
+        app.assistant.panel.items = vec![Item::User(said.into()), Item::Assistant("Noted.".into())];
+        save_to(&mut app, file);
+    }
+
+    /// #1178: the Assistant opens, during its turn, a project that kept its own chat, then saves
+    /// it. The running conversation goes on in the panel, the opened file becomes the document's
+    /// file, and its own chat is what the save writes back: nothing of it is lost.
+    #[test]
+    fn a_project_the_assistant_opens_during_a_turn_keeps_its_own_chat() {
+        let dir = project_dir("open-in-turn");
+        let other = dir.join("other.osd");
+        project_with_chat(&other, "the other project's own message");
+        let path = json!({ "path": other.display().to_string() });
+        let (mut app, _) = app_with(vec![
+            reply(&[("project.open", path.clone())], "", "tool_use"),
+            reply(&[("project.save", path.clone())], "", "tool_use"),
+            reply(&[], "Opened and saved.", "end_turn"),
+        ]);
+        send(&mut app, "open the other project and save it".into(), no_wake());
+        let start = Instant::now();
+        while app.assistant.panel.busy() {
+            serve(&mut app, no_wake());
+            if !app.assistant.panel.approvals.is_empty() {
+                answer(&mut app, 0, Answer::Once);
+            }
+            assert!(start.elapsed() < Duration::from_secs(30), "the turn did not end");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(app.path.as_deref(), Some(other.as_path()), "the opened file is the document's");
+        let items = &app.assistant.panel.items;
+        assert_eq!(items[0], Item::User("open the other project and save it".into()));
+        assert!(items.iter().any(|i| matches!(i, Item::Notice(n) if n.starts_with("The opened project keeps a conversation of its own"))));
+        let rows = saved_json(&other)["assistant"]["rows"].as_array().cloned().expect("rows");
+        assert_eq!(rows[0]["text"], "the other project's own message", "{rows:?}");
+        assert!(!rows.iter().any(|r| r["text"] == "open the other project and save it"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1178: a socket client's (`--listen`) `project.open` does what File ▸ Open does: the file
+    /// is the document's, its chat shows; `project.save` to a new path does what Save As does;
+    /// `design.new` what File ▸ New does.
+    #[test]
+    fn a_socket_clients_open_save_and_new_do_what_the_menu_does() {
+        let dir = project_dir("socket");
+        let first = dir.join("first.osd");
+        project_with_chat(&first, "kept in the first project");
+        let (mut app, _) = app_with(Vec::new());
+        let r = app.remote_request(&json!({ "command": "project.open",
+            "params": { "path": first.display().to_string() } }));
+        assert_eq!(r["ok"], json!(true), "{r}");
+        assert_eq!(app.path.as_deref(), Some(first.as_path()));
+        assert!(!app.is_dirty());
+        assert_eq!(app.assistant.panel.items[0], Item::User("kept in the first project".into()));
+        let copy = dir.join("copy.osd");
+        let r = app.remote_request(&json!({ "command": "project.save",
+            "params": { "path": copy.display().to_string() } }));
+        assert_eq!(r["ok"], json!(true), "{r}");
+        assert_eq!(app.path.as_deref(), Some(copy.as_path()), "Save As: the new file");
+        assert!(!app.is_dirty());
+        assert_eq!(saved_json(&copy)["assistant"]["rows"][0]["text"], "kept in the first project");
+        let r = app.remote_request(&json!({ "command": "design.new", "params": {} }));
+        assert_eq!(r["ok"], json!(true), "{r}");
+        assert!(app.path.is_none() && app.assistant.panel.items.is_empty(), "File ▸ New");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// #1176: a save the model asks for (`execute project.save`, through the gate) writes the
     /// conversation as File ▸ Save does, and none with "Save the chat with the project" off.
     #[test]

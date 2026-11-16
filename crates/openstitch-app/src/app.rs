@@ -1155,6 +1155,11 @@ impl EditorApp {
         )
     }
 
+    /// The design is as its file has it (a save from the Assistant or a socket client, #1178).
+    pub(crate) fn mark_saved(&mut self) {
+        self.saved_revision = self.revision;
+    }
+
     /// The design counts as unsaved until it is saved (a restored snapshot, #549).
     pub(crate) fn mark_unsaved(&mut self) {
         self.saved_revision = self.revision.wrapping_add(u64::MAX / 2);
