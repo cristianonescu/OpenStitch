@@ -559,22 +559,25 @@ pub fn show_sample(app: &mut EditorApp, questions: bool) {
     let panel = &mut app.assistant.panel;
     panel
         .items
-        .push(Item::User("make me a badge for my cycling club".into()));
+        .push(Item::User("make me a badge with a star for my club".into()));
+    // The texts match the demo design on the canvas: a round blue badge, 80 × 68 mm, with a
+    // yellow star and a red ribbon.
     if questions {
         let mut q = parse_questions(&json!({
             "intro": "A few quick choices so the badge fits your club and your machine.",
             "questions": [
                 { "question": "What shape should the badge be?", "choices": ["Round", "Shield", "Oval"] },
                 { "question": "How big should it be?", "choices": ["60 mm", "80 mm", "100 mm"] },
-                { "question": "What should the centre picture be?", "choices": ["Road bike", "Wheel", "Mountains with a road"] },
-                { "question": "Which colours?", "choices": ["Navy and white", "Black and yellow", "Green and gold"] },
+                { "question": "Which colours?", "choices": ["Blue, yellow and red", "Navy and white", "Green and gold"] },
+                { "question": "Anything under the star?", "choices": ["A ribbon", "The club name", "Nothing"] },
                 { "question": "What will it be stitched on?", "choices": ["Twill patch", "Jersey knit", "Cap"] },
             ],
         }))
         .expect("sample questions");
         q.questions[0].picked = Some(0);
         q.questions[1].picked = Some(1);
-        q.questions[3].typed = "Blue and yellow, our club colours".into();
+        q.questions[2].picked = Some(0);
+        q.questions[3].typed = "A red ribbon; we add the name later".into();
         panel.items.push(Item::Assistant(
             "I've put a few questions on screen. Answer what you can, or tell me to use my judgment."
                 .into(),
@@ -583,14 +586,14 @@ pub fn show_sample(app: &mut EditorApp, questions: bool) {
         panel.offers.questions = Some(q);
     } else {
         panel.items.push(Item::Assistant(
-            "Here is the badge: a round 80 mm crest with a road bike in the centre and \"Hilltop Wheelers\" arced along the top, in blue and yellow with a thick satin border."
+            "Here is the badge: a round blue badge, 80 × 68 mm, with a yellow star in the middle and a red ribbon across the bottom."
                 .into(),
         ));
         panel.offers.suggestions = Some(Suggestions {
-            message: "Add \"Est. 1987\" under the bike".into(),
+            message: "Add the club name on the ribbon".into(),
             chips: vec![
                 "Make it 100 mm".into(),
-                "Use a shield shape".into(),
+                "Outline the star in satin".into(),
                 "Export it as PES".into(),
             ],
         });
