@@ -423,7 +423,7 @@ then style them in the next.
   run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). The thread
   makers' charts (New Brothread, Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids:
   `threads.builtinCharts` lists them with `kind: "brand"`. New Brothread (`newBrothread`, the
-  owner's 63-spool kit, numbered with Brother codes) is the default chart: the colour picker
+  63-spool New Brothread kit, numbered with Brother codes) is the default chart: the colour picker
   and the image wizards' OpenStitch mode start from it (a `digitize.*` call in OpenStitch mode
   without `threads` takes the default chart; PE-DESIGN mode always the PEC chart), and a first
   run's "My Threads" holds it. `threads.defaultChart` reads the default; `threads.setDefault {builtin | chart}` changes
@@ -653,8 +653,8 @@ afresh).
   12, 30, 40 or 60; default 40) gives backing, topping, needle point and size and the smallest
   legible block-letter height, each from the makers' published guidance with `sources`; say so
   when `disagree` is set, and say "estimate" when `minTextBasis` is not `published`.
-  `fabric.list` has 13 fabrics: PE-DESIGN's eight, then polyester, pique, organza, canvas and cap
-  (`beyondPeDesign: true`).
+  `fabric.list` has 13 built-in fabrics: PE-DESIGN's eight, then polyester, pique, organza, canvas
+  and cap (`beyondPeDesign: true`), then the user's custom fabrics (`custom: true`).
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 - To show the user these dialogs in the editor: `ui.run {action: "testSwatches"}` (Send ▸ Test
@@ -673,7 +673,8 @@ machine's hoops, the threads they own, their fabrics, their preferences).
 - Sections: Machine, Threads, Fabric, Preferences, Lessons. `append` adds one short line; one
   fact per line, with the numbers that matter. `replace` rewrites a section, for example to
   correct a fact the user says is wrong.
-- The user is asked before every write and may decline: then do not insist. If memory is off,
+- The user is asked before every write (unless they set the Assistant to Allow everything) and
+  may decline: then do not insist. If memory is off,
   the tools say so: carry on without it.
 - The notes hold at most 8 KB. When a write is refused as too long, summarise: `notes_read`,
   then `notes_write` with `mode: "replace"` and a shorter version of a section (Lessons first),

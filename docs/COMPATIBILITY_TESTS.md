@@ -90,9 +90,10 @@ The fields:
   the start of its Feature cell.
 - **`evidence`** has kinds `guide`, `spec`, `audit`, `measured` and `oracle`. URLs must be https.
 - **`skip`** (optional) is the reason a spec is not run; it is reported as skipped, neither
-  passed nor failed. The repository's own test accepts a skip only for the specs its `WITHDRAWN`
-  list names: today `programmable-fill-45`, whose PE-DESIGN capture was withdrawn on 2026-11-13
-  (#1060) and waits for a clean one (#1075).
+  passed nor failed. The repository's own test (`repo_specs.rs`) accepts a skip only for the
+  specs its `WITHDRAWN` list names. The list is empty today: `programmable-fill-45`, whose
+  PE-DESIGN capture was withdrawn on 2026-11-13 (#1060), runs again on a clean capture (#1075,
+  closed 2026-11-14).
 - **`script`** is what `stitchtool exec` takes. An optional `id` labels a step, so a
   measurement can read its reply.
   - The script runs in a session sandboxed to the spec's work directory.

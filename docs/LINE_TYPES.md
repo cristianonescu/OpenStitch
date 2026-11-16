@@ -4,8 +4,9 @@ Every line sew type, and the motif line's own options (#544), each sewn on the s
 line across 84 mm. Each picture is the stitches the engine sends to the machine, drawn by
 `tools/engine_image.py` from `examples/line-type-<name>.json` (regenerate them with
 `python3 -I tools/docs_images.py --only engine`); the command beside it is the one in that
-script. Beyond PE-DESIGN: groups, free ends, motifs in turn and the hand-embroidery lines are
-OpenStitch's own; PE-DESIGN's defaults are unchanged.
+script. Beyond PE-DESIGN: the satin line, back stitch, scribble, ripple, the hand-embroidery
+lines, and the motif line's groups, free ends and motifs in turn are OpenStitch's own;
+PE-DESIGN's defaults are unchanged.
 
 ## Running
 

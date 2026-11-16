@@ -17,6 +17,8 @@ was read.
   (#511), with a 1 mm default overlap and satin regions and text not clipped;
 - not built: auto start and end (§3) and stitch-level clipping (`stitches.clip`, §5.2).
 Related: `order.optimize` mode `minJump` (#137), a 2-opt shortest-jump order.
+(2026-11-16: FEATURE_MATRIX.md's B11 row lists auto start and end as done, #547 and #795; still
+partial there, stitch-level clipping left.)
 
 ## 1. What the feature is
 

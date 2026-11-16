@@ -2,8 +2,9 @@
 
 Practical rules of thumb for designs that sew cleanly. They are guidance, not limits the
 engine enforces: when a request needs something outside them, say so and suggest an
-alternative. OpenStitch's defaults (fill and satin at 4.5 rows/mm, fill at 45°, underlay on)
-are a sound start; change them only for a reason.
+alternative. OpenStitch's defaults for shapes (fill and satin at 4.5 rows/mm, fill at 45°,
+underlay on; new text is satin at 5.0 with no under sewing, as PE-DESIGN's text tool) are a
+sound start; change them only for a reason.
 
 ## Lettering
 
@@ -81,7 +82,8 @@ are a sound start; change them only for a reason.
 
 - Cross stitch regions use one grid on the page axes from the design origin (`angle` does not
   turn it), so neighbouring cross stitch regions with the same size line up cell for cell; only
-  whole cells are sewn, each a full X.
+  whole cells are sewn, each a full X unless `crossKind` asks for half, upright or Smyrna
+  crosses (beyond PE-DESIGN).
 - Stippling honours `spacing` (mean gap between passes about the spacing) and reaches to about
   half a spacing from the outline; it starts and ends inside the shape.
 - Concentric circle, spiral, flexible spiral and contour fills end in the middle (no run back

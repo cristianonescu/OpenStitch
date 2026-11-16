@@ -451,7 +451,8 @@ latter: a Rust COM server kept outside the workspace.
   equal `openstitch_render::thumbnail`'s, Explorer's call sequence (class factory, provider,
   stream, bitmap) yields a 256 × 256 32-bit bitmap without any registration, an unknown class is
   refused, and the installer registers every extension's class (the test reads `openstitch.wxs`).
-- Not yet checked in a real Explorer window (that needs the MSI installed): an owner check on #669.
+- Checked in File Explorer on Windows 11 with the MSI installed (2026-11-07, #669); a file with no
+  stitches keeps the type's icon.
 
 ### Quick Look extension
 

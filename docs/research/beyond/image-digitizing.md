@@ -6,6 +6,9 @@ PE-DESIGN's behaviour as the default ("PE-DESIGN" mode) and adds an improved "Op
 mode. Each method is judged by measurement on the test images in `examples/images`
 ([../test-images.md](../test-images.md)). No other product's code was read.
 
+Status (2026-11-16): implemented as the image wizards' OpenStitch mode, see FEATURE_MATRIX.md
+(B16); the follow-on work is B16.1, see section 5.
+
 ## 1. Summary
 
 - **Recommended first:** perceptual colour reduction (3.1) and region cleanup (3.2), together

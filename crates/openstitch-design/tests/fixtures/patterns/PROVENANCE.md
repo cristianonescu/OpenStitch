@@ -18,9 +18,11 @@ copied. Kept byte for byte (CRLF, `.gitattributes`). Recorded in the reference r
 | psc-deco-2lines.plf | Decorative Fill, `*.plf` (100.0 mm); drawn 2026-10-30 | two separate lines (128,256)–(896,256) and (128,768)–(896,768): `@SYSENV 10000 10000 2`, the third number 2 here and 1 for one line | f3295abab0cf056940e7b2ed61ec2b0f0aea506d4d1bc2e71001a11264626f9e |
 
 The PES files PE-DESIGN sewed from them (a 40 × 40 mm square with a programmable fill of
-psc-square-4pt and of psc-line-2pt, a motif fill of psc-motif-2pt, a motif line of
-psc-motif-zigzag-3pt) are compat references `compat/reference/stitches/prog-fill-square-4pt.pes`,
-`prog-fill-line-2pt.pes`, `motif-fill-2pt.pes` and `line-motif-zigzag-3pt.pes` (specs of the
-same names), with their settings in `compat/reference/MANIFEST.json`; so are
-`deco-fill-1line-100mm.pes` and `deco-fill-1line-offcentre.pes` (psc-deco-1line as a decorative
-fill on a centred square and on an off-centre rectangle).
+psc-square-4pt and of psc-line-2pt) are compat references `compat/reference/stitches/prog-fill-square-4pt.pes`
+and `prog-fill-line-2pt.pes` (specs of the same names), with their settings in
+`compat/reference/MANIFEST.json`; so are `deco-fill-1line-100mm.pes` and
+`deco-fill-1line-offcentre.pes` (psc-deco-1line as a decorative fill on a centred square and on
+an off-centre rectangle). The motif captures made from psc-motif-2pt and psc-motif-zigzag-3pt
+(`motif-fill-2pt.pes`, `line-motif-zigzag-3pt.pes`) were removed on 2026-11-13 (#1061): PE-DESIGN
+had also written a built-in motif into them. Clean captures replace them
+(`motif-fill-clean-p1.pes` and the `608-motif-*` / `1068-motif-*` references, #1077).

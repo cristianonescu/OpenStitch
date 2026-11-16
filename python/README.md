@@ -52,5 +52,6 @@ with Session() as s:
 python -m unittest discover -s python/tests
 ```
 
-The tests need a built `stitchtool` (`OPENSTITCH_STITCHTOOL`, or `target/debug` /
-`target/release` of this repository, or the `PATH`).
+The tests need a built `stitchtool`: they take `target/debug` or `target/release` of this
+repository (or of `CARGO_TARGET_DIR`) first, then `OPENSTITCH_STITCHTOOL` or the `PATH`. Without
+one they are skipped.

@@ -36,7 +36,7 @@ the project keeps:
   another command's icon, and the suite windows' own commands; rows from `connect` on in
   `prompts.tsv`; see [research/asset-audit.md](research/asset-audit.md)), with each Higgsfield
   job id in `higgsfield-jobs.tsv` next to the SVGs. The Assistant command icon (`assistant`, #316) and the Assistant panel's attach (paperclip) and
-  close icons (#399) were added the same way on 2026-11-04. Smooth Shape, Smooth tolerance and Smooth Stitches (#478) were added the same way on 2026-11-05. The Shape Builder icon (#497) was added the same way on 2026-11-05. The Shape Effects icon (#497) was added the same way on 2026-11-05. The Knife icon (#477) was added the same way on 2026-11-05. The move up and move down arrows of reorder lists (#409), the panes' dock and float icons (#410) the drop-down caret of menu buttons (#412) and the Turning Gap icon (#635) were added the same way on 2026-11-06. The Assistant's tool-step status icons (done, failed, running; #653) and the Stitch Simulator's start, previous, next and end buttons (#653; start is end mirrored) were added the same way on 2026-11-06. The Test Swatches and Job Sheet icons (#507, #513) were added the same way on 2026-11-06. The job ids of the first set
+  close icons (#399) were added the same way on 2026-11-04. Smooth Shape, Smooth tolerance and Smooth Stitches (#478) were added the same way on 2026-11-05. The Shape Builder icon (#497) was added the same way on 2026-11-05. The Shape Effects icon (#497) was added the same way on 2026-11-05. The Knife icon (#477) was added the same way on 2026-11-05. The move up and move down arrows of reorder lists (#409), the panes' dock and float icons (#410) the drop-down caret of menu buttons (#412) and the Turning Gap icon (#635) were added the same way on 2026-11-06. The Assistant's tool-step status icons (done, failed, running; #653) and the Stitch Simulator's start, previous, next and end buttons (#653; start is end mirrored) were added the same way on 2026-11-06. The Test Swatches and Job Sheet icons (#507, #513) were added the same way on 2026-11-06. The Gradient, Fill Angle and Angle Lines icons (#532, #534) were added the same way on 2026-11-08. The job ids of the first set
   (2026-10-27, #35, `gear` among them) were recovered from the owner's Higgsfield history on
   2026-11-04 and are in the same file: each cleaned job output matches its SVG exactly, or with
   only the hand-set fills different. `tools/check_icons.py` (CI) fails when any image file
@@ -135,5 +135,36 @@ the project keeps:
 | Noto Sans Hebrew, Arabic, Devanagari and JP subsets, `crates/openstitch-engine/tests/fixtures/fonts/` | SIL OFL 1.1 (licence files and provenance beside the fonts; no reserved name used) | Test fixtures only (#345): the shaping and CJK lettering tests run on every machine without system fonts. Never embedded in binaries or offered as lettering fonts. Made by `tools/test_font_subsets.py`. |
 | OpenStitch Line and OpenStitch Pixel, `crates/openstitch-design/src/stroke_fonts.rs` | MIT OR Apache-2.0 (the project's licence; LICENSE-MIT, LICENSE-APACHE) | Bundled lettering fonts (#527, #530, #536), drawn for OpenStitch as stroke and pixel tables: no outline of another font traced, no Brother, Ink/Stitch or Hershey glyph data used. Their size ranges come from OpenStitch's own tests (`size_ranges_hold`). |
 
-Runtime crates and bundled fonts are listed with their licences in `THIRD_PARTY_NOTICES.md`
-and docs/ARCHITECTURE.md.
+Runtime crates and bundled fonts are listed with their licences in `THIRD_PARTY_NOTICES.md`,
+which every package ships (the macOS app, the Windows MSI and zip, the Linux AppImage, tarball
+and Flatpak, and the command-line archives), and in docs/ARCHITECTURE.md.
+
+**Crates in the shipped programs (#1171).** `tools/third_party.py` generates the table of every
+crate the shipped programs link from `cargo metadata`, with no build: the normal dependencies
+of the editor, `stitchtool`, `openstitch-mcp`, the Linux thumbnailer, the browser version and
+the Windows Explorer thumbnail handler, on every target they ship for, OpenStitch's own crates
+left out. `--check` fails when the table is stale; the release gate runs it (RELEASING.md).
+
+- **Count (2026-11-16):** 469 crates, 425 names.
+- **Licence families, by the licence each crate is used under** (the table's *Used under*
+  column, which takes MIT, else Apache-2.0, from an `OR` choice):
+  - MIT: 415.
+  - Unicode-3.0: 18.
+  - Apache-2.0: 16.
+  - BSD-3-Clause: 5; BSD-2-Clause: 1.
+  - Zlib: 4.
+  - ISC: 3.
+  - BSL-1.0 (Boost): 2, clipboard-win and error-code.
+  - CDLA-Permissive-2.0: 1, webpki-roots.
+  - Combinations of these that must all be met: 3 (Apache-2.0 AND MIT; Apache-2.0 AND ISC;
+    MIT or Apache-2.0, AND Unicode-3.0).
+  - epaint_default_fonts: its code MIT or Apache-2.0, AND its fonts under OFL-1.1 and the Ubuntu
+    Font Licence 1.0.
+- **Copyleft and MPL:** no crate is used under a copyleft licence or MPL-2.0. self_cell offers
+  Apache-2.0 OR GPL-2.0-only and is used under Apache-2.0.
+- **Notices:** licences whose terms ask for their text to travel with the work (the fonts' OFL,
+  Ubuntu Font Licence, Hack and Bitstream Vera, emoji-icon-font's MIT, and BSL-1.0) are copied
+  in full into `THIRD_PARTY_NOTICES.md`.
+- **Rule:** a licence family not in this list is the coordinator's decision before the change
+  that brings it in merges. Every run of the tool names the crates outside MIT, Apache, BSD,
+  ISC, Zlib, MPL and Unicode, so a new family shows at once.

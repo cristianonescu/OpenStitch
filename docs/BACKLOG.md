@@ -18,6 +18,8 @@ this file at each day's close-out.
 Updated 2026-11-16: alpha.13, alpha.14 and alpha.15 have shipped their plans (summaries below).
 Development pauses after alpha.15 by the owner's decision. The open work is the Future
 milestone. The sections after the summaries are the 2026-11-04 round, kept for history.
+(2026-11-16, later: `v0.1.0-alpha.15` is published, and a `v0.1.0-alpha.16` milestone is open
+with #1168, #1169, #1171 and #1172.)
 
 ## Shipped in alpha.15 (2026-11-16)
 
@@ -128,7 +130,7 @@ the rest ready (`batch:pe-formats`).
 |---|---|
 | #130 PMV motif/pattern reader | Owner-made files and screen access |
 | #134 External scalable font containers | Owner-made files and screen access |
-| #377 Connection Points | Owner captures in a built-in PE-DESIGN font (Connection Points is greyed out for TrueType fonts); the captures stay outside the repo and only measurements taken from them may be committed |
+| ~~#377 Connection Points~~ | Closed as not planned on 2026-11-14. Was waiting for: owner captures in a built-in PE-DESIGN font (Connection Points is greyed out for TrueType fonts); the captures stay outside the repo and only measurements taken from them may be committed |
 | T1/T8 image-similarity steps | The calibration sew-outs and the counsel record (see `research/beyond/image-similarity-plan.md`) |
 
 ## Session/batch brief template

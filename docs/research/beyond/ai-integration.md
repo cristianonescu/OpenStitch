@@ -12,6 +12,8 @@ The owner approved the plan on 2026-11-04, adding one requirement: "each and eve
 feature is supported through the AI chat. The user should be able to control the tool
 completely from there". Progress is in section 9.
 
+Status (2026-11-16): phases A0 to A5 implemented, see FEATURE_MATRIX.md (B17 rows; #491, #432, #493).
+
 ## 1. The owner's decisions (2026-11-04)
 
 | Question | Answer |

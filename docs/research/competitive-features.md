@@ -72,6 +72,9 @@ that matter for this survey, read from Brother's public guide and update history
 
 ## 2. Comparison matrix
 
+The OS column is OpenStitch as of 2026-10-28 and is kept as that record; OpenStitch's current
+state is in [FEATURE_MATRIX.md](../FEATURE_MATRIX.md).
+
 Legend: ● has it · ◐ partial or a simpler form · ○ not found · ? not verified. "OS" is
 OpenStitch at `main` on 2026-10-28; "PE" is PE-DESIGN 11.50. A ● in the OS column means the
 feature exists; a ○ with a backlog number (B1–B15) means it is in the ranked backlog of
@@ -89,7 +92,11 @@ shipped by 2026-11-09 (added 2026-11-13): stitch angle lines (F4, `object.setAng
 the hand-stitch look (F9, #540), gradient fills, also from an SVG gradient (F13, `shape.gradient`,
 #532), thread-brand conversion (W3, `threads.remap`, #484), Check Design (D15, `design.check`,
 #503), continue digitizing and nearest start (D3, #479, #547 in part) and overlap removal (D7,
-#511).
+#511). Also shipped by 2026-11-16 (added 2026-11-16): raised satin without foam (F10 in part,
+#531; foam is still planned, #875), tartan fill (F14, `shape.tartan`, #539), satin columns per
+branch (D1, #526), free multi-hooping (W1, #515), the smallest hoop that fits (W2,
+`machine.useSmallestHoop`, #879) and thumbnails in macOS Finder and Windows Explorer (W9, #557,
+#669); see the matrix's Beyond PE-DESIGN and OS integration rows.
 
 | # | Feature | PE | OS | ES / Hatch | Bernina V9 | mySewnet | Janome AD | Tajima DG | Embird | Ink/Stitch | Embrilliance | FTCU / SWP |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
