@@ -29,7 +29,7 @@ go-ahead for after alpha 16:
   (#1198).
 - **Files:** a template opens as an untitled design, so it can no longer be saved over the
   project that was open; a test swatch's Open it asks about unsaved changes (#1179).
-- **macOS:** Finder thumbnails and Quick Look work again, with the renderer linked into the
+- **macOS:** Finder thumbnails and Quick Look previews now work, with the renderer linked into the
   extension (#1182).
 - **Licences:** CI checks the third-party notices on every pull request, and the browser version
   publishes them and links them from Help ▸ About (#1175).
