@@ -38,3 +38,13 @@ pub fn chat_to_session(_app: &mut EditorApp) {}
 pub fn document_loaded(_app: &mut EditorApp) {}
 
 pub fn document_activated(_app: &mut EditorApp) {}
+pub fn show_sample_offers(_app: &mut EditorApp, _questions: bool) {}
+
+/// `ui.askUser` and `ui.suggestReplies` (#1172): the web editor has no Assistant panel.
+pub fn offer(
+    _app: &mut EditorApp,
+    _command: &str,
+    _params: Option<&serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    Err("the web editor has no Assistant panel".into())
+}

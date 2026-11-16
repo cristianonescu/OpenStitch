@@ -3,10 +3,10 @@
 //! `run_batch` and `preview`; file access is confined by the engine's [`Sandbox`](openstitch_engine::Sandbox).
 //!
 //! With `--live` the commands run in a running editor instead. `--assistant` (which implies
-//! `--live`) offers ten meta tools instead of one tool per command, for the editor's AI
-//! assistant: `command_describe`, `commands_list`, `execute`, `notes_read`, `notes_write`,
-//! `run_batch`, `scratch_view`, `scratch_write`, `skill_reference` and `view_render`, in that
-//! fixed order. The bundled embroidery skill
+//! `--live`) offers twelve meta tools instead of one tool per command, for the editor's AI
+//! assistant: `ask_user`, `command_describe`, `commands_list`, `execute`, `notes_read`,
+//! `notes_write`, `run_batch`, `scratch_view`, `scratch_write`, `skill_reference`,
+//! `suggest_replies` and `view_render`, in that fixed order. The bundled embroidery skill
 //! ([`skills`]) is served by `skill_reference`.
 
 pub mod line_reader;

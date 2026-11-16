@@ -99,6 +99,17 @@ impl Editor {
                         "path": format!("/scratch/{}", params["name"].as_str().unwrap_or("")),
                         "bytes": params["text"].as_str().map_or(0, str::len),
                     })),
+                    // The editor refuses a call without questions (assistant_offers).
+                    "ui.askUser"
+                        if params["questions"]
+                            .as_array()
+                            .is_some_and(|q| !q.is_empty()) =>
+                    {
+                        Some(json!({ "shown": params["questions"].as_array().map_or(0, Vec::len) }))
+                    }
+                    "ui.suggestReplies" => {
+                        Some(json!({ "shown": params["chips"].as_array().map_or(0, Vec::len) }))
+                    }
                     "ui.scratchView" if params["name"] == json!("attached-logo.png") => {
                         Some(json!({
                             "path": "/scratch/attached-logo.png", "mimeType": "image/png",
@@ -207,7 +218,7 @@ fn has_name_property(schema: &Value) -> bool {
 }
 
 #[test]
-fn assistant_lists_exactly_the_ten_meta_tools_sorted_and_stable() {
+fn assistant_lists_exactly_the_twelve_meta_tools_sorted_and_stable() {
     let (editor, client) = Editor::start();
     let mut mcp = Mcp::new(client);
     assert!(mcp.server.is_assistant() && mcp.server.is_live());
@@ -224,6 +235,7 @@ fn assistant_lists_exactly_the_ten_meta_tools_sorted_and_stable() {
     assert_eq!(
         names,
         [
+            "ask_user",
             "command_describe",
             "commands_list",
             "execute",
@@ -233,6 +245,7 @@ fn assistant_lists_exactly_the_ten_meta_tools_sorted_and_stable() {
             "scratch_view",
             "scratch_write",
             "skill_reference",
+            "suggest_replies",
             "view_render"
         ]
     );
@@ -264,7 +277,9 @@ fn assistant_instructions_are_short_and_point_at_the_skill() {
     assert!(instructions.contains("skill_reference"), "{instructions}");
     assert!(instructions.contains("view_render"), "{instructions}");
     assert!(instructions.contains("run_batch"), "{instructions}");
-    assert!(instructions.len() < 700, "{}", instructions.len());
+    // #1172 added when to ask and to suggest replies.
+    assert!(instructions.contains("ask_user") && instructions.contains("suggest_replies"));
+    assert!(instructions.len() < 900, "{}", instructions.len());
     editor.finish();
 }
 
@@ -609,6 +624,51 @@ fn view_render_returns_an_image_block_and_the_stats() {
     editor.finish();
 }
 
+/// #1172: ask_user and suggest_replies forward to the editor's ui.askUser and ui.suggestReplies;
+/// ask_user's result tells the model to end its turn.
+#[test]
+fn ask_user_and_suggest_replies_forward_and_say_what_comes_next() {
+    let (editor, client) = Editor::start();
+    let mut mcp = Mcp::new(client);
+    let asked = mcp.call(
+        "ask_user",
+        json!({"questions": [
+            {"question": "How big?", "choices": ["80 mm", "100 mm"]},
+            {"question": "Which fabric?", "choices": ["Cotton", "Polo piqué"]},
+        ]}),
+    );
+    assert_eq!(asked["isError"], json!(false), "{asked}");
+    let said = asked["content"][0]["text"].as_str().expect("text");
+    assert!(
+        said.contains("2 questions") && said.contains("End your turn"),
+        "{said}"
+    );
+    let suggested = mcp.call(
+        "suggest_replies",
+        json!({"message": "Make it 80 mm", "chips": ["Export it as PES"]}),
+    );
+    assert_eq!(suggested["isError"], json!(false), "{suggested}");
+    for (tool, bad) in [
+        ("ask_user", json!({})),
+        (
+            "ask_user",
+            json!({"questions": [{"question": "x", "choices": ["a", "b"]}], "command": "design.new"}),
+        ),
+        ("suggest_replies", json!({"chips": ["a"], "extra": 1})),
+    ] {
+        assert_eq!(
+            mcp.call(tool, bad.clone())["isError"],
+            json!(true),
+            "{tool} {bad}"
+        );
+    }
+    let log = editor.log();
+    // The good call and the empty one reach the editor; the extra key never does.
+    assert_eq!(log.iter().filter(|c| *c == "ui.askUser").count(), 2);
+    assert_eq!(log.iter().filter(|c| *c == "ui.suggestReplies").count(), 1);
+    editor.finish();
+}
+
 /// #1168: scratch_view returns a scratch picture as MCP image content, for an agent that takes
 /// no pictures in a message.
 #[test]
@@ -807,6 +867,8 @@ fn every_command_the_skill_names_exists() {
         "ui.update",
         "ui.scratchWrite",
         "ui.scratchView",
+        "ui.askUser",
+        "ui.suggestReplies",
         "ui.notesRead",
         "ui.notesWrite",
         "ui.notesClear",

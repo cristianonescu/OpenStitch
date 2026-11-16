@@ -415,6 +415,9 @@ impl EditorApp {
             }
             "ui.scratchWrite" => self.scratch_write(&p, params),
             "ui.scratchView" => self.scratch_view(&p),
+            "ui.askUser" | "ui.suggestReplies" => {
+                crate::assistant_panel::offer(self, id, params)
+            }
             "ui.notesRead" => {
                 self.memory_on()?;
                 Ok(self.notes_json())
