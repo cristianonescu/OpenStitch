@@ -9,8 +9,8 @@
 //! (`Exec=openstitch-thumbnailer -s %s %i %o`), so GNOME, KDE and other freedesktop file
 //! managers show stitched previews of `.osd` and `.pes` files. `--stdin` reads the file's
 //! bytes from standard input (its format named by EXTENSION, such as `pes` or `osd`) and writes
-//! the PNG to standard output: the macOS Quick Look extension (packaging/macos/quicklook) runs
-//! it that way, since a sandboxed helper cannot open the user's file by path (#557).
+//! the PNG to standard output, for handlers given bytes rather than a path. (The macOS Quick
+//! Look extension links the renderer instead: its sandbox cannot start a process, #1182.)
 
 use openstitch_render::thumbnail;
 use std::io::{Read, Write};
