@@ -677,6 +677,9 @@ These give the AI assistant ([research/beyond/ai-integration.md](research/beyond
 **Pictures and files**
 - `ui.render`: a PNG of the live design, the same preview `openstitch-mcp` draws.
 - `ui.scratchWrite`: writes an SVG or a picture into a scratch folder.
+- `ui.scratchView`: a picture in the scratch folder, by plain name, as base64, scaled as an
+  attached picture is (2048 px, 3.75 MB). The assistant's `scratch_view` tool returns it as MCP
+  image content (#1168).
 
 **Others** (the full list is `commands.list`): `ui.cursor` (keyboard drawing), `ui.preview`,
 `ui.stitchTable`, `ui.threadLabels`, `ui.guides`, `ui.layout`, `ui.documents`, `ui.loading`,
@@ -711,6 +714,14 @@ the same stdio loop as `openstitch-mcp` (`openstitch_mcp::serve_stdio`). It conn
 loopback listener the panel opens, with its endpoint file in the 0700 scratch folder. The panel
 drains that listener in `serve`, through the same gate and undo bookkeeping as the in-process
 link, and not through `serve_remote`'s `Policy`.
+
+**Pictures to a coding agent (#1168).** The panel hands the agent's worker the attached
+pictures, the View render, and two texts, because only the worker knows the agent's
+`initialize` result. An agent whose result has `agentCapabilities.promptCapabilities.image`
+(claude-agent-acp 0.100.0 does) gets the pictures as ACP image blocks ahead of the text, which
+says they are shown above. An agent without it gets the other text: each attached picture is
+named with `scratch_view`, View asks for `view_render`, and the chat says the pictures were not
+sent.
 
 View ▸ Show/Hide ▸ **Assistant** (Ctrl/Cmd+Shift+A) docks a chat on the right (`assistant_panel.rs`).
 

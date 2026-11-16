@@ -120,13 +120,34 @@ impl claude::Tools for ServerTools {
 enum ToWorker {
     /// A model turn: the request settings, the user's content blocks and the image generator.
     Turn(Box<claude::Config>, Vec<Value>, Option<claude::ImageConfig>),
-    /// A coding agent's turn: the text (A3).
-    Prompt(String),
+    /// A coding agent's turn (A3).
+    Prompt(AgentPrompt),
 }
+
+/// A coding agent's message (#1168). Whether the agent takes pictures is known only once it has
+/// answered `initialize`, in the worker, so both texts go along and the worker picks one.
+struct AgentPrompt {
+    /// For an agent that takes image blocks: `images` go ahead of it, "shown above".
+    shown: String,
+    /// For one that does not: it looks at attached pictures with `scratch_view` and at the view
+    /// with `view_render`.
+    by_tool: String,
+    /// `(media type, base64)`: the attached pictures, then the view's picture.
+    images: Vec<(String, String)>,
+    /// How many of `images` are attached files (the view's picture is not one).
+    pictures: usize,
+}
+
+/// The chat notice when attached pictures are not sent (#1168).
+const AGENT_NO_PICTURES: &str = "This agent does not take pictures in a message, so it gets the \
+attached pictures' paths: it can look at them with its scratch_view tool and stitch them with \
+digitize.autoPunch.";
 
 enum FromWorker {
     Event(claude::Event),
     End(claude::StopKind),
+    /// A line for the chat from the worker (#1168).
+    Notice(String),
 }
 
 struct Worker {
@@ -223,9 +244,15 @@ impl Worker {
                 }
             };
             while let Ok(m) = inbox.recv() {
-                let ToWorker::Prompt(text) = m else { continue };
+                let ToWorker::Prompt(p) = m else { continue };
                 stop.store(false, Ordering::SeqCst);
-                let end = agent.prompt(&text, &stop, &mut |e| send(FromWorker::Event(e)));
+                let (text, images) = agent_message(&p, agent.takes_images());
+                if images.is_empty() && p.pictures > 0 {
+                    send(FromWorker::Notice(AGENT_NO_PICTURES.into()));
+                }
+                let end = agent.prompt_with_images(text, images, &stop, &mut |e| {
+                    send(FromWorker::Event(e))
+                });
                 send(FromWorker::End(end));
             }
             agent.stop();
@@ -238,6 +265,17 @@ impl Worker {
             kind: (Protocol::Agent, String::new()),
             listener: Some(listener),
         }
+    }
+}
+
+/// The text and pictures a coding agent gets (#1168): with the image capability the pictures go
+/// as image blocks and the text says they are shown above; without it no picture goes and the
+/// text names the tools to look with.
+fn agent_message(p: &AgentPrompt, takes_images: bool) -> (&str, &[(String, String)]) {
+    if takes_images {
+        (&p.shown, &p.images)
+    } else {
+        (&p.by_tool, &[])
     }
 }
 
@@ -505,11 +543,15 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         let Some(config) = model_config(app, &prefs) else {
             return;
         };
-        let (extra, images, chips) = extras(app, false);
-        let content =
-            claude::user_content(&format!("{model_text}{extra}\n\n{}", context(app)), &images);
+        let e = extras(app);
+        let content = claude::user_content(
+            &format!("{model_text}{}
+
+{}", e.shown, context(app)),
+            &e.images,
+        );
         let image = image_config(app, &prefs);
-        (ToWorker::Turn(Box::new(config), content, image), chips)
+        (ToWorker::Turn(Box::new(config), content, image), e.chips)
     };
     let panel = &mut app.assistant.panel;
     if panel.worker.as_ref().is_some_and(|w| w.kind != kind) {
@@ -593,51 +635,74 @@ pub fn attach_files(app: &mut EditorApp, paths: Vec<std::path::PathBuf>) {
     }
 }
 
-/// A coding agent's prompt: text only, so attached pictures go as paths (with a notice) and
-/// View asks the agent to look with `view_render` (#418). Returns the prompt and the chips.
-fn agent_prompt(app: &mut EditorApp, text: &str) -> (String, String) {
-    let (extra, images, chips) = extras(app, true);
-    if !images.is_empty() {
-        app.assistant.panel.items.push(Item::Notice(
-            "A coding agent gets the attached files' paths, not the pictures themselves.".into(),
-        ));
-    }
-    (format!("{text}{extra}\n\n{}", context(app)), chips)
+/// A coding agent's message and the chips (#1168): the pictures, and the text for an agent that
+/// takes them and for one that does not; the worker picks by the agent's capability.
+fn agent_prompt(app: &mut EditorApp, text: &str) -> (AgentPrompt, String) {
+    let e = extras(app);
+    let context = context(app);
+    let prompt = AgentPrompt {
+        shown: format!("{text}{}\n\n{context}", e.shown),
+        by_tool: format!("{text}{}\n\n{context}", e.by_tool),
+        images: e.images,
+        pictures: e.pictures,
+    };
+    (prompt, e.chips)
+}
+
+/// What goes with the message (A4).
+struct Extras {
+    /// The text after the message for a model that gets `images` as image blocks: the API, and
+    /// a coding agent with the image capability.
+    shown: String,
+    /// The text for a coding agent without it: attached pictures are named with `scratch_view`
+    /// and the view with `view_render` (#418, #1168).
+    by_tool: String,
+    /// `(media type, base64)`: the attached pictures, then the view's picture.
+    images: Vec<(String, String)>,
+    /// How many of `images` are attached files.
+    pictures: usize,
+    /// The short line for the chat.
+    chips: String,
 }
 
 /// What goes with the message (A4): the attached files, a picture of the view and the
-/// selection, as extra text, image blocks and a short line for the chat. A coding `agent` takes
-/// text only and can't open files, so View asks it to look with `view_render` instead (#418).
-fn extras(app: &mut EditorApp, agent: bool) -> (String, Vec<(String, String)>, String) {
+/// selection.
+fn extras(app: &mut EditorApp) -> Extras {
+    const LOOK: &str =
+        "\n\n[The user wants you to look at the design view: call view_render to see it.]";
     let panel = &mut app.assistant.panel;
     let files = std::mem::take(&mut panel.attachments);
     let view = std::mem::take(&mut panel.attach_view);
     let selection = std::mem::take(&mut panel.attach_selection);
-    let mut text = String::new();
     let mut images: Vec<(String, String)> = files.iter().filter_map(|a| a.image.clone()).collect();
+    let pictures = images.len();
     let mut chips: Vec<String> = files.iter().map(|a| a.name.clone()).collect();
+    let (mut shown, mut by_tool) = (String::new(), String::new());
     if !files.is_empty() {
-        text = format!("\n\n{}", assistant_attach::describe(&files));
+        use assistant_attach::Pictures;
+        shown = format!("\n\n{}", assistant_attach::describe(&files, Pictures::Shown));
+        by_tool = format!("\n\n{}", assistant_attach::describe(&files, Pictures::ByTool));
     }
-    if view && agent {
-        text.push_str(
-            "\n\n[The user wants you to look at the design view: call view_render to see it.]",
-        );
+    if view {
         chips.push("view".into());
-    } else if view {
-        match app.ui_command("ui.render", Some(&json!({ "size": 1024 }))) {
-            Ok(r) => {
-                if let Some(png) = r["png"].as_str() {
-                    images.push(("image/png".into(), png.into()));
-                    text.push_str("\n\n[The user attached a picture of the design view.]");
-                    chips.push("view".into());
-                }
+        by_tool.push_str(LOOK);
+        let png = match app.ui_command("ui.render", Some(&json!({ "size": 1024 }))) {
+            Ok(r) => r["png"].as_str().map(str::to_string),
+            Err(e) => {
+                app.assistant
+                    .panel
+                    .items
+                    .push(Item::Notice(format!("No picture of the view: {e}")));
+                None
             }
-            Err(e) => app
-                .assistant
-                .panel
-                .items
-                .push(Item::Notice(format!("No picture of the view: {e}"))),
+        };
+        match png {
+            Some(png) => {
+                images.push(("image/png".into(), png));
+                shown.push_str("\n\n[The user attached a picture of the design view.]");
+            }
+            // No picture: the model can still look with view_render.
+            None => shown.push_str(LOOK),
         }
     }
     if selection {
@@ -645,7 +710,8 @@ fn extras(app: &mut EditorApp, agent: bool) -> (String, Vec<(String, String)>, S
         let list = app.session.execute("object.list", None).unwrap_or_default();
         let s = assistant_attach::describe_selection(&list, &ids);
         if !s.is_empty() {
-            text.push_str(&format!("\n\n{s}"));
+            shown.push_str(&format!("\n\n{s}"));
+            by_tool.push_str(&format!("\n\n{s}"));
             chips.push(format!("selection ({})", ids.len()));
         }
     }
@@ -654,7 +720,13 @@ fn extras(app: &mut EditorApp, agent: bool) -> (String, Vec<(String, String)>, S
     } else {
         format!("\nAttached: {}", chips.join(" · "))
     };
-    (text, images, chips)
+    Extras {
+        shown,
+        by_tool,
+        images,
+        pictures,
+        chips,
+    }
 }
 
 /// The image generator (A4), when one is set up; its key is in the keychain under its address.
@@ -1322,6 +1394,7 @@ pub fn serve(app: &mut EditorApp, wake: Waker) {
         match e {
             FromWorker::Event(e) => on_event(&mut app.assistant.panel, e),
             FromWorker::End(end) => finish_turn(app, end, wake.clone()),
+            FromWorker::Notice(n) => app.assistant.panel.items.push(Item::Notice(n)),
         }
     }
     note_chat_changes(app);
@@ -3080,39 +3153,71 @@ mod tests {
         img.save(path).expect("png");
     }
 
+    /// View sends a picture of the view to a model that takes pictures, and asks one that does
+    /// not to look with view_render (#418, #1168).
     #[test]
-    fn view_asks_a_coding_agent_to_look_and_sends_a_model_the_picture() {
+    fn view_sends_the_picture_or_asks_the_model_to_look() {
         let (mut app, _) = app_with(Vec::new());
         app.assistant.panel.attach_view = true;
-        let (text, images, chips) = extras(&mut app, true);
-        assert!(text.contains("call view_render"), "{text}");
-        assert!(images.is_empty());
-        assert!(chips.contains("view"));
+        let e = extras(&mut app);
         assert!(!app.assistant.panel.attach_view);
-        app.assistant.panel.attach_view = true;
-        let (text, images, _) = extras(&mut app, false);
+        assert!(e.chips.contains("view"));
         assert!(
-            text.contains("attached a picture of the design view"),
-            "{text}"
+            e.shown.contains("attached a picture of the design view"),
+            "{}",
+            e.shown
         );
-        assert_eq!(images.len(), 1);
-        assert_eq!(images[0].0, "image/png");
+        assert!(!e.shown.contains("view_render"), "{}", e.shown);
+        assert_eq!(e.images.len(), 1);
+        assert_eq!(e.images[0].0, "image/png");
+        assert_eq!(e.pictures, 0, "the view is not an attached file");
+        assert!(e.by_tool.contains("call view_render"), "{}", e.by_tool);
+        assert!(!e.by_tool.contains("attached a picture"), "{}", e.by_tool);
     }
 
-    /// #418, the coding-agent path: the prompt sent over ACP is text, so with View on it asks the
-    /// agent to call view_render and carries no picture data.
+    /// #1168: a coding agent with the image capability (Claude Code) gets the attached picture
+    /// and the view as image blocks and a text that says "shown above"; one without it gets no
+    /// picture data, a text that names scratch_view and view_render, and the notice.
     #[test]
-    fn the_view_chip_asks_a_coding_agent_to_call_view_render() {
+    fn a_coding_agent_gets_the_pictures_when_it_takes_them() {
         let (mut app, _) = app_with(Vec::new());
+        let tmp = openstitch_testutil::TempDir::new("1168-disc");
+        let src = tmp.join("openstitch-1168-disc.png");
+        disc_png(&src);
+        attach_files(&mut app, vec![src]);
         app.assistant.panel.attach_view = true;
         let (prompt, chips) = agent_prompt(&mut app, "What is this?");
-        assert!(prompt.starts_with("What is this?"));
-        assert!(prompt.contains("call view_render"), "{prompt}");
+        assert!(chips.contains("openstitch-1168-disc.png") && chips.contains("view"));
+        assert_eq!(prompt.pictures, 1);
+
+        let (text, images) = agent_message(&prompt, true);
+        assert!(text.starts_with("What is this?"));
+        assert_eq!(images.len(), 2, "the attached picture, then the view");
+        assert_eq!(images[0].0, "image/png");
+        assert!(text.contains("shown above"), "{text}");
+        assert!(text.contains("attached a picture of the design view"));
+        assert!(!text.contains("scratch_view") && !text.contains("view_render"), "{text}");
+
+        let (text, images) = agent_message(&prompt, false);
+        assert!(images.is_empty());
+        assert!(text.starts_with("What is this?"));
+        assert!(!text.contains("shown above"), "{text}");
+        assert!(!text.contains("attached a picture"), "{text}");
+        assert!(text.contains("call scratch_view with file attached-"), "{text}");
+        assert!(text.contains("call view_render"), "{text}");
+        assert!(!text.contains("iVBOR"), "no picture data");
+        // The old notice is gone from the panel: the worker sends AGENT_NO_PICTURES only when
+        // the pictures are not sent.
         assert!(
-            !prompt.contains("base64") && !prompt.contains("iVBOR"),
-            "no picture data"
+            !app.assistant
+                .panel
+                .items
+                .iter()
+                .any(|i| matches!(i, Item::Notice(n) if n.contains("paths"))),
+            "{:?}",
+            app.assistant.panel.items
         );
-        assert!(chips.contains("view"));
+        assert!(AGENT_NO_PICTURES.contains("scratch_view"));
     }
 
     #[test]
@@ -3622,10 +3727,68 @@ mod tests {
         );
     }
 
-    /// #418 vs #415, the coding-agent backend: the text `send` hands the ACP conversation, which
-    /// sends it as the one text block of `session/prompt` (`acp::protocol::prompt_params`). An
-    /// agent gets no picture, so View asks it to call view_render and never claims one is
-    /// attached.
+    /// #1168, live: the panel's own path (`send`, the worker, `AcpConversation`) to the real
+    /// Claude Code over claude-agent-acp, signed in by the owner. A picture of a green triangle
+    /// on yellow is attached and the question names neither; Claude Code must describe it from
+    /// the picture.
+    /// Run by hand: `cargo test -p openstitch-app -- --ignored claude_code_sees`.
+    #[test]
+    #[ignore = "live: needs Claude Code (claude-agent-acp) signed in; run with --ignored"]
+    fn claude_code_sees_an_attached_picture() {
+        let (mut app, _) = app_with(Vec::new());
+        app.ui.prefs.ai.protocol = Protocol::Agent;
+        app.ui.prefs.ai.agent = "claude".into();
+        let tmp = openstitch_testutil::TempDir::new("1168-live");
+        let src = tmp.join("picture.png");
+        image::RgbImage::from_fn(160, 160, |x, y| {
+            let (x, y) = (f64::from(x), f64::from(y));
+            if y > 20.0 && y < 140.0 && (x - 80.0).abs() < (y - 20.0) * 0.6 {
+                image::Rgb([0, 150, 0])
+            } else {
+                image::Rgb([250, 220, 0])
+            }
+        })
+        .save(&src)
+        .expect("png");
+        attach_files(&mut app, vec![src]);
+        send(
+            &mut app,
+            "Describe the attached picture in one sentence: which shape, and which colours? \
+             Use no tools."
+                .into(),
+            no_wake(),
+        );
+        let start = Instant::now();
+        while app.assistant.panel.busy() {
+            serve(&mut app, no_wake());
+            assert!(start.elapsed() < Duration::from_secs(240), "no answer");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let items = &app.assistant.panel.items;
+        let reply: String = items
+            .iter()
+            .filter_map(|i| match i {
+                Item::Assistant(t) => Some(t.as_str()),
+                _ => None,
+            })
+            .collect();
+        eprintln!("items: {items:?}");
+        let reply = reply.to_lowercase();
+        for word in ["triangle", "green", "yellow"] {
+            assert!(reply.contains(word), "{word}: {reply}");
+        }
+        assert!(
+            !items
+                .iter()
+                .any(|i| matches!(i, Item::Notice(n) if n == AGENT_NO_PICTURES)),
+            "Claude Code takes pictures: no notice"
+        );
+        app.assistant.panel.worker = None;
+    }
+
+    /// #418 vs #415, the coding-agent backend: what `send` hands the ACP conversation. An agent
+    /// without the image capability gets no picture, so View asks it to call view_render and
+    /// never claims one is attached; one with it gets the view's picture (#1168).
     #[test]
     fn the_view_chip_asks_a_coding_agent_to_look() {
         let (mut app, _) = app_with(Vec::new());
@@ -3650,8 +3813,13 @@ mod tests {
         let Ok(ToWorker::Prompt(prompt)) = inbox.try_recv() else {
             panic!("the agent got no prompt");
         };
-        assert!(prompt.contains("call view_render"), "{prompt}");
-        assert!(!prompt.contains("attached a picture"), "{prompt}");
+        let (text, images) = agent_message(&prompt, false);
+        assert!(text.contains("call view_render"), "{text}");
+        assert!(!text.contains("attached a picture"), "{text}");
+        assert!(images.is_empty());
+        let (text, images) = agent_message(&prompt, true);
+        assert!(text.contains("attached a picture of the design view"), "{text}");
+        assert_eq!(images.len(), 1);
     }
 
     #[test]

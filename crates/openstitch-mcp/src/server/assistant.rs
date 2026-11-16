@@ -13,9 +13,9 @@ editor; the user's open design is what you change. Use these tools only. Read sk
 (SKILL.md first) before building anything. Find commands with commands_list and \
 command_describe; prefer run_batch to many execute calls. Check your work with view_render and \
 design.info. Lengths are millimetres, angles degrees. Never claim a result you did not check. \
-Pictures: an attached one is in the scratch folder; stitch it with digitize.autoPunch \
-(compatMode openStitch). Else use generate_image if offered, or write an SVG with scratch_write \
-and import.svg, and say why. Save lasting user facts with notes_write; never secrets.";
+Pictures: an attached one is in the scratch folder (scratch_view shows it); stitch it with \
+digitize.autoPunch (compatMode openStitch). Else use generate_image if offered, or an SVG via \
+scratch_write and import.svg; say why. Save lasting user facts with notes_write; never secrets.";
 
 /// The notes sections (`openstitch_assistant::notes::SECTIONS`; this crate does not depend on
 /// it, and the editor checks the names again).
@@ -155,6 +155,25 @@ pub(super) fn tools(max_batch_steps: usize, max_render_pixels: u32) -> Vec<Tool>
                 "additionalProperties": false,
             }),
             write,
+        ),
+        (
+            "scratch_view",
+            Meta::ScratchView,
+            "View scratch picture",
+            "Look at a picture in this conversation's scratch folder, such as one the user \
+             attached (its file name, attached-...png, is in the message) or one you wrote: \
+             returns it as an image, scaled to at most 2048 px on its longest side, with its \
+             path and size. Use it when an attached picture is not shown in the message."
+                .to_string(),
+            json!({
+                "type": "object",
+                "properties": {
+                    "file": { "type": "string", "minLength": 1, "description": "The picture's file name in the scratch folder (.png, .jpg, .jpeg or .bmp), such as attached-logo.png" },
+                },
+                "required": ["file"],
+                "additionalProperties": false,
+            }),
+            read.clone(),
         ),
         (
             "notes_read",
@@ -317,6 +336,7 @@ impl Server {
                 self.run("ui.scratchWrite", &params)
                     .map(|v| tool_success(&v))
             }
+            Meta::ScratchView => self.scratch_view(arguments),
             Meta::SkillReference => skill_reference(arguments),
             Meta::NotesRead => {
                 only("notes_read", arguments, &[])?;
@@ -522,6 +542,40 @@ impl Server {
             r["isError"] = json!(true);
         }
         Ok(r)
+    }
+
+    /// `scratch_view` (#1168): a scratch picture as MCP image content, through the editor's
+    /// `ui.scratchView`.
+    fn scratch_view(&mut self, arguments: &Value) -> Result<Value, String> {
+        only("scratch_view", arguments, &["file", "name"])?;
+        let file =
+            file_arg("scratch_view", arguments)?.ok_or("scratch_view: needs a string 'file'")?;
+        let reply = self.run("ui.scratchView", &json!({ "name": file }))?;
+        let data = reply
+            .get("base64")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .ok_or("scratch_view: the editor's ui.scratchView reply has no picture")?;
+        let media = reply
+            .get("mimeType")
+            .and_then(Value::as_str)
+            .unwrap_or("image/png");
+        let n = |k: &str| reply.get(k).and_then(Value::as_u64).unwrap_or(0);
+        let about = format!(
+            "{file}: {}×{} px, shown at {}×{}. Path: {}",
+            n("width"),
+            n("height"),
+            n("sentWidth"),
+            n("sentHeight"),
+            reply.get("path").and_then(Value::as_str).unwrap_or("")
+        );
+        Ok(json!({
+            "content": [
+                { "type": "image", "data": data, "mimeType": media },
+                { "type": "text", "text": about },
+            ],
+            "isError": false,
+        }))
     }
 
     fn view_render(&mut self, arguments: &Value) -> Result<Value, String> {

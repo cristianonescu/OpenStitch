@@ -187,9 +187,21 @@ pub fn fit_picture(bytes: &[u8]) -> Result<(&'static str, Vec<u8>, u32, u32), St
     }
 }
 
+/// How the model gets an attached picture (#1168).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pictures {
+    /// As an image block ahead of the text: the API, and a coding agent that advertises
+    /// `promptCapabilities.image` (Claude Code does).
+    Shown,
+    /// Not in the message: a coding agent without the image capability looks with
+    /// `scratch_view`.
+    ByTool,
+}
+
 /// The text that follows the message: where each file is and how to use it, with the text of
-/// SVG and text files.
-pub fn describe(attachments: &[Attachment]) -> String {
+/// SVG and text files. `pictures` says whether a picture is in the message, so the text never
+/// claims one the model does not have (#1168).
+pub fn describe(attachments: &[Attachment], pictures: Pictures) -> String {
     if attachments.is_empty() {
         return String::new();
     }
@@ -202,8 +214,18 @@ pub fn describe(attachments: &[Attachment]) -> String {
         let line = match a.kind {
             Kind::Picture => {
                 let (w, h) = a.pixels.unwrap_or_default();
+                let seen = match pictures {
+                    Pictures::Shown => "shown above".to_string(),
+                    Pictures::ByTool => format!(
+                        "not shown here: call scratch_view with file {} to see it",
+                        a.path
+                            .file_name()
+                            .map(|n| n.to_string_lossy().into_owned())
+                            .unwrap_or_default()
+                    ),
+                };
                 format!(
-                    "- {} (picture, {w}×{h} px, shown above): {path}. To stitch it: \
+                    "- {} (picture, {w}×{h} px, {seen}): {path}. To stitch it: \
                      digitize.autoPunch with path and compatMode openStitch.",
                     a.name
                 )
@@ -333,10 +355,26 @@ mod tests {
         // The same name twice gets a second file.
         let again = attach(&src.join("logo.png"), &scratch).expect("png");
         assert_ne!(again.path, pic.path);
-        let text = describe(&[pic, svg, dst]);
+        let scratch_file = pic
+            .path
+            .file_name()
+            .expect("name")
+            .to_string_lossy()
+            .into_owned();
+        let files = [pic, svg, dst];
+        let text = describe(&files, Pictures::Shown);
         assert!(text.contains("digitize.autoPunch") && text.contains("compatMode openStitch"));
         assert!(text.contains("import.svg") && text.contains("stitches.import"));
         assert!(text.contains("<file name=\"star.svg\">"));
+        // #1168: "shown above" only when the picture is in the message; otherwise the text
+        // names the tool and the scratch file to look with.
+        assert!(text.contains("shown above") && !text.contains("scratch_view"));
+        let text = describe(&files, Pictures::ByTool);
+        assert!(!text.contains("shown above"), "{text}");
+        assert!(
+            text.contains(&format!("call scratch_view with file {scratch_file}")),
+            "{text}"
+        );
         let _ = std::fs::remove_dir_all(&src);
         let _ = std::fs::remove_dir_all(&scratch);
     }
