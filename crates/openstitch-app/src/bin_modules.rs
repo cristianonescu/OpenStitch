@@ -11,6 +11,9 @@ mod assistant_panel;
 #[cfg(target_arch = "wasm32")]
 #[path = "web/assistant_panel.rs"]
 mod assistant_panel;
+// Questions, suggested replies and fix chips of the Assistant panel (#1172).
+#[cfg(not(target_arch = "wasm32"))]
+mod assistant_offers;
 mod assistant_ui;
 mod canvas;
 mod close_ui;

@@ -715,6 +715,19 @@ loopback listener the panel opens, with its endpoint file in the 0700 scratch fo
 drains that listener in `serve`, through the same gate and undo bookkeeping as the in-process
 link, and not through `serve_remote`'s `Policy`.
 
+**Questions, suggested replies and fix chips (#1172).** `assistant_offers.rs` holds them. The
+model hands questions and suggestions over with the meta tools `ask_user` and `suggest_replies`
+(editor commands `ui.askUser` and `ui.suggestReplies`, read-only, refused outside the
+Assistant's own turn). They reach every protocol the same way, because the API worker and a
+coding agent's bridge serve the same `openstitch-mcp --assistant` tool list. Questions end the
+turn: the card above the composer sends the answers, or "use your judgment", as one ordinary
+user message, so nothing waits on a timeout. The chat keeps the questions as one Assistant row
+and the answers as the user's message. At the end of every turn `end_turn` reads Check Design
+(`app.quality.check`, which equals `design.check`) for the fix chips, and shows the model's
+suggestions or one of four fixed, translated sets (`Ending`: failed, findings, changed,
+answered). Model text is made plain and cut; a click only sends or
+fills a user message.
+
 **Pictures to a coding agent (#1168).** The panel hands the agent's worker the attached
 pictures, the View render, and two texts, because only the worker knows the agent's
 `initialize` result. An agent whose result has `agentCapabilities.promptCapabilities.image`
