@@ -134,7 +134,7 @@ fn threads(p: &Params) -> Result<Vec<Thread>, CommandError> {
             thread(&one, "thread").ok().flatten().ok_or_else(|| {
                 p.invalid(
                     "threads",
-                    format!("item {k} must be #rrggbb, a Brother thread name or chart number 1-64"),
+                    format!("item {k} must be a thread code (\"205\"), brand and code, a Brother thread name, #rrggbb or PEC chart number 1-64"),
                 )
             })
         })

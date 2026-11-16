@@ -1217,7 +1217,7 @@ fn change_color_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .tint(Color32::from_rgb(r, g, b))
         .corner_radius(2.0);
         // The thread's code beside its colour (#798).
-        let code = openstitch_core::thread_label(t);
+        let code = crate::panels::thread_caption(t);
         ui.menu_button((swatch, format!("{}. {code} {name}", k + 1)), |ui| {
             let user = app.session.user_settings();
             if let Some(i) = panels::thread_grid(ui, &format!("change-color-{k}"), Some(t), user) {

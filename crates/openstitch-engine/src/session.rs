@@ -294,6 +294,8 @@ impl Session {
     pub fn execute(&mut self, id: &str, params: Option<&Value>) -> CommandResult {
         let spec = self.permits(id)?;
         let p = Params::new(id, params)?;
+        // A colour given as a thread code is looked up in the user's default chart first (#1184).
+        let _chart = crate::user::DefaultChartScope::enter(&self.state.user);
         let (run, effect) = (spec.run, spec.effect);
         match effect {
             Effect::History => self.history(id),

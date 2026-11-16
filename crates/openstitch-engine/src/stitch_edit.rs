@@ -177,7 +177,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 req(
                     "color",
                     "color",
-                    "#rrggbb, a Brother thread name, chart number 1-64 or {builtin, code}",
+                    "The block's new thread",
                 ),
             ],
             |s, p| {
@@ -202,14 +202,21 @@ pub fn commands() -> Vec<CommandSpec> {
             Effect::Read,
             vec![ID],
             |s, p| {
+                let chart = crate::user::reference_threads(&s.user);
                 let i = target_points(s, p, "id")?;
                 let b = &*block(s, i);
                 let colors = stitch_edit::colors(b);
                 let r = |v: f64| (v / MM * 100.0).round() / 100.0;
+                let details: Vec<Value> = b
+                    .threads
+                    .iter()
+                    .map(|t| crate::thread_match::describe_near(t, &chart))
+                    .collect();
                 Ok(json!({
                     "threads": b.threads.iter().map(|t| t.hex()).collect::<Vec<_>>(),
-                    // Each thread's code, brand and PEC number (#798).
-                    "threadDetails": b.threads.iter().map(crate::thread_match::describe).collect::<Vec<_>>(),
+                    // Each thread's code, brand and PEC number (#798), and how a person reads
+                    // it, a custom colour by its nearest thread (#1184).
+                    "threadDetails": details,
                     "points": b.stitches.iter().enumerate().map(|(k, st)| json!({
                         "index": k, "x": r(st.x), "y": r(st.y),
                         "command": command_name(st.command), "color": colors[k],

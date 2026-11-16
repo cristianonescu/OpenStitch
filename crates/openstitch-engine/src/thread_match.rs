@@ -176,6 +176,14 @@ fn apply(d: &mut Design, idx: &[usize], map: &[(Thread, Thread)]) {
 /// colour), `brand`, `description`, the PEC chart number a PES/PEC file gives it (`pecIndex`)
 /// and other makers' codes printed for it (`crossReferences`, #796).
 pub(crate) fn describe(t: &Thread) -> Value {
+    describe_near(t, &[])
+}
+
+/// [`describe`], and for a custom colour (no code) the nearest thread of `chart` with its ΔE
+/// (`nearest`: `{code, brand, description, deltaE}`); `text`, the colour as a person reads it
+/// ("Brother 205 Yellow", "Custom colour, nearest …"), and `label`, what its swatch shows
+/// ("205", "≈205"): how a colour is named to the user, never by hex (#1184).
+pub(crate) fn describe_near(t: &Thread, chart: &[Thread]) -> Value {
     let mut v = json!({
         "color": t.hex(),
         "code": openstitch_core::thread_code(t),
@@ -190,6 +198,18 @@ pub(crate) fn describe(t: &Thread) -> Value {
                 .map(|(brand, code)| json!({ "brand": brand, "code": code }))
                 .collect(),
         );
+    }
+    v["text"] = json!(openstitch_core::thread_text(t, chart));
+    v["label"] = json!(openstitch_core::thread_label(t, chart));
+    if openstitch_core::is_custom(t)
+        && let Some((n, de)) = openstitch_core::nearest_thread(t, chart)
+    {
+        v["nearest"] = json!({
+            "code": openstitch_core::thread_code(n),
+            "brand": openstitch_core::thread_brand(n),
+            "description": n.name,
+            "deltaE": round2(de),
+        });
     }
     v
 }
@@ -235,6 +255,7 @@ fn plan_remap(
 }
 
 fn remap(s: &mut EngineState, p: &Params) -> crate::CommandResult {
+    let reference = crate::user::reference_threads(&s.user);
     let (name, chart) = target_chart(s, p)?;
     if chart.is_empty() {
         return Err(p.failed("the chart is empty"));
@@ -257,7 +278,7 @@ fn remap(s: &mut EngineState, p: &Params) -> crate::CommandResult {
         let de = delta_e(c, to);
         total += de;
         plan.push(json!({
-            "from": describe(c),
+            "from": describe_near(c, &reference),
             "to": describe(to),
             "deltaE": round2(de),
             "objects": objects,
@@ -282,6 +303,8 @@ fn remap(s: &mut EngineState, p: &Params) -> crate::CommandResult {
             shared.push(json!({
                 "to": describe(to),
                 "from": from.iter().map(|t| t.hex()).collect::<Vec<_>>(),
+                // The same design colours named as a person reads them (#1184).
+                "fromThreads": from.iter().map(|t| describe_near(t, &reference)).collect::<Vec<_>>(),
                 "forced": forced.iter().any(|&k| picks[k] == j),
             }));
         }

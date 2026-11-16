@@ -240,9 +240,10 @@ pub fn decode(kind: Kind, data: &[u8]) -> std::result::Result<StitchPattern, Str
         .unwrap_or_else(|_| Err("the decoder failed on this file".into()))
 }
 
-/// A thread's label for colour lists: its name, or brand plus catalogue number, falling back
-/// to the hex colour.
-pub fn thread_label(t: &Thread, brand_and_number: bool) -> String {
+/// A thread's label for colour lists: its name, or brand plus catalogue number. A colour with
+/// neither (a DST's, a custom colour) is named by the nearest thread of `chart`, "Custom colour,
+/// nearest Brother 205 Yellow", never by hex (#1184).
+pub fn thread_label(t: &Thread, brand_and_number: bool, chart: &[Thread]) -> String {
     if brand_and_number {
         let parts: Vec<&str> = [t.brand.as_deref(), t.catalog_number.as_deref()]
             .into_iter()
@@ -255,6 +256,6 @@ pub fn thread_label(t: &Thread, brand_and_number: bool) -> String {
     }
     match t.name.as_deref() {
         Some(n) if !n.is_empty() => n.to_string(),
-        _ => t.hex(),
+        _ => openstitch_core::thread_text(t, chart),
     }
 }

@@ -97,6 +97,9 @@ pub struct Setup {
     pub color_list: ColorList,
     /// Label threads with brand and number instead of the colour name.
     pub brand_numbers: bool,
+    /// The chart a colour with no name or number is named by, as its nearest thread (#1184):
+    /// the user's default chart. Empty leaves "Custom colour".
+    pub reference: Vec<openstitch_core::Thread>,
     pub units: Units,
     /// Shown at the top of each page and as the HTML title.
     pub title: String,
@@ -349,7 +352,7 @@ fn swatches(
             h: size,
             rgb: [t.red, t.green, t.blue],
         });
-        let label = thread_label(t, setup.brand_numbers);
+        let label = thread_label(t, setup.brand_numbers, &setup.reference);
         let text = if numbered {
             format!("{}. {label}", n + 1)
         } else {
@@ -914,7 +917,7 @@ pub fn write_html(
                 format!(
                     "<li><span class=\"sw\" style=\"background:{}\"></span>{}</li>",
                     t.hex(),
-                    html_escape(&thread_label(t, setup.brand_numbers))
+                    html_escape(&thread_label(t, setup.brand_numbers, &setup.reference))
                 )
             })
             .collect();
@@ -1015,7 +1018,7 @@ pub fn csv(items: &[Item], setup: &Setup) -> String {
         row.push(
             colours(item, setup)
                 .iter()
-                .map(|t| thread_label(t, setup.brand_numbers))
+                .map(|t| thread_label(t, setup.brand_numbers, &setup.reference))
                 .collect::<Vec<_>>()
                 .join("; "),
         );

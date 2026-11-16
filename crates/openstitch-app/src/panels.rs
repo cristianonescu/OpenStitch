@@ -45,13 +45,102 @@ pub enum Caption {
     Beside,
 }
 
+/// The chart a custom colour is named by (#1184): the user's default chart, kept per thread
+/// (the UI thread) and refreshed by [`set_reference`] each frame, with each custom colour's
+/// caption and text kept until the chart changes.
+#[derive(Default)]
+struct Reference {
+    chart: Option<openstitch_engine::user::ChartRef>,
+    threads: Vec<Thread>,
+    named: std::collections::HashMap<u32, (String, String)>,
+}
+
+thread_local! {
+    static REFERENCE: std::cell::RefCell<Reference> = std::cell::RefCell::new(Reference::default());
+}
+
+/// Makes `user`'s default chart the one custom colours are named by (#1184). Cheap when it has
+/// not changed: a built-in chart is compared by id, one of the user's by its threads.
+pub fn set_reference(user: &openstitch_engine::user::UserSettings) {
+    use openstitch_engine::user::ChartRef;
+    let c = user.default_chart();
+    REFERENCE.with(|r| {
+        let mut r = r.borrow_mut();
+        let same = r.chart.as_ref() == Some(&c)
+            && match &c {
+                ChartRef::Builtin(_) => true,
+                ChartRef::Chart(_) => {
+                    openstitch_engine::user::chart_threads(&c, user) == r.threads
+                }
+            };
+        if !same {
+            r.threads = openstitch_engine::user::chart_threads(&c, user);
+            r.chart = Some(c);
+            r.named.clear();
+        }
+    });
+}
+
+/// `t`'s swatch caption and its text for a person, a custom colour by its nearest thread.
+fn named(t: &Thread) -> (String, String) {
+    if !openstitch_core::is_custom(t) {
+        return (
+            openstitch_core::thread_label(t, &[]),
+            openstitch_core::thread_text(t, &[]),
+        );
+    }
+    REFERENCE.with(|r| {
+        let mut r = r.borrow_mut();
+        if r.chart.is_none() {
+            // Not set yet (a test, the first frame): the default user settings' chart.
+            let u = openstitch_engine::user::UserSettings::default();
+            r.threads = openstitch_engine::user::reference_threads(&u);
+            r.chart = Some(u.default_chart());
+        }
+        let key = t.rgb_value();
+        // A custom colour's own name is part of its text, so only unnamed ones are kept.
+        if t.name.is_none()
+            && let Some(v) = r.named.get(&key)
+        {
+            return v.clone();
+        }
+        let v = (
+            openstitch_core::thread_label(t, &r.threads),
+            openstitch_core::thread_text(t, &r.threads),
+        );
+        if t.name.is_none() {
+            r.named.insert(key, v.clone());
+        }
+        v
+    })
+}
+
+/// Runs `f` with the chart custom colours are named by (#1184).
+pub fn with_reference<R>(f: impl FnOnce(&[Thread]) -> R) -> R {
+    // Fill it on first use, as `named` does.
+    let _ = named(&Thread::rgb(0));
+    REFERENCE.with(|r| f(&r.borrow().threads))
+}
+
+/// What a swatch shows under or beside it (#798, #1184): the thread's code, or a custom
+/// colour's nearest thread's code marked "≈" ([`openstitch_core::thread_label`]). Never hex.
+pub fn thread_caption(t: &Thread) -> String {
+    named(t).0
+}
+
+/// A colour as text for a person (#1184): brand, code and name, or "Custom colour, nearest
+/// Brother 205 Yellow" ([`openstitch_core::thread_text`]). Never hex.
+pub fn thread_text(t: &Thread) -> String {
+    named(t).1
+}
+
 /// A thread colour with its code always shown (#798): the colour, and under or beside it the
-/// code of the thread's own chart ([`openstitch_core::thread_label`]: Brother 007, a maker's or
-/// the user's code, `#rrggbb` for a custom colour). The code is in the text colour beside the
-/// swatch, so it reads on any thread colour, at the small text size. The tooltip has the full
-/// detail ([`thread_tip`]). Clicking it is the response's click.
+/// code of the thread's own chart (Brother 007, a maker's or the user's code; a custom colour's
+/// nearest thread marked "≈205", #1184: [`thread_caption`]). The code is in the text colour
+/// beside the swatch, so it reads on any thread colour, at the small text size. The tooltip has
+/// the full detail ([`thread_tip`]). Clicking it is the response's click.
 pub fn thread_swatch(ui: &mut egui::Ui, t: &Thread, size: f32, caption: Caption) -> egui::Response {
-    let label = openstitch_core::thread_label(t);
+    let label = thread_caption(t);
     let font = egui::TextStyle::Small.resolve(ui.style());
     let colour = ui.visuals().text_color();
     let galley = ui.painter().layout_no_wrap(label, font, colour);
@@ -82,10 +171,13 @@ pub fn thread_swatch(ui: &mut egui::Ui, t: &Thread, size: f32, caption: Caption)
     resp.on_hover_text(thread_tip(t))
 }
 
-/// What a swatch of a colour list shows, as `ui.threadLabels` reports it (#798).
+/// What a swatch of a colour list shows, as `ui.threadLabels` reports it (#798): `code`, the
+/// caption ("205", or "≈205" for a custom colour, #1184), `text`, the tooltip's naming, and
+/// `color` (`#rrggbb`, for scripts; never shown).
 pub fn label_json(t: &Thread) -> Value {
     json!({
-        "code": openstitch_core::thread_label(t),
+        "code": thread_caption(t),
+        "text": thread_text(t),
         "name": t.name,
         "brand": openstitch_core::thread_brand(t),
         "color": t.hex(),
@@ -556,22 +648,14 @@ pub fn chart_matches(threads: &[Thread], query: &str) -> Vec<usize> {
     v.into_iter().map(|(_, i)| i).collect()
 }
 
-/// A thread's hover text: brand, code, name, other makers' codes and colour (#798).
+/// A thread's hover text: brand, code, name and other makers' codes (#798); a custom colour
+/// "Custom colour, nearest Brother 205 Yellow". Never its hex value (#1184).
 pub fn thread_tip(th: &Thread) -> String {
-    let code = openstitch_core::thread_code(th);
-    let mut s = [
-        openstitch_core::thread_brand(th),
-        code.as_deref(),
-        th.name.as_deref(),
-    ]
-    .into_iter()
-    .flatten()
-    .collect::<Vec<_>>()
-    .join(" ");
+    let mut s = thread_text(th);
     for (brand, code) in openstitch_engine::user::cross_references(th) {
         s.push_str(&format!(" · {brand} {code}"));
     }
-    format!("{s} ({})", th.hex())
+    s
 }
 
 /// Whether `a` is chart thread `b`: the same code and brand, or (no code) the same colour and

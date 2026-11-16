@@ -96,14 +96,26 @@ fn swatch(at: (f64, f64), t: Option<&Thread>) -> Item {
     }
 }
 
-fn thread_label(t: Option<&Thread>) -> (String, String, String) {
+/// A thread's name, brand and code columns. A custom colour (no code) reads "Custom colour,
+/// nearest Brother 205 Yellow" (its own name first when it has one) in the name column, named
+/// by the nearest thread of `chart`, never by hex (#1184).
+fn thread_label(t: Option<&Thread>, chart: &[Thread]) -> (String, String, String) {
     let Some(t) = t else {
         return (String::new(), String::new(), String::new());
     };
+    if openstitch_core::is_custom(t) {
+        return (
+            openstitch_core::thread_text(t, chart),
+            String::new(),
+            String::new(),
+        );
+    }
     (
-        t.name.as_deref().unwrap_or(&t.hex()).to_string(),
-        t.brand.as_deref().unwrap_or_default().to_string(),
-        t.catalog_number.as_deref().unwrap_or_default().to_string(),
+        t.name.as_deref().unwrap_or_default().to_string(),
+        openstitch_core::thread_brand(t)
+            .unwrap_or_default()
+            .to_string(),
+        openstitch_core::thread_code(t).unwrap_or_default(),
     )
 }
 
@@ -294,7 +306,7 @@ fn client(
             y + (i % rows.max(1)) as f64 * 5.5,
         );
         items.push(swatch((x, yy), t.as_ref()));
-        let (name, brand, code) = thread_label(t.as_ref());
+        let (name, brand, code) = thread_label(t.as_ref(), &opts.reference);
         items.push(text(
             (x + 8.0, yy),
             9.0,
@@ -429,7 +441,7 @@ fn operator(
             header(y, &mut items);
             y += 6.5;
         }
-        let (name, brand, code) = thread_label(st.thread.as_ref());
+        let (name, brand, code) = thread_label(st.thread.as_ref(), &opts.reference);
         items.push(text((cols[0], y), 9.0, format!("{}", i + 1)));
         items.push(swatch((cols[1], y), st.thread.as_ref()));
         items.push(text((cols[2], y), 9.0, name));
@@ -441,14 +453,19 @@ fn operator(
     }
     pages.push(page_of(items, &title, paper));
     if detailed {
-        pages.extend(step_thumbnails(pattern, &title, paper));
+        pages.extend(step_thumbnails(pattern, &title, paper, &opts.reference));
     }
     pages
 }
 
 /// Detailed operator sheet: one thumbnail per step, its stitches in colour over the rest of the
 /// design in grey.
-fn step_thumbnails(pattern: &StitchPattern, title: &str, paper: (f64, f64)) -> Vec<Page> {
+fn step_thumbnails(
+    pattern: &StitchPattern,
+    title: &str,
+    paper: (f64, f64),
+    reference: &[Thread],
+) -> Vec<Page> {
     let (aw, ah) = area(paper);
     let blocks = pattern.color_blocks();
     let (cell_w, cell_h) = (aw / 3.0, 62.0);
@@ -493,7 +510,7 @@ fn step_thumbnails(pattern: &StitchPattern, title: &str, paper: (f64, f64)) -> V
             drawn,
             (x + 2.0, y + 8.0, cell_w - 4.0, cell_h - 12.0),
         );
-        let (name, _, code) = thread_label(*t);
+        let (name, _, code) = thread_label(*t, reference);
         items.push(text(
             (x + 2.0, y + 4.0),
             9.0,

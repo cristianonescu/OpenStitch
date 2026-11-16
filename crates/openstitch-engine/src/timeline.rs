@@ -21,7 +21,7 @@ pub fn commands() -> Vec<CommandSpec> {
             let d = &s.design;
             let (pattern, spans) = Compiler::for_design(d).compile_traced(d);
             let t = Timeline::build(&pattern, &spans, &d.machine);
-            let mut v = timeline_json(&t, &pattern);
+            let mut v = timeline_json(&t, &pattern, &crate::user::reference_threads(&s.user));
             if p.has("at") {
                 let n = p.int("at", None, 0, t.total as i64)? as usize;
                 v["at"] = at_json(&t, n);
@@ -36,7 +36,15 @@ fn secs(v: f64) -> f64 {
     (v * 10.0).round() / 10.0
 }
 
-pub fn timeline_json(t: &Timeline, pattern: &openstitch_core::StitchPattern) -> Value {
+/// The timeline as `design.timeline` reports it. Each block names its thread as a person reads
+/// it: `code` is the code on the spool (Brother 007 for a PEC chart thread) and `text` brand,
+/// code and name, a custom colour by the nearest thread of `chart` (#1184); `number` stays the
+/// thread's own catalogue number as stored, for scripts that read it.
+pub fn timeline_json(
+    t: &Timeline,
+    pattern: &openstitch_core::StitchPattern,
+    chart: &[openstitch_core::Thread],
+) -> Value {
     let blocks: Vec<Value> = t
         .blocks
         .iter()
@@ -48,6 +56,8 @@ pub fn timeline_json(t: &Timeline, pattern: &openstitch_core::StitchPattern) -> 
                 "name": thread.and_then(|c| c.name.as_deref()),
                 "brand": thread.and_then(|c| c.brand.as_deref()),
                 "number": thread.and_then(|c| c.catalog_number.as_deref()),
+                "code": thread.and_then(openstitch_core::thread_code),
+                "text": thread.map(|c| openstitch_core::thread_text(c, chart)),
                 "startStitch": b.start,
                 "endStitch": b.end,
                 "endKind": b.end_kind.as_str(),

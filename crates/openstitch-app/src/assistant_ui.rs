@@ -584,6 +584,13 @@ impl EditorApp {
             "stitches": s.stitches, "jumps": s.jumps, "trims": s.trims,
             "colorChanges": s.color_changes, "widthMm": s.width_mm, "heightMm": s.height_mm,
             "colors": s.colors.iter().map(|c| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2])).collect::<Vec<_>>(),
+            // The same colours as a person reads them: the design's thread of that colour, a
+            // custom colour by its nearest thread (#1184).
+            "threads": s.colors.iter().map(|c| {
+                let rgb = u32::from(c[0]) << 16 | u32::from(c[1]) << 8 | u32::from(c[2]);
+                let own = self.pattern.threads.iter().find(|t| t.rgb_value() == rgb).cloned();
+                crate::panels::thread_text(&own.unwrap_or(openstitch_core::Thread::rgb(rgb)))
+            }).collect::<Vec<_>>(),
         })
     }
 
@@ -1638,12 +1645,20 @@ mod tests {
         assert_eq!(codes(&labels(&mut app, "picker"))[0], "001", "New Brothread, the default");
         let pec = labels(&mut app, "pecPicker");
         assert_eq!(pec[0]["code"], "007", "PEC 1 shows Brother's code");
+        // A custom colour shows the default chart's nearest thread, marked, never its hex (#1184).
+        let kit: &[openstitch_core::Thread] = &openstitch_core::brands::NEW_BROTHREAD;
+        let near = openstitch_core::nearest_thread(&openstitch_core::Thread::rgb(0x123456), kit)
+            .and_then(|(t, _)| t.catalog_number.as_deref())
+            .map(|c| format!("≈{c}"))
+            .expect("a nearest thread");
         let order = codes(&labels(&mut app, "sewingOrder"));
-        assert_eq!(order, ["007", "900", "1800", "#123456"]);
+        assert_eq!(order, ["007", "900", "1800", near.as_str()]);
         // The Thread Colours pane: one labelled swatch per colour block of the compiled design.
         let mut pane = codes(&labels(&mut app, "colourPane"));
         pane.sort();
-        assert_eq!(pane, ["#123456", "007", "1800", "900"]);
+        let mut want = vec!["007".to_string(), "1800".into(), "900".into(), near];
+        want.sort();
+        assert_eq!(pane, want);
         // Change Color, for a stitch pattern made from the first rectangle.
         let first = app.session.design().objects[0].id;
         app.execute(&openstitch_app::editor::CommandRequest::new("object.toStitches", json!({ "ids": [first] })));
