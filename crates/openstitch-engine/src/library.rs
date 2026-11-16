@@ -495,7 +495,11 @@ fn list(s: &mut EngineState, p: &Params) -> CommandResult {
 fn info_one(s: &mut EngineState, p: &Params) -> CommandResult {
     let path = s.resolve(&p.string("path", None)?, Access::Read, &p.command)?;
     let (i, _) = info::inspect(&path, &Limits::default()).map_err(|e| lib_err(p, e))?;
-    Ok(info_json(&i, true, &crate::user::reference_threads(&s.user)))
+    Ok(info_json(
+        &i,
+        true,
+        &crate::user::reference_threads(&s.user),
+    ))
 }
 
 fn range<T: PartialOrd + Copy>(

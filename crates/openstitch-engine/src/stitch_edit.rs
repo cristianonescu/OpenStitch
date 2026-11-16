@@ -174,11 +174,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     "int",
                     "Colour block (0-based, as stitches.points lists threads)",
                 ),
-                req(
-                    "color",
-                    "color",
-                    "The block's new thread",
-                ),
+                req("color", "color", "The block's new thread"),
             ],
             |s, p| {
                 let i = target(s, p, "id")?;

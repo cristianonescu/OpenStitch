@@ -73,12 +73,19 @@ fn what_the_assistant_reads_names_every_colour_by_thread() {
     // The hex stays for scripts; the thread is beside it.
     assert_eq!(list[1]["regionColor"], "#fffd03");
     assert_eq!(red["code"], "800");
-    assert!(red["text"].as_str().is_some_and(|t| t.contains("800")), "{red}");
+    assert!(
+        red["text"].as_str().is_some_and(|t| t.contains("800")),
+        "{red}"
+    );
     assert_eq!(custom["code"], Value::Null);
     assert_eq!(custom["text"], NEAREST);
     assert_eq!(custom["label"], "≈205");
     assert_eq!(custom["nearest"]["code"], "205");
-    assert!(custom["nearest"]["deltaE"].as_f64().is_some_and(|d| d > 0.0 && d < 2.0));
+    assert!(
+        custom["nearest"]["deltaE"]
+            .as_f64()
+            .is_some_and(|d| d > 0.0 && d < 2.0)
+    );
 
     let info = run(&mut s, "design.info", json!({}));
     let timeline = run(&mut s, "design.timeline", json!({}));
@@ -146,7 +153,11 @@ fn a_design_files_colours_are_named_in_the_database_and_the_catalogue() {
     );
     let csv = std::fs::read_to_string(dir.path().join("plain.csv")).expect("the catalogue");
     assert!(csv.contains("ustom colour, nearest"), "{csv}");
-    assert_eq!(hex_in(&csv), None, "the catalogue lists a hex colour: {csv}");
+    assert_eq!(
+        hex_in(&csv),
+        None,
+        "the catalogue lists a hex colour: {csv}"
+    );
 }
 
 #[test]
@@ -160,7 +171,12 @@ fn a_colour_parameter_takes_a_thread_code() {
             json!({ "x": 0, "y": 0, "width": 8, "height": 8, "fill": fill }),
         );
         let d = s.design();
-        d.objects.last().and_then(|o| o.region.as_ref()).expect("a fill").thread.clone()
+        d.objects
+            .last()
+            .and_then(|o| o.region.as_ref())
+            .expect("a fill")
+            .thread
+            .clone()
     };
     // A bare code: the default chart's (New Brothread) when it has one.
     let t = fill(&mut s, json!("205"));
@@ -192,14 +208,20 @@ fn a_colour_parameter_takes_a_thread_code() {
         "shape.rectangle",
         json!({ "x": 0, "y": 0, "width": 8, "height": 8, "fill": "500" }),
     );
-    assert!(e.contains("ambiguous") && e.contains("Mine 500 Night") && e.contains("Mine 500 Coal"), "{e}");
+    assert!(
+        e.contains("ambiguous") && e.contains("Mine 500 Night") && e.contains("Mine 500 Coal"),
+        "{e}"
+    );
     // A code or name no chart has: refused with the nearest, never guessed.
     let e = refused(
         &mut s,
         "shape.rectangle",
         json!({ "x": 0, "y": 0, "width": 8, "height": 8, "fill": "Yello" }),
     );
-    assert!(e.contains("no thread has") && e.contains("nearest") && e.contains("Yellow"), "{e}");
+    assert!(
+        e.contains("no thread has") && e.contains("nearest") && e.contains("Yellow"),
+        "{e}"
+    );
     let e = refused(
         &mut s,
         "shape.rectangle",

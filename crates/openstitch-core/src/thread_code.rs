@@ -216,12 +216,22 @@ mod tests {
         let title = thread_title(yellow);
         assert_eq!(title, "New Brothread 205 Yellow");
         assert_eq!(thread_text(yellow, kit), title);
-        assert_eq!(thread_text(&off, kit), format!("Custom colour, nearest {title}"));
+        assert_eq!(
+            thread_text(&off, kit),
+            format!("Custom colour, nearest {title}")
+        );
         // Its own name first when it has one; no chart leaves only "custom colour".
         let sky = off.clone().with_name("Sky");
-        assert_eq!(thread_text(&sky, kit), format!("Sky: custom colour, nearest {title}"));
+        assert_eq!(
+            thread_text(&sky, kit),
+            format!("Sky: custom colour, nearest {title}")
+        );
         assert_eq!(thread_text(&off, &[]), "Custom colour");
-        for s in [thread_label(&off, kit), thread_text(&off, kit), thread_text(&off, &[])] {
+        for s in [
+            thread_label(&off, kit),
+            thread_text(&off, kit),
+            thread_text(&off, &[]),
+        ] {
             assert!(!s.contains('#'), "{s}");
         }
     }

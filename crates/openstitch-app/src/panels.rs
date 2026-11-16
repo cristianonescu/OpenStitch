@@ -1863,7 +1863,7 @@ mod pec_search_tests {
     }
 
     /// The shared widget's label (#798): Brother 007 for PEC 1, a maker's and a user chart's own
-    /// code, the hex for a custom colour.
+    /// code; a custom colour the default chart's nearest thread marked "≈", never its hex (#1184).
     #[test]
     fn thread_swatch_labels_are_the_threads_own_codes() {
         let prussian = openstitch_core::PEC_CHART[1].clone().expect("entry 1");
@@ -1878,7 +1878,9 @@ mod pec_search_tests {
         assert_eq!(label_json(&isacord)["code"], json!(isacord.catalog_number.as_deref()));
         let mine = json_thread(&json!({"color": "#123456", "code": "A7", "brand": "Mine"}));
         assert_eq!(label_json(&mine)["code"], "A7");
-        assert_eq!(label_json(&Thread::rgb(0x123456))["code"], "#123456");
+        let custom = label_json(&Thread::rgb(0x123456));
+        let code = custom["code"].as_str().unwrap_or_default();
+        assert!(code.starts_with('≈') && !code.contains('#'), "{code}");
         assert!(thread_tip(&prussian).starts_with("Brother 007 Prussian Blue"), "{}", thread_tip(&prussian));
         // Searching the PEC tab by the code it shows finds the thread.
         assert!(pec_matches("007").iter().any(|(i, _)| *i == 1));

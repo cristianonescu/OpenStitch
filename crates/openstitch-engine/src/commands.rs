@@ -191,7 +191,9 @@ pub(crate) fn thread(p: &Params, key: &str) -> Result<Option<Thread>, CommandErr
     if let Some(t) = named {
         return Ok(Some(t.clone()));
     }
-    thread_by_code(s).map(Some).map_err(|why| p.invalid(key, why))
+    thread_by_code(s)
+        .map(Some)
+        .map_err(|why| p.invalid(key, why))
 }
 
 /// The chart tiers a thread code is looked up in, in order (#1184): the user's default chart
@@ -230,7 +232,11 @@ fn names_thread(t: &Thread, query: &str) -> bool {
         code.as_deref().is_some_and(|k| k.eq_ignore_ascii_case(c))
             || own.is_some_and(|k| k.eq_ignore_ascii_case(c))
     };
-    if is_code(q) || t.name.as_deref().is_some_and(|n| n.trim().eq_ignore_ascii_case(q)) {
+    if is_code(q)
+        || t.name
+            .as_deref()
+            .is_some_and(|n| n.trim().eq_ignore_ascii_case(q))
+    {
         return true;
     }
     let Some((brand, c)) = q.rsplit_once(char::is_whitespace) else {
@@ -291,7 +297,9 @@ pub(crate) fn thread_by_code(query: &str) -> Result<Thread, String> {
     near.dedup_by(|a, b| a.1 == b.1);
     let near: Vec<String> = near.into_iter().take(5).map(|(_, t)| t).collect();
     Err(if near.is_empty() {
-        format!("no thread has the code or name '{query}' (threads.find searches the charts); give #rrggbb for a colour no thread has")
+        format!(
+            "no thread has the code or name '{query}' (threads.find searches the charts); give #rrggbb for a colour no thread has"
+        )
     } else {
         format!(
             "no thread has the code or name '{query}'; nearest: {}",
