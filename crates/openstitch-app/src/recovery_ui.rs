@@ -82,14 +82,14 @@ pub fn tick(app: &mut EditorApp, now: f64) -> bool {
         {
             s.clear();
         }
-        app.recovery.timer.written(app.revision);
+        app.recovery.timer.written(app.snapshot_key());
         return busy;
     }
     if busy
         || !app
             .recovery
             .timer
-            .due(app.revision, now, app.ui.prefs.autosave_interval)
+            .due(app.snapshot_key(), now, app.ui.prefs.autosave_interval)
     {
         return true;
     }
@@ -105,7 +105,7 @@ pub fn write_now(app: &mut EditorApp, wait: bool) -> std::io::Result<()> {
         return Ok(());
     };
     // The timer counts from here, also when the write fails (no retry every frame).
-    app.recovery.timer.written(app.revision);
+    app.recovery.timer.written(app.snapshot_key());
     if app.recovery.slot.is_none() {
         let n = WINDOWS.fetch_add(1, Ordering::Relaxed);
         app.recovery.slot = Some(Slot::take(&dir, n)?);

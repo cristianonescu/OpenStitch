@@ -382,6 +382,9 @@ pub struct Panel {
     /// A chat restored from the project file (#1169), sent as quoted file content in front of
     /// the next message to a new worker, until a turn ends without an error.
     restored: Option<SavedChat>,
+    /// The kept rows as last seen (count and text size, [`kept_fingerprint`]): a change marks
+    /// the document unsaved (#1169).
+    kept: (usize, usize),
     pub script: ScriptRecord,
     pub tokens: (u64, u64),
     /// Counts conversations, so a new chat's rows get new widget IDs.
@@ -955,6 +958,7 @@ pub fn chat_to_session(app: &mut EditorApp) {
 pub fn restore_chat(app: &mut EditorApp, chat: Option<SavedChat>) {
     new_chat(app);
     let Some(chat) = chat.filter(|c| !c.is_empty()) else {
+        app.assistant.panel.kept = (0, 0);
         return;
     };
     let panel = &mut app.assistant.panel;
@@ -977,6 +981,8 @@ pub fn restore_chat(app: &mut EditorApp, chat: Option<SavedChat>) {
         .items
         .push(Item::Notice(assistant_saved::RESTORED_NOTICE.into()));
     panel.restored = Some(chat);
+    // Shown as the file has it: nothing unsaved.
+    panel.kept = kept_fingerprint(&panel.items);
 }
 
 /// After New, Open or a restore made the active design (#1169): the panel shows the chat the
@@ -1317,6 +1323,39 @@ pub fn serve(app: &mut EditorApp, wake: Waker) {
             FromWorker::Event(e) => on_event(&mut app.assistant.panel, e),
             FromWorker::End(end) => finish_turn(app, end, wake.clone()),
         }
+    }
+    note_chat_changes(app);
+}
+
+/// What a save would keep of the chat, in brief: the kept rows (not thinking, not the restore
+/// notice) and the size of their text.
+fn kept_fingerprint(items: &[Item]) -> (usize, usize) {
+    items.iter().fold((0, 0), |(n, bytes), i| match i {
+        Item::User(t) | Item::Assistant(t) => (n + 1, bytes + t.len()),
+        Item::Notice(t) if t != assistant_saved::RESTORED_NOTICE => (n + 1, bytes + t.len()),
+        Item::Tool { .. } => (n + 1, bytes),
+        Item::Notice(_) | Item::Thinking(_) => (n, bytes),
+    })
+}
+
+/// A change to the kept chat (a message, a reply, New chat on a chat that had rows) marks the
+/// document unsaved, as an edit does (#1169): the title shows it, closing asks to save, and
+/// autosave takes it. Not with "Save the chat with the project" off, not for a conversation that
+/// belongs to another document, and not for an untitled design with no objects: there the chat
+/// alone does not ask to be saved (closing would otherwise ask after every question).
+fn note_chat_changes(app: &mut EditorApp) {
+    let now = kept_fingerprint(&app.assistant.panel.items);
+    if now == app.assistant.panel.kept {
+        return;
+    }
+    app.assistant.panel.kept = now;
+    let empty_untitled = app.path.is_none() && app.session.design().objects.is_empty();
+    if app.ui.prefs.ai.save_chat
+        && app.assistant.panel.owner == Some(app.chat_doc)
+        && !empty_untitled
+    {
+        app.chat_edits = app.chat_edits.wrapping_add(1);
+        app.mark_unsaved();
     }
 }
 
@@ -4562,6 +4601,63 @@ mod tests {
             "start over with a new design"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A conversation alone is an unsaved change while it is saved with the project: talking
+    /// without an edit marks the design unsaved, closing asks, autosave sees it, and saving
+    /// clears it. Opening a project with a chat is not a change, and New chat on it is.
+    #[test]
+    fn talking_marks_the_project_unsaved_and_closing_asks() {
+        use openstitch_app::editor::close_prompt::Pending;
+        let dir = project_dir("dirty");
+        let file = dir.join("a.osd");
+        let (mut app, _) = app_with(vec![reply(&[], "Hi.", "end_turn")]);
+        save_to(&mut app, &file);
+        app.open_path(&file);
+        assert!(!app.is_dirty());
+        let (revision, key) = (app.revision, app.snapshot_key());
+        send(&mut app, "just a question".into(), no_wake());
+        run(&mut app, idle);
+        assert_eq!(app.revision, revision, "no edit");
+        assert!(app.is_dirty(), "the chat is an unsaved change");
+        assert_ne!(app.snapshot_key(), key, "autosave sees it");
+        app.guarded(Pending::Exit);
+        assert!(app.close_prompt.is_open(), "closing asks to save");
+        save_to(&mut app, &file);
+        assert!(!app.is_dirty());
+
+        // Opening it again: the restored chat is not a change; New chat on it is.
+        let (mut again, _) = app_with(Vec::new());
+        again.open_path(&file);
+        serve(&mut again, no_wake());
+        assert!(!again.is_dirty(), "a restored chat is as the file has it");
+        new_chat(&mut again);
+        serve(&mut again, no_wake());
+        assert!(again.is_dirty(), "New chat removes the kept chat from the next save");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// With "Save the chat with the project" off the chat never marks anything, and an untitled
+    /// design with no objects is not marked by a chat alone (closing would ask after every
+    /// question).
+    #[test]
+    fn a_chat_that_is_not_saved_marks_nothing() {
+        use openstitch_app::editor::close_prompt::Pending;
+        let (mut app, _) = app_with(vec![reply(&[], "Hi.", "end_turn")]);
+        app.ui.prefs.ai.save_chat = false;
+        assert!(!app.is_dirty());
+        send(&mut app, "hello".into(), no_wake());
+        run(&mut app, idle);
+        assert!(!app.is_dirty(), "setting off");
+        app.guarded(Pending::Exit);
+        assert!(!app.close_prompt.is_open() && app.exit_approved());
+
+        let (mut empty, _) = app_with(vec![reply(&[], "Hi.", "end_turn")]);
+        empty.new_design();
+        assert!(empty.session.design().objects.is_empty() && empty.path.is_none());
+        send(&mut empty, "what can you do?".into(), no_wake());
+        run(&mut empty, idle);
+        assert!(!empty.is_dirty(), "an untitled empty design with only a chat");
     }
 
     /// Each tab keeps its own chat: a new tab starts empty, switching back shows the first

@@ -259,6 +259,9 @@ pub struct EditorApp {
     /// the document it was restored or started in, and only that document's save writes it.
     /// A new one for every New, Open and tab.
     pub(crate) chat_doc: u64,
+    /// Counts changes to the kept chat (#1169), so autosave sees a conversation change as it sees
+    /// a design change ([`EditorApp::snapshot_key`]).
+    pub(crate) chat_edits: u64,
     /// Inside [`EditorApp::with_one_refresh`]: whether an edit is waiting for its stitch compile.
     refresh_deferred: Option<bool>,
     /// Rulers, grid, measure tool, Reference window, Design Settings, estimates.
@@ -404,6 +407,7 @@ impl EditorApp {
             undo_groups: Vec::new(),
             redo_groups: Vec::new(),
             chat_doc: crate::assistant_panel::next_document(),
+            chat_edits: 0,
             refresh_deferred: None,
             workspace: Default::default(),
             edit: Default::default(),
@@ -1052,6 +1056,12 @@ impl EditorApp {
 
     pub fn is_dirty(&self) -> bool {
         self.revision != self.saved_revision
+    }
+
+    /// What autosave compares: the design's revision and the chat's changes (#1169).
+    pub(crate) fn snapshot_key(&self) -> u64 {
+        self.revision
+            .wrapping_add(self.chat_edits.wrapping_mul(0x9E37_79B9_7F4A_7C15))
     }
 
     pub fn undo(&mut self) {

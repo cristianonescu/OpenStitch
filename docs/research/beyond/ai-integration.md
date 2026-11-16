@@ -387,7 +387,15 @@ can come back, read it and go on from where it stopped.
   New and Open show the new document's chat. During the Assistant's turn the running
   conversation stays: a design it makes or opens without a chat of its own takes it, and a file
   with a chat of its own keeps that one (the chat says so). Recovery snapshots keep the
-  chat as a save does (written when the design changes).
+  chat as a save does.
+- **Unsaved.** While the chat is saved with the project, a change to what a save keeps (a
+  message, a reply, a notice, a tool step, New chat on a kept chat) marks the document unsaved,
+  as an edit does, without a design revision or an undo step (`note_chat_changes`, compared each
+  frame by the kept rows' count and text size). The title shows it, closing asks to save, and
+  autosave takes it (`EditorApp::snapshot_key`: revision and chat changes). Not marked: thinking,
+  tool details, the restore notice, a conversation that belongs to another document, anything
+  with the setting off, and an untitled design with no objects (closing would otherwise ask
+  after every question; the chat of such a session is lost on close, as it was before).
 - **Control.** "Save the chat with the project" (on by default) in the Assistant settings and
   under the conversation, `ui.set assistantSaveChat` (asks). Off: nothing is written, and a chat
   the file kept is removed on its next save. New chat clears the conversation, so the next save
