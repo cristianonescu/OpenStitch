@@ -1030,3 +1030,36 @@ fn imported_dst_blocks_keep_distinct_colours() {
     let compiled = openstitch_design::Compiler::for_design(s.design()).compile(s.design());
     assert_eq!(compiled.color_block_count(), 2);
 }
+
+/// #1176: `project.open` says how many rows of the Assistant's conversation the file kept, and
+/// a save writes back the conversation the session holds (a `stitchtool` re-save keeps it).
+#[test]
+fn project_open_says_whether_the_file_kept_a_conversation() {
+    use openstitch_design::saved_chat::{ChatRole, ChatRow, SavedChat};
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(&mut s, "project.save", json!({"path": "none.osd"}));
+    assert_eq!(
+        run(&mut s, "project.open", json!({"path": "none.osd"}))["chatRows"],
+        0
+    );
+    s.set_chat(Some(SavedChat {
+        rows: vec![
+            ChatRow::new(ChatRole::User, "make a box"),
+            ChatRow::new(ChatRole::Assistant, "A box."),
+        ],
+    }));
+    run(&mut s, "project.save", json!({"path": "chat.osd"}));
+    let mut t = Session::new(tmp.path());
+    assert_eq!(
+        run(&mut t, "project.open", json!({"path": "chat.osd"}))["chatRows"],
+        2
+    );
+    run(&mut t, "project.save", json!({"path": "again.osd"}));
+    assert_eq!(
+        run(&mut t, "project.open", json!({"path": "again.osd"}))["chatRows"],
+        2
+    );
+    run(&mut t, "design.new", json!({}));
+    assert!(t.chat().is_none(), "a new design keeps no conversation");
+}
