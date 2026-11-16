@@ -56,6 +56,11 @@ impl EditorApp {
         if command == "commands.list" || command.starts_with("ui.") {
             return self.remote_ui_request(command, request);
         }
+        if command == "project.save" {
+            // The Assistant's own saves and a socket client's write the document's conversation
+            // as File ▸ Save does (#1176).
+            crate::assistant_panel::chat_to_session(self);
+        }
         match self.session.permits(command).map(|c| c.effect) {
             Ok(Effect::History) => {
                 let undo = command == "history.undo";
