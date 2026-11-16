@@ -17,7 +17,9 @@ Pictures: an attached one is in the scratch folder (scratch_view shows it); stit
 digitize.autoPunch (compatMode openStitch). Else use generate_image if offered, or an SVG via \
 scratch_write and import.svg; say why. Save lasting user facts with notes_write; never secrets. \
 A new design or large change with open choices: first ask_user 5-10 real questions, then stop; \
-small or exact requests: none. Call suggest_replies with your last other tool call, never alone.";
+small or exact requests: none. Call suggest_replies with your last other tool call, never alone. \
+A command held on an approval card: ask the user to answer it; never retry or call the editor \
+unreachable.";
 
 /// The notes sections (`openstitch_assistant::notes::SECTIONS`; this crate does not depend on
 /// it, and the editor checks the names again).
