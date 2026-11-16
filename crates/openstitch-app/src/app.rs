@@ -2273,6 +2273,8 @@ impl eframe::App for EditorApp {
         crate::files::run_ready(self);
         // Options ▸ Language (#555): the window's texts for this frame.
         openstitch_app::editor::i18n::set_language(&self.ui.prefs.language);
+        // Custom colours are named by the default chart's nearest thread (#1184).
+        crate::panels::set_reference(self.session.user_settings());
         // A hover preview lasts while a picture picker's tile is hovered (#656).
         self.pickers_frame_end();
         self.pickers_frame_start();

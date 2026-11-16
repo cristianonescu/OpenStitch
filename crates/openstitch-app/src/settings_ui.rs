@@ -247,11 +247,12 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.horizontal(|ui| {
                             // The thread's code beside its colour (#798).
                             crate::panels::thread_swatch(ui, t, 14.0, crate::panels::Caption::Beside);
+                            // Brand and name; the code is the swatch's caption. The hex value is
+                            // only in the field that defines a thread's colour (#1184).
                             ui.label(format!(
-                                "{}  {}  {}",
+                                "{}  {}",
                                 t.brand.as_deref().unwrap_or(""),
                                 t.name.as_deref().unwrap_or(""),
-                                t.hex()
                             ));
                             let mv = |to: usize| {
                                 CommandRequest::new(

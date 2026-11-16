@@ -140,7 +140,7 @@ fn sett(p: &Params) -> Result<Vec<(Thread, f64)>, CommandError> {
             p.invalid(
                 "sett",
                 format!(
-                    "stripe {} needs #rrggbb, a Brother thread name or chart number 1-64",
+                    "stripe {} needs a thread code (\"205\"), brand and code, a Brother thread name, #rrggbb or PEC chart number 1-64",
                     k + 1
                 ),
             )

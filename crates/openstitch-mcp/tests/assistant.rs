@@ -279,6 +279,11 @@ fn assistant_instructions_are_short_and_point_at_the_skill() {
     assert!(instructions.contains("run_batch"), "{instructions}");
     // #1172 added when to ask and to suggest replies.
     assert!(instructions.contains("ask_user") && instructions.contains("suggest_replies"));
+    // #1184: colours are named by thread, never by hex value.
+    assert!(
+        instructions.contains("Colours: brand, code, name; no hex"),
+        "{instructions}"
+    );
     // #1188: a command held for the user's approval.
     assert!(instructions.contains("approval card"), "{instructions}");
     assert!(instructions.len() < 1000, "{}", instructions.len());

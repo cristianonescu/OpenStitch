@@ -797,7 +797,8 @@ fn preview(app: &mut EditorApp, ui: &mut egui::Ui) {
                     ui.horizontal(|ui| {
                         ui.label(format!("{}.", i + 1));
                         crate::panels::thread_swatch(ui, t, 14.0, crate::panels::Caption::Beside);
-                        ui.label(thread_label(t, false));
+                        // A colour with no name is named by its nearest thread, never hex (#1184).
+                        ui.label(crate::panels::with_reference(|r| thread_label(t, false, r)));
                         if let Some(n) = t.catalog_number.as_deref() {
                             ui.label(RichText::new(n).weak());
                         }
