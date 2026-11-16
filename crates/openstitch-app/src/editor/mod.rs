@@ -43,6 +43,7 @@ pub mod shape_effects;
 pub mod shape_tools;
 pub mod snap;
 pub mod suite;
+pub mod thumbs;
 pub mod tools;
 pub mod ui_texts;
 pub mod units;

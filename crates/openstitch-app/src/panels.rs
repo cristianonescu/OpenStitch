@@ -293,7 +293,18 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                                 .on_hover_text(t("ui-drag-to-change-the-sewing-order-tip"));
                             let d = app.session.design();
                             if let Some(i) = d.index_of(row.id) {
-                                crate::panes::thumbnail(ui, &d.objects[i], 30.0);
+                                let compiled = crate::thumbs_ui::Compiled {
+                                    pattern: &app.pattern,
+                                    spans: &app.quality.spans,
+                                    revision: app.revision,
+                                };
+                                crate::thumbs_ui::thumbnail(
+                                    ui,
+                                    &mut app.thumbs,
+                                    &compiled,
+                                    &d.objects[i],
+                                    30.0,
+                                );
                             }
                             ui.vertical(|ui| {
                                 ui.spacing_mut().item_spacing.y = 1.0;

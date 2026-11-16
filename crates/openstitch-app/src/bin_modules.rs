@@ -62,6 +62,7 @@ mod stitch_table_ui;
 mod suite_chrome;
 mod swatch_ui;
 mod theme;
+mod thumbs_ui;
 mod transfer_ui;
 mod units_ui;
 #[cfg(not(target_arch = "wasm32"))]
