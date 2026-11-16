@@ -1063,3 +1063,51 @@ fn project_open_says_whether_the_file_kept_a_conversation() {
     run(&mut t, "design.new", json!({}));
     assert!(t.chat().is_none(), "a new design keeps no conversation");
 }
+
+/// #1197: a thread named by colour ("Red": the PEC chart's form) and the same thread named by
+/// its Brother code ("Brother 800": the catalogue's form, brand EMBROIDERY) sew as one colour
+/// block, in the design and in the exported PES, and both read as brand "Brother".
+#[test]
+fn a_brother_thread_named_two_ways_is_one_colour_block() {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 30, "y": 40, "width": 40, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "shape.ellipse",
+        json!({"cx": 15, "cy": 15, "rx": 10, "ry": 10, "fill": "Brother 800"}),
+    );
+    let threads: Vec<_> = s
+        .design()
+        .objects
+        .iter()
+        .map(|o| o.region.as_ref().expect("fill").thread.clone())
+        .collect();
+    assert_ne!(threads[0], threads[1], "stored as they were named");
+    let info = run(&mut s, "design.info", json!({}));
+    assert_eq!(info["stitchStats"]["colorChanges"], 0, "{info}");
+    assert_eq!(
+        info["stitchStats"]["threads"].as_array().map(Vec::len),
+        Some(1)
+    );
+    let list = run(&mut s, "object.list", json!({}));
+    for o in list.as_array().expect("objects") {
+        assert_eq!(o["regionThread"]["brand"], "Brother", "{o}");
+        assert_eq!(o["regionThread"]["code"], "800", "{o}");
+    }
+    run(&mut s, "design.export", json!({"path": "two-reds.pes"}));
+    let back = openstitch_formats::FileType::Pes
+        .read(&std::fs::read(tmp.path().join("two-reds.pes")).expect("pes"))
+        .expect("read");
+    let changes = back
+        .stitches
+        .iter()
+        .filter(|st| st.command == openstitch_core::Command::ColorChange)
+        .count();
+    assert_eq!(changes, 0, "one colour block in the machine file");
+}

@@ -137,6 +137,30 @@ fn capitalised(s: &str) -> String {
         .unwrap_or_default()
 }
 
+/// The Brother chart entry `t` is, in either of the two forms a design stores it in: the PEC
+/// chart's (brand "Brother", the PEC index as its number) or Brother's catalogue (brand
+/// [`crate::BROTHER_EMBROIDERY_BRAND`], its catalogue code), with the chart's colour (#1197).
+fn brother_entry(t: &Thread) -> Option<usize> {
+    pec_chart_entry(t).or_else(|| {
+        if t.brand.as_deref() != Some(crate::BROTHER_EMBROIDERY_BRAND) {
+            return None;
+        }
+        let i = crate::pec_index_of_brother_code(t.catalog_number.as_deref()?.trim())?;
+        PEC_CHART
+            .get(i)
+            .and_then(Option::as_ref)
+            .filter(|c| c.rgb_value() == t.rgb_value())
+            .map(|_| i)
+    })
+}
+
+/// Whether `a` and `b` are the same spool of thread: equal, or the same Brother chart entry in
+/// its two stored forms (#1197: "Red" and "Brother 800" sewed as two colour blocks with a colour
+/// change between them).
+pub fn same_thread(a: &Thread, b: &Thread) -> bool {
+    a == b || matches!((brother_entry(a), brother_entry(b)), (Some(x), Some(y)) if x == y)
+}
+
 /// The thread's brand as a person reads it: "Brother" for a PEC chart thread and for Brother's
 /// Embroidery catalogue, else the brand it carries.
 pub fn thread_brand(t: &Thread) -> Option<&str> {
@@ -149,6 +173,27 @@ pub fn thread_brand(t: &Thread) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1197: the PEC chart's form and Brother's catalogue form of one thread are the same
+    /// thread; another colour, or another maker's code, is not.
+    #[test]
+    fn a_brother_thread_in_both_forms_is_one_thread() {
+        let pec = PEC_CHART[5].clone().expect("entry 5, red");
+        let mut catalogue = pec.clone();
+        catalogue.brand = Some(crate::BROTHER_EMBROIDERY_BRAND.into());
+        catalogue.catalog_number = Some("800".into());
+        assert_ne!(pec, catalogue);
+        assert!(same_thread(&pec, &catalogue) && same_thread(&catalogue, &pec));
+        let mut other_code = catalogue.clone();
+        other_code.catalog_number = Some("405".into());
+        assert!(!same_thread(&pec, &other_code));
+        let mut other_colour = catalogue.clone();
+        other_colour.red = other_colour.red.wrapping_add(1);
+        assert!(!same_thread(&pec, &other_colour));
+        let mut maker = catalogue.clone();
+        maker.brand = Some("New Brothread".into());
+        assert!(!same_thread(&pec, &maker));
+    }
 
     #[test]
     fn a_thread_shows_its_own_charts_code() {

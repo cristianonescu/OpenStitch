@@ -187,7 +187,8 @@ pub(crate) fn describe_near(t: &Thread, chart: &[Thread]) -> Value {
     let mut v = json!({
         "color": t.hex(),
         "code": openstitch_core::thread_code(t),
-        "brand": t.brand,
+        // As a person reads it: "Brother" for both stored forms of a Brother thread (#1197).
+        "brand": openstitch_core::thread_brand(t),
         "description": t.name,
         "pecIndex": openstitch_core::pec_index(t),
     });

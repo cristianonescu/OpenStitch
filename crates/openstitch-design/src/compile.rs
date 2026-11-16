@@ -503,7 +503,8 @@ impl Writer {
             self.sew(basting_element(basting, element.thread.clone()));
         }
         match &self.thread {
-            Some(t) if *t != element.thread => {
+            // The same spool in either stored form is one colour block (#1197).
+            Some(t) if !openstitch_core::same_thread(t, &element.thread) => {
                 // Another thread: the lines sewn so far are not this one's to travel on.
                 self.lines.clear();
                 let p = self.position.unwrap_or_default();
