@@ -260,6 +260,17 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.scratchView",
+        summary: "A picture in the assistant's scratch folder (an attached one, or one written there) as base64 for the model to look at (#1168): scaled to at most 2048 px on its longest side and 3.75 MB, as attached pictures are sent; the file itself is not changed",
+        effect: Effect::Read,
+        params: &[p(
+            "name",
+            "string",
+            true,
+            "The picture's file name in the scratch folder: .png, .jpg, .jpeg or .bmp; no folders",
+        )],
+    },
+    UiCommand {
         id: "ui.notesRead",
         summary: "The Assistant's memory (#491): the notes it keeps about this user between conversations (machine, threads, fabric, preferences, lessons), as Markdown, with its size and limit; an error when the user turned memory off",
         effect: Effect::Read,

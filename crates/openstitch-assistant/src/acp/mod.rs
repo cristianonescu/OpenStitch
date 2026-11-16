@@ -296,6 +296,8 @@ pub struct AcpConversation {
     next_id: u64,
     cancelling: Arc<AtomicBool>,
     exited: bool,
+    /// The agent takes image blocks in `session/prompt` ([`protocol::takes_images`], #1168).
+    images: bool,
 }
 
 impl std::fmt::Debug for AcpConversation {
@@ -358,6 +360,7 @@ impl AcpConversation {
             next_id: 0,
             cancelling,
             exited: false,
+            images: false,
         };
         // On any error below, dropping `conv` stops the agent.
         let init = conv.call("initialize", protocol::initialize_params())?;
@@ -367,6 +370,7 @@ impl AcpConversation {
                 init.get("protocolVersion").unwrap_or(&Value::Null)
             )));
         }
+        conv.images = protocol::takes_images(&init);
         let params = protocol::session_new_params(&cfg.cwd, &cfg.mcp, &cfg.system, &init);
         let session = match conv.call("session/new", params) {
             Err(AcpError::Protocol(m)) if m.starts_with(&format!("[{AUTH_REQUIRED}]")) => {
@@ -444,6 +448,24 @@ impl AcpConversation {
         cancel: &AtomicBool,
         on_event: &mut dyn FnMut(Event),
     ) -> StopKind {
+        self.prompt_with_images(text, &[], cancel, on_event)
+    }
+
+    /// Whether the agent advertised `promptCapabilities.image` at `initialize` (#1168).
+    pub fn takes_images(&self) -> bool {
+        self.images
+    }
+
+    /// [`prompt`](Self::prompt) with pictures, `(media type, base64)`, sent as image blocks
+    /// ahead of the text when the agent [`takes_images`](Self::takes_images), and left out
+    /// otherwise (#1168).
+    pub fn prompt_with_images(
+        &mut self,
+        text: &str,
+        images: &[(String, String)],
+        cancel: &AtomicBool,
+        on_event: &mut dyn FnMut(Event),
+    ) -> StopKind {
         if self.exited {
             return StopKind::Error(format!("The agent has stopped.{}", self.stderr_note()));
         }
@@ -456,7 +478,11 @@ impl AcpConversation {
         }
         self.cancelling.store(false, Ordering::SeqCst);
         let session = self.session.clone();
-        let id = self.send_request("session/prompt", protocol::prompt_params(&session, text));
+        let images = if self.images { images } else { &[] };
+        let id = self.send_request(
+            "session/prompt",
+            protocol::prompt_params(&session, text, images),
+        );
         let mut turn = Turn::default();
         let mut cancel_deadline: Option<Instant> = None;
         loop {

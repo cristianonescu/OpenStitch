@@ -23,6 +23,7 @@ pub enum Meta {
     RunBatch,
     ViewRender,
     ScratchWrite,
+    ScratchView,
     SkillReference,
     NotesRead,
     NotesWrite,

@@ -122,10 +122,28 @@ pub fn session_new_params(cwd: &Path, bridge: &McpServer, system: &str, init: &V
     params
 }
 
-/// `session/prompt` params: `sessionId` and `prompt`, ContentBlocks; a text block is
-/// `{type: "text", text}` (<https://agentclientprotocol.com/protocol/prompt-turn>).
-pub fn prompt_params(session: &str, text: &str) -> Value {
-    json!({"sessionId": session, "prompt": [{"type": "text", "text": text}]})
+/// Whether the agent takes pictures in `session/prompt`: `agentCapabilities.promptCapabilities
+/// .image` in its `initialize` result (<https://agentclientprotocol.com/protocol/initialization>;
+/// an omitted capability is unsupported). claude-agent-acp 0.100.0 says `true` (#1168).
+pub fn takes_images(init: &Value) -> bool {
+    init.pointer("/agentCapabilities/promptCapabilities/image")
+        .and_then(Value::as_bool)
+        == Some(true)
+}
+
+/// `session/prompt` params: `sessionId` and `prompt`, ContentBlocks
+/// (<https://agentclientprotocol.com/protocol/prompt-turn>). Each picture, `(media type,
+/// base64)`, is an image block `{type: "image", mimeType, data}`
+/// (<https://agentclientprotocol.com/protocol/content>), ahead of the one text block
+/// `{type: "text", text}`, which calls them shown above. Send pictures only to an agent that
+/// [`takes_images`].
+pub fn prompt_params(session: &str, text: &str, images: &[(String, String)]) -> Value {
+    let mut prompt: Vec<Value> = images
+        .iter()
+        .map(|(media, data)| json!({"type": "image", "mimeType": media, "data": data}))
+        .collect();
+    prompt.push(json!({"type": "text", "text": text}));
+    json!({"sessionId": session, "prompt": prompt})
 }
 
 /// `session/cancel` params, a notification (same page).

@@ -414,6 +414,7 @@ impl EditorApp {
                 Ok(json!({ "checking": true }))
             }
             "ui.scratchWrite" => self.scratch_write(&p, params),
+            "ui.scratchView" => self.scratch_view(&p),
             "ui.notesRead" => {
                 self.memory_on()?;
                 Ok(self.notes_json())
@@ -1129,6 +1130,38 @@ impl EditorApp {
         let path = dir.join(name);
         std::fs::write(&path, &bytes).map_err(|e| format!("cannot write {name}: {e}"))?;
         Ok(json!({ "path": path.display().to_string(), "bytes": bytes.len() }))
+    }
+
+    /// `ui.scratchView` (#1168): a scratch picture as the model is sent one, for an agent that
+    /// takes no pictures in a message. A plain name in the scratch folder only.
+    fn scratch_view(&mut self, p: &Params) -> Result<Value, String> {
+        let dir = self
+            .assistant
+            .scratch
+            .clone()
+            .ok_or("this editor has no scratch folder (start it with --listen)")?;
+        let name = p.string("name", None).map_err(|e| e.to_string())?;
+        let name = name.as_str();
+        if !assistant::scratch_name_ok(name) || name.to_ascii_lowercase().ends_with(".svg") {
+            return Err(
+                "name must be a plain file name in the scratch folder ending in .png, .jpg, .jpeg or .bmp".into(),
+            );
+        }
+        let path = dir.join(name);
+        let bytes = std::fs::read(&path).map_err(|e| format!("cannot read {name}: {e}"))?;
+        let (media, sent, width, height) =
+            openstitch_app::editor::assistant_attach::fit_picture(&bytes)
+                .map_err(|e| format!("{name}: {e}"))?;
+        let (sent_width, sent_height) = image::load_from_memory(&sent)
+            .map(|i| (i.width(), i.height()))
+            .unwrap_or((width, height));
+        Ok(json!({
+            "path": path.display().to_string(),
+            "mimeType": media,
+            "base64": base64::engine::general_purpose::STANDARD.encode(&sent),
+            "width": width, "height": height,
+            "sentWidth": sent_width, "sentHeight": sent_height,
+        }))
     }
 }
 
@@ -2144,6 +2177,35 @@ mod tests {
         ] {
             assert!(
                 app.ui_command("ui.scratchWrite", Some(&bad)).is_err(),
+                "{bad}"
+            );
+        }
+
+        // #1168: ui.scratchView returns a scratch picture as sent to a model: a 3000 px wide
+        // picture comes at 2048 px, the file stays as it is.
+        let wide = image::RgbImage::from_pixel(3000, 40, image::Rgb([200, 20, 20]));
+        wide.save(dir.join("wide.png")).expect("png");
+        let before = std::fs::read(dir.join("wide.png")).expect("read");
+        let r = app
+            .ui_command("ui.scratchView", Some(&json!({ "name": "wide.png" })))
+            .expect("view");
+        assert_eq!(r["mimeType"], json!("image/png"));
+        assert_eq!((r["width"].clone(), r["height"].clone()), (json!(3000), json!(40)));
+        assert_eq!(r["sentWidth"], json!(2048));
+        let sent = base64::engine::general_purpose::STANDARD
+            .decode(r["base64"].as_str().expect("base64"))
+            .expect("decodes");
+        assert_eq!(image::load_from_memory(&sent).expect("picture").width(), 2048);
+        assert_eq!(std::fs::read(dir.join("wide.png")).expect("read"), before);
+        for bad in [
+            json!({ "name": "../wide.png" }),
+            json!({ "name": "a.svg" }),
+            json!({ "name": "missing.png" }),
+            json!({ "name": "b.png" }),
+            json!({}),
+        ] {
+            assert!(
+                app.ui_command("ui.scratchView", Some(&bad)).is_err(),
                 "{bad}"
             );
         }
