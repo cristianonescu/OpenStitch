@@ -5363,6 +5363,88 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// A model that answers `first` and then holds the next request until `release` is sent, so
+    /// a turn stays running (#1186).
+    struct Held {
+        first: std::sync::Mutex<std::collections::VecDeque<String>>,
+        release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+    }
+
+    impl claude::Transport for Held {
+        fn post(
+            &self,
+            _url: &str,
+            _headers: &[(String, String)],
+            _body: &[u8],
+            _timeout: Duration,
+        ) -> Result<Box<dyn std::io::Read + Send>, claude::HttpError> {
+            let next = self.first.lock().expect("lock").pop_front();
+            let body = match next {
+                Some(b) => b,
+                None => {
+                    let _ = self
+                        .release
+                        .lock()
+                        .expect("lock")
+                        .recv_timeout(Duration::from_secs(20));
+                    reply(&[], "Done.", "end_turn")
+                }
+            };
+            Ok(Box::new(std::io::Cursor::new(body.into_bytes())))
+        }
+    }
+
+    /// #1186: closing while a turn runs, in each state a turn can leave: the close asks
+    /// whenever the work would be lost.
+    #[test]
+    fn closing_during_a_turn_asks_when_work_would_be_lost() {
+        use openstitch_app::editor::close_prompt::Pending;
+        let dir = project_dir("close-in-turn");
+        let file = dir.join("p.osd");
+        let (mut maker, _) = app_with(Vec::new());
+        save_to(&mut maker, &file);
+        let mut lost = Vec::new();
+        for (case, open_file, first) in [
+            ("a project, chat only", true, Vec::new()),
+            ("an untitled empty design, chat only", false, Vec::new()),
+            ("a project, the model's edit", true, vec![reply(&[rect(10.0)], "", "tool_use")]),
+        ] {
+            let (mut app, _) = app_with(Vec::new());
+            if open_file {
+                app.open_path(&file);
+            } else {
+                app.new_design();
+            }
+            let (release, held) = std::sync::mpsc::channel();
+            app.assistant.panel.transport = Some(Arc::new(Held {
+                first: std::sync::Mutex::new(first.into()),
+                release: std::sync::Mutex::new(held),
+            }));
+            let objects = app.session.design().objects.len();
+            send(&mut app, "make something".into(), no_wake());
+            let start = Instant::now();
+            while start.elapsed() < Duration::from_millis(300) {
+                serve(&mut app, no_wake());
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert!(app.assistant.panel.busy(), "{case}: the turn runs");
+            eprintln!(
+                "{case}: dirty {}, objects {} -> {}",
+                app.is_dirty(),
+                objects,
+                app.session.design().objects.len()
+            );
+            app.guarded(Pending::Exit);
+            if !(app.close_prompt.is_open() && !app.exit_approved()) {
+                lost.push(case);
+            }
+            let _ = release.send(());
+            run(&mut app, idle);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(lost.is_empty(), "closed with no question: {lost:?}");
+    }
+
     /// A conversation alone is an unsaved change while it is saved with the project: talking
     /// without an edit marks the design unsaved, closing asks, autosave sees it, and saving
     /// clears it. Opening a project with a chat is not a change, and New chat on it is.
