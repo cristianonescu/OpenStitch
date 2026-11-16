@@ -1,100 +1,82 @@
-// OpenStitch Quick Look thumbnails (#557): runs the Rust renderer, `openstitch-thumbnailer
-// --stdin EXT`, with the file's bytes on stdin and reads the PNG from stdout. No drawing or
-// file-format code lives in Swift; the Rust crate openstitch-render does all of it.
+// OpenStitch Quick Look thumbnails (#557, #1182): calls the Rust renderer linked into the
+// extension (render/, a static library; openstitch_quicklook.h) with the file's bytes and gets
+// the PNG back. It runs in-process: Quick Look's sandbox for thumbnail extensions refuses to
+// start any process, so the renderer cannot be a helper program. No drawing or file-format
+// code lives in Swift; the Rust crate openstitch-render does all of it.
 import Foundation
 
 enum ThumbnailError: Error, CustomStringConvertible {
-    case helperMissing
     case timedOut
-    case killed(Int32)
-    case failed(Int32, String)
+    case failed(String)
     case notAPicture
 
     var description: String {
         switch self {
-        case .helperMissing: return "openstitch-thumbnailer is missing from the extension"
-        case .timedOut: return "openstitch-thumbnailer took too long"
-        case let .killed(signal): return "openstitch-thumbnailer was stopped by signal \(signal)"
-        case let .failed(code, message): return "openstitch-thumbnailer exited \(code): \(message)"
-        case .notAPicture: return "openstitch-thumbnailer wrote no PNG"
+        case .timedOut: return "the OpenStitch renderer took too long"
+        case let .failed(message): return "the OpenStitch renderer failed: \(message)"
+        case .notAPicture: return "the OpenStitch renderer gave no PNG"
         }
     }
 }
 
 enum Renderer {
-    /// Largest file handed to the helper, as openstitch_render::thumbnail::MAX_INPUT.
+    /// Largest file handed to the renderer, as openstitch_render::thumbnail::MAX_INPUT.
     static let maxInput = 64 << 20
-    /// The helper is stopped after this long (a malformed file must never hang Finder).
+    /// The thumbnail is given up after this long (a malformed file must never hang Finder).
     static let timeout: TimeInterval = 10
 
     /// The PNG thumbnail (`size` x `size` pixels) of a design file's `data`, its format named
     /// by `fileExtension` (pes, dst, osd, ...).
-    static func png(data: Data, fileExtension: String, size: Int, helper: URL) throws -> Data {
-        guard FileManager.default.isExecutableFile(atPath: helper.path) else {
-            throw ThumbnailError.helperMissing
-        }
+    ///
+    /// The renderer runs on its own thread and the caller waits at most `timeout`. Code in the
+    /// same process cannot be stopped, so on a timeout that thread finishes on its own (and
+    /// frees its result) while the caller already has its error.
+    static func png(data: Data, fileExtension: String, size: Int) throws -> Data {
         if data.count > maxInput {
-            throw ThumbnailError.failed(1, "larger than 64 MiB")
+            throw ThumbnailError.failed("larger than 64 MiB")
         }
-        let process = Process()
-        process.executableURL = helper
-        process.arguments = ["-s", String(min(max(size, 16), 1024)), "--stdin", fileExtension]
-        let input = Pipe()
-        let output = Pipe()
-        let errors = Pipe()
-        process.standardInput = input
-        process.standardOutput = output
-        process.standardError = errors
-        try process.run()
-
-        // Feed stdin on its own queue so a full stdout pipe can never block the write.
-        let writer = DispatchQueue(label: "openstitch.thumbnail.stdin")
-        writer.async {
-            try? input.fileHandleForWriting.write(contentsOf: data)
-            try? input.fileHandleForWriting.close()
+        let pixels = UInt32(min(max(size, 16), 1024))
+        let result = Result()
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .userInitiated).async {
+            result.set(render(data: data, fileExtension: fileExtension, size: pixels))
+            done.signal()
         }
-        let stopped = Stopped()
-        let killer = DispatchWorkItem {
-            if process.isRunning {
-                stopped.set()
-                process.terminate()
-            }
+        guard done.wait(timeout: .now() + timeout) == .success, let outcome = result.value else {
+            throw ThumbnailError.timedOut
         }
-        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
-
-        var png = Data()
-        var message = Data()
-        let group = DispatchGroup()
-        group.enter()
-        DispatchQueue.global().async {
-            message = errors.fileHandleForReading.readDataToEndOfFile()
-            group.leave()
-        }
-        png = output.fileHandleForReading.readDataToEndOfFile()
-        group.wait()
-        process.waitUntilExit()
-        killer.cancel()
-
-        if process.terminationReason == .uncaughtSignal {
-            throw stopped.value
-                ? ThumbnailError.timedOut : ThumbnailError.killed(process.terminationStatus)
-        }
-        guard process.terminationStatus == 0 else {
-            let text = String(decoding: message, as: UTF8.self)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            throw ThumbnailError.failed(process.terminationStatus, text)
-        }
+        let png = try outcome.get()
         guard png.starts(with: [0x89, 0x50, 0x4E, 0x47]) else {
             throw ThumbnailError.notAPicture
         }
         return png
     }
+
+    private static func render(data: Data, fileExtension: String, size: UInt32)
+        -> Swift.Result<Data, ThumbnailError>
+    {
+        var buffer = OpenStitchBuffer(ptr: nil, len: 0)
+        let code = data.withUnsafeBytes { bytes in
+            fileExtension.withCString { ext in
+                openstitch_ql_thumbnail(
+                    bytes.bindMemory(to: UInt8.self).baseAddress, bytes.count, ext, size, &buffer)
+            }
+        }
+        defer { openstitch_ql_free(buffer) }
+        let out = buffer.ptr.map { Data(bytes: $0, count: buffer.len) } ?? Data()
+        return code == 0
+            ? .success(out) : .failure(.failed(String(decoding: out, as: UTF8.self)))
+    }
 }
 
-/// Whether the timeout stopped the helper (set on another queue).
-private final class Stopped: @unchecked Sendable {
+/// The renderer's outcome, handed from its thread to the waiting caller.
+private final class Result: @unchecked Sendable {
     private let lock = NSLock()
-    private var flag = false
-    func set() { lock.lock(); flag = true; lock.unlock() }
-    var value: Bool { lock.lock(); defer { lock.unlock() }; return flag }
+    private var outcome: Swift.Result<Data, ThumbnailError>?
+    func set(_ value: Swift.Result<Data, ThumbnailError>) {
+        lock.lock(); outcome = value; lock.unlock()
+    }
+    var value: Swift.Result<Data, ThumbnailError>? {
+        lock.lock(); defer { lock.unlock() }; return outcome
+    }
 }

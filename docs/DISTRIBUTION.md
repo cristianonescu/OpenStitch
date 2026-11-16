@@ -402,7 +402,8 @@ call this renderer too.
 Every file-manager handler (Linux, macOS Quick Look, Windows Explorer) draws through one of
 these two entry points. Keep them stable: add options, never rename or drop one.
 
-- **Rust API** (`openstitch-render`): `thumbnail::load(path)` and `thumbnail::load_bytes(data,
+- **Rust API** (`openstitch-render`; macOS Quick Look links it through the C function
+  `openstitch_ql_thumbnail`, `packaging/macos/quicklook/render`): `thumbnail::load(path)` and `thumbnail::load_bytes(data,
   extension)` read a design (`osd` or any machine format OpenStitch reads; over 64 MiB refused)
   into stitches; `thumbnail::png(&stitches, size)` draws a `size` × `size` RGBA PNG (clamped to
   16-1024), cropped to the design on a transparent square.
@@ -410,7 +411,8 @@ these two entry points. Keep them stable: add options, never rename or drop one.
   - `openstitch-thumbnailer [-s|--size N] INPUT OUTPUT.png` (the freedesktop form);
   - `openstitch-thumbnailer [-s|--size N] --stdin EXT`: the file's bytes on stdin, its format
     named by EXT (`pes`, `.PES`, `osd`; case and a leading dot are ignored), the PNG on stdout.
-    For handlers that may not open the file by path (a sandboxed Quick Look extension).
+    For handlers that are given bytes rather than a path. (The Quick Look extension no longer
+    runs it: its sandbox cannot start a process, so it links the renderer instead, #1182.)
   - Size defaults to 256. Exit 0 on success; 1 when the file cannot be read or drawn (a
     message on stderr starting `openstitch-thumbnailer: `, nothing on stdout); 2 on a usage
     error.
@@ -461,38 +463,56 @@ latter: a Rust COM server kept outside the workspace.
 
 `packaging/macos/quicklook` holds the extension, built outside the Cargo workspace by
 `quicklook/build.sh` (Xcode's `swiftc`, arm64 + x86_64), which `bundle.sh` runs when given the
-`openstitch-thumbnailer` binary:
+renderer library:
 
 - `ThumbnailProvider.swift` answers Finder's request: it reads the file Quick Look hands it and
-  draws the PNG it gets back into Quick Look's context.
-- `Renderer.swift` runs the Rust renderer bundled inside the extension,
-  `Contents/MacOS/openstitch-thumbnailer -s PX --stdin EXT`, with the file's bytes on stdin and
-  the PNG on stdout (a 10-second timeout; files over 64 MiB are refused). No drawing or format
-  code is in Swift.
-- The extension is sandboxed (`Thumbnail.entitlements`, as macOS requires for extensions); the
-  helper carries `com.apple.security.inherit` (`Helper.entitlements`) and runs in the
-  extension's sandbox, which is why it is given bytes rather than a path. Run on its own, the
-  bundled helper is stopped by the system; the unsigned build is the same code.
+  draws the PNG it gets back into Quick Look's context. A failure is logged (subsystem
+  `io.github.cristianonescu.openstitch.thumbnail`, `log show --predicate 'subsystem ==
+  "io.github.cristianonescu.openstitch.thumbnail"'`) and Finder keeps the type's icon.
+- `Renderer.swift` calls the Rust renderer **linked into the extension**:
+  `openstitch_ql_thumbnail` (`openstitch_quicklook.h`) with the file's bytes, which returns the
+  PNG. It runs on its own thread and the extension waits at most 10 seconds; files over 64 MiB
+  are refused. No drawing or format code is in Swift.
+- `render/` is that renderer: a separate Cargo project (excluded from the workspace, its own
+  `Cargo.lock`; a C entry point needs `unsafe` code, which the workspace forbids), a static
+  library over `openstitch_render::thumbnail`, the same pixels as `openstitch-thumbnailer` and
+  Explorer. `build-render.sh` builds it universal (arm64 + x86_64). Its tests: every kit design
+  gives the shared renderer's PNG; malformed, empty, truncated and over-64-MiB input fails with
+  a message within seconds; null pointers are refused.
+- Why in-process (#1182): Quick Look's sandbox for thumbnail extensions refuses to start any
+  process. Measured on macOS 27.2: `posix_spawn` from the extension fails with EPERM even for
+  `/usr/bin/true`. Up to alpha.16 the extension ran a bundled `openstitch-thumbnailer` helper, so
+  every thumbnail failed at once and Finder showed the generic icon.
+- The extension is sandboxed (`Thumbnail.entitlements`: `com.apple.security.app-sandbox` only,
+  as macOS requires for extensions) and holds a single executable.
 - Its `QLSupportedContentTypes` are every type the app's Info.plist declares (filled in by
   `build.sh`). Generic extensions other programs use (.exp, .sew, .tap, .csd, .stx) are not
   declared; a type another installed program exports first keeps that program's identifier,
   and Finder then shows its icon instead.
 
 CI (`build-executables.yml`, macOS) runs `quicklook/check.sh`: the extension's plist, types,
-architectures and signatures; the Swift code path (`openstitch-quicklook-check`, built from
-`Renderer.swift`) giving a 256 × 256 PNG for a kit design and a clean error for a malformed
-file; and, on the throwaway runner only, registering the extension (`lsregister`,
-`pluginkit -a`, which must list it) and asking `qlmanage -t` for a `.pes` thumbnail for at most
-90 seconds. A runner has no login session and `qlmanage` may never answer there, so a missing
-picture is a warning rather than a failure; the step has a 20-minute limit. That registration
-is never run on someone's own Mac.
+architectures, signature and entitlements (exactly the sandbox), that it holds only its own
+executable with the renderer linked in for both architectures and imports no process-starting
+call; the Swift code path (`openstitch-quicklook-check`, built from `Renderer.swift`) giving a
+256 × 256 PNG for a kit design and a clean error for a malformed file; and, on the throwaway
+runner only, registering the extension (`lsregister`, `pluginkit -a`, which must list it) and
+asking macOS for a `.pes` thumbnail as Finder does (`openstitch-quicklook-check --system`,
+`QLThumbnailGenerator`). No thumbnail within 60 seconds (`QUICKLOOK_TIMEOUT`), or an error,
+fails the job; the step has a 20-minute limit. That registration is never run on someone's own
+Mac. `tools/smoke-macos.sh` checks the extension in a downloaded package (universal, renderer
+linked in, sandboxed).
+
+`qlmanage -t` is not a usable probe on macOS 27: it discovers no thumbnail extensions in its
+own process and waits forever, for OpenStitch and for other programs' extensions alike
+(measured with Blender's, #1182). Use `openstitch-quicklook-check --system SECONDS FILE OUT.png`
+or Finder.
 
 Signing: the bundle and the extension are ad-hoc signed (`codesign --sign -`), as before; CI
 holds no certificate and none is added without the owner. Owner steps that CI cannot do:
 
 1. Check Finder by hand once on the release build: move OpenStitch.app to /Applications, open
    it once, then look at a folder of `.pes`, `.dst` and `.osd` files in icon view (thumbnails
-   appear; `qlmanage -r` resets Quick Look's cache if old icons stay). If none appear, check
+   appear; `qlmanage -r cache` resets Quick Look's cache if old icons stay). If none appear, check
    `pluginkit -m -i io.github.cristianonescu.openstitch.thumbnail`; macOS may refuse to load
    an ad-hoc signed extension from a downloaded (quarantined) app.
 2. For distribution without that risk, sign the app and the extension with a Developer ID and

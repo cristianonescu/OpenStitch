@@ -81,15 +81,17 @@ jobs:
         run: |
           set -euo pipefail
           for t in aarch64-apple-darwin x86_64-apple-darwin; do
-            cargo build --release --locked --target "$t" -p openstitch-app -p stitchtool -p openstitch-mcp -p openstitch-render
+            cargo build --release --locked --target "$t" -p openstitch-app -p stitchtool -p openstitch-mcp
           done
           mkdir -p bin
-          # openstitch-thumbnailer: the Rust renderer the Quick Look extension runs (#557).
-          for b in openstitch stitchtool openstitch-mcp openstitch-thumbnailer; do
+          for b in openstitch stitchtool openstitch-mcp; do
             lipo -create -output "bin/$b" \
               "target/aarch64-apple-darwin/release/$b" "target/x86_64-apple-darwin/release/$b"
             lipo -info "bin/$b"
           done
+          # The Rust renderer linked into the Quick Look extension (#557, #1182): a universal
+          # static library from its own project, packaging/macos/quicklook/render.
+          packaging/macos/quicklook/build-render.sh bin/libopenstitch_quicklook.a
 
       - name: Build (Linux / Windows)
         if: runner.os != 'macOS'
@@ -150,7 +152,7 @@ jobs:
           set -euo pipefail
           # With the Quick Look thumbnail extension (#557) and its Swift check command.
           CHECK_OUT=bin/openstitch-quicklook-check \
-            packaging/macos/bundle.sh bin/openstitch "$CARGO_VERSION" app-out bin/openstitch-thumbnailer
+            packaging/macos/bundle.sh bin/openstitch "$CARGO_VERSION" app-out bin/libopenstitch_quicklook.a
           codesign --verify --deep --strict app-out/OpenStitch.app
           plist=app-out/OpenStitch.app/Contents/Info.plist
           # .osd is declared as an exported UTI; the document types refer to that UTI.
@@ -165,11 +167,12 @@ jobs:
           # Help ▸ Ready-to-Sew Designs in the built bundle (#319): packaging/macos/check_sew_kit.sh
           # runs the real editor binary with a recording `open` first on PATH.
           packaging/macos/check_sew_kit.sh app-out/OpenStitch.app
-          # Quick Look thumbnails (#557): the extension's bundle, its Swift path to the Rust
-          # renderer, and (registered on this throwaway runner) qlmanage drawing a .pes.
-          unzip -l "dist/OpenStitch-$LABEL-macos-universal.zip" | grep -q 'Contents/PlugIns/OpenStitchThumbnail.appex/Contents/MacOS/openstitch-thumbnailer'
-          QUICKLOOK_REGISTER=1 packaging/macos/quicklook/check.sh app-out/OpenStitch.app \
-            bin/openstitch-quicklook-check bin/openstitch-thumbnailer examples/sew/machine-checks/machine-formats.pes
+          # Quick Look thumbnails (#557, #1182): the extension's bundle, its Swift path to the
+          # Rust renderer, and (registered on this throwaway runner) macOS drawing a .pes through
+          # it as Finder asks; no thumbnail within 60 s fails the job.
+          unzip -l "dist/OpenStitch-$LABEL-macos-universal.zip" | grep -q 'Contents/PlugIns/OpenStitchThumbnail.appex/Contents/MacOS/OpenStitchThumbnail'
+          QUICKLOOK_REGISTER=1 QUICKLOOK_TIMEOUT=60 packaging/macos/quicklook/check.sh app-out/OpenStitch.app \
+            bin/openstitch-quicklook-check examples/sew/machine-checks/machine-formats.pes
 
       - name: Linux tarball
         if: runner.os == 'Linux'
