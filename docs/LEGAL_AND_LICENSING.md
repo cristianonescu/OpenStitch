@@ -136,4 +136,5 @@ the project keeps:
 | OpenStitch Line and OpenStitch Pixel, `crates/openstitch-design/src/stroke_fonts.rs` | MIT OR Apache-2.0 (the project's licence; LICENSE-MIT, LICENSE-APACHE) | Bundled lettering fonts (#527, #530, #536), drawn for OpenStitch as stroke and pixel tables: no outline of another font traced, no Brother, Ink/Stitch or Hershey glyph data used. Their size ranges come from OpenStitch's own tests (`size_ranges_hold`). |
 
 Runtime crates and bundled fonts are listed with their licences in `THIRD_PARTY_NOTICES.md`
-and docs/ARCHITECTURE.md.
+and docs/ARCHITECTURE.md. Its table of every crate the shipped programs link is generated from
+`cargo metadata` by `tools/third_party.py` (`--check` at each release, #1171).
