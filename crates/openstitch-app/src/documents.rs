@@ -40,6 +40,7 @@ pub struct Document {
     estimate: Option<openstitch_design::Estimate>,
     recovered_from: Option<String>,
     chat_doc: u64,
+    chat_marked_at: Option<u64>,
 }
 
 impl Document {
@@ -72,6 +73,7 @@ impl Document {
             estimate: None,
             recovered_from: None,
             chat_doc: crate::assistant_panel::next_document(),
+            chat_marked_at: None,
         }
     }
 
@@ -147,6 +149,7 @@ impl EditorApp {
         swap(&mut self.workspace.estimate, &mut doc.estimate);
         swap(&mut self.recovery.recovered_from, &mut doc.recovered_from);
         swap(&mut self.chat_doc, &mut doc.chat_doc);
+        swap(&mut self.chat_marked_at, &mut doc.chat_marked_at);
     }
 
     /// Parks the active design in its slot and makes `doc` active.

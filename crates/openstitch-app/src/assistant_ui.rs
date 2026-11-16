@@ -624,6 +624,9 @@ impl EditorApp {
         json!({
             "file": self.path.as_ref().map(|p| p.display().to_string()),
             "unsaved": self.is_dirty(),
+            // #1196: a save leaves the design saved while the conversation goes on.
+            "unsavedDesign": self.design_dirty(),
+            "unsavedConversationOnly": self.is_dirty() && !self.design_dirty(),
             "documents": self.tab_count(),
             "loading": self.open_job.as_ref().map(crate::open_job::OpenJob::describe),
             "selection": self.selection,

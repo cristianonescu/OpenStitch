@@ -268,6 +268,9 @@ pub struct EditorApp {
     /// Counts changes to the kept chat (#1169), so autosave sees a conversation change as it sees
     /// a design change ([`EditorApp::snapshot_key`]).
     pub(crate) chat_edits: u64,
+    /// The revision at which a saved document became unsaved through its conversation alone
+    /// (#1196): while the revision is still that one, the design itself is as saved.
+    pub(crate) chat_marked_at: Option<u64>,
     /// Inside [`EditorApp::with_one_refresh`]: whether an edit is waiting for its stitch compile.
     refresh_deferred: Option<bool>,
     /// Rulers, grid, measure tool, Reference window, Design Settings, estimates.
@@ -417,6 +420,7 @@ impl EditorApp {
             chat_doc: crate::assistant_panel::next_document(),
             turn_close: None,
             chat_edits: 0,
+            chat_marked_at: None,
             refresh_deferred: None,
             workspace: Default::default(),
             edit: Default::default(),
@@ -1071,6 +1075,12 @@ impl EditorApp {
 
     pub fn is_dirty(&self) -> bool {
         self.revision != self.saved_revision
+    }
+
+    /// Whether the design itself changed since the last save (#1196); `false` when only the
+    /// conversation did, which [`EditorApp::is_dirty`] also counts.
+    pub fn design_dirty(&self) -> bool {
+        self.is_dirty() && self.chat_marked_at != Some(self.revision)
     }
 
     /// What autosave compares: the design's revision and the chat's changes (#1169).

@@ -1523,6 +1523,10 @@ fn note_chat_changes(app: &mut EditorApp) {
     }
     app.assistant.panel.kept = now;
     if app.ui.prefs.ai.save_chat && app.assistant.panel.owner == Some(app.chat_doc) {
+        if !app.is_dirty() {
+            // A saved design that only its conversation changes (#1196).
+            app.chat_marked_at = Some(app.revision);
+        }
         app.chat_edits = app.chat_edits.wrapping_add(1);
         app.mark_unsaved();
     }
@@ -5675,6 +5679,54 @@ Attached: rose.png".into())];
             .ui_command("ui.run", Some(&json!({ "action": "save" })))
             .expect_err("a dialog would open");
         assert!(e.contains("opens a file dialog"), "{e}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1196: a turn that saves, then reads `ui.state`: the model sees the design saved
+    /// (`unsavedDesign` false) and the conversation alone unsaved; the rows after the save are not
+    /// lost (closing still asks); `ui.state`'s description says what it reports.
+    #[test]
+    fn after_its_own_save_the_assistant_sees_the_design_saved() {
+        use openstitch_app::editor::close_prompt::Pending;
+        let dir = project_dir("own-save");
+        let file = dir.join("a.osd");
+        let (mut maker, _) = app_with(Vec::new());
+        save_to(&mut maker, &file);
+        let (mut app, transport) = app_with(vec![
+            reply(&[("project.save", json!({ "path": file.display().to_string() }))], "", "tool_use"),
+            reply(&[("ui.state", json!({}))], "", "tool_use"),
+            reply(&[], "Saved.", "end_turn"),
+        ]);
+        app.open_path(&file);
+        send(&mut app, "save it".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        answer(&mut app, 0, Answer::Once);
+        run(&mut app, idle);
+        // What the model was told by ui.state (the tool result in the third request).
+        let requests = transport.requests.lock().expect("lock").clone();
+        let seen = requests[2]["messages"].to_string().replace(['\\', ' '], "");
+        assert!(seen.contains("\"unsavedDesign\":false"), "{seen}");
+        assert!(seen.contains("\"unsavedConversationOnly\":true"), "{seen}");
+        assert!(app.is_dirty() && !app.design_dirty());
+        // A design edit afterwards is a design change again.
+        let mut edited = app.ui_state();
+        assert_eq!(edited["unsavedDesign"], json!(false));
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 5, "y": 5, "width": 10, "height": 10 }),
+        ))
+        .expect("edit");
+        edited = app.ui_state();
+        assert_eq!(edited["unsavedDesign"], json!(true));
+        assert_eq!(edited["unsavedConversationOnly"], json!(false));
+        // Nothing is dropped: closing asks.
+        app.guarded(Pending::Exit);
+        assert!(app.close_prompt.is_open());
+        let state = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.state")
+            .expect("ui.state");
+        assert!(state.summary.contains("unsavedConversationOnly: only the Assistant's conversation did"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

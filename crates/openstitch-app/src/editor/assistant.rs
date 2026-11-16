@@ -40,7 +40,7 @@ const fn p(
 pub const UI_COMMANDS: &[UiCommand] = &[
     UiCommand {
         id: "ui.state",
-        summary: "The editor's state: file, unsaved changes, selection, tool, view, zoom, panes, simulator, Check Design's indicator (check: level readyToSew, sewableWithSmallRisks or fixThisFirst, with the error, warning and note counts) and every setting",
+        summary: "The editor's state: file, unsaved changes (unsaved: anything a save would write; unsavedDesign: the design itself changed since the last save; unsavedConversationOnly: only the Assistant's conversation did, as right after your own save while your reply goes on: the file has the design, and the next save adds the rest of the conversation), selection, tool, view, zoom, panes, simulator, Check Design's indicator (check: level readyToSew, sewableWithSmallRisks or fixThisFirst, with the error, warning and note counts) and every setting",
         effect: Effect::Read,
         params: &[],
     },
