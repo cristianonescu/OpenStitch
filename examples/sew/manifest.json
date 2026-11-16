@@ -1259,7 +1259,7 @@
   "renderVersion": 3
  },
  "image-tools/S-autopunch-balloon-openstitch.pes": {
-  "title": "Auto Punch, OpenStitch mode",
+  "title": "Auto Punch, balloon, OpenStitch mode",
   "about": "`g02-balloon.png` through Auto Punch at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
@@ -1284,7 +1284,7 @@
   "renderVersion": 3
  },
  "image-tools/S-autopunch-balloon-pe-compatible.pes": {
-  "title": "Auto Punch, PE-DESIGN-compatible mode",
+  "title": "Auto Punch, balloon, PE-DESIGN-compatible mode",
   "about": "`g02-balloon.png` through Auto Punch at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
@@ -1307,7 +1307,7 @@
   "renderVersion": 3
  },
  "image-tools/S-cross-stitch-strawberry-openstitch.pes": {
-  "title": "Cross Stitch, OpenStitch mode",
+  "title": "Cross Stitch, pixel strawberry, OpenStitch mode",
   "about": "`g07-pixel-strawberry.png` through Cross Stitch at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
@@ -1330,7 +1330,7 @@
   "renderVersion": 3
  },
  "image-tools/S-cross-stitch-strawberry-pe-compatible.pes": {
-  "title": "Cross Stitch, PE-DESIGN-compatible mode",
+  "title": "Cross Stitch, pixel strawberry, PE-DESIGN-compatible mode",
   "about": "`g07-pixel-strawberry.png` through Cross Stitch at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
@@ -1353,7 +1353,7 @@
   "renderVersion": 3
  },
  "image-tools/S-design-center-butterfly-openstitch.pes": {
-  "title": "Design Center, OpenStitch mode",
+  "title": "Design Center, butterfly outline, OpenStitch mode",
   "about": "`g04-butterfly-outline.png` through Design Center at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
@@ -1372,7 +1372,7 @@
   "renderVersion": 3
  },
  "image-tools/S-design-center-butterfly-pe-compatible.pes": {
-  "title": "Design Center, PE-DESIGN-compatible mode",
+  "title": "Design Center, butterfly outline, PE-DESIGN-compatible mode",
   "about": "`g04-butterfly-outline.png` through Design Center at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
@@ -1391,7 +1391,7 @@
   "renderVersion": 3
  },
  "image-tools/S-photo1-sunset-openstitch.pes": {
-  "title": "Photo Stitch 1, OpenStitch mode",
+  "title": "Photo Stitch 1, sunset, OpenStitch mode",
   "about": "`p06-sunset.jpg` through Photo Stitch 1 at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
@@ -1420,7 +1420,7 @@
   "renderVersion": 3
  },
  "image-tools/S-photo1-sunset-pe-compatible.pes": {
-  "title": "Photo Stitch 1, PE-DESIGN-compatible mode",
+  "title": "Photo Stitch 1, sunset, PE-DESIGN-compatible mode",
   "about": "`p06-sunset.jpg` through Photo Stitch 1 at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
@@ -1448,7 +1448,7 @@
   "renderVersion": 3
  },
  "image-tools/M-photo1-portrait-openstitch.pes": {
-  "title": "Photo Stitch 1, OpenStitch mode",
+  "title": "Photo Stitch 1, portrait, OpenStitch mode",
   "about": "`p01-portrait.jpg` through Photo Stitch 1 at its defaults in OpenStitch mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "150 × 150 mm",
   "sizeMM": [
@@ -1477,7 +1477,7 @@
   "renderVersion": 3
  },
  "image-tools/M-photo1-portrait-pe-compatible.pes": {
-  "title": "Photo Stitch 1, PE-DESIGN-compatible mode",
+  "title": "Photo Stitch 1, portrait, PE-DESIGN-compatible mode",
   "about": "`p01-portrait.jpg` through Photo Stitch 1 at its defaults in PE-DESIGN-compatible mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "150 × 150 mm",
   "sizeMM": [
@@ -1502,7 +1502,7 @@
   "renderVersion": 3
  },
  "image-tools/M-photo2-poppies-openstitch.pes": {
-  "title": "Photo Stitch 2, OpenStitch mode",
+  "title": "Photo Stitch 2, poppies, OpenStitch mode",
   "about": "`p08-poppies.jpg` through Photo Stitch 2 at its defaults in OpenStitch mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "150 × 150 mm",
   "sizeMM": [
@@ -1524,7 +1524,7 @@
   "renderVersion": 3
  },
  "image-tools/M-photo2-poppies-pe-compatible.pes": {
-  "title": "Photo Stitch 2, PE-DESIGN-compatible mode",
+  "title": "Photo Stitch 2, poppies, PE-DESIGN-compatible mode",
   "about": "`p08-poppies.jpg` through Photo Stitch 2 at its defaults in PE-DESIGN-compatible mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "150 × 150 mm",
   "sizeMM": [
@@ -1546,7 +1546,7 @@
   "renderVersion": 3
  },
  "image-tools/L-autopunch-storybook-openstitch.pes": {
-  "title": "Auto Punch, OpenStitch mode",
+  "title": "Auto Punch, storybook, OpenStitch mode",
   "about": "`p03-storybook.jpg` through Auto Punch at its defaults in OpenStitch mode, fitted to the 260 × 160 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "260 × 160 mm",
   "sizeMM": [
@@ -1574,7 +1574,7 @@
   "renderVersion": 3
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
-  "title": "Auto Punch, PE-DESIGN-compatible mode",
+  "title": "Auto Punch, storybook, PE-DESIGN-compatible mode",
   "about": "`p03-storybook.jpg` through Auto Punch at its defaults in PE-DESIGN-compatible mode, fitted to the 260 × 160 mm hoop. Sew both modes of the same image to compare them on fabric.",
   "hoop": "260 × 160 mm",
   "sizeMM": [
