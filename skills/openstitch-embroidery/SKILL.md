@@ -180,6 +180,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    example first (`skill_reference {"file": "strawberry"}`; `reference/examples.md` lists
    them), plan the regions as `reference/composition.md` says, and adapt the example.
 1. `design.new` (and `machine.set` for the hoop), unless the user wants to edit what is open.
+   Or start from a template: `template.list` names them, `template.open {"template":
+   "builtin:team-badge"}` replaces the open design with one (a new untitled design: the user is
+   asked first over unsaved changes, and `project.save` needs a path), then `template.fill`
+   `{"values": {"Name": "Ana"}}` sets its texts.
 2. Shapes and lettering: `shape.rectangle`, `shape.ellipse`, `shape.preset`, `shape.path`,
    `shape.polygon`, `text.add`, `monogram.add`, `import.svg`, or a `digitize.*` wizard.
    Each returns the new object's `id` (`{"id": 3}`); wizards return `ids`.
