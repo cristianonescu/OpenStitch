@@ -102,7 +102,7 @@ the Flatpak are under [More builds](#more-builds); building it yourself is under
 
 ## Status at a glance
 
-Current release: **v0.1.0-alpha.15** ([notes](docs/releases/v0.1.0-alpha.15.md)).
+Current release: **v0.1.0-alpha.16** ([notes](docs/releases/v0.1.0-alpha.16.md)).
 
 OpenStitch is checked against PE-DESIGN 11.50 itself. Simple test designs made in a licensed copy
 through its normal interface are committed under `compat/reference/`. The compatibility harness
@@ -111,11 +111,11 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 332: 282 implemented (4 of them partially compatible), 0 documented only, 9 blocked, 15 partial beyond PE-DESIGN, 26 planned beyond PE-DESIGN |
+| Feature matrix rows | 334: 284 implemented (4 of them partially compatible), 0 documented only, 9 blocked, 15 partial beyond PE-DESIGN, 26 planned beyond PE-DESIGN |
 | Compatibility specs | 524: 524 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 42: 33 at the reference tier, 7 at the internal-regression tier, 2 at the oracle tier |
-| Open audit differences | 9 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 73 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open audit differences | 8 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
+| Open GitHub issues | 80 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -902,12 +902,11 @@ Open differences from PE-DESIGN 11 that you may notice, from the
 [compatibility audit](docs/COMPATIBILITY_AUDIT.md):
 
 <!-- status:known-issues -->
-- [Trims between underlay, top stitching and outline of one object](docs/COMPATIBILITY_AUDIT.md#4-trims-between-underlay-top-stitching-and-outline-of-one-object)
+- [Trims between underlay, top stitching and outline of one object](docs/COMPATIBILITY_AUDIT.md#4-trims-between-underlay-top-stitching-and-outline-of-one-object) (partly fixed)
 - [Every design is written as one stitch group, nothing editable](docs/COMPATIBILITY_AUDIT.md#5-every-design-is-written-as-one-stitch-group-nothing-stays-editable-in-pe-design) (partly fixed)
 - [One sewing direction per text instead of per stroke](docs/COMPATIBILITY_AUDIT.md#6-one-sewing-direction-per-text-instead-of-per-stroke) (partly fixed)
 - [Underlay model differs](docs/COMPATIBILITY_AUDIT.md#8-underlay-model-differs-zigzag-lines-have-no-underlay) (partly fixed)
 - [PE-DESIGN-made PES files lose objects, properties and colours on re-save](docs/COMPATIBILITY_AUDIT.md#9-pe-design-made-pes-files-lose-objects-properties-and-colours-on-re-save) (partly fixed)
-- [No Connection Points (Default / Closest / Farther) for text](docs/COMPATIBILITY_AUDIT.md#11-no-connection-points-default--closest--farther-for-text)
 - [No per-character colour or multi-character selection](docs/COMPATIBILITY_AUDIT.md#13-no-per-character-colour-or-multi-character-selection)
 - [Missing fill, satin and zigzag attributes; wrong ranges](docs/COMPATIBILITY_AUDIT.md#15-missing-fill-satin-and-zigzag-attributes-wrong-ranges) (partly fixed)
 - [Character kerning moves one glyph without reflowing the line](docs/COMPATIBILITY_AUDIT.md#20-character-kerning-moves-one-glyph-without-reflowing-the-line)
@@ -947,6 +946,9 @@ Bugs reported on GitHub:
 - [#1155](https://github.com/cristianonescu/OpenStitch/issues/1155) Candlewick: a 40 mm square imported from PE-DESIGN sews 29 knots where PE-DESIGN sews 28
 - [#1160](https://github.com/cristianonescu/OpenStitch/issues/1160) PES 0110: what a candlewick line's +48 and +50 hold (3.0 or 14.0 at +50, not the density)
 - [#1163](https://github.com/cristianonescu/OpenStitch/issues/1163) Zigzag net Density shows 2.25 /mm in the inspector where PE-DESIGN's dialog shows 4.5
+- [#1179](https://github.com/cristianonescu/OpenStitch/issues/1179) Template open and test swatches replace the design but keep the open file's path, so the next Save overwrites the project
+- [#1182](https://github.com/cristianonescu/OpenStitch/issues/1182) macOS Quick Look: qlmanage -t on a .pes hangs with no thumbnail (installed 2026-11-13 build; alpha.15 unverified)
+- [#1198](https://github.com/cristianonescu/OpenStitch/issues/1198) Assistant wording: typed-answer choices on question cards, the replace question for a chat-only change, and acting without asking
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
@@ -968,8 +970,8 @@ Next, from [docs/ROADMAP.md](docs/ROADMAP.md):
 Open enhancement issues:
 
 <!-- status:issues-planned -->
-- [#130](https://github.com/cristianonescu/OpenStitch/issues/130) Add a PMV motif/pattern reader
-- [#134](https://github.com/cristianonescu/OpenStitch/issues/134) Import external scalable embroidery font containers
+- [#130](https://github.com/cristianonescu/OpenStitch/issues/130) Read PE-DESIGN's own PMV files (Stitch Design Factory layout)
+- [#134](https://github.com/cristianonescu/OpenStitch/issues/134) Import fonts the owner makes in PE-DESIGN's Font Creator (.pef)
 - [#291](https://github.com/cristianonescu/OpenStitch/issues/291) Fit the Realistic view and the similarity scorer to the T1 calibration measurements
 - [#292](https://github.com/cristianonescu/OpenStitch/issues/292) Sew-out reports wanted: other machines, and the non-PES formats
 - [#298](https://github.com/cristianonescu/OpenStitch/issues/298) Photo Stitch 1 trims far more than PE-DESIGN: travel between a thread's runs instead
@@ -1022,6 +1024,10 @@ Open enhancement issues:
 - [#1127](https://github.com/cristianonescu/OpenStitch/issues/1127) Check Design on every edit runs on the editor's UI thread; move it to a worker
 - [#1141](https://github.com/cristianonescu/OpenStitch/issues/1141) Fill Direction: normalise to PE-DESIGN's 0 to 359 on input and import
 - [#1145](https://github.com/cristianonescu/OpenStitch/issues/1145) Convert a satin between its centre-line form and its two-sides form, both ways, keeping the stitches
+- [#1170](https://github.com/cristianonescu/OpenStitch/issues/1170) Assistant: continue a restored chat with the coding agent's own session (ACP session/load)
+- [#1175](https://github.com/cristianonescu/OpenStitch/issues/1175) CI: check THIRD_PARTY_NOTICES.md against cargo metadata, and ship it with the browser version
+- [#1180](https://github.com/cristianonescu/OpenStitch/issues/1180) Commands to drive the Assistant panel for tests and scripting
+- [#1192](https://github.com/cristianonescu/OpenStitch/issues/1192) Sewing Order list: lay out only the rows on screen (a frame takes about 40 ms with 1,000 objects)
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN

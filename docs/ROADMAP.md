@@ -101,6 +101,27 @@ harness. The details per item are in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDI
   (their parallel use of macOS's pasteboard crashed the test binary now and then), and their
   temporary folders are per test.
 
+## Released: alpha.15 and alpha.16 (2026-11-16)
+
+- **alpha.15** (2026-11-16): stitches closer to PE-DESIGN 11.50's (fill under sewing, radial and
+  net fills, motif lines, satin e, Text Transform), PES 0110 fields, `.osd` version 6, safe
+  saving and Check Design's readiness level. Summary in
+  [BACKLOG.md](BACKLOG.md#shipped-in-alpha15-2026-11-16), changes in
+  [releases/v0.1.0-alpha.15.md](releases/v0.1.0-alpha.15.md).
+- **alpha.16** (2026-11-16), the scope the owner set after alpha.15:
+  - the Assistant: a coding agent sees attached pictures (#1168); the chat is kept with the
+    project (#1169); questions, suggested replies and fix chips (#1172); approval cards that
+    wait (#1188);
+  - closing and replacing unsaved work always ask (#1186);
+  - colours named by thread code (#1184, #1197);
+  - Sewing Order pictures that look like the objects (#1185);
+  - the README and every document reviewed (#1171).
+  Summary in [BACKLOG.md](BACKLOG.md#shipped-in-alpha16-2026-11-16), changes in
+  [releases/v0.1.0-alpha.16.md](releases/v0.1.0-alpha.16.md).
+
+Development is paused after alpha.16 until the owner says to resume. No further alpha is
+planned. The open work below and the open issues stay in the Future milestone.
+
 ## Still to do
 
 Assets (owner's rule of 2026-10-30, [research/asset-audit.md](research/asset-audit.md)): the
