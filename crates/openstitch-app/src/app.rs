@@ -1195,8 +1195,11 @@ impl EditorApp {
             self.turn_close = Some((what, false));
             return;
         }
-        // Open designs in tabs (#552): New and Open keep this design in its tab.
-        if self.ui.prefs.open_in_tabs && matches!(what, Pending::New | Pending::Open(_)) {
+        // Open designs in tabs (#552): New, Open and a template (#1179) keep this design in its
+        // tab.
+        if self.ui.prefs.open_in_tabs
+            && matches!(what, Pending::New | Pending::Open(_) | Pending::Template(_))
+        {
             self.perform_in_tab(what);
             return;
         }
@@ -1226,12 +1229,48 @@ impl EditorApp {
             Pending::New => self.new_design(),
             Pending::Open(None) => self.open_dialog(),
             Pending::Open(Some(p)) => self.open_in_background(&p),
+            Pending::Template(id) => {
+                self.open_template(&id);
+            }
         }
+    }
+
+    /// Opens template `id` (`builtin:<id>` or a `.ostemplate` path) as a new, untitled design,
+    /// as File ▸ New does (#1179): the next Save asks for a name instead of writing over the
+    /// file that was open. The Template Wizard goes on to its step 2 with the template's slots.
+    /// `false` when the template did not open.
+    fn open_template(&mut self, id: &str) -> bool {
+        let Some(v) = self.execute(&CommandRequest::new(
+            "template.open",
+            json!({ "template": id }),
+        )) else {
+            return false;
+        };
+        self.after_load(None);
+        self.lettering.templates.set_slots(&v);
+        self.lettering.templates.step = 2;
+        true
     }
 
     /// New or Open with Open designs in tabs on (#552): an empty, untouched design is reused,
     /// otherwise a new tab is added; a cancelled or failed open closes the tab it added.
     fn perform_in_tab(&mut self, what: Pending) {
+        // A template (#1179) goes into an empty, untouched untitled design as an opened file
+        // does, else into a new tab; a template that does not open closes the tab it added.
+        if let Pending::Template(id) = &what {
+            let reuse = !self.is_dirty()
+                && self.path.is_none()
+                && self.session.design().objects.is_empty();
+            if !reuse {
+                self.new_tab();
+            }
+            if !self.open_template(id) && !reuse {
+                let status = std::mem::take(&mut self.status);
+                self.close_active_tab();
+                self.status = status;
+            }
+            return;
+        }
         let path = match what {
             Pending::Open(None) => {
                 // The browser's picker answers later (#797): the open runs when it does.
@@ -2986,6 +3025,9 @@ mod open_bench_tests;
 #[cfg(test)]
 #[path = "a11y_tests.rs"]
 mod a11y_tests;
+#[cfg(test)]
+#[path = "replace_design_tests.rs"]
+mod replace_design_tests;
 #[cfg(test)]
 #[path = "px_per_mm_tests.rs"]
 mod px_per_mm_tests;
