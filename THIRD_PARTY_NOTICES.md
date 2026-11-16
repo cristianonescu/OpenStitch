@@ -102,8 +102,9 @@ Apache-2.0; no files copied.
 Linked into the editor through `openstitch-update` (docs/research/updater.md): ureq is the HTTPS
 client that asks GitHub for releases and downloads them, over rustls with the Mozilla root
 certificates bundled by webpki-roots and the ring cryptography provider; semver orders versions;
-sha2 checks a download against the release's `SHA256SUMS`. ureq, rustls, semver and sha2 are
-MIT OR Apache-2.0; webpki-roots is MPL-2.0 (the root list, used unmodified) and CDLA-Permissive-2.0;
+sha2 checks a download against the release's `SHA256SUMS`. ureq, semver and sha2 are
+MIT OR Apache-2.0; rustls is Apache-2.0 OR ISC OR MIT; webpki-roots 1.0 is CDLA-Permissive-2.0 (the
+root list, used unmodified);
 ring is Apache-2.0 AND ISC (with OpenSSL-licensed assembly). The downloaded packages are unpacked
 with zip (MIT; https://github.com/zip-rs/zip2), tar (MIT OR Apache-2.0;
 https://github.com/alexcrichton/tar-rs) and flate2 (MIT OR Apache-2.0, already used for PNG). No
@@ -199,9 +200,9 @@ the following restrictions:
 
 ## i_overlay 9.1 and its iShape-Rust dependencies (i_float, i_shape, i_tree, i_key_sort) — https://github.com/iShape-Rust/iOverlay
 
-Linked into `openstitch-design` for polygon boolean operations and offsets. Licensed MIT OR
-Apache-2.0 (the same terms as OpenStitch); see each crate's `LICENSE` files in its published
-package. Copyright (c) Nail Sharipov.
+Linked into `openstitch-design` for polygon boolean operations and offsets. i_overlay is licensed
+MIT OR Apache-2.0 (the same terms as OpenStitch); i_float, i_shape, i_tree and i_key_sort are
+MIT. See each crate's `LICENSE` files in its published package. Copyright (c) Nail Sharipov.
 
 ## rustybuzz 0.20.1 — https://github.com/harfbuzz/rustybuzz
 

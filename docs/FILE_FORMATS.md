@@ -30,8 +30,8 @@ Notes that do not change the fixture bytes:
 | VIP | ✅ | ✅ | PE-DESIGN 11.50 reference write (streams and header identical); colour table confirmed by libembroidery's reader | No independent stitch decoder exists (pyembroidery has no VIP module; libembroidery's decompressor is a stub). |
 | SHV | ✅ | ✅ | Oracle-verified read; PE-DESIGN 11.50 reference write (header, bounds, counts and records identical; preview pixels approximate) | Six header bytes copied from PE-DESIGN's export, meaning unknown. See "SHV" below. |
 | CSD | ✅ | ✅ | Read verified against PE-DESIGN 11.50's export (type 0; type 1 spec-derived); PE-DESIGN 11.50 reference write (byte-identical) | Fixed-key obfuscation (libembroidery's masks). See "CSD" below. |
-| VP3 | ✅ | ✅ **experimental** (beyond PE-DESIGN, #480) | Round-trip and oracle tested only (pyembroidery 1.5.1 both ways, the 35 kit designs); **no reference file from Husqvarna or Pfaff software and no sew-out on a machine yet** | Thread brand, catalogue number and name per colour. See "VP3" below. |
-| TAP (Tajima) | ✅ | ✅ **experimental** (beyond PE-DESIGN, #481) | Oracle tested only (pyembroidery 1.5.1 both ways, the 35 kit designs); no Tajima reference file, no sew-out | DST's records without the header; no colours. See "More machine formats" below. |
+| VP3 | ✅ | ✅ **experimental** (beyond PE-DESIGN, #480) | Round-trip and oracle tested only (pyembroidery 1.5.1 both ways, the 35 kit designs of 2026-11-05); **no reference file from Husqvarna or Pfaff software and no sew-out on a machine yet** | Thread brand, catalogue number and name per colour. See "VP3" below. |
+| TAP (Tajima) | ✅ | ✅ **experimental** (beyond PE-DESIGN, #481) | Oracle tested only (pyembroidery 1.5.1 both ways, the 35 kit designs of 2026-11-05); no Tajima reference file, no sew-out | DST's records without the header; no colours. See "More machine formats" below. |
 | TBF (Tajima) | ✅ | ✅ **experimental** (#481) | Oracle tested only (as TAP) | RGB per colour block, needle order. |
 | U01 (Barudan) | ✅ | ✅ **experimental** (#481) | Oracle tested only (as TAP) | No colours: needles. |
 | DSB (Barudan) | ✅ | — (read only, #481) | Oracle tested only (pyembroidery's read of a file assembled from the layout) | |
@@ -145,8 +145,9 @@ pyembroidery's `6`. `pesVersion` = `1t`, `1`, `6t` (and `4`, `5`, `7`–`10`, be
 11's `#PES0110` with the design's shapes as editable objects ("PES 0110 object list", "Writer"
 below); `1t` (`#PES0001`, offset 0x16, 10 zero bytes, no objects) stays as the smallest,
 machine-only file. PE-DESIGN 11.50 opened the default `#PES0060` file with its stitches on
-2026-10-27 (compat `pes-default-v6`, reference tier pass). **Unverified:**
-whether every Brother machine opens these files, and whether PE-DESIGN 11 opens the `1t`, `1` and
+2026-10-27 (compat `pes-default-v6`, reference tier pass). It opened a `1t` export blank, as a
+file with no object section (COMPATIBILITY_TESTS.md, `pes-csewseg-trims`, 2026-10-27). **Unverified:**
+whether every Brother machine opens these files, and whether PE-DESIGN 11 opens the `1` and
 `6t` outputs; needs a black-box open test on the owner's machine (docs/COMPATIBILITY_AUDIT.md item 2).
 
 ### Save as a PES version: what each keeps
@@ -220,10 +221,12 @@ into a design that has none (`adoptProperties` overrides).
 `pes::read_objects` exposes the parsed objects (transform, size, stitch runs, colour log).
 
 PE-DESIGN's editable objects have no public description. Their mapping, from the owner's own
-PE-DESIGN files, is in "PES 0110 object list" below. The reader reads `CEmbLine` shapes,
-`CEmbNText` texts, the groups and the page size and stops at the first other class (`ObjectSection::unparsed`);
-`pes11::write` writes them back (`pesVersion` 11). Versions 1 and 6 still write the shapes as
-stitches (a `CEmbOne` stitch group). Unverified: whether PE-DESIGN accepts several `CEmbOne`
+PE-DESIGN files, is in "PES 0110 object list" below. The reader reads `CEmbLine` shapes
+(Shapes-gallery `CEmbSpecialShape` and Manual Punch blocks among them), `CEmbNText` texts with
+their Text Transform (`CEmbDText`) or fit to an outline (`CEmbAText`), `CEmbOne` stitch groups,
+the groups and the page size, and stops at the first other class (`ObjectSection::unparsed`);
+`pes11::write` writes them back (`pesVersion` 11). Every other version writes the shapes as
+stitches (a `CEmbOne` stitch group; `1t` and `6t` hold no object). Unverified: whether PE-DESIGN accepts several `CEmbOne`
 objects in one file, so those writers emit one for the whole design.
 
 ### PES 0110 object list
@@ -800,7 +803,8 @@ written click point) and retyping works; its re-save keeps the object section bu
 box's right edge, which it takes from its own layout (787 → 793). It showed a Hoop Settings tab and no
 stitch count in the status bar: the file was on a Custom Size page (with PE-DESIGN's own PEC
 stitches too, probe p2), so a 100 × 100 mm design is now written on PE-DESIGN's default Hoop Size
-page (probe p3 asks PE-DESIGN to confirm). A plain click on a stroke selects the text, as for
+page (probe p3 asks PE-DESIGN to confirm; 2026-11-16: p3 confirmed it on 2026-10-29, no Hoop
+Settings tab and the stitch total shows, see FEATURE_MATRIX.md). A plain click on a stroke selects the text, as for
 PE-DESIGN's own text (a click inside the A's counter selects neither). **Text Transform (2026-10-29,
 `pes-0110-editable-text-transform`, reference tier):** PE-DESIGN opens HHHHHHH with preset 1 as
 editable text with Transform ticked, preset 1 at its default level (re-selecting the preset gives

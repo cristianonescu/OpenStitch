@@ -2,7 +2,7 @@
 
 **Pattern blocks redacted (2026-11-14, #1060).** PE-DESIGN writes its default decorative pattern into the pattern block of every shape it saves; that is Brother content, so every such block in these files was rewritten to OpenStitch's placeholder rows at the same length, every other byte unchanged (`tools/redact_pattern_blocks.py`). The SHA-256 values here are the redacted files'; the hashes as PE-DESIGN saved them are in `docs/research/2026-11-14/pattern-block-redaction-table.md`.
 
-Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows 11 Pro 10.0.26300, 2026-10-29, by black-box GUI use only (session pe-refs-4), from an owner-made image. App menu > New (100 x 100 mm page). Every file: Save As "Layout & Editing Ver.11.0 File (*.PES)" (#PES0110). Issues #127 (Auto Punch), #128 (Photo Stitch), #132 (Cross Stitch). These are fixtures for the digitizer tests; no test reads them yet.
+Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows 11 Pro 10.0.26300, 2026-10-29, by black-box GUI use only (session pe-refs-4), from an owner-made image. App menu > New (100 x 100 mm page). Every file: Save As "Layout & Editing Ver.11.0 File (*.PES)" (#PES0110). Issues #127 (Auto Punch), #128 (Photo Stitch), #132 (Cross Stitch). These are fixtures for the digitizer tests. (2026-11-16: `crossstitch-g07-2.5.pes`, below, is read by the engine test `pe_compatible_cross_stitch_lays_pe_designs_grid_on_pixel_art` in `crates/openstitch-engine/tests/digitize.rs`; no test reads the round 4 files.)
 
 | File | SHA-256 | Made as |
 |---|---|---|

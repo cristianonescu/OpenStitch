@@ -12,6 +12,8 @@ fix commands; #503), both in `openstitch-engine/src/quality.rs`. Thread-brand co
 ΔE00), with ΔE2000 in `openstitch-core/src/colour.rs`. Auto hoop is not a command of its own:
 export results report `smallestHoop`, and `design.testSwatch` puts a selection in the smallest
 hoop it fits (#452).
+(2026-11-16: auto hoop landed as commands in #879, `machine.useSmallestHoop` and
+`design.fitToHoop`; see FEATURE_MATRIX.md, B13.)
 
 ## 1. What the feature is
 
