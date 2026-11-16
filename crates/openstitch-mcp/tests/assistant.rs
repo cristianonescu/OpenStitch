@@ -286,6 +286,11 @@ fn assistant_instructions_are_short_and_point_at_the_skill() {
     );
     // #1188: a command held for the user's approval.
     assert!(instructions.contains("approval card"), "{instructions}");
+    // #1186: closing, quitting and replacing unsaved work wait for the user.
+    assert!(
+        instructions.contains("Closing/replacing unsaved work: ask first"),
+        "{instructions}"
+    );
     assert!(instructions.len() < 1000, "{}", instructions.len());
     editor.finish();
 }

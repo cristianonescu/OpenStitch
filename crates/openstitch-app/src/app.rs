@@ -261,6 +261,10 @@ pub struct EditorApp {
     /// the document it was restored or started in, and only that document's save writes it.
     /// A new one for every New, Open and tab.
     pub(crate) chat_doc: u64,
+    /// A close or a tab close asked while the Assistant's turn runs (#1186): the question
+    /// "Stop and close" is open (`false`), or the turn is being stopped (`true`) before the
+    /// usual unsaved-changes question.
+    pub(crate) turn_close: Option<(Pending, bool)>,
     /// Counts changes to the kept chat (#1169), so autosave sees a conversation change as it sees
     /// a design change ([`EditorApp::snapshot_key`]).
     pub(crate) chat_edits: u64,
@@ -411,6 +415,7 @@ impl EditorApp {
             undo_groups: Vec::new(),
             redo_groups: Vec::new(),
             chat_doc: crate::assistant_panel::next_document(),
+            turn_close: None,
             chat_edits: 0,
             refresh_deferred: None,
             workspace: Default::default(),
@@ -1173,6 +1178,13 @@ impl EditorApp {
     /// Runs `what` now, or opens the unsaved-changes prompt for it when the design has
     /// unsaved changes (File ▸ New, Open, Exit and the Recent Files go through here).
     pub fn guarded(&mut self, what: Pending) {
+        // Closing while the Assistant works asks first, whatever is saved (#1186).
+        if matches!(what, Pending::Exit | Pending::CloseTab)
+            && crate::assistant_panel::turn_running(self)
+        {
+            self.turn_close = Some((what, false));
+            return;
+        }
         // Open designs in tabs (#552): New and Open keep this design in its tab.
         if self.ui.prefs.open_in_tabs && matches!(what, Pending::New | Pending::Open(_)) {
             self.perform_in_tab(what);
@@ -1250,6 +1262,26 @@ impl EditorApp {
         }
     }
 
+    /// "Stop and close" (#1186): stops the turn; once it has ended, the close goes on through
+    /// the usual unsaved-changes question ([`EditorApp::poll_turn_close`]).
+    pub(crate) fn stop_turn_and_close(&mut self) {
+        if let Some((_, stopping)) = &mut self.turn_close {
+            *stopping = true;
+            crate::assistant_panel::stop(self);
+        }
+    }
+
+    /// Each frame: a stopped turn's close goes on once the turn has ended.
+    pub(crate) fn poll_turn_close(&mut self) {
+        if let Some((what, true)) = &self.turn_close
+            && !crate::assistant_panel::turn_running(self)
+        {
+            let what = what.clone();
+            self.turn_close = None;
+            self.guarded(what);
+        }
+    }
+
     /// The prompt's answer: Save goes on only when the save left the design clean (a
     /// cancelled Save As stays), Don't Save goes on, Cancel stays.
     pub fn answer_close_prompt(&mut self, choice: Choice) {
@@ -1279,8 +1311,17 @@ impl EditorApp {
     /// The window was asked to close (X button, Alt+F4, the OS): with unsaved changes and no
     /// approval the close is cancelled and the prompt opens.
     fn close_request(&mut self, ctx: &egui::Context) {
-        if !ctx.input(|i| i.viewport().close_requested()) || self.exit_approved || !self.any_dirty()
-        {
+        if !ctx.input(|i| i.viewport().close_requested()) || self.exit_approved {
+            return;
+        }
+        // While the Assistant's turn runs a close always asks first (#1186), also with nothing
+        // unsaved yet: the turn may be about to change the design.
+        if crate::assistant_panel::turn_running(self) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.turn_close = Some((Pending::Exit, false));
+            return;
+        }
+        if !self.any_dirty() {
             return;
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
@@ -2309,6 +2350,8 @@ impl eframe::App for EditorApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
         // Before the shortcuts, so the prompt takes Enter and Escape.
+        self.poll_turn_close();
+        crate::close_ui::turn_window(self, &ctx);
         crate::close_ui::window(self, &ctx);
         #[cfg(target_os = "macos")]
         self.macos_app_shortcuts(&ctx);

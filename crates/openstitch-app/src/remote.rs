@@ -71,9 +71,10 @@ impl EditorApp {
             }
         }
         let request = request.as_ref();
+        let unsaved_before = self.is_dirty();
         let reply = self.remote_engine_request(command, request);
         if reply["ok"] == json!(true) {
-            self.after_remote_file_command(command, &reply["result"]);
+            self.after_remote_file_command(command, &reply["result"], unsaved_before);
         }
         reply
     }
@@ -104,15 +105,26 @@ impl EditorApp {
     /// Assistant's turn its conversation goes on and the file keeps its own); a new design is a
     /// new document (`after_load`); a save makes that file the document's file, as Save As does,
     /// and the conversation stays with it.
-    fn after_remote_file_command(&mut self, command: &str, result: &Value) {
+    ///
+    /// A design that had unsaved changes stays in Undo after an open or a new design, and the
+    /// new one is marked unsaved, so closing still asks (#1186): it must not look saved.
+    fn after_remote_file_command(&mut self, command: &str, result: &Value, unsaved_before: bool) {
         let path = || result["path"].as_str().map(std::path::PathBuf::from);
         match command {
             "project.open" => {
                 if let Some(p) = path() {
                     self.after_open(&p);
+                    if unsaved_before {
+                        self.mark_unsaved();
+                    }
                 }
             }
-            "design.new" => self.after_load(None),
+            "design.new" => {
+                self.after_load(None);
+                if unsaved_before {
+                    self.mark_unsaved();
+                }
+            }
             "project.save" => {
                 if let Some(p) = path() {
                     self.status = openstitch_app::tf!("ui-status-saved", path = p.display());

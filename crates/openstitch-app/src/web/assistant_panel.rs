@@ -48,3 +48,10 @@ pub fn offer(
 ) -> Result<serde_json::Value, String> {
     Err("the web editor has no Assistant panel".into())
 }
+
+/// No turn runs in the browser (#1186).
+pub fn turn_running(_app: &EditorApp) -> bool {
+    false
+}
+
+pub fn stop(_app: &mut EditorApp) {}
