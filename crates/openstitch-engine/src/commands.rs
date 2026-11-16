@@ -3510,15 +3510,17 @@ fn file_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "project.open",
-            "Open an editable design (.osd), replacing the current one. A conversation the file kept is shown again in the editor's Assistant panel; chatRows in the reply counts its rows (0: none)",
+            "Open an editable design (.osd), replacing the current one. A conversation the file kept is shown again in the editor's Assistant panel; the reply has the file's path, and chatRows counts the conversation's rows (0: none)",
             Effect::Edit,
             vec![PATH],
             |s, p| {
-                let (_, data) = read_file(s, p, project::MAX_SIZE)?;
+                let (path, data) = read_file(s, p, project::MAX_SIZE)?;
                 (s.design, s.chat) = project::decode_with_chat(&data)?;
+                // The file opened, for the editor's title and its next Save (#1178).
                 Ok(json!({
                     "name": s.design.name,
                     "objects": s.design.objects.len(),
+                    "path": path.display().to_string(),
                     // How many rows of the Assistant's conversation the file kept (#1176).
                     "chatRows": s.chat.as_ref().map_or(0, |c| c.rows.len()),
                 }))

@@ -386,7 +386,9 @@ can come back, read it and go on from where it stopped.
   chat its own file kept. A tab switch shows the switched-to tab's chat (not while a turn runs).
   New and Open show the new document's chat. During the Assistant's turn the running
   conversation stays: a design it makes or opens without a chat of its own takes it, and a file
-  with a chat of its own keeps that one (the chat says so). Recovery snapshots keep the
+  with a chat of its own keeps that one (the chat says so). The same holds for `project.open`,
+  `design.new` and `project.save` sent by the model or a `--listen` client: since #1178 they do
+  what File ▸ Open, New and Save do (`EditorApp::after_remote_file_command`). Recovery snapshots keep the
   chat as a save does.
 - **Unsaved.** While the chat is saved with the project, a change to what a save keeps (a
   message, a reply, a notice, a tool step, New chat on a kept chat) marks the document unsaved,
