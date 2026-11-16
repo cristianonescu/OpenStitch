@@ -148,6 +148,12 @@ SCENES = {
     "thread-charts": (["--demo", "--show", "charts"], [IMG("thread-charts")]),
     "print": (["--demo", "--show", "print"], [IMG("print")]),
     "usb": (["--demo", "--show", "usb"], [IMG("usb"), ("docs/images/readme/usb-transfer.png", 1280)]),
+    # #1171: Check Design from the status bar's readiness level (2 errors, 5 warnings, rings on the
+    # page), and its Density map tab with the map shown on the design (two fills overlapping).
+    "check-design": (["check-design.osd", "--script", "sclick:1195,888;wait:30"], [IMG("check-design")]),
+    "density-map": (["check-design.osd", "--script",
+                     "sclick:1195,888;wait:30;sclick:146,67;wait:20;sclick:30,122;wait:30"],
+                    [IMG("density-map")]),
 }
 
 
@@ -179,7 +185,7 @@ def prepare(work):
     shutil.copytree(ROOT / "examples" / "digitize", work / "digitize")
     shutil.copytree(ROOT / "examples" / "imports", work / "imports")
     for example in ["drawing", "monograms", "user-patterns", "sewing-stitches", "applique",
-                    "background-fill", "cutwork", "patch", "font-creator", "imports", "lettering",
+                    "background-fill", "check-design", "cutwork", "patch", "font-creator", "imports", "lettering",
                     "name-drop", "ornaments", "sewing-direction", "split-banner", "stamps",
                     "template-wizard", "user-mapped-text"]:
         build_project(work, f"{example}.json", example)

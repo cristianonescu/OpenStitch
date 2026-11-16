@@ -593,7 +593,7 @@ Threads, in sewing order: 019 Sky Blue, 800 Red, 900 Black.
 
 Each image tool on a test image, in both of its modes: PE-DESIGN-compatible mode (OpenStitch's reimplementation of PE-DESIGN 11's method) and OpenStitch mode. The source image is on the left.
 
-#### Auto Punch, OpenStitch mode
+#### Auto Punch, balloon, OpenStitch mode
 
 [`image-tools/S-autopunch-balloon-openstitch.pes`](image-tools/S-autopunch-balloon-openstitch.pes) · 100 × 100 mm hoop · 90 × 67.9 mm · 7,908 stitches · 16 trims · about 10.7 min
 
@@ -603,7 +603,7 @@ Each image tool on a test image, in both of its modes: PE-DESIGN-compatible mode
 
 Threads, in sewing order: 001 White, 206 Harvest Gold, 017 Light Blue, 509 Leaf Green, 323 Light Brown, 030 Vermillion, 515 Moss Green.
 
-#### Auto Punch, PE-DESIGN-compatible mode
+#### Auto Punch, balloon, PE-DESIGN-compatible mode
 
 [`image-tools/S-autopunch-balloon-pe-compatible.pes`](image-tools/S-autopunch-balloon-pe-compatible.pes) · 100 × 100 mm hoop · 89.6 × 62.1 mm · 5,769 stitches · 13 trims · about 7.9 min
 
@@ -613,7 +613,7 @@ Threads, in sewing order: 001 White, 206 Harvest Gold, 017 Light Blue, 509 Leaf 
 
 Threads, in sewing order: 001 White, 812 Cream Yellow, 509 Leaf Green, 339 Clay Brown, 704 Pewter.
 
-#### Cross Stitch, OpenStitch mode
+#### Cross Stitch, pixel strawberry, OpenStitch mode
 
 [`image-tools/S-cross-stitch-strawberry-openstitch.pes`](image-tools/S-cross-stitch-strawberry-openstitch.pes) · 100 × 100 mm hoop · 65 × 80 mm · 7,736 stitches · 142 trims · about 16.9 min
 
@@ -623,7 +623,7 @@ Threads, in sewing order: 001 White, 812 Cream Yellow, 509 Leaf Green, 339 Clay 
 
 Threads, in sewing order: 206 Harvest Gold, 079 Salmon Pink, 509 Leaf Green, 800 Red, 507 Emerald Green.
 
-#### Cross Stitch, PE-DESIGN-compatible mode
+#### Cross Stitch, pixel strawberry, PE-DESIGN-compatible mode
 
 [`image-tools/S-cross-stitch-strawberry-pe-compatible.pes`](image-tools/S-cross-stitch-strawberry-pe-compatible.pes) · 100 × 100 mm hoop · 60 × 77.5 mm · 3,637 stitches · 121 trims · about 10.7 min
 
@@ -633,7 +633,7 @@ Threads, in sewing order: 206 Harvest Gold, 079 Salmon Pink, 509 Leaf Green, 800
 
 Threads, in sewing order: 208 Orange, 323 Light Brown, 800 Red, 515 Moss Green, 107 Dark Fuchsia.
 
-#### Design Center, OpenStitch mode
+#### Design Center, butterfly outline, OpenStitch mode
 
 [`image-tools/S-design-center-butterfly-openstitch.pes`](image-tools/S-design-center-butterfly-openstitch.pes) · 100 × 100 mm hoop · 88.8 × 74.5 mm · 4,548 stitches · 66 trims · about 9.1 min
 
@@ -643,7 +643,7 @@ Threads, in sewing order: 208 Orange, 323 Light Brown, 800 Red, 515 Moss Green, 
 
 Threads, in sewing order: 900 Black.
 
-#### Design Center, PE-DESIGN-compatible mode
+#### Design Center, butterfly outline, PE-DESIGN-compatible mode
 
 [`image-tools/S-design-center-butterfly-pe-compatible.pes`](image-tools/S-design-center-butterfly-pe-compatible.pes) · 100 × 100 mm hoop · 88.2 × 74 mm · 1,801 stitches · 15 trims · about 3 min
 
@@ -653,7 +653,7 @@ Threads, in sewing order: 900 Black.
 
 Threads, in sewing order: 900 Black.
 
-#### Photo Stitch 1, OpenStitch mode
+#### Photo Stitch 1, sunset, OpenStitch mode
 
 [`image-tools/S-photo1-sunset-openstitch.pes`](image-tools/S-photo1-sunset-openstitch.pes) · 100 × 100 mm hoop · 90 × 50.2 mm · 7,929 stitches · 102 trims · about 15.1 min
 
@@ -663,7 +663,7 @@ Threads, in sewing order: 900 Black.
 
 Threads, in sewing order: 001 White, 209 Tangerine, 086 Deep Rose, 612 Lilac, 607 Wisteria Violet, 333 Amber Red, 030 Vermillion, 800 Red, 614 Purple, 007 Prussian Blue, 900 Black.
 
-#### Photo Stitch 1, PE-DESIGN-compatible mode
+#### Photo Stitch 1, sunset, PE-DESIGN-compatible mode
 
 [`image-tools/S-photo1-sunset-pe-compatible.pes`](image-tools/S-photo1-sunset-pe-compatible.pes) · 100 × 100 mm hoop · 90 × 50.2 mm · 9,838 stitches · 27 trims · about 13.7 min
 
@@ -673,7 +673,7 @@ Threads, in sewing order: 001 White, 209 Tangerine, 086 Deep Rose, 612 Lilac, 60
 
 Threads, in sewing order: 001 White, 209 Tangerine, 348 Khaki, 817 Gray, 612 Lilac, 607 Wisteria Violet, 333 Amber Red, 704 Pewter, 707 Dark Gray, 900 Black.
 
-#### Photo Stitch 1, OpenStitch mode
+#### Photo Stitch 1, portrait, OpenStitch mode
 
 [`image-tools/M-photo1-portrait-openstitch.pes`](image-tools/M-photo1-portrait-openstitch.pes) · 150 × 150 mm hoop · 94.1 × 139.8 mm · 24,486 stitches · 504 trims · about 56.4 min
 
@@ -683,7 +683,7 @@ Threads, in sewing order: 001 White, 209 Tangerine, 348 Khaki, 817 Gray, 612 Lil
 
 Threads, in sewing order: 001 White, 348 Khaki, 005 Silver, 817 Gray, 323 Light Brown, 704 Pewter, 107 Dark Fuchsia, 415 Peacock Blue, 707 Dark Gray, 058 Dark Brown, 900 Black.
 
-#### Photo Stitch 1, PE-DESIGN-compatible mode
+#### Photo Stitch 1, portrait, PE-DESIGN-compatible mode
 
 [`image-tools/M-photo1-portrait-pe-compatible.pes`](image-tools/M-photo1-portrait-pe-compatible.pes) · 150 × 150 mm hoop · 94.1 × 139.8 mm · 26,614 stitches · 57 trims · about 36.2 min
 
@@ -693,7 +693,7 @@ Threads, in sewing order: 001 White, 348 Khaki, 005 Silver, 817 Gray, 323 Light 
 
 Threads, in sewing order: 001 White, 348 Khaki, 817 Gray, 333 Amber Red, 704 Pewter, 707 Dark Gray, 519 Olive Green.
 
-#### Photo Stitch 2, OpenStitch mode
+#### Photo Stitch 2, poppies, OpenStitch mode
 
 [`image-tools/M-photo2-poppies-openstitch.pes`](image-tools/M-photo2-poppies-openstitch.pes) · 150 × 150 mm hoop · 140.9 × 141 mm · 60,785 stitches · 4 trims · about 76.2 min
 
@@ -703,7 +703,7 @@ Threads, in sewing order: 001 White, 348 Khaki, 817 Gray, 333 Amber Red, 704 Pew
 
 Threads, in sewing order: 515 Moss Green, 800 Red, 058 Dark Brown, 323 Light Brown.
 
-#### Photo Stitch 2, PE-DESIGN-compatible mode
+#### Photo Stitch 2, poppies, PE-DESIGN-compatible mode
 
 [`image-tools/M-photo2-poppies-pe-compatible.pes`](image-tools/M-photo2-poppies-pe-compatible.pes) · 150 × 150 mm hoop · 140.5 × 140.5 mm · 64,272 stitches · 4 trims · about 80.5 min
 
@@ -713,7 +713,7 @@ Threads, in sewing order: 515 Moss Green, 800 Red, 058 Dark Brown, 323 Light Bro
 
 Threads, in sewing order: 517 Dark Olive, 800 Red, 704 Pewter, 339 Clay Brown.
 
-#### Auto Punch, OpenStitch mode
+#### Auto Punch, storybook, OpenStitch mode
 
 [`image-tools/L-autopunch-storybook-openstitch.pes`](image-tools/L-autopunch-storybook-openstitch.pes) · 260 × 160 mm hoop · 199 × 150.1 mm · 95,055 stitches · 1082 trims · about 174.3 min
 
@@ -723,7 +723,7 @@ Threads, in sewing order: 517 Dark Olive, 800 Red, 704 Pewter, 339 Clay Brown.
 
 Threads, in sewing order: 017 Light Blue, 843 Beige, 005 Silver, 348 Khaki, 339 Clay Brown, 328 Brass, 323 Light Brown, 330 Russet Brown, 704 Pewter, 058 Dark Brown.
 
-#### Auto Punch, PE-DESIGN-compatible mode
+#### Auto Punch, storybook, PE-DESIGN-compatible mode
 
 [`image-tools/L-autopunch-storybook-pe-compatible.pes`](image-tools/L-autopunch-storybook-pe-compatible.pes) · 260 × 160 mm hoop · 199.3 × 150.9 mm · 114,368 stitches · 2047 trims · about 247.9 min
 

@@ -171,6 +171,15 @@ def self_test():
     no_legend_entry = ok.replace(" · Partial (beyond PE-DESIGN)", "")
     assert unknown_statuses(no_legend_entry) == ([], ["Partial (beyond PE-DESIGN)"]), \
         unknown_statuses(no_legend_entry)
+    # Audit summary items marked fixed or not applicable are not known issues (#1171).
+    summary = ("## 1. Open one\n## 2. Done one\n## 3. Half one\n## 4. Moot one\n\n"
+               "| # | Difference | Area |\n|---|---|---|\n"
+               "| 1 | Open one | X |\n"
+               "| 2 | Done one (**fixed**, reference) | X |\n"
+               "| 3 | Half one (**partly fixed**: lines) | X |\n"
+               "| 4 | Moot one (**not applicable**: #377 closed as not planned) | X |\n")
+    got = [(n, t, p) for n, t, p, _ in audit_items(summary)]
+    assert got == [("1", "Open one", False), ("3", "Half one", True)], got
     # The glance line's parts add up to the row total on the real matrix (#1005).
     rows, counts, _, _, _ = matrix()
     parts = ("Implemented", "Partially Compatible", "Verified Compatible", "Documented",
@@ -267,7 +276,12 @@ def anchor(heading):
 
 
 def audit():
-    text = AUDIT.read_text(encoding="utf-8")
+    return audit_items(AUDIT.read_text(encoding="utf-8"))
+
+
+def audit_items(text):
+    """(number, title, partly fixed?, anchor) of each summary item still open: not marked
+    **fixed** and not **not applicable** (#1171: PE-DESIGN has no behaviour to match)."""
     heads = {}
     for line in text.splitlines():
         m = re.match(r"## (\d+)\. (.*)", line)
@@ -276,7 +290,7 @@ def audit():
     items = []
     for r in table_rows(text, "| # | Difference"):
         num, diff = r[0], r[1]
-        if "**fixed**" in diff:
+        if "**fixed**" in diff or "**not applicable**" in diff:
             continue
         partly = "**partly fixed**" in diff
         title = re.split(r" \(\*\*", diff, maxsplit=1)[0].strip()

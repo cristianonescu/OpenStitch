@@ -93,16 +93,16 @@ dearest:
 | # | Difference | Area | Severity | Grade | Needs reference to finish? |
 |---|---|---|---|---|---|
 | 1 | Satin sewn as a square wave, not a zigzag (**fixed**, internal regression) | Stitches | 5 | Defect | No |
-| 2 | Default PES is truncated v1 with no object section (**fixed**; v6 open test passed at the reference tier 2026-10-27; `1t`/`1`/`6t` opens and library convert pending) | PES | 5 | Documented, unverified | Black-box open test |
+| 2 | Default PES is truncated v1 with no object section (**fixed**; v6 open test passed at the reference tier 2026-10-27; the PEC-only `1t` export opened blank in PE-DESIGN 11.50 on 2026-10-27, as EduTechWiki describes a minimal PES (COMPATIBILITY_TESTS.md, `pes-csewseg-trims`); `1`/`6t` opens and library convert pending) | PES | 5 | Documented, unverified | Black-box open test |
 | 3 | Trims and jumps inside one fill or satin region; no Running Stitch Path (**fixed**, internal regression) | Stitches | 5 | Documented difference | No |
-| 4 | Trims between underlay, top stitching and outline of one object | Stitches | 4 | Documented, unverified | Single-needle policy |
+| 4 | Trims between underlay, top stitching and outline of one object (**partly fixed**: the trim bound between fills settled at the reference tier 2026-10-28, `machine-jumps`, `machine-trim-bound`, `machine-trim-fine`; joins between lines and no lock or tie-in at a join sewn across since 2026-11-14, #987 closed, `sew-across-running-lines-*`; open: lines into fills, no capture yet, and letters, #1082) | Stitches | 4 | Documented, unverified | Single-needle policy |
 | 5 | Every design is written as one stitch group, nothing editable (**partly fixed**, 2026-10-29: `pesVersion` 11 writes shapes as `CEmbLine`, which PE-DESIGN 11.50 opens editable, and Lato Bold text as `CEmbNText`, which it opens editable and retypable (both reference); stitch patterns as `CEmbOne` stitch groups (reference, `pes-0110-stitches`); Text Transform and text on an outline open editable (reference, 2026-10-29); Hoop Size pages written as PE-DESIGN writes them since 2026-11-04 (#322); stamps, one column of vertical text, several groups and motif lines and fills written by 2026-11-14 (#608); object kinds still refused: #1024) | PES | 5 | Reference | Yes (the kinds of #1024) |
 | 6 | One sewing direction per text instead of per stroke (**partly fixed**: satin text sewn stroke by stroke since 2026-10-31, fill text since 2026-11-04 (#376); open: under sewing per stroke; letter-shape leftovers #938-#941 (A's foot, run-on foot order, M and W at 8 mm); fill text under a Text Transform sews by stroke since 2026-11-11 (#428)) | Fonts | 5 | Documented difference | Angles |
 | 7 | Auto direction is one fixed angle (**fixed**, internal regression) | Stitches | 4 | Documented difference | No |
 | 8 | Underlay model differs (**partly fixed**: PE's two region types, Density Dense / Medium / Light, the Manual Punch column's edge / piping / zigzag; zigzag lines have under sewing, on by default as PE-DESIGN's, `line-zigzag-default`; open: which type PE applies to the other region kinds, the zigzag's split points) | Stitches | 4 | Documented difference | Geometry |
 | 9 | PE-DESIGN-made PES files lose objects, properties and colours on re-save (**partly fixed**, 2026-11-05, #375, #397, #398, #120: an opened file exported unchanged is written back byte for byte; its thread table reaches the stitches; every PE-DESIGN `#PES0110` file imports as objects, texts and stitch groups included, and an edited one exports as `#PES0110`; an edited file still loses the other region types' own settings, a motif fill's arrangement beyond one motif (motif sizes and spacing are read since #608), per-letter colours and unmapped fields) | PES | 4 | Documented difference | No |
 | 10 | Hoop and Design Page fields hard-coded in PES (**fixed**, 2026-11-04, #322: `#PES0110` page, hoop, machine type and sections byte for byte against PE-DESIGN's files; v1 and the v6 display fields have no PE-DESIGN reference) | PES | 4 | Reference | No |
-| 11 | No Connection Points (Default / Closest / Farther) for text | Fonts | 4 | Documented difference | Geometry |
+| 11 | No Connection Points (Default / Closest / Farther) for text (**not applicable**: #377 closed as not planned on 2026-11-14, because PE-DESIGN 11.50 greys Connection Points out for TrueType text and offers them only for its built-in fonts, which OpenStitch does not use; a setting of OpenStitch's own would be a new beyond-PE-DESIGN issue) | Fonts | 4 | Documented difference | Geometry |
 | 12 | No minimum font sizes or small-text fonts (**fixed**, 2026-11-07, #527, #530: size ranges with a warning, the OpenStitch Line small-text font, compared with PE-DESIGN's recorded Small Text numbers, internal regression) | Fonts | 4 | Documented difference | No |
 | 13 | No per-character colour or multi-character selection | Fonts | 4 | Documented difference | Colour grouping |
 | 14 | Programmable fill and fill default to 0° instead of 45° (**fixed**: programmable fill internal regression, fill 2026-10-30 from pes-objects r01; type change rule pending) | Stitches | 3 | Documented difference | No |
@@ -1018,6 +1018,11 @@ Line references are relative to `crates/`.
   multi-colour text, or text whose characters are not sewn in a continuous order.
 - **REA:** none.
 - **Grade:** Documented difference. The exact join geometry needs a reference. Open: #377.
+  **2026-11-16:** #377 was closed as not planned on 2026-11-14. PE-DESIGN 11.50 greys
+  Connection Points out for TrueType text and offers them only for its built-in fonts, so
+  there is no PE-DESIGN behaviour for OpenStitch's TrueType and stroke fonts to match, and
+  measuring it would need captures of Brother's fonts. A connection-point setting of
+  OpenStitch's own would be a new beyond-PE-DESIGN issue.
 - **Test:**
   - Inputs: an embroidery font (`fonts.convertTrueType`) with "AVA" at 20 mm, for each
     `connection` value.

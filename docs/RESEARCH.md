@@ -75,6 +75,9 @@ open:
   and the "pending reference" specs in [COMPATIBILITY_STATUS.md](COMPATIBILITY_STATUS.md).
 - PES object kinds the `#PES0110` writer still refuses (#608), and the fields an edited
   PE-DESIGN file still loses on re-save (audit item 9), from the owner's files only.
+  (2026-11-16: #608 is closed; motif lines and fills and one top-aligned vertical text column
+  are written since. What is still not written is in the FEATURE_MATRIX.md row "PES 0110
+  (PE-DESIGN 11) editable shapes write", column Remaining.)
 - Sew-out records in `compat/machine/` (none yet, so no spec is at the machine tier), and
   reports from other machines and for the non-PES formats (#292).
 - Research beyond PE-DESIGN: [ROADMAP.md](ROADMAP.md) ("Beyond PE-DESIGN") and
@@ -101,4 +104,6 @@ open:
 - [updater.md](research/updater.md): the self-update survey, decision and verification.
 - [2026-10-27/](research/2026-10-27/): the first reference sessions' analyses (fill, satin,
   lines, text, machine streams, PES objects, Optimize Sewing Order).
+- [2026-11-14/](research/2026-11-14/): the pattern-block redaction table (#1060): the SHA-256
+  of each PE-DESIGN capture as saved and after its Brother pattern block was replaced.
 - [beyond/](research/beyond/): one note per feature beyond PE-DESIGN, and the patent facts.

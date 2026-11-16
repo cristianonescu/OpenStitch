@@ -1,0 +1,10 @@
+[
+ {"command": "design.new", "params": {"name": "Check Design", "width": 100, "height": 100}},
+ {"command": "shape.ellipse", "params": {"cx": 62, "cy": 32, "rx": 26, "ry": 20, "fill": "Yellow", "outline": "Black"}},
+ {"command": "shape.rectangle", "params": {"x": 10, "y": 14, "width": 16, "height": 60, "fill": "Red"}},
+ {"command": "object.setRegion", "params": {"id": 2, "type": "satin", "angle": 0}},
+ {"command": "shape.ellipse", "params": {"cx": 70, "cy": 40, "rx": 14, "ry": 12, "fill": "Blue"}},
+ {"command": "text.add", "params": {"text": "small text", "size": 2.5, "x": 62, "y": 70, "fill": "Black"}},
+ {"command": "shape.rectangle", "params": {"x": 80, "y": 84, "width": 0.8, "height": 0.8, "fill": "Blue"}},
+ {"command": "project.save", "params": {"path": "check-design.osd"}}
+]

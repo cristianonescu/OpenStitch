@@ -7,26 +7,83 @@
 
 # OpenStitch
 
-An independent, cross-platform (macOS, Windows, Linux) embroidery design application written in
-Rust. It aims to work like Brother PE-DESIGN 11 and to read and write the same files, so designs
-move between the two and onto Brother machines.
+**Free, open-source embroidery software for macOS, Windows and Linux that opens and saves Brother
+PE-DESIGN 11's files.** Turn a picture into stitches, letter a name, edit a design and send it to
+your machine, by hand or by asking the built-in AI Assistant.
 
-OpenStitch is an **alpha**: good for trying out and testing, not for production work. Do a test
-sew-out on scrap fabric first.
+**[Download](#download)** · **[Try it in your browser](https://cristianonescu.github.io/OpenStitch/)**
+(nothing to install) · **[First steps](#first-steps)** · **[Every feature](#features)**
 
-**Try it in your browser, nothing to install:** https://cristianonescu.github.io/OpenStitch/
-It runs the desktop editor on designs from your own disk and saves and exports them as downloads
-(nothing is uploaded); the Assistant, printing and sending to a machine are still desktop-only.
+> **Alpha:** good for trying out and testing, not for production work. Do a test sew-out on scrap
+> fabric first. OpenStitch is independent and not affiliated with Brother Industries. It contains
+> no Brother code or assets; see [docs/LEGAL_AND_LICENSING.md](docs/LEGAL_AND_LICENSING.md).
 
-Not affiliated with Brother Industries. No Brother code or assets are included; see
-[docs/LEGAL_AND_LICENSING.md](docs/LEGAL_AND_LICENSING.md).
+**Why try it**
+
+- It [opens and saves PE-DESIGN 11 files](#try-pe-files), and shapes and text stay editable.
+- It [turns a picture into stitches](#try-pictures) with five image tools.
+- It [checks a design before it sews](#try-check): long stitches, crowded needle points, a
+  readiness level.
+- Its [AI Assistant](#try-assistant) works with the AI you already use.
 
 ![The OpenStitch editor: Application menu, Quick Access Toolbar and ribbon at the top, sewing order on the left, the design page in the middle, sewing attributes on the right and the stitch simulator below](docs/images/readme/editor.png)
 
+## What you can do with it
+
+**(+)** marks what PE-DESIGN 11 does not have.
+
+| | |
+|---|---|
+| <img src="docs/images/readme/auto-punch.png" width="300" alt="Auto Punch turning a picture into embroidery regions"> | <a name="try-pictures"></a>**Turn a picture into embroidery**<br>Drop in a logo, a drawing or a photo and get a design you can edit.<ul><li>Auto Punch, Cross Stitch, Photo Stitch 1 and 2, Design Center</li><li>By default, OpenStitch's own reimplementation of PE-DESIGN's method</li><li>(+) OpenStitch mode picks threads by how the colours look, from the threads you own</li></ul>[More](#image-digitizing) · [Examples](#from-image-to-embroidery) |
+| <img src="docs/images/engine-region-types.png" width="300" alt="One shape sewn in twenty region types"> | **Draw shapes and choose how they sew**<br>Draw a shape, then pick how each part is stitched.<ul><li>PE-DESIGN 11's fills, satins and line types</li><li>(+) Contour, maze, meander, wave and gradient fills</li><li>Bézier pen and Manual Punch; (+) knife and shape builder</li></ul>[Stitches](#stitch-types-and-satin) · [Fills](#fills) · [Editing](#editing) |
+| <img src="docs/images/readme/lettering.png" width="300" alt="Text in several fonts with the Text Attributes pane"> | **Letter names and monograms**<br>Type a name, choose a font and shape it.<ul><li>Your TrueType and OpenType fonts, and PE-DESIGN's 26 Text Transforms</li><li>Monograms, templates, and Name Drop for a list of names</li><li>(+) Small text, pixel fonts and free envelopes</li></ul>[More](#lettering) |
+| <img src="docs/images/rust-editor-needles.png" width="300" alt="A PES file opened in OpenStitch as a new design, with its three threads"> | <a name="try-pe-files"></a>**Open and save PE-DESIGN files**<br>Work on the PES files PE-DESIGN 11 makes, and hand them back.<ul><li>Every PES version opens; one you have not changed saves back byte for byte</li><li>Saved as "PE-DESIGN 11", shapes and text stay editable in PE-DESIGN 11.50</li><li>DST, JEF, (+) VP3 and many more machine formats; SVG artwork as shapes</li></ul>[More](#files-and-formats) |
+| <img src="docs/images/rust-editor-check-design.png" width="300" alt="Check Design listing two errors and warnings, each ringed on the design, with Fix this first in the status bar"> | <a name="try-check"></a>**See it, and check it, before you sew**<br>Find problems on screen instead of on fabric.<ul><li>A Realistic view and a stitch simulator</li><li>(+) Check Design: long stitches, satin too wide, stitches outside the hoop, and a readiness level</li><li>(+) A density map, and every exported file read back and compared</li></ul>[More](#wizards-and-production-aids) |
+| <img src="docs/images/readme/applique.png" width="300" alt="Appliqué wizard with material, position and tack-down lines"> | **Appliqué, patches and big designs**<br>Wizards for the jobs that take more than one step.<ul><li>Appliqué, patch, cutwork and background fill</li><li>Split designs, multi-position and jumbo hoops</li><li>(+) Basting, knockdown fill, test swatches and job sheets</li></ul>[More](#wizards-and-production-aids) |
+| <img src="docs/images/readme/usb-transfer.png" width="300" alt="Sending a design to a USB stick for the machine"> | **Send it to your machine**<br>Put the design on a USB stick or SD card.<ul><li>PES or the machine's own format, read back before it counts as sent</li><li>A ready-to-sew kit with a design for every feature</li><li>No cable or wireless sending yet</li></ul>[More](#machine-transfer) · [The kit](#ready-to-sew-designs) |
+| <img src="docs/images/readme/design-database.png" width="300" alt="Design Database browsing folders of designs as thumbnails"> | **Keep your designs in order**<br>Find any design in your folders.<ul><li>Thumbnails, and search by size, stitches and colours</li><li>Convert formats in batch and print catalogues</li><li>(+) Thumbnails in Finder, Windows Explorer and Linux file managers</li></ul>[More](#files-and-formats) |
+| <img src="docs/images/readme/stitch-creator.png" width="300" alt="Programmable Stitch Creator drawing a fill pattern"> | **Make your own stitches and fonts**<br>Make the patterns and fonts the built-in ones do not cover.<ul><li>Programmable Stitch Creator for fill, stamp and motif patterns</li><li>Font Creator, and fonts made from your stitch designs</li><li>Stitch Design Factory for sewing-machine stitches</li></ul>[Fills](#fills) · [Lettering](#lettering) |
+| <img src="docs/images/assistant-agent-picture.png" width="300" alt="The Assistant turning a dropped pixel-art strawberry into embroidery"> | <a name="try-assistant"></a>**(+) Ask the AI Assistant**<br>Describe a design or a change; it makes it with OpenStitch's own tools.<ul><li>The Claude API, a model on your computer, or a coding agent you already use, and it sees the pictures you drop in</li><li>It asks a few questions first, then suggests what to say next and offers fixes</li><li>It asks before saving or using the machine, one message is one undo step, and the chat is saved with the project</li></ul>[More](#the-ai-assistant-and-mcp) |
+| <img src="docs/images/readme/dark-theme.png" width="300" alt="The editor in the dark theme"> | **Comfortable to work in**<br>A window laid out like PE-DESIGN 11's, with start cards for a first design.<ul><li>(+) Tabs, a command palette and your own shortcuts</li><li>(+) Autosave with recovery, millimetres or inches, an accent colour</li><li>Updates itself; (+) also runs in a browser</li></ul>[More](#editing) |
+| | **(+) Script it**<br>Automate what you would do by hand.<ul><li>`stitchtool convert in.dst out.pes` and other one-line commands</li><li>A Python package and JSON command scripts</li><li>An MCP server for Claude Code and other clients</li></ul>[More](#scripting-python-package) |
+
+## Download
+
+The latest alpha is on the [Releases](https://github.com/cristianonescu/OpenStitch/releases) page.
+Its notes are in [docs/releases](docs/releases/).
+
+| System | Download |
+|---|---|
+| Windows | `OpenStitch-…-windows-x86_64.msi` (installer) or `….zip` (portable) |
+| macOS (Apple Silicon and Intel) | `OpenStitch-…-macos-universal.zip` |
+| Linux | `OpenStitch-…-linux-x86_64.AppImage` (`chmod +x` and run) or `….tar.gz` |
+| Command line (`stitchtool`, `openstitch-mcp`) | `openstitch-cli-…` for your system |
+| Browser | <https://cristianonescu.github.io/OpenStitch/>: nothing to install, nothing uploaded. No Assistant, printing or machine transfer yet. |
+
+The builds are not code-signed yet:
+- **macOS:** move `OpenStitch.app` to Applications, then right-click it and choose Open the first
+  time (or run `xattr -dr com.apple.quarantine OpenStitch.app`).
+- **Windows:** in the SmartScreen prompt, choose *More info → Run anyway*.
+
+After that, the editor offers its own [updates](#updates). Builds of every merge to `main` and
+the Flatpak are under [More builds](#more-builds); building it yourself is under
+[Build from source](#build-from-source).
+
+## First steps
+
+1. **Open OpenStitch.** An empty design shows six start cards: Draw a shape, Add lettering,
+   Digitize a picture, Import a design, Use a template and Open a sample. **Help ▸ Getting
+   Started** walks through a first design.
+2. **Open a design you have.** File ▸ Open reads PES, DST, JEF and the other machine formats.
+   **Help ▸ Ready-to-Sew Designs** opens the kit.
+3. **Save it.** Save as `.osd` to keep editing. For the machine, use File ▸ Export (PES and every
+   other format) or **Home ▸ Sew Embroidery ▸ Send to USB Media…**.
+4. **Sew a test** on scrap fabric. If you can, send the result with the
+   [sew-out report](https://github.com/cristianonescu/OpenStitch/issues/new?template=sew-out-report.yml):
+   so far OpenStitch has been sewn on one machine only.
+
 ## Contents
 
-- [Highlights](#highlights)
-- [New: the Assistant](#new-the-assistant)
 - [Status at a glance](#status-at-a-glance)
 - [Screenshots](#screenshots)
 - [From image to embroidery](#from-image-to-embroidery)
@@ -35,88 +92,13 @@ Not affiliated with Brother Industries. No Brother code or assets are included; 
 - [Not yet implemented](#not-yet-implemented)
 - [Known issues](#known-issues)
 - [Planned](#planned)
-- [Download a build](#download-a-build)
+- [More builds](#more-builds) and [updates](#updates)
 - [Build from source](#build-from-source)
 - [MCP server](#mcp-server-claude-code-and-other-mcp-clients)
 - [Contributing](#contributing)
 - [Releases](#releases)
 - [Documents](#documents)
 - [License](#license)
-
-## Highlights
-
-The strongest features; the full list is under [Features](#features). **(+)** marks what goes
-beyond PE-DESIGN 11.
-
-- **PE-DESIGN 11 files both ways:** every PES version is read, and designs saved as "PE-DESIGN 11"
-  open in PE-DESIGN 11.50 with their shapes and text still editable. An opened PES you have not
-  changed is written back byte for byte.
-- **PE-DESIGN 11's tools, checked against its output:** the region and line sew types, lettering
-  with Text Transform and Fit Text to Outline, Manual Punch, and the appliqué, patch, cutwork and
-  split-design wizards, compared spec by spec with designs made in PE-DESIGN 11.50.
-- **(+) AI Assistant:** a chat that makes and changes designs through OpenStitch's own commands,
-  with the Claude API, a local model or a coding agent; it asks before touching files or the
-  machine, and each message is one undo step.
-- **Image to embroidery, two ways:** OpenStitch's PE-DESIGN-compatible mode, and (+) OpenStitch
-  mode, which picks threads by how colours look, from the charts or the threads you own.
-- **(+) Checks before you sew:** Check Design, a density map, a review of the sewing order, and
-  every exported file read back and compared.
-- **(+) Production aids:** basting, machine stops, knockdown fill, hidden stitching left out,
-  travel hidden under fills, and test swatches with a fabric calibration card.
-- **(+) Editing beyond PE-DESIGN:** knife, shape builder, align and distribute, snap to objects,
-  a precision bar, a command palette, autosave with recovery and your own shortcuts.
-- **(+) Lettering beyond PE-DESIGN:** multi-line arcs, free envelopes, small text and pixel fonts,
-  bundled fonts with size ranges, and Ink/Stitch font folders.
-- **(+) More formats:** VP3, Tajima, Barudan and more beside PE-DESIGN's own, thread lists,
-  G-code, pictures, stitch-out animations and ZIP bundles.
-- **(+) Scripting:** a Python package, `stitchtool` one-line commands, an MCP server and a socket
-  to the running editor.
-- **Everywhere:** macOS, Windows and Linux with self-update,
-  (+) [a first browser version](https://cristianonescu.github.io/OpenStitch/), and file-manager
-  thumbnails in Finder (Quick Look), Windows Explorer and on Linux.
-- **Ready-to-sew kit:** designs for every feature and calibration cards, ready to copy to a
-  machine.
-
-## New: the Assistant
-
-**Alpha 12 adds an AI chat that can drive the whole editor.** Ask it for a design ("a 70 mm round
-badge with a navy satin border and ANNA in gold"), to change what is open ("make the lettering
-satin and 10 % bigger"), to explain or check a design, or drop in a picture and ask for embroidery.
-It works through OpenStitch's own commands, so what it makes is an ordinary design you keep
-editing by hand, and everything one message changes is a single undo step.
-
-![The Assistant beside the design: asked to turn a dropped pixel-art strawberry picture into embroidery about 50 mm wide, it calls OpenStitch's commands, notices the first result came out 34.4 mm wide, rescales it, checks it and summarises the result, with Undo these changes below](docs/images/assistant-agent-picture.png)
-
-*A real run, not a mock-up: Claude Code (on the user's own account) turning a dropped picture
-into a 50 × 63 mm strawberry, correcting its own first attempt, then checking the result.*
-
-![The Assistant on Windows with Claude Code over claude-agent-acp: asked for a red circle 30 mm wide in the middle of the page, it asked permission for the edit, drew it, checked it and reported one undo step](docs/images/assistant-windows-claude-code.png)
-
-*The same on Windows (2026-11-06): Claude Code asked before its edit, drew and checked the
-circle, and the whole message is one undo step.*
-
-- **Your choice of AI:** the Claude API with your own key (kept in the system keychain), a model
-  on your computer through Ollama or LM Studio (no key, works offline), OpenRouter or any
-  OpenAI- or Anthropic-compatible service, or a coding agent you already use (Claude Code, Codex,
-  OpenCode).
-- **You stay in control:** design changes run at once; saving, exporting, opening files, sending
-  to the machine and quitting ask first (**Allow once**, **Always allow** or **Deny**).
-- **Private:** your messages and design go only to the AI you chose; OpenStitch has no server and
-  no telemetry. **Options ▸ Show AI features** hides it completely.
-- **Open it:** it opens beside the design; **View ▸ Show/Hide ▸ Assistant** or Ctrl+Shift+A
-  (Cmd+Shift+A) brings it back.
-- **It remembers you:** tell it your machine, the threads you own or how you like your satin, and
-  it keeps a short note for later conversations, asking first each time. The notes stay on your
-  computer, you can read, edit or clear them in its settings, or turn memory off.
-- **It asks, then suggests:** for a new design it first asks a few questions with answer chips
-  (or uses its judgment); after every reply it suggests what to say next, and offers **Fix**
-  chips when Check Design finds errors or warnings
-  ([#1172](https://github.com/cristianonescu/OpenStitch/issues/1172)).
-
-Benchmark on 12 embroidery tasks: Claude Code 12/12, Ollama gpt-oss:20b 8/12. It has been tested
-on macOS and Windows (12/12 there too); on Linux, CI runs its tests and the keychain round trip
-([#401](https://github.com/cristianonescu/OpenStitch/issues/401)). Details in the
-[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md).
 
 ## Status at a glance
 
@@ -364,6 +346,9 @@ feature is done and the rest is under [Planned](#planned).
 - **Hole sewing:** an outer region sews around the inner one.
 - **Sewing Order list:** drag to reorder, show or hide, (+) rename, lock, sew in click order and sew
   an outline before its fill ([#502]).
+- **Pictures that look like the objects:** each Sewing Order row shows the object's own
+  stitches, as the page does: fills filled, holes open, every colour. A hidden object shows its
+  outlines filled, and a white one sits on a grey tile ([#1185]).
 - (+) **Find objects** above the Sewing Order list: type a name, stitch type, "text" or a thread
   ("satin", "brother 017") to show only those rows, then select them all at once ([#745]).
 - **Sewing order commands:** sort by colour or optimise as PE-DESIGN does, (+) or by the shortest
@@ -601,6 +586,10 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
   away ([#796]).
 - (+) **Thread codes on every swatch:** each colour list shows the code printed on the spool
   (Brother 007, a maker's or your own code) beside the colour, not only on hover ([#798]).
+- (+) **Colours named by thread, never by hex value:** swatches, tooltips, lists, catalogues and
+  job sheets name a colour by brand, code and name. A colour no thread stands behind shows the
+  nearest thread of your chart as "≈205", and a colour can be typed as "205" or
+  "Brother 205" ([#1184]).
 - (+) **GIMP / Inkscape `.gpl` palettes** as thread charts ([#483]).
 - (+) **Match to any chart by perceived colour** (CIEDE2000 or Oklab), with a preview ([#484]).
 - (+) **Merge similar colours** to save thread changes ([#485]).
@@ -625,7 +614,15 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 
 ### The AI Assistant and MCP
 
-See also [New: the Assistant](#new-the-assistant).
+![The Assistant beside the design: asked to turn a dropped pixel-art strawberry picture into embroidery about 50 mm wide, it calls OpenStitch's commands, notices the first result came out 34.4 mm wide, rescales it, checks it and summarises the result, with Undo these changes below](docs/images/assistant-agent-picture.png)
+
+*A real run, not a mock-up: Claude Code (on the user's own account) turning a dropped picture
+into a 50 × 63 mm strawberry, correcting its own first attempt, then checking the result.*
+
+![The Assistant on Windows with Claude Code over claude-agent-acp: asked for a red circle 30 mm wide in the middle of the page, it asked permission for the edit, drew it, checked it and reported one undo step](docs/images/assistant-windows-claude-code.png)
+
+*The same on Windows (2026-11-06): Claude Code asked before its edit, drew and checked the
+circle, and the whole message is one undo step.*
 
 - (+) **Assistant chat** (View ▸ Show/Hide ▸ Assistant, Ctrl/Cmd+Shift+A): describe a design or a
   change and it makes it through OpenStitch's own commands; one undo step per message, and Save
@@ -634,13 +631,24 @@ See also [New: the Assistant](#new-the-assistant).
   Studio on your computer (no key, works offline), OpenRouter or any OpenAI-compatible service,
   or a coding agent (Claude Code, Codex, OpenCode).
 - (+) **Asks first** before saving, exporting, opening files, sending to the machine, quitting or
-  changing a thread chart (Allow once, Always allow, Deny).
+  changing a thread chart (Allow once, Always allow, Deny). With a coding agent the card waits
+  for your answer (up to 4 minutes), and the agent is told whether you declined; a command sent
+  again while its card is open uses that card ([#1188]). Quitting, closing a tab and replacing
+  a design with unsaved changes always ask, in every permission mode, and cannot be put on
+  Always allow; closing the window while the assistant works asks you to stop it first
+  ([#1186]).
 - (+) **Pictures:** attach or drop files; **View** and **Selection** send the design and what is
-  selected.
+  selected. A coding agent that takes pictures, such as Claude Code, gets them in the message
+  as the Claude API does; one that does not looks at them with a tool ([#1168]).
 - (+) **Memory:** short notes about your machine, threads and preferences, kept on your computer
   and written only after you allow it ([#491]).
 - (+) **The chat is kept with the project:** saving writes the conversation into the `.osd`, and
-  opening it lets you read it and go on where it stopped ([#1169]).
+  opening it lets you read it and go on where it stopped ([#1169]). A chat counts as unsaved
+  work, so closing asks to save it ([#1186]). Pictures, the assistant's
+  thinking, tool results and keys are never kept. "Save the chat with the project" (Assistant
+  settings, on by default) turns it off, and a kept chat goes at the next save. Saves and
+  opens the assistant runs are handled as File ▸ Save and Open are ([#1176], [#1178],
+  [#1187]).
 - (+) **Questions and suggested replies:** before a new design it asks 5 to 10 questions with
   answer chips (or uses its judgment); after every reply it offers a suggested message and chips,
   and **Fix** chips when Check Design finds errors or warnings ([#1172]).
@@ -648,12 +656,21 @@ See also [New: the Assistant](#new-the-assistant).
   looked up, never invented ([#495]).
 - (+) **Embroidery skill** with illustrated example designs and a composition guide, and a
   benchmark of embroidery tasks ([#492], [#493]).
+- (+) **Private:** your messages and design go only to the AI you chose; OpenStitch has no
+  server and no telemetry.
 - (+) **Options ▸ Show AI features** hides it all.
 - (+) **`openstitch-mcp`:** an MCP server for Claude Code and other MCP clients, one tool per
   command, batches and PNG previews, file access only to folders you grant (see
   [MCP server](#mcp-server-claude-code-and-other-mcp-clients)).
 - (+) **Live editor socket:** `openstitch --listen` lets scripts and MCP clients work on the
   running editor (127.0.0.1 only, a token per launch).
+
+Benchmark of alpha 12 (2026-11-05) on its 12 embroidery tasks: Claude Code 12/12, Ollama
+gpt-oss:20b 8/12. It was tested on macOS and Windows (12/12 there too); on Linux, CI runs its
+tests and the keychain round trip
+([#401](https://github.com/cristianonescu/OpenStitch/issues/401)). Details are in the
+[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md). The benchmark has since grown to 32 tasks
+(`stitchtool bench-assistant --list`).
 
 ### Scripting (Python package)
 
@@ -740,7 +757,15 @@ See also [New: the Assistant](#new-the-assistant).
 [#489]: https://github.com/cristianonescu/OpenStitch/issues/489
 [#490]: https://github.com/cristianonescu/OpenStitch/issues/490
 [#491]: https://github.com/cristianonescu/OpenStitch/issues/491
+[#1168]: https://github.com/cristianonescu/OpenStitch/issues/1168
 [#1169]: https://github.com/cristianonescu/OpenStitch/issues/1169
+[#1176]: https://github.com/cristianonescu/OpenStitch/issues/1176
+[#1178]: https://github.com/cristianonescu/OpenStitch/issues/1178
+[#1184]: https://github.com/cristianonescu/OpenStitch/issues/1184
+[#1185]: https://github.com/cristianonescu/OpenStitch/issues/1185
+[#1187]: https://github.com/cristianonescu/OpenStitch/issues/1187
+[#1186]: https://github.com/cristianonescu/OpenStitch/issues/1186
+[#1188]: https://github.com/cristianonescu/OpenStitch/issues/1188
 [#1172]: https://github.com/cristianonescu/OpenStitch/issues/1172
 [#492]: https://github.com/cristianonescu/OpenStitch/issues/492
 [#493]: https://github.com/cristianonescu/OpenStitch/issues/493
@@ -835,14 +860,14 @@ _None._
 
 Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
 
-- **Stroke-wise lettering under a Text Transform:** transformed Fill text still sews each
-  letter by region (#428), and no lettering has under sewing per stroke yet.
+- **Under sewing per stroke in lettering:** text is sewn stroke by stroke, under a Text
+  Transform too (#428), but its under sewing is not yet laid per stroke.
 - **Text details:** per-character colour, multi-character selection, Connection Points, kerning
   that reflows the line.
 - **Satin and fill details:** gradation per-step editing and Blend.
-- **PES:** opening PE-DESIGN's texts and stitch groups as editable OpenStitch objects; motif
-  fill, motif lines, several groups, right-aligned and vertical text in the editable PES 11
-  writer.
+- **PES:** in the editable PES 11 writer, right-aligned text, other fonts than Lato Bold, Text
+  Transform levels and the object kinds that still need a PE-DESIGN capture (#1024); PE-DESIGN's
+  texts open as editable text but are laid out again in Lato Bold.
 
 **Not planned, by design:**
 
@@ -896,7 +921,7 @@ Other things to know:
 - **Image digitizing is approximate:** Auto Punch, Cross Stitch and Photo Stitch are compared with
   PE-DESIGN but do not sew the same stitches.
 - **Builds are not code-signed:** macOS and Windows warn on first launch (see
-  [Download a build](#download-a-build)).
+  [Download](#download)).
 - **macOS:** double-clicking a `.osd` or `.pes` file in Finder does not open it; use File ▸ Open.
 - **Updates:** versions before v0.1.0-alpha.4 have no updater and must be replaced by hand.
 
@@ -930,10 +955,9 @@ Bugs reported on GitHub:
 
 Next, from [docs/ROADMAP.md](docs/ROADMAP.md):
 
-- **Lettering:** stroke-wise sewing of transformed fill text and under sewing per stroke, as
-  PE-DESIGN does it.
-- **PES:** PE-DESIGN's text opened as editable objects; motif fill and lines, several groups and
-  the remaining hoops in the PES 11 writer.
+- **Lettering:** under sewing per stroke, as PE-DESIGN does it.
+- **PES:** right-aligned text, more fonts, the remaining hoops and the remaining object kinds
+  (#1024) in the PES 11 writer.
 - **Stitches:** the remaining fill, satin and line details listed above, and branching skeletons.
 - **Machine tier:** a first sew-out recorded as a compatibility spec in `compat/machine/`.
 - **Image digitizing:** run-to-run travel in Cross Stitch, still fewer trims in Photo Stitch 1
@@ -1035,19 +1059,7 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Convert a satin between its centre-line form (satin line or skeleton satin with width keys) and its two-sides form (Manual Punch column), both ways, as a command and an editor action, keeping the stitches (#1145; competitor scan 2026-11-15)
 <!-- /status:beyond-planned -->
 
-## Download a build
-
-The latest pre-release is on the
-[Releases](https://github.com/cristianonescu/OpenStitch/releases) page, with notes in
-[docs/releases](docs/releases/). It is an alpha for testing, not for production work: do a test
-sew-out on scrap fabric first.
-
-**Try it in a browser, with nothing to install:** <https://cristianonescu.github.io/OpenStitch/>
-runs the desktop editor: it opens designs and embroidery files from your disk and saves and
-exports them as downloads; nothing leaves the browser. It is built from `main` and does less than
-the desktop app (no Assistant or MCP control, system clipboard, printing or folder choosing yet;
-see
-[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#web-editor)).
+## More builds
 
 Every merge to `main` also builds the executables for all three operating systems. Open the
 repository on GitHub, go to **Actions → Rust workspace**, pick the latest run on `main` and
@@ -1063,12 +1075,13 @@ A Flatpak bundle (`openstitch-flatpak-x86_64`) is built by the **Flatpak** workf
 Linux packaging changes, and can be built locally from
 `packaging/flatpak/io.github.cristianonescu.OpenStitch.yml`.
 
-Details are in [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
+The [browser version](https://cristianonescu.github.io/OpenStitch/) is built from `main`. It
+opens designs and embroidery files from your disk and saves and exports them as downloads;
+nothing leaves the browser. It does less than the desktop app: no Assistant or MCP control,
+system clipboard, printing or folder choosing yet
+([docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#web-editor)).
 
-The builds are not code-signed yet:
-- **macOS:** unzip and move `OpenStitch.app` to Applications, then right-click → Open the first
-  time (or run `xattr -dr com.apple.quarantine OpenStitch.app`).
-- **Windows:** choose *More info → Run anyway* in the SmartScreen prompt.
+Details are in [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
 
 ### Updates
 
@@ -1230,7 +1243,7 @@ Desktop, IDEs) take the same command and arguments in their MCP server configura
   be green on all three operating systems before a release. Scripts that wait for CI must
   treat a cancelled (superseded) run as pending; see
   [docs/RELEASING.md](docs/RELEASING.md#merging-pull-requests).
-- Every merge to `main` builds the executables (see [Download a build](#download-a-build)).
+- Every merge to `main` builds the executables (see [More builds](#more-builds)).
 - Every PR that changes a feature updates [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md); the
   README's status lists are generated from it by `python -I tools/readme_status.py --write`,
   run on `main` after merging, not in feature PRs: CI fails a PR that edits the generated

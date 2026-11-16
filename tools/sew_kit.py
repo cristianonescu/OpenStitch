@@ -801,9 +801,12 @@ def kit():
         ("M", "photo2-poppies", "Photo Stitch 2", "digitize.photoStitch", "p08-poppies.jpg", {"style": "lines"}),
         ("L", "autopunch-storybook", "Auto Punch", "digitize.autoPunch", "p03-storybook.jpg", {}),
     ]:
+        # The image's subject is in the title, so two images through one tool get headings (and
+        # README anchors) of their own (#1171).
+        subject = Path(image).stem.split("-", 1)[1].replace("-", " ")
         for mode, tag, label in (("openStitch", "openstitch", "OpenStitch mode"),
                                  ("peDesign", "pe-compatible", "PE-DESIGN-compatible mode")):
-            designs.append((f"image-tools/{hoop}-{name}-{tag}.pes", hoop, f"{tool}, {label}",
+            designs.append((f"image-tools/{hoop}-{name}-{tag}.pes", hoop, f"{tool}, {subject}, {label}",
                             f"`{image}` through {tool} at its defaults in {label}, fitted to the "
                             f"{HOOPS[hoop]['label']} hoop. Sew both modes of the same image to compare them "
                             "on fabric.",

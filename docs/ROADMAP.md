@@ -446,8 +446,8 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    (`GlyphStrokes::blocks`, 2026-10-31) are done, and PE-DESIGN's Convert to Blocks files import
    as their blocks (`import.pes`, 2026-10-31), and satin text is sewn by stroke since 2026-10-31
    (`stroke-satin-*`, 9 % from PE-DESIGN's needle points on average), fill text since 2026-11-04
-   (#376, `stroke-fill-*`, 8 % on average, under a Text Transform still by region: #428, waiting on
-   the arches' letter placement; the walk between a warped letter's blocks simplified since
+   (#376, `stroke-fill-*`, 8 % on average, under a Text Transform by stroke too since 2026-11-11
+   (#428, PR #892, after the arches' letter placement); the walk between a warped letter's blocks simplified since
    2026-11-07),
    turned letters cut upright and satin crossings along the outer side since 2026-11-05 (#444,
    satin 5.6 % on average, no capture further than before, the README's arched and 4 mm text whole), small lettering's i dots, pieces and travel since
@@ -462,7 +462,7 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    52 default-level captures at the reference tier); left: arch 2 on "Agjy 123" and at level 25,
    taper 4 and slant 9 at level 100 (0.6-1.1 mm).
    Left: per-character colour and
-   multi-character selection; Connection Points (#377); kerning that reflows the line; editing several characters at once on the canvas; shaping for
+   multi-character selection; Connection Points (#377, closed as not planned on 2026-11-14); kerning that reflows the line; editing several characters at once on the canvas; shaping for
    embroidery fonts.
 5. **Machine stream:** the per-format compares of DST, EXP, JEF, PCS, SEW, XXX, HUS and VIP
    against PE-DESIGN's exports pass since 2026-10-28 (the writers follow PE-DESIGN's record
@@ -544,8 +544,10 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    header carries the machine type and hoop as PE writes them for six hoops since 2026-10-31
    (#125), and every page and hoop field from the design since 2026-11-04 (#322: a Custom Size
    page's machine type and hoop sections, the nv880e hoop fields, the ids of 13 hoops; the PEC
-   frame stays the design's size on a Custom Size page too). Left: the user-chart CSV PE-DESIGN
-   imports (#136); the v6 display fields and the v1 hoop field (no PE-DESIGN file to compare).
+   frame stays the design's size on a Custom Size page too). Left: the v6 display fields and the v1 hoop field (no PE-DESIGN file to compare).
+   The user-chart CSV (#136) is done: PE-DESIGN keeps its charts as binary `.btc2`, and
+   OpenStitch's own chart CSV is FILE_FORMATS.md "Thread chart CSV" (FEATURE_MATRIX, user
+   thread charts).
 9. **Machine tier:** a first sew-out of an OpenStitch-written file on a Brother machine, recorded
    in `compat/machine/`. No spec has reached this tier.
 10. **Distribution:** code signing (owner's certificates); Flathub submission (offline cargo
@@ -645,7 +647,7 @@ before any code; the ranking and the proposed tracks are in
 | B10 | Variable-width satin line | B | [research/beyond/variable-width-satin-line.md](research/beyond/variable-width-satin-line.md) | Engine done 2026-11-06 (#524): line type `satin` with width keys, tapers, per-side widths and slant; canvas width handles (#700), width while drawing (#707) and SVG stroke width (#701) **done** |
 | B11 | Closest join, auto start/end, continue digitizing, overlap removal | C | [research/beyond/closest-join-and-overlap.md](research/beyond/closest-join-and-overlap.md) | Sketched. Continue digitizing shipped (#479: `object.extendPath`, `object.extendColumn`, the drawing tools continue a selected line from either end); nearest start per object (`autoStart: nearest`) and the Optimize before/after report shipped 2026-11-06 (#547, `batch:production`); overlap removal at shape level shipped 2026-11-06 (#511: `object.setHideUnder`, `design.setRemoveHidden`); auto start and end done (#547, #795); stitch-level clipping not started. Related, shipped 2026-10-29 (#137): `order.optimize` mode `minJump`, a 2-opt shortest-jump order per colour block with every neighbouring pair linked, as a design setting (`optimizeOrder`); PE-DESIGN's order stays the default |
 | B12 | Carving lines, knockdown fill | A | [research/beyond/carving-and-knockdown.md](research/beyond/carving-and-knockdown.md) | Knockdown shipped 2026-11-06 (#510, `batch:production`): `wizard.knockdown` (selection or whole design, reach, gap closing, one or two crossed layers, holes kept, rectangle option, `update`), kept first by `order.optimize`. Carving lines not started |
-| B13 | Density map, troubleshoot, thread conversion, auto hoop | E | [research/beyond/quality-tools.md](research/beyond/quality-tools.md) | Density map and troubleshoot rules done (Check Design, #503/#504; four more findings 2026-11-13, #866); thread conversion is `threads.remap` to a user or built-in chart (#484); hoop commands done 2026-11-13 (#879: `machine.useSmallestHoop`, `design.fitToHoop`); exports report `smallestHoop` and `design.testSwatch` uses the smallest hoop that fits (#452). Open: low coverage, small text per font and a readiness score (#1036) |
+| B13 | Density map, troubleshoot, thread conversion, auto hoop | E | [research/beyond/quality-tools.md](research/beyond/quality-tools.md) | Density map and troubleshoot rules done (Check Design, #503/#504; four more findings 2026-11-13, #866); thread conversion is `threads.remap` to a user or built-in chart (#484); hoop commands done 2026-11-13 (#879: `machine.useSmallestHoop`, `design.fitToHoop`); exports report `smallestHoop` and `design.testSwatch` uses the smallest hoop that fits (#452). Low coverage, small text by its own font and a readiness level (not a score) **done** 2026-11-15 (#1036, PRs #1115, #1118, #1140). Open: fabric-shifted thresholds other than the density limits |
 | B14 | Stitch-file resize with density | E | [research/beyond/stitch-file-resize.md](research/beyond/stitch-file-resize.md) | Sketched; not started |
 | B15 | Lettering: baselines, kerning, team names, connections | E | [research/beyond/lettering-depth.md](research/beyond/lettering-depth.md) | Sketched; not started |
 | B16 | Image wizards' "OpenStitch" mode beside the PE-DESIGN default: perceptual colour reduction (CIELAB k-means, CIEDE2000 thread matching) and region cleanup for Auto Punch first | — | [research/beyond/image-digitizing.md](research/beyond/image-digitizing.md) | Auto Punch's OpenStitch mode done 2026-10-31 (`compatMode: openStitch`, image dialog Mode): measured on the test images (`tools/image_eval.py`), mean ΔE00 9.1 → 8.6, stitches −14 %, trims −48 %, specks 220 → 10; line art keeps its lines since 2026-10-31 (mandala 2,195 stitches, PE mode 2,590); Photo Stitch 1 in colour since 2026-10-31 (perceptual palette, CIELAB dithering: mean ΔE00 10.0 → 8.2 on nine photos, trims +13 %); Photo Stitch 2 in colour since 2026-10-31 (perceptual Auto Select, linear-light mix: mean ΔE00 19.8 → 16.2 on seven images); Cross Stitch measured, no gain at B16 (B16.1 added its OpenStitch mode, #263); next: Photo Stitch 1's trims (#298), the Photo Stitch 2 portrait; SLIC measured and not used (B16.1 C) |
@@ -728,7 +730,7 @@ for Future. Ranked by user benefit: 1. USB transfer pre-flight and a machine con
 (#867); 2. a fabric pull preview in Check Design with a measured one-bar calibration (#865);
 3. more Check Design rules and a readiness score (#866: untied thread ends, tiny sections, short
 stitches and more colours than needles **done** 2026-11-13, PR #1030; low coverage, small text per
-font and the score are #1036); 4. the machine list by model name
+font and the score are #1036, **done** 2026-11-15 as a readiness level, PRs #1115, #1118 and #1140); 4. the machine list by model name
 (#868); 5. the Assistant with any chatbot by copy and paste (#870). Then: back up and restore
 (#869), smallest hoop and Fit to hoop (#879, the open part of B13; **done** 2026-11-13, PR #1012),
 3D puff over foam (#875, B7), cap mode (#874), crash report and Report a Problem (#878; **done**

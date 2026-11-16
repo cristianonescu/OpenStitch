@@ -21,7 +21,8 @@ stays the default.
   copies (mirror, circle, matrix), merge, remove overlap, boolean combine, split, offset lines.
 - **Region sew types:** fill (tatami), satin, programmable fill, motif fill, piping, concentric
   circle, radial, spiral, flexible spiral, stippling, net fills, decorative fill, cross stitch; beyond
-  PE-DESIGN: contour fill, wave fill, maze and meander fills, colour blends and gradient fills, gradation shapes, SVG gradients as blends, stitch angle lines, tartan fills, seeded random stagger, tatami textures (`texture`: ribs, diagonal,
+  PE-DESIGN: contour fill, wave fill, flow fill (rows that radiate, swirl or follow a picture's
+  strokes), half, upright and Smyrna cross stitch, maze and meander fills, colour blends and gradient fills, gradation shapes, SVG gradients as blends, stitch angle lines, tartan fills, seeded random stagger, tatami textures (`texture`: ribs, diagonal,
   waves, chevron and more), skeleton satin.
 - **Line sew types:** running, triple, zigzag (satin line), motif, stem, candlewick, E and V
   stitch, chain, cutting (cutwork needles); beyond PE-DESIGN: satin (width varies along
@@ -118,7 +119,8 @@ on the running editor (127.0.0.1 only, with a per-launch token).
 For a user at a terminal, `stitchtool` also has one-line commands built on the same engine
 commands: `convert in.dst out.pes` (`stitches.import` + `design.export`; a folder with
 `--format pes` is `library.convert`), `info x.pes` (`design.info`), `optimize in out
-[--by-color]` (`stitches.divideByColor`, then `order.optimize` or `order.byColor`), `digitize
+[--mode peDesign|minJump] [--by-color] [--auto-start off|nearest]` (`stitches.divideByColor`,
+then `order.optimize` or `order.byColor`), `digitize
 logo.png out.pes --size 80mm` (`digitize.autoPunch`), `formats`, and `thumbnail x.pes out.png
 [--size 256]` (the file-manager thumbnail renderer, no engine command). When asked which formats
 OpenStitch reads or writes, call `formats.list`: every machine format with read and write flags

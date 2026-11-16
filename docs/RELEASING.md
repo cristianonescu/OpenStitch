@@ -22,6 +22,11 @@ Before a release:
 - `python3 -I tools/private_scan.py` prints no finding: no local folder paths, user or home
   folders, notes folders or personal e-mail addresses in a tracked file (#1057). A harmless
   placeholder goes in `tools/private_scan_allow.tsv` with its reason, never under a wider pattern.
+- `python -I tools/third_party.py --check` passes: `THIRD_PARTY_NOTICES.md`, which every package
+  ships, lists every crate the shipped programs link (#1171). After a dependency change, run it
+  with `--write`. Every run names the crates whose licence is outside the permissive set
+  (MIT, Apache, BSD, ISC, Zlib, MPL, Unicode); a new name there needs a hand-written notice
+  section and a review of its terms before the release.
 - The README is refreshed (below) and the release notes are honest about known differences.
 
 ## Merging pull requests

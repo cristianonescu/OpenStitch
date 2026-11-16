@@ -71,7 +71,8 @@ photo or screenshot of the design: it shows whether OpenStitch opens it correctl
 
 Needed only if you sew the calibration designs (see the kit README's
 [Calibrating OpenStitch](examples/sew/README.md#calibrating-openstitch): `calibration/t1-swatches.pes`,
-`calibration/ps2-grey-ramp.pes`, `calibration/satin-and-underlay.pes` and
+`calibration/t2-alternating-rows.pes`, `calibration/ps2-grey-ramp.pes`,
+`calibration/satin-and-underlay.pes` and
 `image-tools/S-photo1-sunset-openstitch.pes`). For the machine checks a clear photo and your notes
 are enough.
 
@@ -83,8 +84,9 @@ are enough.
   paper or grey card in the frame, the same distance for every piece.
 - **Fabric:** white or light grey is best for calibration; a coloured fabric shows through the
   White swatches.
-- **Thread for the T1 card:** write down the brand, colour name and code you used for each of
-  White 001, Black 900, Red 800, Blue 405, Yellow 205 and Leaf Green 509.
+- **Thread for the T1 and T2 cards:** sew both with the same threads, and write down the brand,
+  colour name and code you used for each of White 001, Black 900, Red 800, Blue 405, Yellow 205
+  and Leaf Green 509 (T2 uses the Black and Yellow).
 
 Attach the original PNG files, not screenshots, so the full resolution is kept.
 
