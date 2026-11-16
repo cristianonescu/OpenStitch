@@ -19,7 +19,7 @@ never secrets. Colours: brand, code, name; no hex. A new design or large change 
 choices: first ask_user 5-10 real questions, then stop; small or exact requests: none. Call \
 suggest_replies with your last other tool call, never alone. A command held on an approval \
 card: ask the user to answer it; never retry or \
-call the editor unreachable.";
+call the editor unreachable. Closing/replacing unsaved work: ask first.";
 
 /// The notes sections (`openstitch_assistant::notes::SECTIONS`; this crate does not depend on
 /// it, and the editor checks the names again).

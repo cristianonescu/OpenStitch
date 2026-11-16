@@ -208,6 +208,14 @@ Commands are judged by their **declared effect**, not by guessing from parameter
 | **Auto-allow design edits** (default) | `read`, `edit`, and `history` within the current message | `file` commands, the edit commands in `FILE_READING_COMMANDS`/`library.*` outside the scratch folder, machine transfer (`transfer.*`), and undo past the message's start |
 | Allow everything | all, within the sandbox roots | — |
 
+- **Closing and replacing unsaved work (#1186)** ask in every mode, "Allow everything"
+  included, and Always allow cannot hold them: quitting (`ui.run exit`) and closing a tab
+  (`ui.documents close`) always; `design.new`, `project.open`, `template.open`,
+  `design.testSwatch(es)`, `fabric.calibrationSwatch`, `ui.run new` and `ui.recoveryRestore`
+  whenever the design or its conversation has unsaved changes, naming what is replaced
+  (`editor::assistant_chat::closing_question`). When such a command runs, and for every save,
+  the chat names it, also inside a "Ran N commands" row; a replaced unsaved design stays
+  unsaved and in Undo.
 - **Always allow** is remembered per provider and command.
 - There is an optional limit on edits per message (default none).
 - A question nobody answers is declined after 4 minutes.
@@ -397,9 +405,13 @@ can come back, read it and go on from where it stopped.
   as an edit does, without a design revision or an undo step (`note_chat_changes`, compared each
   frame by the kept rows' count and text size). The title shows it, closing asks to save, and
   autosave takes it (`EditorApp::snapshot_key`: revision and chat changes). Not marked: thinking,
-  tool details, the restore notice, a conversation that belongs to another document, anything
-  with the setting off, and an untitled design with no objects (closing would otherwise ask
-  after every question; the chat of such a session is lost on close, as it was before).
+  tool details, the restore notice, a conversation that belongs to another document, and
+  anything with the setting off. An untitled empty design is marked too: until #1186 it was
+  not, and a close then lost its chat without a question.
+- **Closing during a turn (#1186).** While a turn runs, closing the window (X, the OS
+  shortcut, a script's `close:0`) or a tab asks "The Assistant is still working" first: Stop
+  and close stops the turn, then the usual unsaved-changes question follows; Cancel stays. A
+  `--screenshot` run's own exit is approved and never waits.
 - **Control.** "Save the chat with the project" (on by default) in the Assistant settings and
   under the conversation, `ui.set assistantSaveChat` (asks). Off: nothing is written, and a chat
   the file kept is removed on its next save. New chat clears the conversation, so the next save

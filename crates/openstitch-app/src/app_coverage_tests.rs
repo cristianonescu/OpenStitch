@@ -247,6 +247,18 @@ fn closing_the_window_with_unsaved_changes_opens_the_prompt() {
     assert!(app.close_prompt.is_open());
     assert!(!app.exit_approved());
 
+    // #1186: while the Assistant's turn runs, a close asks first even with nothing unsaved.
+    let mut app = EditorApp::new(Launch::default());
+    crate::assistant_panel::set_test_turn(&mut app, true);
+    assert!(close(&mut app), "the close is cancelled during a turn");
+    assert!(app.turn_close.is_some() && !app.close_prompt.is_open());
+    // A screenshot run's own exit is approved: it closes, so docs runs do not hang.
+    let mut app = EditorApp::new(Launch::default());
+    crate::assistant_panel::set_test_turn(&mut app, true);
+    app.approve_exit();
+    assert!(!close(&mut app));
+    assert!(app.turn_close.is_none());
+
     // Approved (Save / Don't Save, the updater, a screenshot run): no prompt.
     let mut app = EditorApp::new(Launch::default());
     app.execute(&rectangle(10.0)).expect("rectangle");
