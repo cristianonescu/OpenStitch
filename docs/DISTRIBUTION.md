@@ -314,7 +314,10 @@ on every run.
 
 **Published:** <https://cristianonescu.github.io/OpenStitch/> (#695, with the owner's OK).
 `.github/workflows/pages.yml` builds the page from `main` whenever the crates, `web/` or the lock
-file change (or by hand), writes the commit to `version.txt` beside it, and deploys it with
+file change (or by hand, and when the notices or licences change), writes the commit to
+`version.txt` beside it, publishes `THIRD_PARTY_NOTICES.txt`, `LICENSE-MIT.txt` and
+`LICENSE-APACHE.txt` there (copies of the repository's own; Help ▸ About links them, #1175),
+and deploys it with
 GitHub's Pages actions. Only its deploy job has `pages: write` and `id-token: write`, in the
 `github-pages` environment, which accepts `main` only. It is its own workflow because
 `release.yml` calls `rust.yml` without Pages permissions.

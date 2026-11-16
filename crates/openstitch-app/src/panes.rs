@@ -761,6 +761,16 @@ pub fn apply_property_draft(app: &mut EditorApp) -> bool {
 }
 
 /// Help ▸ About (every window).
+/// Where the Pages deploy puts the third-party notices and the licences, relative to the
+/// browser version's page (`.github/workflows/pages.yml`, #1175). Plain text, so the browser
+/// shows them instead of downloading them.
+#[cfg(any(target_arch = "wasm32", test))]
+pub const WEB_NOTICES: &str = "THIRD_PARTY_NOTICES.txt";
+#[cfg(any(target_arch = "wasm32", test))]
+pub const WEB_LICENCE_MIT: &str = "LICENSE-MIT.txt";
+#[cfg(any(target_arch = "wasm32", test))]
+pub const WEB_LICENCE_APACHE: &str = "LICENSE-APACHE.txt";
+
 pub fn about_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.ui.about_open;
     egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-about-openstitch")).id(egui::Id::unique("window-about-openstitch"))
@@ -780,6 +790,15 @@ pub fn about_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.label(t("ui-an-open-source-embroidery-design-suite"));
             ui.label(t("ui-reads-and-writes-pes-pec-dst"));
             ui.hyperlink("https://github.com/cristianonescu/OpenStitch");
+            // The browser version's notices and licences (#1175): the Pages deploy publishes them
+            // beside the page, so the links are relative to it. The desktop packages carry
+            // THIRD_PARTY_NOTICES.md and the licence files beside the program.
+            #[cfg(target_arch = "wasm32")]
+            ui.horizontal_wrapped(|ui| {
+                ui.hyperlink_to(t("ui-third-party-notices"), WEB_NOTICES);
+                ui.hyperlink_to(t("ui-licence-mit"), WEB_LICENCE_MIT);
+                ui.hyperlink_to(t("ui-licence-apache"), WEB_LICENCE_APACHE);
+            });
             if ui
                 .button(t("ui-copy-diagnostics"))
                 .on_hover_text(t("ui-copy-diagnostics-tip"))
@@ -895,5 +914,25 @@ mod tests {
         assert!(!apply_property_draft(&mut app));
         assert_eq!(app.ui.property_draft, Some(bad));
         assert_eq!(app.session.design().properties, draft);
+    }
+
+    /// #1175: the browser version's About links name the files the Pages deploy publishes
+    /// beside the page, copied from the repository's own notices and licences.
+    #[test]
+    fn the_web_about_links_name_what_the_pages_deploy_publishes() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let pages = std::fs::read_to_string(root.join(".github/workflows/pages.yml"))
+            .expect("pages.yml");
+        for (source, published) in [
+            ("THIRD_PARTY_NOTICES.md", WEB_NOTICES),
+            ("LICENSE-MIT", WEB_LICENCE_MIT),
+            ("LICENSE-APACHE", WEB_LICENCE_APACHE),
+        ] {
+            assert!(root.join(source).is_file(), "{source} is in the repository");
+            assert!(
+                pages.contains(&format!("cp {source} site/{published}")),
+                "pages.yml publishes {source} as {published}"
+            );
+        }
     }
 }

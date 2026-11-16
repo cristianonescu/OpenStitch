@@ -218,6 +218,15 @@ jobs:
       # case-sensitively as GitHub does, so a renamed or deleted doc can't leave a dead link (#850).
       - name: check_doc_links
         run: python3 -I tools/check_doc_links.py
+      # THIRD_PARTY_NOTICES.md, which every package and the browser version ship, lists every
+      # crate the shipped programs link (#1171): a PR that changes Cargo.lock without
+      # `python3 -I tools/third_party.py --write` fails here, and any licence outside the
+      # permissive set is printed in the log (#1175). `cargo metadata` only, no build.
+      - uses: dtolnay/rust-toolchain@stable
+      - name: third_party --check
+        run: |
+          python3 -I tools/third_party.py --self-test
+          python3 -I tools/third_party.py --check
       - name: readme_status --self-test
         run: python3 -I tools/readme_status.py --self-test
       # sew_check reports a PES whose PEC block holds no stitches as unreadable, not as a design

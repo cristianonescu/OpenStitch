@@ -1539,6 +1539,9 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "ui-copy-diagnostics-tip",
         "Copies the OpenStitch version and system to the clipboard, for a bug report",
     ),
+    ("ui-third-party-notices", "Third-party notices"),
+    ("ui-licence-mit", "MIT licence"),
+    ("ui-licence-apache", "Apache licence 2.0"),
     ("ui-window-report-a-problem", "Report a Problem"),
     (
         "ui-openstitch-closed-unexpectedly",
