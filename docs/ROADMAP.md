@@ -101,7 +101,7 @@ harness. The details per item are in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDI
   (their parallel use of macOS's pasteboard crashed the test binary now and then), and their
   temporary folders are per test.
 
-## Released: alpha.15 and alpha.16 (2026-11-16)
+## Released: alpha.15, alpha.16 and alpha.17 (2026-11-16)
 
 - **alpha.15** (2026-11-16): stitches closer to PE-DESIGN 11.50's (fill under sewing, radial and
   net fills, motif lines, satin e, Text Transform), PES 0110 fields, `.osd` version 6, safe
@@ -119,7 +119,16 @@ harness. The details per item are in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDI
   Summary in [BACKLOG.md](BACKLOG.md#shipped-in-alpha16-2026-11-16), changes in
   [releases/v0.1.0-alpha.16.md](releases/v0.1.0-alpha.16.md).
 
-Development is paused after alpha.16 until the owner says to resume. No further alpha is
+- **alpha.17** (2026-11-16), small fixes after alpha.16:
+  - the Assistant's recommended answer first on its question card (#1205), and clearer wording
+    (#1198);
+  - a template can no longer be saved over the open project (#1179);
+  - macOS Finder thumbnails and Quick Look (#1182);
+  - the browser version's licence notices, kept current by CI (#1175).
+  Summary in [BACKLOG.md](BACKLOG.md#shipped-in-alpha17-2026-11-16), changes in
+  [releases/v0.1.0-alpha.17.md](releases/v0.1.0-alpha.17.md).
+
+Development is paused after alpha.17 until the owner says to resume. No further alpha is
 planned. The open work below and the open issues stay in the Future milestone.
 
 ## Still to do
