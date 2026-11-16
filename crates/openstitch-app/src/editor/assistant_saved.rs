@@ -166,7 +166,7 @@ mod tests {
     fn places() -> (PrivatePlaces, String, String) {
         let home = ["C:", "Users", "Maria Pop"].join("\\");
         let temp = [home.as_str(), "AppData", "Local", "Temp"].join("\\");
-        let scratch = format!("{temp}\openstitch-assistant-42");
+        let scratch = format!(r"{temp}\openstitch-assistant-42");
         let p = PrivatePlaces {
             scratch: Some(scratch.clone()),
             temp: Some(format!("{temp}\\")),
@@ -182,7 +182,7 @@ mod tests {
         let other = ["", "home", "other", "x"].join("/");
         let saved = ["c:", "users", "maria pop", "Documents", "Roses", "rose.osd"].join("/");
         let text = format!(
-            "Wrote {scratch}\rose.svg; saved {saved}; temp {temp}\x.png; backup D:\Backups\Maria Pop\rose.osd and {other}"
+            r"Wrote {scratch}\rose.svg; saved {saved}; temp {temp}\x.png; backup D:\Backups\Maria Pop\rose.osd and {other}"
         );
         let out = scrub_paths(&text, &p);
         assert_eq!(

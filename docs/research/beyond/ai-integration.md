@@ -384,8 +384,9 @@ can come back, read it and go on from where it stopped.
 - **Documents.** The chat belongs to the document it was restored or started in
   (`EditorApp::chat_doc`). Only that document's save writes it; another tab's save writes the
   chat its own file kept. A tab switch shows the switched-to tab's chat (not while a turn runs).
-  New and Open show the new document's chat; an Open made by the Assistant during its turn
-  leaves the running conversation and says the file keeps its own. Recovery snapshots keep the
+  New and Open show the new document's chat. During the Assistant's turn the running
+  conversation stays: a design it makes or opens without a chat of its own takes it, and a file
+  with a chat of its own keeps that one (the chat says so). Recovery snapshots keep the
   chat as a save does (written when the design changes).
 - **Control.** "Save the chat with the project" (on by default) in the Assistant settings and
   under the conversation, `ui.set assistantSaveChat` (asks). Off: nothing is written, and a chat

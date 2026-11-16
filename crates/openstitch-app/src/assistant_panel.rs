@@ -980,14 +980,18 @@ pub fn restore_chat(app: &mut EditorApp, chat: Option<SavedChat>) {
 }
 
 /// After New, Open or a restore made the active design (#1169): the panel shows the chat the
-/// file kept, or an empty one. While a turn runs (the Assistant opened a file) the conversation
-/// goes on, and the file's chat stays in it.
+/// file kept, or an empty one. While a turn runs (the Assistant made or opened a design) the
+/// conversation goes on: it belongs to the new design when that has no chat of its own, and a
+/// chat the file kept stays in it.
 pub fn document_loaded(app: &mut EditorApp) {
     if app.assistant.panel.busy() {
         if app.session.chat().is_some() {
             app.assistant.panel.items.push(Item::Notice(
                 "The opened project keeps a conversation of its own; it stays in its file. Open the project again after this conversation to see it.".into(),
             ));
+        } else {
+            // A design without a chat of its own (New, a machine file) takes the running one.
+            app.assistant.panel.owner = Some(app.chat_doc);
         }
         return;
     }
@@ -4530,6 +4534,33 @@ mod tests {
         new_chat(&mut third);
         save_to(&mut third, &file);
         assert!(saved_json(&file).get("assistant").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A New made during the Assistant's turn keeps the running conversation, and the new
+    /// design (which has no chat of its own) takes it: its save writes it.
+    #[test]
+    fn a_design_made_during_a_turn_takes_the_running_conversation() {
+        let dir = project_dir("in-turn");
+        let (mut app, _) = app_with(Vec::new());
+        app.assistant.panel.items = vec![Item::User("start over with a new design".into())];
+        app.assistant.panel.turn = Some(Turn {
+            undo_start: app.undo_groups.len(),
+            edits: 0,
+            text: String::new(),
+            used_tools: false,
+            reply: String::new(),
+        });
+        app.new_design();
+        assert_eq!(app.assistant.panel.items.len(), 1, "the conversation goes on");
+        assert_eq!(app.assistant.panel.owner, Some(app.chat_doc));
+        app.assistant.panel.turn = None;
+        let file = dir.join("new.osd");
+        save_to(&mut app, &file);
+        assert_eq!(
+            saved_json(&file)["assistant"]["rows"][0]["text"],
+            "start over with a new design"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
