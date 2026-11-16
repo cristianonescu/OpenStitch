@@ -23,6 +23,9 @@ pub enum Meta {
     RunBatch,
     ViewRender,
     ScratchWrite,
+    ScratchView,
+    AskUser,
+    SuggestReplies,
     SkillReference,
     NotesRead,
     NotesWrite,
@@ -235,9 +238,8 @@ fn kind_schema(t: &str, summary: &str) -> Value {
         }
         "color" => {
             s.insert("type".into(), json!(["string", "integer", "object"]));
-            unit = Some(
-                "#rrggbb, a Brother thread name, chart number 1-64, or a chart's thread {builtin: \"newBrothread\", code: \"001\"}",
-            );
+            // What a colour accepts and what is stored (#1184, the param-description rule).
+            unit = Some(openstitch_engine::commands::COLOR_FORMS);
         }
         "mm" | "degrees" | "factor" | "percent" => {
             s.insert("type".into(), json!("number"));

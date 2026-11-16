@@ -99,6 +99,24 @@ impl Editor {
                         "path": format!("/scratch/{}", params["name"].as_str().unwrap_or("")),
                         "bytes": params["text"].as_str().map_or(0, str::len),
                     })),
+                    // The editor refuses a call without questions (assistant_offers).
+                    "ui.askUser"
+                        if params["questions"]
+                            .as_array()
+                            .is_some_and(|q| !q.is_empty()) =>
+                    {
+                        Some(json!({ "shown": params["questions"].as_array().map_or(0, Vec::len) }))
+                    }
+                    "ui.suggestReplies" => {
+                        Some(json!({ "shown": params["chips"].as_array().map_or(0, Vec::len) }))
+                    }
+                    "ui.scratchView" if params["name"] == json!("attached-logo.png") => {
+                        Some(json!({
+                            "path": "/scratch/attached-logo.png", "mimeType": "image/png",
+                            "base64": PNG_BASE64, "width": 3000, "height": 1000,
+                            "sentWidth": 2048, "sentHeight": 683,
+                        }))
+                    }
                     "ui.state" => Some(json!({ "selection": [] })),
                     "ui.notesRead" => Some(json!({
                         "text": notes.lock().expect("notes").clone(), "bytes": 0, "limit": 8192,
@@ -200,7 +218,7 @@ fn has_name_property(schema: &Value) -> bool {
 }
 
 #[test]
-fn assistant_lists_exactly_the_nine_meta_tools_sorted_and_stable() {
+fn assistant_lists_exactly_the_twelve_meta_tools_sorted_and_stable() {
     let (editor, client) = Editor::start();
     let mut mcp = Mcp::new(client);
     assert!(mcp.server.is_assistant() && mcp.server.is_live());
@@ -217,14 +235,17 @@ fn assistant_lists_exactly_the_nine_meta_tools_sorted_and_stable() {
     assert_eq!(
         names,
         [
+            "ask_user",
             "command_describe",
             "commands_list",
             "execute",
             "notes_read",
             "notes_write",
             "run_batch",
+            "scratch_view",
             "scratch_write",
             "skill_reference",
+            "suggest_replies",
             "view_render"
         ]
     );
@@ -256,7 +277,16 @@ fn assistant_instructions_are_short_and_point_at_the_skill() {
     assert!(instructions.contains("skill_reference"), "{instructions}");
     assert!(instructions.contains("view_render"), "{instructions}");
     assert!(instructions.contains("run_batch"), "{instructions}");
-    assert!(instructions.len() < 700, "{}", instructions.len());
+    // #1172 added when to ask and to suggest replies.
+    assert!(instructions.contains("ask_user") && instructions.contains("suggest_replies"));
+    // #1184: colours are named by thread, never by hex value.
+    assert!(
+        instructions.contains("Colours: brand, code, name; no hex"),
+        "{instructions}"
+    );
+    // #1188: a command held for the user's approval.
+    assert!(instructions.contains("approval card"), "{instructions}");
+    assert!(instructions.len() < 1000, "{}", instructions.len());
     editor.finish();
 }
 
@@ -601,6 +631,86 @@ fn view_render_returns_an_image_block_and_the_stats() {
     editor.finish();
 }
 
+/// #1172: ask_user and suggest_replies forward to the editor's ui.askUser and ui.suggestReplies;
+/// ask_user's result tells the model to end its turn.
+#[test]
+fn ask_user_and_suggest_replies_forward_and_say_what_comes_next() {
+    let (editor, client) = Editor::start();
+    let mut mcp = Mcp::new(client);
+    let asked = mcp.call(
+        "ask_user",
+        json!({"questions": [
+            {"question": "How big?", "choices": ["80 mm", "100 mm"]},
+            {"question": "Which fabric?", "choices": ["Cotton", "Polo piqué"]},
+        ]}),
+    );
+    assert_eq!(asked["isError"], json!(false), "{asked}");
+    let said = asked["content"][0]["text"].as_str().expect("text");
+    assert!(
+        said.contains("2 questions") && said.contains("End your turn"),
+        "{said}"
+    );
+    let suggested = mcp.call(
+        "suggest_replies",
+        json!({"message": "Make it 80 mm", "chips": ["Export it as PES"]}),
+    );
+    assert_eq!(suggested["isError"], json!(false), "{suggested}");
+    for (tool, bad) in [
+        ("ask_user", json!({})),
+        (
+            "ask_user",
+            json!({"questions": [{"question": "x", "choices": ["a", "b"]}], "command": "design.new"}),
+        ),
+        ("suggest_replies", json!({"chips": ["a"], "extra": 1})),
+    ] {
+        assert_eq!(
+            mcp.call(tool, bad.clone())["isError"],
+            json!(true),
+            "{tool} {bad}"
+        );
+    }
+    let log = editor.log();
+    // The good call and the empty one reach the editor; the extra key never does.
+    assert_eq!(log.iter().filter(|c| *c == "ui.askUser").count(), 2);
+    assert_eq!(log.iter().filter(|c| *c == "ui.suggestReplies").count(), 1);
+    editor.finish();
+}
+
+/// #1168: scratch_view returns a scratch picture as MCP image content, for an agent that takes
+/// no pictures in a message.
+#[test]
+fn scratch_view_returns_the_picture_as_an_image_block() {
+    let (editor, client) = Editor::start();
+    let mut mcp = Mcp::new(client);
+    let seen = mcp.call("scratch_view", json!({"file": "attached-logo.png"}));
+    assert_eq!(seen["isError"], json!(false), "{seen}");
+    let content = seen["content"].as_array().expect("content");
+    assert_eq!(content[0]["type"], json!("image"));
+    assert_eq!(content[0]["mimeType"], json!("image/png"));
+    assert_eq!(content[0]["data"], json!(PNG_BASE64));
+    let about = content[1]["text"].as_str().expect("text");
+    assert!(about.contains("3000×1000 px, shown at 2048×683"), "{about}");
+    assert!(about.contains("/scratch/attached-logo.png"), "{about}");
+    for bad in [
+        json!({}),
+        json!({"file": "attached-logo.png", "path": "/etc"}),
+        json!({"file": "other.png"}),
+    ] {
+        assert_eq!(
+            mcp.call("scratch_view", bad.clone())["isError"],
+            json!(true),
+            "{bad}"
+        );
+    }
+    let views = editor
+        .log()
+        .iter()
+        .filter(|c| *c == "ui.scratchView")
+        .count();
+    assert_eq!(views, 2, "the bad keys never reach the editor");
+    editor.finish();
+}
+
 #[test]
 fn scratch_write_forwards_and_needs_exactly_one_content() {
     let (editor, client) = Editor::start();
@@ -763,6 +873,9 @@ fn every_command_the_skill_names_exists() {
         "ui.help",
         "ui.update",
         "ui.scratchWrite",
+        "ui.scratchView",
+        "ui.askUser",
+        "ui.suggestReplies",
         "ui.notesRead",
         "ui.notesWrite",
         "ui.notesClear",

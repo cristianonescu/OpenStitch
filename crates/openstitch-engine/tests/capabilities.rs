@@ -135,6 +135,7 @@ fn file_paths_are_refused_even_for_unlisted_file_commands() {
         sandbox: None,
         capabilities: Capabilities::FULL.without_files(),
         user: Default::default(),
+        chat: None,
     };
     assert!(state.resolve("x.pes", Access::Read, "test").is_err());
     assert!(state.resolve("x.pes", Access::Write, "test").is_err());

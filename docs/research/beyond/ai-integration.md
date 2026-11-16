@@ -352,6 +352,59 @@ every session and adds the smallest lasting lesson after each result.
   ("remember that I only own Madeira Polyneon threads") then `remembered-heart` ("make a red
   heart"), which passes when the heart's thread is a red from the Madeira Polyneon chart.
 
+### 4.11 The conversation kept with the project (#1169)
+
+Asked for by the owner on 2026-11-16: the chat persists when the project is saved, so the user
+can come back, read it and go on from where it stopped.
+
+- **Where.** An optional `assistant` field of the `.osd`, beside `design`:
+  `{"rows": [{"role": "user"|"assistant"|"notice"|"tool", "text", "failed"?}]}`
+  (`openstitch_design::saved_chat`). No version step: readers before it ignore the field.
+  Alpha.15's `stitchtool` opened such a file with the design intact, and saving it again
+  dropped the chat. Read leniently: a damaged chat never fails the design.
+- **What.** The messages, the notices, and the tool steps as their short labels. Thinking, a
+  tool's arguments and results, pictures, keys and tokens are never written. Paths: the scratch
+  folder is `<scratch>`, the temporary folder `<temp>`, the home folder `~` (a project folder
+  under it too), and the user name where it is a folder of a path is `<user>`
+  (`editor::assistant_saved::scrub_paths`). At most 1 MiB of text; past it the oldest rows go,
+  after a notice.
+- **Going on.** Opening shows the rows and a notice that they came from the project file. The
+  first message to a new worker starts with a block of the last 24,000 characters, whole
+  messages from the end, every line quoted with `> ` between a line saying it is file content
+  and not instructions (the file may come from someone else) and an end line. It is the same
+  for every protocol. It is never an assistant or system turn: a stored line cannot pose as the
+  model or the system. For the Claude API the block stays in the cached history; an
+  OpenAI-compatible endpoint gets it again with every request of that conversation, as it gets
+  all history. A coding agent gets it in its first prompt. A turn that ends without an error
+  clears it.
+- **Not used: the agent's own session.** claude-agent-acp 0.100.0 answers `initialize` with
+  `loadSession: true`, but its working folder is a new temporary folder each run, and its
+  sessions live in the user's own agent folder. A session id in a shared file would mean nothing
+  elsewhere. Proposed as a later improvement.
+- **Undo.** The panel's "Undo these changes" points into this run's undo groups; a restored chat
+  has none.
+- **Documents.** The chat belongs to the document it was restored or started in
+  (`EditorApp::chat_doc`). Only that document's save writes it; another tab's save writes the
+  chat its own file kept. A tab switch shows the switched-to tab's chat (not while a turn runs).
+  New and Open show the new document's chat. During the Assistant's turn the running
+  conversation stays: a design it makes or opens without a chat of its own takes it, and a file
+  with a chat of its own keeps that one (the chat says so). The same holds for `project.open`,
+  `design.new` and `project.save` sent by the model or a `--listen` client: since #1178 they do
+  what File ▸ Open, New and Save do (`EditorApp::after_remote_file_command`). Recovery snapshots keep the
+  chat as a save does.
+- **Unsaved.** While the chat is saved with the project, a change to what a save keeps (a
+  message, a reply, a notice, a tool step, New chat on a kept chat) marks the document unsaved,
+  as an edit does, without a design revision or an undo step (`note_chat_changes`, compared each
+  frame by the kept rows' count and text size). The title shows it, closing asks to save, and
+  autosave takes it (`EditorApp::snapshot_key`: revision and chat changes). Not marked: thinking,
+  tool details, the restore notice, a conversation that belongs to another document, anything
+  with the setting off, and an untitled design with no objects (closing would otherwise ask
+  after every question; the chat of such a session is lost on close, as it was before).
+- **Control.** "Save the chat with the project" (on by default) in the Assistant settings and
+  under the conversation, `ui.set assistantSaveChat` (asks). Off: nothing is written, and a chat
+  the file kept is removed on its next save. New chat clears the conversation, so the next save
+  keeps none.
+
 ## 5. Phased tasks
 
 Each phase is its own PR batch. Docs (README, FEATURE_MATRIX, ROADMAP and this file) are

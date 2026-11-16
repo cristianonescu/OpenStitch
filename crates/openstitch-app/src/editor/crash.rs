@@ -87,7 +87,7 @@ pub fn scrub_here(text: &str) -> String {
     scrub(text, home().as_deref())
 }
 
-fn replace_ignore_case(text: &str, what: &str, with: &str) -> String {
+pub(crate) fn replace_ignore_case(text: &str, what: &str, with: &str) -> String {
     if what.is_empty() {
         return text.to_string();
     }

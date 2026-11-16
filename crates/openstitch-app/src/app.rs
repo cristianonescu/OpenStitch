@@ -110,7 +110,7 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 39] = [
+pub const SHOW: [&str; 41] = [
     "update",
     "stitch-table",
     "large-text",
@@ -147,6 +147,8 @@ pub const SHOW: [&str; 39] = [
     "print",
     "assistant",
     "assistant-notices",
+    "assistant-questions",
+    "assistant-suggestions",
     "basic",
     "getting-started",
     "machine-setup",
@@ -255,6 +257,13 @@ pub struct EditorApp {
     /// new design + import + centre) is one Undo.
     pub(crate) undo_groups: Vec<usize>,
     pub(crate) redo_groups: Vec<usize>,
+    /// Which document this is, for the Assistant's conversation (#1169): the chat belongs to
+    /// the document it was restored or started in, and only that document's save writes it.
+    /// A new one for every New, Open and tab.
+    pub(crate) chat_doc: u64,
+    /// Counts changes to the kept chat (#1169), so autosave sees a conversation change as it sees
+    /// a design change ([`EditorApp::snapshot_key`]).
+    pub(crate) chat_edits: u64,
     /// Inside [`EditorApp::with_one_refresh`]: whether an edit is waiting for its stitch compile.
     refresh_deferred: Option<bool>,
     /// Rulers, grid, measure tool, Reference window, Design Settings, estimates.
@@ -308,6 +317,8 @@ pub struct EditorApp {
     pub ui: crate::ribbon::RibbonState,
     /// Check Design, the density map and the sewing-order review (#503-#505).
     pub quality: crate::quality_ui::QualityState,
+    /// The Sewing Order list's small pictures (#1185).
+    pub thumbs: crate::thumbs_ui::ThumbCache,
     /// Self-update: startup check, dialog, download and restart.
     pub update: crate::update_ui::UpdateState,
     /// "Save changes to NAME?" when closing, File ▸ New or Open would lose unsaved changes.
@@ -399,6 +410,8 @@ impl EditorApp {
             frames: 0,
             undo_groups: Vec::new(),
             redo_groups: Vec::new(),
+            chat_doc: crate::assistant_panel::next_document(),
+            chat_edits: 0,
             refresh_deferred: None,
             workspace: Default::default(),
             edit: Default::default(),
@@ -423,6 +436,7 @@ impl EditorApp {
             splash: None,
             ui: Default::default(),
             quality: Default::default(),
+            thumbs: Default::default(),
             update: Default::default(),
             close_prompt: ClosePrompt::default(),
             machine_setup: Default::default(),
@@ -588,6 +602,9 @@ impl EditorApp {
                     }
                 }
                 "assistant-notices" => crate::assistant_panel::show_sample_notices(self),
+                // #1172: a question card, and a reply's suggestions with fix chips.
+                "assistant-questions" => crate::assistant_panel::show_sample_offers(self, true),
+                "assistant-suggestions" => crate::assistant_panel::show_sample_offers(self, false),
                 // Sewing Attributes in its Basic view (#553), not saved.
                 "basic" => self.ui.prefs.advanced_attributes = false,
                 "getting-started" => self.ui.start.page_open = true,
@@ -721,6 +738,8 @@ impl EditorApp {
             requested: false,
             done: Arc::new(AtomicBool::new(false)),
         });
+        // A screenshot shows every Sewing Order picture drawn, never one waiting (#1185).
+        self.thumbs.unlimited = self.screenshot.is_some();
     }
 
     // MARK: commands
@@ -728,6 +747,10 @@ impl EditorApp {
     /// Runs one command; reports failures in the status bar. Returns the command's result.
     pub fn execute(&mut self, r: &CommandRequest) -> Option<Value> {
         openstitch_app::editor::crash::note_command(r.command);
+        if r.command == "project.save" {
+            // The document's conversation goes into the file with it (#1169).
+            crate::assistant_panel::chat_to_session(self);
+        }
         let effect = self.effects.get(r.command).copied();
         let before = (effect == Some(Effect::Edit)).then(|| self.session.design().clone());
         match self.session.execute(r.command, Some(&r.params)) {
@@ -1045,6 +1068,12 @@ impl EditorApp {
         self.revision != self.saved_revision
     }
 
+    /// What autosave compares: the design's revision and the chat's changes (#1169).
+    pub(crate) fn snapshot_key(&self) -> u64 {
+        self.revision
+            .wrapping_add(self.chat_edits.wrapping_mul(0x9E37_79B9_7F4A_7C15))
+    }
+
     pub fn undo(&mut self) {
         let steps = self.undo_groups.pop().unwrap_or(1);
         let done = self.history("history.undo", steps);
@@ -1129,6 +1158,11 @@ impl EditorApp {
             },
             |n| n.to_string_lossy().into_owned(),
         )
+    }
+
+    /// The design is as its file has it (a save from the Assistant or a socket client, #1178).
+    pub(crate) fn mark_saved(&mut self) {
+        self.saved_revision = self.revision;
     }
 
     /// The design counts as unsaved until it is saved (a restored snapshot, #549).
@@ -1271,6 +1305,9 @@ impl EditorApp {
     }
 
     pub(crate) fn after_load(&mut self, path: Option<PathBuf>) {
+        // A new document: its own conversation, the one its file keeps or none (#1169).
+        self.chat_doc = crate::assistant_panel::next_document();
+        crate::assistant_panel::document_loaded(self);
         self.recovery.recovered_from = None;
         self.path = path;
         self.selection.clear();
@@ -2236,6 +2273,8 @@ impl eframe::App for EditorApp {
         crate::files::run_ready(self);
         // Options ▸ Language (#555): the window's texts for this frame.
         openstitch_app::editor::i18n::set_language(&self.ui.prefs.language);
+        // Custom colours are named by the default chart's nearest thread (#1184).
+        crate::panels::set_reference(self.session.user_settings());
         // A hover preview lasts while a picture picker's tile is hovered (#656).
         self.pickers_frame_end();
         self.pickers_frame_start();

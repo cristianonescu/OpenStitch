@@ -46,6 +46,7 @@ pub mod region;
 pub mod regions;
 pub mod ripple;
 pub mod route;
+pub mod saved_chat;
 pub mod sections;
 pub mod sewing;
 pub mod shapes;

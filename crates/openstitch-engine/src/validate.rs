@@ -163,7 +163,7 @@ fn check_value(kind: &str, value: &Value) -> Option<String> {
             // A chart's thread (#796): {builtin, code | index} or {color, code, brand, description}.
             Value::Object(o) if o.contains_key("builtin") || o.contains_key("color") => None,
             _ => Some(
-                "must be #rrggbb, a Brother thread name, chart number 1-64 or {builtin, code}"
+                "must be a thread code (\"205\"), brand and code, a Brother thread name, #rrggbb, PEC chart number 1-64 or {builtin, code}"
                     .into(),
             ),
         },

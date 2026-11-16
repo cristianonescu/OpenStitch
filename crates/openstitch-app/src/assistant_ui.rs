@@ -414,6 +414,10 @@ impl EditorApp {
                 Ok(json!({ "checking": true }))
             }
             "ui.scratchWrite" => self.scratch_write(&p, params),
+            "ui.scratchView" => self.scratch_view(&p),
+            "ui.askUser" | "ui.suggestReplies" => {
+                crate::assistant_panel::offer(self, id, params)
+            }
             "ui.notesRead" => {
                 self.memory_on()?;
                 Ok(self.notes_json())
@@ -543,6 +547,15 @@ impl EditorApp {
             return Err(format!("{} is not available in OpenStitch yet", info.label));
         }
         match assistant::route(a) {
+            // Save writes the design's own file when it has one, as Ctrl+S does (#1187).
+            Route::File(_) if a == Action::Save && self.path.is_some() => {
+                self.save(false);
+                return if self.is_dirty() {
+                    Err(self.status.clone())
+                } else {
+                    Ok(json!({ "saved": self.path.as_ref().map(|p| p.display().to_string()) }))
+                };
+            }
             Route::File(c) => {
                 return Err(format!(
                     "{} opens a file dialog; run {c} with a path instead",
@@ -583,6 +596,13 @@ impl EditorApp {
             "stitches": s.stitches, "jumps": s.jumps, "trims": s.trims,
             "colorChanges": s.color_changes, "widthMm": s.width_mm, "heightMm": s.height_mm,
             "colors": s.colors.iter().map(|c| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2])).collect::<Vec<_>>(),
+            // The same colours as a person reads them: the design's thread of that colour, a
+            // custom colour by its nearest thread (#1184).
+            "threads": s.colors.iter().map(|c| {
+                let rgb = u32::from(c[0]) << 16 | u32::from(c[1]) << 8 | u32::from(c[2]);
+                let own = self.pattern.threads.iter().find(|t| t.rgb_value() == rgb).cloned();
+                crate::panels::thread_text(&own.unwrap_or(openstitch_core::Thread::rgb(rgb)))
+            }).collect::<Vec<_>>(),
         })
     }
 
@@ -675,6 +695,7 @@ impl EditorApp {
                 "advancedAttributes" => json!(prefs.advanced_attributes),
                 "aiFeatures" => json!(prefs.ai.enabled),
                 "assistantMemory" => json!(prefs.ai.memory),
+                "assistantSaveChat" => json!(prefs.ai.save_chat),
                 "checkUpdates" => json!(prefs.updates.check),
                 "includePrereleases" => json!(prefs.updates.include_prereleases),
                 "optimizeEntryExit" => json!(self.session.user_settings().optimize_entry_exit),
@@ -802,6 +823,7 @@ impl EditorApp {
             "advancedAttributes" => self.ui.prefs.advanced_attributes = bool_value(name, v)?,
             "aiFeatures" => self.ui.prefs.ai.enabled = bool_value(name, v)?,
             "assistantMemory" => self.ui.prefs.ai.memory = bool_value(name, v)?,
+            "assistantSaveChat" => self.ui.prefs.ai.save_chat = bool_value(name, v)?,
             "checkUpdates" => self.ui.prefs.updates.check = bool_value(name, v)?,
             "includePrereleases" => {
                 self.ui.prefs.updates.include_prereleases = bool_value(name, v)?
@@ -1129,6 +1151,38 @@ impl EditorApp {
         let path = dir.join(name);
         std::fs::write(&path, &bytes).map_err(|e| format!("cannot write {name}: {e}"))?;
         Ok(json!({ "path": path.display().to_string(), "bytes": bytes.len() }))
+    }
+
+    /// `ui.scratchView` (#1168): a scratch picture as the model is sent one, for an agent that
+    /// takes no pictures in a message. A plain name in the scratch folder only.
+    fn scratch_view(&mut self, p: &Params) -> Result<Value, String> {
+        let dir = self
+            .assistant
+            .scratch
+            .clone()
+            .ok_or("this editor has no scratch folder (start it with --listen)")?;
+        let name = p.string("name", None).map_err(|e| e.to_string())?;
+        let name = name.as_str();
+        if !assistant::scratch_name_ok(name) || name.to_ascii_lowercase().ends_with(".svg") {
+            return Err(
+                "name must be a plain file name in the scratch folder ending in .png, .jpg, .jpeg or .bmp".into(),
+            );
+        }
+        let path = dir.join(name);
+        let bytes = std::fs::read(&path).map_err(|e| format!("cannot read {name}: {e}"))?;
+        let (media, sent, width, height) =
+            openstitch_app::editor::assistant_attach::fit_picture(&bytes)
+                .map_err(|e| format!("{name}: {e}"))?;
+        let (sent_width, sent_height) = image::load_from_memory(&sent)
+            .map(|i| (i.width(), i.height()))
+            .unwrap_or((width, height));
+        Ok(json!({
+            "path": path.display().to_string(),
+            "mimeType": media,
+            "base64": base64::engine::general_purpose::STANDARD.encode(&sent),
+            "width": width, "height": height,
+            "sentWidth": sent_width, "sentHeight": sent_height,
+        }))
     }
 }
 
@@ -1603,12 +1657,20 @@ mod tests {
         assert_eq!(codes(&labels(&mut app, "picker"))[0], "001", "New Brothread, the default");
         let pec = labels(&mut app, "pecPicker");
         assert_eq!(pec[0]["code"], "007", "PEC 1 shows Brother's code");
+        // A custom colour shows the default chart's nearest thread, marked, never its hex (#1184).
+        let kit: &[openstitch_core::Thread] = &openstitch_core::brands::NEW_BROTHREAD;
+        let near = openstitch_core::nearest_thread(&openstitch_core::Thread::rgb(0x123456), kit)
+            .and_then(|(t, _)| t.catalog_number.as_deref())
+            .map(|c| format!("≈{c}"))
+            .expect("a nearest thread");
         let order = codes(&labels(&mut app, "sewingOrder"));
-        assert_eq!(order, ["007", "900", "1800", "#123456"]);
+        assert_eq!(order, ["007", "900", "1800", near.as_str()]);
         // The Thread Colours pane: one labelled swatch per colour block of the compiled design.
         let mut pane = codes(&labels(&mut app, "colourPane"));
         pane.sort();
-        assert_eq!(pane, ["#123456", "007", "1800", "900"]);
+        let mut want = vec!["007".to_string(), "1800".into(), "900".into(), near];
+        want.sort();
+        assert_eq!(pane, want);
         // Change Color, for a stitch pattern made from the first rectangle.
         let first = app.session.design().objects[0].id;
         app.execute(&openstitch_app::editor::CommandRequest::new("object.toStitches", json!({ "ids": [first] })));
@@ -2144,6 +2206,35 @@ mod tests {
         ] {
             assert!(
                 app.ui_command("ui.scratchWrite", Some(&bad)).is_err(),
+                "{bad}"
+            );
+        }
+
+        // #1168: ui.scratchView returns a scratch picture as sent to a model: a 3000 px wide
+        // picture comes at 2048 px, the file stays as it is.
+        let wide = image::RgbImage::from_pixel(3000, 40, image::Rgb([200, 20, 20]));
+        wide.save(dir.join("wide.png")).expect("png");
+        let before = std::fs::read(dir.join("wide.png")).expect("read");
+        let r = app
+            .ui_command("ui.scratchView", Some(&json!({ "name": "wide.png" })))
+            .expect("view");
+        assert_eq!(r["mimeType"], json!("image/png"));
+        assert_eq!((r["width"].clone(), r["height"].clone()), (json!(3000), json!(40)));
+        assert_eq!(r["sentWidth"], json!(2048));
+        let sent = base64::engine::general_purpose::STANDARD
+            .decode(r["base64"].as_str().expect("base64"))
+            .expect("decodes");
+        assert_eq!(image::load_from_memory(&sent).expect("picture").width(), 2048);
+        assert_eq!(std::fs::read(dir.join("wide.png")).expect("read"), before);
+        for bad in [
+            json!({ "name": "../wide.png" }),
+            json!({ "name": "a.svg" }),
+            json!({ "name": "missing.png" }),
+            json!({ "name": "b.png" }),
+            json!({}),
+        ] {
+            assert!(
+                app.ui_command("ui.scratchView", Some(&bad)).is_err(),
                 "{bad}"
             );
         }

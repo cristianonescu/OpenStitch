@@ -418,3 +418,32 @@ fn early_closes_deliver_the_reply_before_closing() {
     let e = error(late_reply(&host, line.as_bytes()));
     assert!(e.contains("too many"), "{e}");
 }
+
+/// #1188: a reply that does not come within the client's timeout reached the editor, which has
+/// not answered yet (a command held on an approval card): the error says so instead of "cannot
+/// reach the editor".
+#[test]
+fn a_late_reply_is_not_called_an_unreachable_editor() {
+    let quiet = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let address = quiet.local_addr().expect("address");
+    let hold = std::thread::spawn(move || {
+        let (stream, _) = quiet.accept().expect("accept");
+        std::thread::sleep(Duration::from_secs(3));
+        drop(stream);
+    });
+    let endpoint = Endpoint {
+        address,
+        token: "0".repeat(64),
+    };
+    let mut client = Client::new(endpoint)
+        .expect("client")
+        .with_timeout(Duration::from_secs(1));
+    let reply = client.handle(&json!({ "command": "project.save" }));
+    let e = reply["error"].as_str().unwrap_or_default().to_string();
+    assert!(e.contains("did not answer within 1 s"), "{e}");
+    assert!(
+        e.contains("approval card") && !e.contains("cannot reach"),
+        "{e}"
+    );
+    hold.join().expect("hold");
+}

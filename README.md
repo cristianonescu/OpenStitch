@@ -43,7 +43,7 @@ your machine, by hand or by asking the built-in AI Assistant.
 | <img src="docs/images/readme/usb-transfer.png" width="300" alt="Sending a design to a USB stick for the machine"> | **Send it to your machine**<br>Put the design on a USB stick or SD card.<ul><li>PES or the machine's own format, read back before it counts as sent</li><li>A ready-to-sew kit with a design for every feature</li><li>No cable or wireless sending yet</li></ul>[More](#machine-transfer) · [The kit](#ready-to-sew-designs) |
 | <img src="docs/images/readme/design-database.png" width="300" alt="Design Database browsing folders of designs as thumbnails"> | **Keep your designs in order**<br>Find any design in your folders.<ul><li>Thumbnails, and search by size, stitches and colours</li><li>Convert formats in batch and print catalogues</li><li>(+) Thumbnails in Finder, Windows Explorer and Linux file managers</li></ul>[More](#files-and-formats) |
 | <img src="docs/images/readme/stitch-creator.png" width="300" alt="Programmable Stitch Creator drawing a fill pattern"> | **Make your own stitches and fonts**<br>Make the patterns and fonts the built-in ones do not cover.<ul><li>Programmable Stitch Creator for fill, stamp and motif patterns</li><li>Font Creator, and fonts made from your stitch designs</li><li>Stitch Design Factory for sewing-machine stitches</li></ul>[Fills](#fills) · [Lettering](#lettering) |
-| <img src="docs/images/assistant-agent-picture.png" width="300" alt="The Assistant turning a dropped pixel-art strawberry into embroidery"> | <a name="try-assistant"></a>**(+) Ask the AI Assistant**<br>Describe a design or a change; it makes it with OpenStitch's own tools.<ul><li>The Claude API, a model on your computer, or a coding agent you already use</li><li>It asks before saving, exporting or using the machine</li><li>One message is one undo step</li></ul><!-- #1171: what #1168, #1169 and #1172 add goes here once they are merged -->[More](#the-ai-assistant-and-mcp) |
+| <img src="docs/images/assistant-agent-picture.png" width="300" alt="The Assistant turning a dropped pixel-art strawberry into embroidery"> | <a name="try-assistant"></a>**(+) Ask the AI Assistant**<br>Describe a design or a change; it makes it with OpenStitch's own tools.<ul><li>The Claude API, a model on your computer, or a coding agent you already use, and it sees the pictures you drop in</li><li>It asks a few questions first, then suggests what to say next and offers fixes</li><li>It asks before saving or using the machine, one message is one undo step, and the chat is saved with the project</li></ul>[More](#the-ai-assistant-and-mcp) |
 | <img src="docs/images/readme/dark-theme.png" width="300" alt="The editor in the dark theme"> | **Comfortable to work in**<br>A window laid out like PE-DESIGN 11's, with start cards for a first design.<ul><li>(+) Tabs, a command palette and your own shortcuts</li><li>(+) Autosave with recovery, millimetres or inches, an accent colour</li><li>Updates itself; (+) also runs in a browser</li></ul>[More](#editing) |
 | | **(+) Script it**<br>Automate what you would do by hand.<ul><li>`stitchtool convert in.dst out.pes` and other one-line commands</li><li>A Python package and JSON command scripts</li><li>An MCP server for Claude Code and other clients</li></ul>[More](#scripting-python-package) |
 
@@ -346,6 +346,9 @@ feature is done and the rest is under [Planned](#planned).
 - **Hole sewing:** an outer region sews around the inner one.
 - **Sewing Order list:** drag to reorder, show or hide, (+) rename, lock, sew in click order and sew
   an outline before its fill ([#502]).
+- **Pictures that look like the objects:** each Sewing Order row shows the object's own
+  stitches, as the page does: fills filled, holes open, every colour. A hidden object shows its
+  outlines filled, and a white one sits on a grey tile ([#1185]).
 - (+) **Find objects** above the Sewing Order list: type a name, stitch type, "text" or a thread
   ("satin", "brother 017") to show only those rows, then select them all at once ([#745]).
 - **Sewing order commands:** sort by colour or optimise as PE-DESIGN does, (+) or by the shortest
@@ -583,6 +586,10 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
   away ([#796]).
 - (+) **Thread codes on every swatch:** each colour list shows the code printed on the spool
   (Brother 007, a maker's or your own code) beside the colour, not only on hover ([#798]).
+- (+) **Colours named by thread, never by hex value:** swatches, tooltips, lists, catalogues and
+  job sheets name a colour by brand, code and name. A colour no thread stands behind shows the
+  nearest thread of your chart as "≈205", and a colour can be typed as "205" or
+  "Brother 205" ([#1184]).
 - (+) **GIMP / Inkscape `.gpl` palettes** as thread charts ([#483]).
 - (+) **Match to any chart by perceived colour** (CIEDE2000 or Oklab), with a preview ([#484]).
 - (+) **Merge similar colours** to save thread changes ([#485]).
@@ -624,11 +631,23 @@ circle, and the whole message is one undo step.*
   Studio on your computer (no key, works offline), OpenRouter or any OpenAI-compatible service,
   or a coding agent (Claude Code, Codex, OpenCode).
 - (+) **Asks first** before saving, exporting, opening files, sending to the machine, quitting or
-  changing a thread chart (Allow once, Always allow, Deny).
+  changing a thread chart (Allow once, Always allow, Deny). With a coding agent the card waits
+  for your answer (up to 4 minutes), and the agent is told whether you declined; a command sent
+  again while its card is open uses that card ([#1188]).
 - (+) **Pictures:** attach or drop files; **View** and **Selection** send the design and what is
-  selected.
+  selected. A coding agent that takes pictures, such as Claude Code, gets them in the message
+  as the Claude API does; one that does not looks at them with a tool ([#1168]).
 - (+) **Memory:** short notes about your machine, threads and preferences, kept on your computer
   and written only after you allow it ([#491]).
+- (+) **The chat is kept with the project:** saving writes the conversation into the `.osd`, and
+  opening it lets you read it and go on where it stopped ([#1169]). Pictures, the assistant's
+  thinking, tool results and keys are never kept. "Save the chat with the project" (Assistant
+  settings, on by default) turns it off, and a kept chat goes at the next save. Saves and
+  opens the assistant runs are handled as File ▸ Save and Open are ([#1176], [#1178],
+  [#1187]).
+- (+) **Questions and suggested replies:** before a new design it asks 5 to 10 questions with
+  answer chips (or uses its judgment); after every reply it offers a suggested message and chips,
+  and **Fix** chips when Check Design finds errors or warnings ([#1172]).
 - (+) **Your threads only:** colours come from your own or a named chart, and catalogue numbers are
   looked up, never invented ([#495]).
 - (+) **Embroidery skill** with illustrated example designs and a composition guide, and a
@@ -734,6 +753,15 @@ tests and the keychain round trip
 [#489]: https://github.com/cristianonescu/OpenStitch/issues/489
 [#490]: https://github.com/cristianonescu/OpenStitch/issues/490
 [#491]: https://github.com/cristianonescu/OpenStitch/issues/491
+[#1168]: https://github.com/cristianonescu/OpenStitch/issues/1168
+[#1169]: https://github.com/cristianonescu/OpenStitch/issues/1169
+[#1176]: https://github.com/cristianonescu/OpenStitch/issues/1176
+[#1178]: https://github.com/cristianonescu/OpenStitch/issues/1178
+[#1184]: https://github.com/cristianonescu/OpenStitch/issues/1184
+[#1185]: https://github.com/cristianonescu/OpenStitch/issues/1185
+[#1187]: https://github.com/cristianonescu/OpenStitch/issues/1187
+[#1188]: https://github.com/cristianonescu/OpenStitch/issues/1188
+[#1172]: https://github.com/cristianonescu/OpenStitch/issues/1172
 [#492]: https://github.com/cristianonescu/OpenStitch/issues/492
 [#493]: https://github.com/cristianonescu/OpenStitch/issues/493
 [#494]: https://github.com/cristianonescu/OpenStitch/issues/494
@@ -1187,9 +1215,10 @@ claude mcp add openstitch -- "$PWD/target/release/openstitch-mcp" --root ~/Embro
 ```
 
 To let an MCP client control the whole editor (the base of the B17 AI assistant), start the
-editor with `--listen 0` and register `openstitch-mcp --assistant`. It offers nine tools
+editor with `--listen 0` and register `openstitch-mcp --assistant`. It offers twelve tools
 instead of one per command: `commands_list`, `command_describe`, `execute`, `run_batch`,
-`view_render`, `scratch_write`, `skill_reference`, `notes_read` and `notes_write`. They reach every engine command and the
+`view_render`, `scratch_write`, `scratch_view`, `skill_reference`, `notes_read`, `notes_write`,
+`ask_user` and `suggest_replies`. They reach every engine command and the
 editor's `ui.*` commands: ribbon and menu commands, selection, zoom, settings, the simulator,
 Help and updates. A bundled embroidery skill (`skills/openstitch-embroidery`) tells the model
 how to build designs that sew well.

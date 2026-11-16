@@ -680,6 +680,9 @@ These give the AI assistant ([research/beyond/ai-integration.md](research/beyond
 **Pictures and files**
 - `ui.render`: a PNG of the live design, the same preview `openstitch-mcp` draws.
 - `ui.scratchWrite`: writes an SVG or a picture into a scratch folder.
+- `ui.scratchView`: a picture in the scratch folder, by plain name, as base64, scaled as an
+  attached picture is (2048 px, 3.75 MB). The assistant's `scratch_view` tool returns it as MCP
+  image content (#1168).
 
 **Others** (the full list is `commands.list`): `ui.cursor` (keyboard drawing), `ui.preview`,
 `ui.stitchTable`, `ui.threadLabels`, `ui.guides`, `ui.layout`, `ui.documents`, `ui.loading`,
@@ -715,6 +718,36 @@ loopback listener the panel opens, with its endpoint file in the 0700 scratch fo
 drains that listener in `serve`, through the same gate and undo bookkeeping as the in-process
 link, and not through `serve_remote`'s `Policy`.
 
+**Approvals and timeouts (#1188).** A command the gate asks about waits on a card for
+`APPROVAL_TIMEOUT_S` (240 s). The private socket waits `AGENT_REPLY_TIMEOUT_S` (270 s) for the
+editor's reply, and the bridge's client (`assistant_panel::bridge_client`) waits
+`BRIDGE_TIMEOUT_S` (300 s), so a held command is never cut off by a transport timeout first.
+Claude Code's own MCP tool-call limit is 24 h. The agent is told which way the card ended:
+declined, unanswered (it did not run; do not retry) or the turn ended. A request equal to one
+already waiting (same command and params, an agent retrying) takes that card over, and the
+earlier copy is told it was sent again.
+
+**Questions, suggested replies and fix chips (#1172).** `assistant_offers.rs` holds them. The
+model hands questions and suggestions over with the meta tools `ask_user` and `suggest_replies`
+(editor commands `ui.askUser` and `ui.suggestReplies`, read-only, refused outside the
+Assistant's own turn). They reach every protocol the same way, because the API worker and a
+coding agent's bridge serve the same `openstitch-mcp --assistant` tool list. Questions end the
+turn: the card above the composer sends the answers, or "use your judgment", as one ordinary
+user message, so nothing waits on a timeout. The chat keeps the questions as one Assistant row
+and the answers as the user's message. At the end of every turn `end_turn` reads Check Design
+(`app.quality.check`, which equals `design.check`) for the fix chips, and shows the model's
+suggestions or one of four fixed, translated sets (`Ending`: failed, findings, changed,
+answered). Model text is made plain and cut; a click only sends or
+fills a user message.
+
+**Pictures to a coding agent (#1168).** The panel hands the agent's worker the attached
+pictures, the View render, and two texts, because only the worker knows the agent's
+`initialize` result. An agent whose result has `agentCapabilities.promptCapabilities.image`
+(claude-agent-acp 0.100.0 does) gets the pictures as ACP image blocks ahead of the text, which
+says they are shown above. An agent without it gets the other text: each attached picture is
+named with `scratch_view`, View asks for `view_render`, and the chat says the pictures were not
+sent.
+
 View ▸ Show/Hide ▸ **Assistant** (Ctrl/Cmd+Shift+A) docks a chat on the right (`assistant_panel.rs`).
 
 **The worker thread** owns the conversation (`openstitch-assistant`) and an `openstitch-mcp` assistant `Server`. The server's `EditorLink` is a channel to the UI thread, not the socket, so the model sees the same nine tools as `openstitch-mcp --assistant`.
@@ -730,7 +763,9 @@ View ▸ Show/Hide ▸ **Assistant** (Ctrl/Cmd+Shift+A) docks a chat on the righ
 
 **Save as script.** The message's engine edits are recorded (`ScriptRecord`) and written as a `stitchtool exec` script.
 
-**Preferences and key.** The preferences are in `ui.json` under `ai`: on/off, model, effort, address, permissions, limit, always-allowed commands and timeout. The API key is only in the system keychain (`keyring`, service "OpenStitch assistant", one entry per address). It is never sent to an address `key_safe_for` refuses.
+**Kept conversation (#1169).** A save writes the conversation into the `.osd` (`openstitch_design::saved_chat`, the engine's `EngineState::chat`, set by `assistant_panel::chat_to_session` before `project.save`, parking a tab and autosave), private paths scrubbed (`editor::assistant_saved`). `project.open` reads it back and `EditorApp::after_load` shows it; the first message to a new worker carries it as quoted file content. Each document has its own (`EditorApp::chat_doc`). See `docs/research/beyond/ai-integration.md` section 4.11.
+
+**Preferences and key.** The preferences are in `ui.json` under `ai`: on/off, model, effort, address, permissions, limit, always-allowed commands, timeout and "Save the chat with the project" (`saveChat`). The API key is only in the system keychain (`keyring`, service "OpenStitch assistant", one entry per address). It is never sent to an address `key_safe_for` refuses.
 
 **Tests.** `assistant_panel::tests` drives whole turns with a scripted SSE transport:
 - one undo step per message;

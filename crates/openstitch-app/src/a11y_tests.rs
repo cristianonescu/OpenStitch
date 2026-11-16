@@ -293,3 +293,101 @@ fn typing_into_an_inspector_field_still_keeps_to_its_range() {
         );
     }
 }
+
+
+/// A `#rrggbb` in `text`.
+fn hex_in(text: &str) -> Option<&str> {
+    text.char_indices()
+        .filter(|&(_, c)| c == '#')
+        .map(|(i, _)| &text[i..text.len().min(i + 7)])
+        .find(|h| h.len() == 7 && h[1..].chars().all(|c| c.is_ascii_hexdigit()))
+}
+
+/// #1184: no list, pane, window, tooltip or caption shows a thread's colour as hex, for a
+/// design with a chart thread and a custom colour; each shows brand, code and name, the custom
+/// colour by the default chart's nearest thread, marked "≈" (a sign the UI font has).
+#[test]
+fn no_colour_is_shown_as_a_hex_value() {
+    let mut app = EditorApp::new(Launch::default());
+    app.splash = None;
+    for (command, params) in [
+        ("design.new", json!({ "width": 100, "height": 100 })),
+        ("shape.rectangle", json!({ "x": 0, "y": 0, "width": 20, "height": 20, "fill": "Red" })),
+        ("shape.ellipse", json!({ "cx": 70, "cy": 50, "rx": 10, "fill": "#fffd03" })),
+        ("threads.createChart", json!({ "name": "Mine" })),
+        (
+            "threads.addColor",
+            json!({ "chart": "Mine", "color": "#123456", "code": "12", "brand": "Mine", "description": "Ink" }),
+        ),
+    ] {
+        app.execute(&openstitch_app::editor::CommandRequest::new(command, params));
+    }
+    let nearest = "Custom colour, nearest New Brothread 205 Yellow";
+    // The windows that list threads: the user's thread charts, the Sewing Order list and the
+    // Thread Colours pane (open by default).
+    app.settings.charts_open = true;
+    app.settings.chart = Some("Mine".into());
+    let nodes = tree(&mut app);
+    let mut shown = 0;
+    for (_, n) in &nodes {
+        // Where a user defines a colour, hex is right (#1184 decision 3): a text field may hold
+        // the hex value they type, and egui's colour editor (Settings, a chart thread's colour)
+        // reports its value as hex to a screen reader.
+        if matches!(n.role(), Role::TextInput | Role::ColorWell) {
+            continue;
+        }
+        for s in [n.label(), n.value(), n.description()].into_iter().flatten() {
+            shown += 1;
+            assert_eq!(hex_in(s), None, "{:?} shows {s:?}", n.role());
+        }
+    }
+    assert!(shown > 50, "{shown} texts read");
+    // Painted captions and tooltips, as every colour list reports them (`ui.threadLabels`).
+    for list in ["picker", "sewingOrder", "colourPane"] {
+        let v = app
+            .ui_command("ui.threadLabels", Some(&json!({ "list": list })))
+            .unwrap_or_else(|e| panic!("{list}: {e}"));
+        for l in v["labels"].as_array().expect("labels") {
+            for k in ["code", "text"] {
+                let s = l[k].as_str().unwrap_or_default();
+                assert!(!s.is_empty(), "{list}: no {k}");
+                assert_eq!(hex_in(s), None, "{list} {k}: {s}");
+            }
+        }
+    }
+    let order = app
+        .ui_command("ui.threadLabels", Some(&json!({ "list": "sewingOrder" })))
+        .expect("order");
+    let codes: Vec<&str> = order["labels"]
+        .as_array()
+        .expect("labels")
+        .iter()
+        .filter_map(|l| l["code"].as_str())
+        .collect();
+    assert_eq!(codes, ["800", "≈205"]);
+    for t in app.pattern.threads.clone() {
+        let tip = crate::panels::thread_tip(&t);
+        assert_eq!(hex_in(&tip), None, "tooltip {tip}");
+        if openstitch_core::is_custom(&t) {
+            assert_eq!(tip, nearest);
+        }
+    }
+    // What the Assistant reads of the editor's stats names the same colours.
+    let state = app.ui_command("ui.state", None).expect("state");
+    let threads: Vec<&str> = state["stats"]["threads"]
+        .as_array()
+        .expect("stats threads")
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    assert!(threads.contains(&nearest), "{threads:?}");
+    for t in &threads {
+        assert_eq!(hex_in(t), None, "stats {t}");
+    }
+    // The nearest mark is a sign the UI font draws, not a missing-glyph box.
+    let ctx = egui::Context::default();
+    let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
+    out.textures_delta.clear();
+    let small = egui::FontId::proportional(10.0);
+    assert!(ctx.fonts_mut(|f| f.has_glyph(&small, openstitch_core::NEAREST_MARK)));
+}

@@ -83,7 +83,11 @@ fn main() {
         match msg.get("method").and_then(Value::as_str) {
             Some("initialize") => agent.send(json!({"jsonrpc": "2.0", "id": id, "result": {
                 "protocolVersion": 1,
-                "agentCapabilities": {"loadSession": false},
+                "agentCapabilities": if scenario == "images" {
+                    json!({"loadSession": false, "promptCapabilities": {"image": true}})
+                } else {
+                    json!({"loadSession": false})
+                },
                 "agentInfo": {"name": "fake", "version": "0.0.1"},
                 "authMethods": [
                     {"id": "fake-login", "name": "Log in", "description": "Run fake login", "type": "terminal", "args": ["--login"]},
@@ -96,7 +100,7 @@ fn main() {
                 agent.send(json!({"jsonrpc": "2.0", "id": id, "result": {"sessionId": session}}))
             }
             Some("session/prompt") => match scenario.as_str() {
-                "normal" => normal_turn(&mut agent, session, id),
+                "normal" | "images" => normal_turn(&mut agent, session, id),
                 "cancel" => {
                     agent.chunk(session, "agent_message_chunk", "Working");
                     while let Some(m) = agent.next() {

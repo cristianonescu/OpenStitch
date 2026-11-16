@@ -1268,12 +1268,89 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("ui-new-chat", "New chat"),
     (
         "ui-start-a-new-conversation-the-design-tip",
-        "Start a new conversation; the design stays",
+        "Start a new conversation; the design stays. The project's next save keeps no chat.",
     ),
     ("ui-save-as-script", "Save as script"),
     ("ui-allow-once", "Allow once"),
     ("ui-always-allow", "Always allow"),
     ("ui-deny", "Deny"),
+    (
+        "ui-assistant-questions-heading",
+        "A few questions before I start:",
+    ),
+    ("ui-or-type-your-own-answer", "Or type your own answer"),
+    ("ui-send-answers", "Send answers"),
+    ("ui-use-your-judgment", "Use your judgment"),
+    (
+        "ui-use-your-judgment-tip",
+        "Skip the questions: the assistant goes on and says what it assumed",
+    ),
+    (
+        "ui-use-your-judgment-message",
+        "Skip the questions and use your judgment; tell me what you assumed.",
+    ),
+    ("ui-answers-message-heading", "Answers:"),
+    ("ui-answer-your-choice", "your choice"),
+    ("ui-send-suggested-reply", "Send"),
+    (
+        "ui-send-suggested-reply-tip",
+        "Send this reply as your message",
+    ),
+    ("ui-edit-suggested-reply", "Edit"),
+    (
+        "ui-edit-suggested-reply-tip",
+        "Put this reply into the message box to change it first",
+    ),
+    ("ui-suggest-show-design", "Show me the design"),
+    ("ui-suggest-how-long", "How long will it take to sew?"),
+    ("ui-suggest-export-pes", "Export it as PES"),
+    (
+        "ui-suggest-why-do-they-matter",
+        "Why do these problems matter?",
+    ),
+    (
+        "ui-suggest-fix-then-show-message",
+        "Fix what Check Design found, then show me the design.",
+    ),
+    ("ui-suggest-tell-me-more", "Tell me more"),
+    ("ui-suggest-make-it-message", "Can you make that for me?"),
+    ("ui-suggest-what-can-you-make", "What can you make for me?"),
+    (
+        "ui-suggest-improve-message",
+        "What would you improve in this design, and why?",
+    ),
+    ("ui-suggest-try-again", "Try that again"),
+    ("ui-suggest-what-went-wrong", "What went wrong?"),
+    ("ui-suggest-try-again-message", "Please try that again."),
+    (
+        "ui-fix-the-errors",
+        "Fix the { $count ->
+[one] error
+*[other] { $count } errors
+}",
+    ),
+    (
+        "ui-fix-the-warnings",
+        "Fix the { $count ->
+[one] warning
+*[other] { $count } warnings
+}",
+    ),
+    ("ui-explain-the-findings", "Explain them"),
+    (
+        "ui-fix-the-errors-message",
+        "Fix the errors Check Design reports below. Fix only what has a fix, and tell me which ones you cannot fix and why.",
+    ),
+    (
+        "ui-fix-the-warnings-message",
+        "Fix the warnings Check Design reports below. Fix only what has a fix, and tell me which ones you cannot fix and why.",
+    ),
+    (
+        "ui-explain-the-findings-message",
+        "Explain what Check Design reports below and how each could be fixed. Change nothing yet.",
+    ),
+    ("ui-finding-no-automatic-fix", "no automatic fix"),
+    ("ui-findings-and-more", "and { $count } more"),
     ("ui-view", "View"),
     (
         "ui-send-a-picture-of-the-design-tip",

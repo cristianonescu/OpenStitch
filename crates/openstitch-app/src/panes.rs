@@ -5,10 +5,9 @@
 use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use crate::ribbon::{self, PaneTab};
-use eframe::egui::{self, Color32, RichText, Sense, Stroke, vec2};
+use eframe::egui::{self, RichText, vec2};
 use openstitch_app::editor::prefs::PaneState;
 use openstitch_app::editor::ribbon::Action;
-use openstitch_design::{DesignObject, ObjectKind};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Pane {
@@ -533,63 +532,6 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
         pane_command(app, ui, Action::ConvertToOutline);
         pane_command(app, ui, Action::ConvertToStitches);
     });
-}
-
-/// A small drawing of an object's outlines or stitches for the Sewing Order pane.
-pub fn thumbnail(ui: &mut egui::Ui, o: &DesignObject, size: f32) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(vec2(size, size), Sense::hover());
-    let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 2.0, Color32::WHITE);
-    painter.rect_stroke(
-        rect,
-        2.0,
-        Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color),
-        egui::StrokeKind::Inside,
-    );
-    let Some(b) = o.bounds() else { return resp };
-    let inner = rect.shrink(3.0);
-    let k = (f64::from(inner.width()) / b.width().max(1.0))
-        .min(f64::from(inner.height()) / b.height().max(1.0));
-    let ox = f64::from(inner.center().x) - (b.min_x + b.width() / 2.0) * k;
-    let oy = f64::from(inner.center().y) - (b.min_y + b.height() / 2.0) * k;
-    let at = |x: f64, y: f64| egui::pos2((x * k + ox) as f32, (y * k + oy) as f32);
-    // bare-swatch: the object's thumbnail drawn in its thread colours, not a colour list.
-    let rgb = |t: &openstitch_core::Thread| Color32::from_rgb(t.red, t.green, t.blue);
-    if o.kind == ObjectKind::Stitches {
-        if let Some(block) = &o.stitch_block {
-            let step = (block.stitches.len() / 400).max(1);
-            let color = block.threads.first().map_or(Color32::GRAY, rgb);
-            let pts: Vec<egui::Pos2> = block
-                .stitches
-                .iter()
-                .step_by(step)
-                .map(|s| at(s.x, s.y))
-                .collect();
-            painter.add(egui::Shape::line(pts, Stroke::new(1.0, color)));
-        }
-        return resp;
-    }
-    let fill = o.region.as_ref().map(|r| rgb(&r.thread));
-    let line = o
-        .line
-        .as_ref()
-        .map_or(Color32::from_gray(90), |l| rgb(&l.thread));
-    for c in &o.contours {
-        let pts: Vec<egui::Pos2> = c.points.iter().map(|p| at(p.x, p.y)).collect();
-        if pts.len() < 2 {
-            continue;
-        }
-        if c.closed {
-            if let Some(f) = fill {
-                // Outline only filled lightly: holes and concave shapes stay readable.
-                painter.add(egui::Shape::closed_line(pts.clone(), Stroke::new(2.5, f)));
-            }
-            painter.add(egui::Shape::closed_line(pts, Stroke::new(1.0, line)));
-        } else {
-            painter.add(egui::Shape::line(pts, Stroke::new(1.0, line)));
-        }
-    }
-    resp
 }
 
 /// Design size and stitch count (or the command under the pointer) on the left; view mode,

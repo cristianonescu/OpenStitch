@@ -169,7 +169,9 @@ pub fn update(app: &mut EditorApp) {
         && app.quality.tab == Tab::Route
         && app.quality.route_revision != Some(app.revision)
     {
-        app.quality.route = quality::route(app.session.design(), &traced(app));
+        let t = traced(app);
+        app.quality.route =
+            crate::panels::with_reference(|r| quality::route(app.session.design(), &t, r));
         app.quality.route_revision = Some(app.revision);
         app.quality.step = app.quality.step.min(steps(app).len().saturating_sub(1));
     }

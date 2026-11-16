@@ -1771,6 +1771,19 @@ theirs is bundled (their palettes are GPL), the tests use files written in the s
   `%3d %3d %3d<TAB>code name` per colour, LF line ends, UTF-8. Export then import gives the same
   colours, codes, names and order.
 
+## OpenStitch project (`.osd`): the kept conversation
+
+Since #1169 a project can keep the Assistant's conversation in an optional top-level `assistant`
+field beside `design`, with no version step (still version 6):
+`{"rows": [{"role": "user" | "assistant" | "notice" | "tool", "text": "...", "failed": true?}]}`.
+A tool row's text is the step's short label ("Ran object.setRegion"). At most 1 MiB of text and
+5,000 rows; past that the oldest rows are dropped after an "Earlier messages were not kept."
+notice. Rows with another role are skipped, and a damaged field is ignored, so the design
+always opens. Readers before the field (alpha.15) ignore it, and drop it if they save the file
+again. Nothing in it is a key, a token, a picture or a tool's arguments or results, and private
+paths are written as `<scratch>`, `<temp>`, `~` and `<user>`. With "Save the chat with the
+project" off, the field is not written.
+
 ## OpenStitch template (`.ostemplate`)
 
 Written by `template.save` and read by `template.list` / `template.open`. It is JSON:

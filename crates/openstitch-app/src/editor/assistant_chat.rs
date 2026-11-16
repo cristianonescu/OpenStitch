@@ -203,6 +203,9 @@ pub struct AiPrefs {
     /// "Let the Assistant remember things" (#491): the notes go into each conversation's system
     /// prompt and `notes_write` may change them. Off: neither.
     pub memory: bool,
+    /// "Save the chat with the project" (#1169): a save writes the document's conversation into
+    /// the `.osd`. Off: nothing is written, and a chat the file kept is removed on its next save.
+    pub save_chat: bool,
 }
 
 pub const DEFAULT_MODEL: &str = "claude-opus-5-5";
@@ -227,6 +230,7 @@ impl Default for AiPrefs {
             panel_open: true,
             close_hint: true,
             memory: true,
+            save_chat: true,
         }
     }
 }
@@ -242,7 +246,7 @@ impl AiPrefs {
             "agent": self.agent,
             "imageUrl": self.image_url, "imageModel": self.image_model,
             "panelOpen": self.panel_open, "closeHint": self.close_hint,
-            "memory": self.memory,
+            "memory": self.memory, "saveChat": self.save_chat,
         })
     }
 
@@ -312,6 +316,7 @@ impl AiPrefs {
             panel_open: v["panelOpen"].as_bool().unwrap_or(d.panel_open),
             close_hint: v["closeHint"].as_bool().unwrap_or(d.close_hint),
             memory: v["memory"].as_bool().unwrap_or(d.memory),
+            save_chat: v["saveChat"].as_bool().unwrap_or(d.save_chat),
         }
     }
 }
@@ -344,6 +349,37 @@ pub enum Verdict {
 
 /// Seconds a question waits before it is declined.
 pub const APPROVAL_TIMEOUT_S: u64 = 240;
+
+/// Seconds a coding agent's private socket waits for the editor's reply to one request: the
+/// approval window and time to run the command (#1188).
+pub const AGENT_REPLY_TIMEOUT_S: u64 = APPROVAL_TIMEOUT_S + 30;
+
+/// Seconds `openstitch --assistant-mcp` (the agent's bridge) waits for each reply: longer than
+/// the socket, so a command held for the user's answer is never reported as an unreachable
+/// editor. The remote client's own default is 60 s (#1188).
+pub const BRIDGE_TIMEOUT_S: u64 = AGENT_REPLY_TIMEOUT_S + 30;
+
+/// What a command held on an approval card answers when the user declines it (#1188).
+pub fn declined_reply(what: &str) -> String {
+    format!(
+        "the user declined on the approval card: {what}. It did not run; do not retry it unless the user asks"
+    )
+}
+
+/// What a held command answers when nobody answered its card in time (#1188).
+pub fn unanswered_reply() -> String {
+    format!(
+        "nobody answered the approval card within {APPROVAL_TIMEOUT_S} s, so it was declined and did not run. Tell the user it needs their answer on the card in the Assistant panel; do not retry it on your own"
+    )
+}
+
+/// What a held command answers when the turn ended before the user answered (#1188).
+pub const TURN_ENDED_REPLY: &str =
+    "it did not run: the Assistant's turn ended before the user answered the approval card";
+
+/// What an earlier copy of a request answers when the same request comes again while its card
+/// is open: one card, and the user's answer goes to the newer request (#1188).
+pub const SENT_AGAIN_REPLY: &str = "the same request was sent again while its approval card was open; the user's answer goes to the newer request";
 
 /// Parameters that hold a file or folder name.
 const FILE_KEYS: [&str; 7] = [
@@ -540,6 +576,13 @@ pub fn memory_question(command: &str, params: &Value) -> Option<String> {
                 "turn its memory off".into()
             })
         }
+        "ui.set" if params["name"] == json!("assistantSaveChat") => {
+            Some(if params["value"] == json!(true) {
+                "save the chat with the project".into()
+            } else {
+                "stop saving the chat with the project".into()
+            })
+        }
         _ => None,
     }
 }
@@ -663,6 +706,9 @@ pub fn verdict(g: &GateInput) -> Verdict {
         Some(format!("use {}", files.join(", ")))
     } else if g.command == "ui.run" && g.params["action"] == json!("exit") {
         Some("quit OpenStitch".into())
+    } else if g.command == "ui.run" && g.params["action"] == json!("save") {
+        // It writes the design's own file since #1187: a save, as project.save.
+        Some("save the design to its file".into())
     } else if g.undo_before_message {
         Some("undo a change made before this message".into())
     } else {
@@ -726,6 +772,18 @@ impl ScriptRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1188: the bridge outwaits the private socket, which outwaits the approval card, and
+    /// both are past the remote client's default 60 s.
+    #[test]
+    fn the_bridge_waits_longer_than_an_approval() {
+        const { assert!(APPROVAL_TIMEOUT_S > 60) };
+        const { assert!(AGENT_REPLY_TIMEOUT_S > APPROVAL_TIMEOUT_S) };
+        const { assert!(BRIDGE_TIMEOUT_S > AGENT_REPLY_TIMEOUT_S) };
+        assert!(declined_reply("save x.osd").contains("do not retry"));
+        assert!(unanswered_reply().contains("answer on the card"));
+        assert!(TURN_ENDED_REPLY.contains("did not run"));
+    }
 
     /// An absolute scratch folder on every OS (`/tmp/...` is not absolute on Windows). It must
     /// exist: the gate resolves symlinks.
@@ -920,6 +978,11 @@ mod tests {
         assert!(matches!(
             gate(Edits, "ui.run", Effect::Edit, json!({ "action": "exit" })),
             Verdict::Ask(w) if w.contains("quit")
+        ));
+        // #1187: ui.run save writes the design's file, so it asks as a save does.
+        assert!(matches!(
+            gate(Edits, "ui.run", Effect::Edit, json!({ "action": "save" })),
+            Verdict::Ask(w) if w == "save the design to its file"
         ));
         assert_eq!(
             gate(

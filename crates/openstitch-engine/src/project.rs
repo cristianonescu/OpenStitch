@@ -4,22 +4,39 @@
 use crate::params::CommandError;
 use openstitch_design::Design;
 pub use openstitch_design::project::{EXTENSION, FORMAT, MAX_SIZE, VERSION};
+use openstitch_design::saved_chat::SavedChat;
 
 pub fn encode(design: &Design) -> Result<Vec<u8>, CommandError> {
-    openstitch_design::project::encode(design).map_err(|reason| CommandError::Failed {
-        command: "project.save".into(),
-        reason,
+    encode_with_chat(design, None)
+}
+
+/// The project file with the Assistant's conversation (#1169).
+pub fn encode_with_chat(
+    design: &Design,
+    chat: Option<&SavedChat>,
+) -> Result<Vec<u8>, CommandError> {
+    openstitch_design::project::encode_with_chat(design, chat).map_err(|reason| {
+        CommandError::Failed {
+            command: "project.save".into(),
+            reason,
+        }
     })
 }
 
 pub fn decode(data: &[u8]) -> Result<Design, CommandError> {
-    let design =
-        openstitch_design::project::decode(data).map_err(|reason| CommandError::Failed {
+    decode_with_chat(data).map(|(d, _)| d)
+}
+
+/// The design and the conversation it keeps (#1169).
+pub fn decode_with_chat(data: &[u8]) -> Result<(Design, Option<SavedChat>), CommandError> {
+    let (design, chat) = openstitch_design::project::decode_with_chat(data).map_err(|reason| {
+        CommandError::Failed {
             command: "project.open".into(),
             reason,
-        })?;
+        }
+    })?;
     validate_engine(&design)?;
-    Ok(design)
+    Ok((design, chat))
 }
 
 fn fail(reason: impl Into<String>) -> CommandError {
