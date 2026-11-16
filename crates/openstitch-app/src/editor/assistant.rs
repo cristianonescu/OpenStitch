@@ -272,14 +272,14 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.askUser",
-        summary: "The Assistant's clarifying questions (#1172), during its own turn only: shown on a card with answer chips and a field for a typed answer, plus Send answers and Use your judgment. It returns at once; end the turn, and the answers come as the user's next message. Texts are made plain and cut (question 200, choice 60 characters)",
+        summary: "The Assistant's clarifying questions (#1172), during its own turn only: shown on a card with answer chips (the first marked Recommended, #1205) and a field for a typed answer, plus Send answers and Use your judgment. It returns at once; end the turn, and the answers come as the user's next message: a skipped question, or Use your judgment, takes the recommended (first) answer. Texts are made plain and cut (question 200, choice 60 characters); choices that are not answers (\"I'll type it\") are dropped (#1198)",
         effect: Effect::Read,
         params: &[
             p(
                 "questions",
                 "[{question, choices}]",
                 true,
-                "1 to 10 questions, each with 2 to 4 different answer choices; ask 5 to 10 only for a new design or a large change with open choices",
+                "1 to 10 questions, each with 2 to 4 different answer choices, the recommended one first; ask 5 to 10 only for a new design or a large change with open choices. A choice like \"I'll type it\" is dropped: the user types in the card's field",
             ),
             p(
                 "intro",
@@ -973,6 +973,44 @@ pub fn scratch_name_ok(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1205, #1198: ui.askUser's description says the first choice is the recommended one, what
+    /// a skipped question takes, and that "I'll type it" choices are dropped.
+    #[test]
+    fn ask_user_describes_the_recommended_answer() {
+        let c = ui_command("ui.askUser").expect("ui.askUser");
+        assert!(
+            c.summary.contains("first marked Recommended"),
+            "{}",
+            c.summary
+        );
+        assert!(
+            c.summary.contains("takes the recommended (first) answer"),
+            "{}",
+            c.summary
+        );
+        let questions = c
+            .params
+            .iter()
+            .find(|p| p.name == "questions")
+            .expect("questions");
+        assert!(
+            questions.summary.contains("the recommended one first"),
+            "{}",
+            questions.summary
+        );
+        assert!(
+            questions.summary.contains("I'll type it"),
+            "{}",
+            questions.summary
+        );
+        let entry = describe(c);
+        assert!(
+            entry["params"]
+                .to_string()
+                .contains("the recommended one first")
+        );
+    }
 
     #[test]
     fn every_action_has_a_route_and_ids_are_unique() {

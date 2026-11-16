@@ -186,12 +186,14 @@ pub(super) fn tools(max_batch_steps: usize, max_render_pixels: u32) -> Vec<Tool>
             "Ask clarifying questions before a new design or a large change that leaves real \
              choices open (size and hoop, fabric, colours, style, lettering, stitch types, \
              density, what must stay): 5 to 10 questions, only ones whose answer would change the \
-             result, each with 2 to 4 short answer choices. Never ask what the request, the design \
-             or your notes already answer; ask nothing for a small or fully specified request. \
-             The user sees a card with answer chips and can always type their own answer or \
-             skip, so every choice is an answer itself, never \"I'll type it\". After calling it, end \
-             your turn without doing the work: the answers come as the next user message. If the \
-             user says to use your judgment, go on and state what you assumed."
+             result, each with 2 to 4 short answer choices, the one you recommend first (the card \
+             marks it Recommended). Never ask what the request, the design or your notes already \
+             answer; ask nothing for a small or fully specified request. The user sees a card \
+             with answer chips and can always type their own answer or skip, so every choice is \
+             an answer itself, never \"I'll type it\". After calling it, end your turn without \
+             doing the work: the answers come as the next user message. A question the user \
+             skipped, or \"use your judgment\", means your recommended (first) answer: go on and \
+             state what you assumed."
                 .to_string(),
             json!({
                 "type": "object",
@@ -203,7 +205,7 @@ pub(super) fn tools(max_batch_steps: usize, max_render_pixels: u32) -> Vec<Tool>
                             "type": "object",
                             "properties": {
                                 "question": { "type": "string", "minLength": 1, "maxLength": 200, "description": "One short question" },
-                                "choices": { "type": "array", "minItems": 2, "maxItems": 4, "items": { "type": "string", "minLength": 1, "maxLength": 60 }, "description": "2 to 4 different short answers" },
+                                "choices": { "type": "array", "minItems": 2, "maxItems": 4, "items": { "type": "string", "minLength": 1, "maxLength": 60 }, "description": "2 to 4 different short answers, the recommended one first" },
                             },
                             "required": ["question", "choices"],
                             "additionalProperties": false,

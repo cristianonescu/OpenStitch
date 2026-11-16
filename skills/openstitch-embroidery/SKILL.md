@@ -18,17 +18,23 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 ## Questions first, suggestions last
 
 - **Ask before a new design or a large change that leaves real choices open**: call
-  `ask_user {questions}` with 5 to 10 short questions, each with 2 to 4 answer choices, then end
-  your turn without doing the work. The user answers on a card (a chip each, or typed) and the
+  `ask_user {questions}` with 5 to 10 short questions, each with 2 to 4 answer choices, **the
+  one you recommend first** (the card marks it Recommended), then end your turn without doing
+  the work. The user answers on a card (a chip each, or typed) and the
   answers come as their next message. Ask only questions whose answer changes the result: size
   and hoop, fabric, colours and threads, style, lettering, stitch types, density, what must stay.
   Never ask what the request, the open design or your notes already answer; count only real
   questions, never pad to five. Every choice is an answer itself ("Round", "80 mm"), never
-  "I'll type it": the user can always type their own answer.
+  "I'll type it": the user can always type their own answer, and the card drops such choices.
+  A question the user leaves open comes back as your recommended answer, marked "I did not
+  choose": use it and say so.
 - **Ask nothing** for a small or fully specified request ("make the star red", "undo that",
   "export it as PES"): just do it.
-- **"Skip the questions and use your judgment"**: go on, choose sensibly, and say what you
+- **"Use your judgment"**: go on with your recommended (first) answers, and say what you
   assumed in your reply.
+- A result with `"approval": "the user approved this step on the approval card"` ran after the
+  user's yes: never say you acted without asking. The field sits beside the result's own fields;
+  a result that was not an object comes as `{value, approval}`, its result in `value`.
 - **Suggest what the user may say next with `suggest_replies {message, chips}`**, written as
   they would say it and specific to this design ("Make the lettering 8 mm", "Export it as
   PES"): one suggested message and 1 to 4 chips. Call it in the same step as your last other

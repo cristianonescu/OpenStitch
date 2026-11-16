@@ -122,6 +122,42 @@ fn str_list(v: &Value, key: &str) -> Result<Vec<String>, String> {
         .collect()
 }
 
+/// Whether a choice is an answer, not a promise to type one (#1198): "Full name, I'll type it",
+/// "Match my club kit (I'll say)" and the like are dropped, since the card has a field for the
+/// user's own answer.
+pub fn is_answer(choice: &str) -> bool {
+    let c = choice.to_lowercase().replace(['\u{2019}', '`'], "'");
+    // Whole phrases only, so "Monotype Italic", "Typewriter" or "Type it in capitals" (real
+    // answers about lettering) stay.
+    ![
+        "i'll type",
+        "i will type",
+        "i'll say",
+        "i will say",
+        "i'll tell",
+        "i will tell",
+        "i'll write",
+        "i will write",
+        "i'll specify",
+        "i will specify",
+        "let me type",
+        "let me write",
+        "type my own",
+        "my own answer",
+    ]
+    .iter()
+    .any(|p| has_phrase(&c, p))
+}
+
+/// Whether `phrase` occurs in `text` as whole words: at the start or after a non-letter, and at
+/// the end or before one.
+fn has_phrase(text: &str, phrase: &str) -> bool {
+    let word = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '\'');
+    text.match_indices(phrase).any(|(i, _)| {
+        !word(text[..i].chars().next_back()) && !word(text[i + phrase.len()..].chars().next())
+    })
+}
+
 /// `ui.askUser`'s params: `questions` [{question, choices}], 1 to [`MAX_QUESTIONS`], each with
 /// [`MIN_CHOICES`] to [`MAX_CHOICES`] answers, and an optional `intro`.
 pub fn parse_questions(params: &Value) -> Result<Questionnaire, String> {
@@ -143,13 +179,13 @@ pub fn parse_questions(params: &Value) -> Result<Questionnaire, String> {
         let mut choices: Vec<String> = Vec::new();
         for c in str_list(q, "choices")? {
             let c = plain(&c, CHOICE_CHARS, false);
-            if !c.is_empty() && !choices.contains(&c) {
+            if !c.is_empty() && !choices.contains(&c) && is_answer(&c) {
                 choices.push(c);
             }
         }
         if !(MIN_CHOICES..=MAX_CHOICES).contains(&choices.len()) {
             return Err(format!(
-                "'{text}': give {MIN_CHOICES} to {MAX_CHOICES} different answer choices"
+                "'{text}': give {MIN_CHOICES} to {MAX_CHOICES} different answer choices, the recommended one first; each must be an answer itself (the user types their own in the card's field, so no \"I'll type it\")"
             ));
         }
         questions.push(Question {
@@ -210,8 +246,8 @@ pub fn questions_text(q: &Questionnaire) -> String {
     s
 }
 
-/// The one user message the card sends: each question's answer, typed or picked, or "your
-/// choice".
+/// The one user message the card sends: each question's answer, typed or picked, or for a
+/// question left open its recommended (first) choice, marked as not chosen (#1205).
 pub fn answers_message(q: &Questionnaire) -> String {
     let mut s = t("ui-answers-message-heading").to_string();
     for (i, question) in q.questions.iter().enumerate() {
@@ -221,7 +257,11 @@ pub fn answers_message(q: &Questionnaire) -> String {
         } else if let Some(c) = question.picked.and_then(|p| question.choices.get(p)) {
             c.clone()
         } else {
-            t("ui-answer-your-choice").to_string()
+            format!(
+                "{} ({})",
+                question.choices.first().map(String::as_str).unwrap_or_default(),
+                t("ui-answer-recommended-not-chosen")
+            )
         };
         s.push_str(&format!("\n{}. {}: {answer}", i + 1, question.text));
     }
@@ -446,6 +486,33 @@ pub fn row(app: &mut EditorApp, ui: &mut egui::Ui, ctx: &egui::Context) {
     }
 }
 
+/// A chip's label with the "Recommended" tag (#1205): the answer in the button's text style, the
+/// tag smaller and in italics, both in the colour the button gives its text (so it reads on a
+/// selected chip and in both themes).
+fn recommended_label(ui: &egui::Ui, answer: &str) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    let normal = egui::TextStyle::Button.resolve(ui.style());
+    // About 85 % of the chip's text: Small was hard to read at normal window scale (#1205).
+    let small = egui::FontId::new(normal.size * 0.85, normal.family.clone());
+    job.append(
+        answer,
+        0.0,
+        egui::TextFormat::simple(normal, egui::Color32::PLACEHOLDER),
+    );
+    job.append(
+        t("ui-recommended-answer"),
+        6.0,
+        egui::TextFormat {
+            font_id: small,
+            color: egui::Color32::PLACEHOLDER,
+            italics: true,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    job
+}
+
 /// What a click asks for.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Click {
@@ -476,7 +543,20 @@ pub fn ui(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<Click> {
                         ui.horizontal_wrapped(|ui| {
                             for (k, c) in question.choices.iter().enumerate() {
                                 let on = question.picked == Some(k) && question.typed.is_empty();
-                                if ui.add(egui::Button::new(c.as_str()).selected(on)).clicked() {
+                                // #1205: the first choice is the recommended one, tagged so in
+                                // the chip's own text colour (no emoji), smaller and in italics.
+                                let chip = if k == 0 {
+                                    egui::Button::new(recommended_label(ui, c))
+                                } else {
+                                    egui::Button::new(c.as_str())
+                                };
+                                let r = ui.add(chip.selected(on));
+                                let r = if k == 0 {
+                                    r.on_hover_text(t("ui-recommended-answer-tip"))
+                                } else {
+                                    r
+                                };
+                                if r.clicked() {
                                     question.picked = Some(k);
                                     question.typed.clear();
                                 }
@@ -567,7 +647,7 @@ pub fn show_sample(app: &mut EditorApp, questions: bool) {
             "intro": "A few quick choices so the badge fits your club and your machine.",
             "questions": [
                 { "question": "What shape should the badge be?", "choices": ["Round", "Shield", "Oval"] },
-                { "question": "How big should it be?", "choices": ["60 mm", "80 mm", "100 mm"] },
+                { "question": "How big should it be?", "choices": ["80 mm", "60 mm", "100 mm"] },
                 { "question": "Which colours?", "choices": ["Blue, yellow and red", "Navy and white", "Green and gold"] },
                 { "question": "Anything under the star?", "choices": ["A ribbon", "The club name", "Nothing"] },
                 { "question": "What will it be stitched on?", "choices": ["Twill patch", "Jersey knit", "Cap"] },
@@ -575,7 +655,7 @@ pub fn show_sample(app: &mut EditorApp, questions: bool) {
         }))
         .expect("sample questions");
         q.questions[0].picked = Some(0);
-        q.questions[1].picked = Some(1);
+        q.questions[1].picked = Some(0);
         q.questions[2].picked = Some(0);
         q.questions[3].typed = "A red ribbon; we add the name later".into();
         panel.items.push(Item::Assistant(
@@ -649,9 +729,51 @@ mod tests {
         assert!(m.starts_with("Answers:"), "{m}");
         assert!(m.contains("1. Size?: 130 mm"), "{m}");
         assert!(m.contains("2. Fabric?: polo shirt piqué"), "typed wins: {m}");
-        assert!(m.contains("3. Colours?: your choice"), "{m}");
+        // #1205: a question left open takes the recommended (first) answer, said so.
+        assert!(
+            m.contains("3. Colours?: Club colours (your recommended answer; I did not choose)"),
+            "{m}"
+        );
         let row = questions_text(&q);
         assert!(row.contains("1. Size? (100 mm / 130 mm)"), "{row}");
+    }
+
+    /// #1198: choices that promise a typed answer are not answers and are dropped; a question
+    /// left with fewer than two is refused with what to do instead.
+    #[test]
+    fn choices_that_are_not_answers_are_dropped() {
+        for not in [
+            "Full name, I'll type it",
+            "I'll type it",
+            "Other (I'll type it)",
+            "Let me type it",
+            "Match my club kit (I\u{2019}ll say)",
+            "I will tell you",
+            "Let me type my own",
+        ] {
+            assert!(!is_answer(not), "{not}");
+        }
+        for yes in [
+            "Round",
+            "80 mm",
+            "Navy and white",
+            "Typewriter font",
+            "Typewriter",
+            "Monotype Italic",
+            "Type it in capitals",
+        ] {
+            assert!(is_answer(yes), "{yes}");
+        }
+        let q = parse_questions(&json!({ "questions": [
+            { "question": "Name?", "choices": ["Initials only", "Full name, I'll type it", "No text"] },
+        ]}))
+        .expect("two answers left");
+        assert_eq!(q.questions[0].choices, ["Initials only", "No text"]);
+        let e = parse_questions(&json!({ "questions": [
+            { "question": "Name?", "choices": ["Initials", "I'll type it"] },
+        ]}))
+        .expect_err("one answer left");
+        assert!(e.contains("recommended one first") && e.contains("I'll type it"), "{e}");
     }
 
     #[test]

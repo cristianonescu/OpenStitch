@@ -1179,6 +1179,19 @@ fn effect_of(app: &EditorApp, command: &str) -> Option<Effect> {
 
 /// Runs a job the gate allowed, and counts and records it.
 fn run_job(app: &mut EditorApp, job: Job) {
+    run_job_after(app, job, false);
+}
+
+/// A job the user allowed on its approval card (#1198): its result says so, so the model never
+/// tells the user it acted without asking.
+fn run_approved_job(app: &mut EditorApp, job: Job) {
+    run_job_after(app, job, true);
+}
+
+/// The note an approved command's result carries (#1198).
+pub const APPROVED_NOTE: &str = "the user approved this step on the approval card";
+
+fn run_job_after(app: &mut EditorApp, job: Job, approved: bool) {
     let command = job.request["command"]
         .as_str()
         .unwrap_or_default()
@@ -1221,6 +1234,19 @@ fn run_job(app: &mut EditorApp, job: Job) {
             && let Some(t) = &mut app.assistant.panel.turn
         {
             t.edits += 1;
+        }
+    }
+    let mut reply = reply;
+    if approved && reply["ok"] == json!(true) {
+        match reply.get_mut("result") {
+            Some(Value::Object(r)) => {
+                r.insert("approval".into(), json!(APPROVED_NOTE));
+            }
+            Some(other) => {
+                let value = other.take();
+                *other = json!({ "value": value, "approval": APPROVED_NOTE });
+            }
+            None => reply["result"] = json!({ "approval": APPROVED_NOTE }),
         }
     }
     job.answer(reply);
@@ -1285,6 +1311,7 @@ fn handle_job(app: &mut EditorApp, mut job: Job) {
                 .as_str()
                 .is_some_and(|n| app.ui.prefs.layouts.iter().any(|(l, _)| l == n.trim())),
         unsaved: app.is_dirty(),
+        unsaved_chat_only: app.is_dirty() && !app.design_dirty(),
     });
     match v {
         Verdict::Run => run_job(app, job),
@@ -1342,7 +1369,7 @@ pub fn answer(app: &mut EditorApp, index: usize, a: Answer) {
                 "{} always asks first, so it was allowed this once and not added to Always allow.",
                 approval.command
             )));
-            run_job(app, approval.job);
+            run_approved_job(app, approval.job);
         }
         Answer::Always => {
             let list = &mut app.ui.prefs.ai.always_allow;
@@ -1350,9 +1377,9 @@ pub fn answer(app: &mut EditorApp, index: usize, a: Answer) {
                 list.push(approval.command.clone());
                 app.ui.save_prefs();
             }
-            run_job(app, approval.job);
+            run_approved_job(app, approval.job);
         }
-        Answer::Once => run_job(app, approval.job),
+        Answer::Once => run_approved_job(app, approval.job),
     }
 }
 
@@ -4015,13 +4042,39 @@ mod tests {
         assert!(offers(&app).questions.is_some(), "kept for the record…");
         run(&mut app, idle);
         let sent = last_user_text(&transport);
-        assert!(sent.contains("Answers:") && sent.contains("100 mm") && sent.contains("a cycling jersey") && sent.contains("your choice"), "{sent}");
+        assert!(sent.contains("Answers:") && sent.contains("100 mm") && sent.contains("a cycling jersey") && sent.contains("your recommended answer"), "{sent}");
         assert_eq!(app.session.design().objects.len(), before + 1, "the work was done");
         let o = offers(&app);
         assert!(o.questions.is_none(), "answered");
         let s = o.suggestions.as_ref().expect("suggestions");
         assert_eq!(s.message, "Add the year under the name");
         assert_eq!(s.chips, ["Make it 80 mm", "Export it as PES"]);
+    }
+
+    /// #1198: a command the user allowed on its approval card says so in its result, so the model
+    /// does not tell the user it acted without asking.
+    #[test]
+    fn an_approved_command_says_the_user_approved_it() {
+        let (mut app, transport) = app_with(vec![
+            reply(&[rect(10.0)], "", "tool_use"),
+            reply(&[], "Done.", "end_turn"),
+        ]);
+        app.ui.prefs.ai.mode = PermissionMode::Ask;
+        send(&mut app, "add a box".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        answer(&mut app, 0, Answer::Once);
+        run(&mut app, idle);
+        let result = transport.requests.lock().expect("lock")[1].to_string();
+        assert!(result.contains(APPROVED_NOTE), "{result}");
+        // A command that ran without a card carries no such note.
+        let (mut app, transport) = app_with(vec![
+            reply(&[rect(10.0)], "", "tool_use"),
+            reply(&[], "Done.", "end_turn"),
+        ]);
+        send(&mut app, "add a box".into(), no_wake());
+        run(&mut app, idle);
+        let result = transport.requests.lock().expect("lock")[1].to_string();
+        assert!(!result.contains(APPROVED_NOTE), "{result}");
     }
 
     /// #1172: "Use your judgment" sends one message and the assistant goes on.
@@ -4359,7 +4412,18 @@ mod tests {
         print_turn(&app, from, took);
         let q = app.assistant.panel.offers.questions.clone().expect("a questionnaire");
         for (i, question) in q.questions.iter().enumerate() {
-            eprintln!("    [question {}] {} {:?}", i + 1, question.text, question.choices);
+            eprintln!(
+                "    [question {}] {} {:?} (recommended: {})",
+                i + 1,
+                question.text,
+                question.choices,
+                question.choices[0]
+            );
+            // #1198: every choice is an answer.
+            assert!(
+                question.choices.iter().all(|c| crate::assistant_offers::is_answer(c)),
+                "{question:?}"
+            );
         }
         assert!((5..=10).contains(&q.questions.len()), "{q:?}");
         assert!(app.session.design().objects.is_empty(), "no work before the answers");

@@ -517,13 +517,20 @@ pub struct GateInput<'a> {
     pub existing_layout: bool,
     /// The open design has unsaved changes, its conversation included (#1186).
     pub unsaved: bool,
+    /// Of those, only the conversation changed: the design itself has nothing unsaved (#1198).
+    pub unsaved_chat_only: bool,
 }
 
 /// What the gate asks before a command closes the editor or a tab, or replaces a design that
 /// has unsaved changes (#1186). It asks in every permission mode, "Allow everything" included,
 /// and Always allow does not skip it ([`always_asks`]). None for other commands, and for a
 /// replacing command when nothing is unsaved.
-pub fn closing_question(command: &str, params: &Value, unsaved: bool) -> Option<String> {
+pub fn closing_question(
+    command: &str,
+    params: &Value,
+    unsaved: bool,
+    chat_only: bool,
+) -> Option<String> {
     let text = |k: &str| params[k].as_str().map(str::trim).unwrap_or_default();
     match (command, text("action"), text("op")) {
         ("ui.run", "exit", _) => return Some("quit OpenStitch".into()),
@@ -547,9 +554,15 @@ pub fn closing_question(command: &str, params: &Value, unsaved: bool) -> Option<
         ("ui.recoveryRestore", _) => "restore a recovery copy".into(),
         _ => return None,
     };
-    Some(format!(
-        "{what} in place of this design, which has unsaved changes"
-    ))
+    // #1198: say when only the conversation is unsaved, so it does not read as if a drawing
+    // would be lost.
+    Some(if chat_only {
+        format!(
+            "{what} in place of this design, whose conversation is unsaved (the design itself has no unsaved changes)"
+        )
+    } else {
+        format!("{what} in place of this design, which has unsaved changes")
+    })
 }
 
 /// A file's name for a question, without its folders.
@@ -562,7 +575,7 @@ fn short_path(p: &str) -> String {
 /// Commands the gate always asks about, whatever Always allow holds (#1186): closing the editor
 /// or a tab, and what replaces the design (asked only while something is unsaved).
 pub fn always_asks(command: &str, params: &Value) -> bool {
-    closing_question(command, params, true).is_some()
+    closing_question(command, params, true, false).is_some()
 }
 
 /// What the chat says after the assistant ran `command` and it closed, saved or replaced
@@ -762,7 +775,7 @@ pub fn verdict(g: &GateInput) -> Verdict {
     }
     // #1186: closing, quitting and replacing unsaved work ask in every mode, whatever Always
     // allow holds.
-    if let Some(what) = closing_question(g.command, g.params, g.unsaved) {
+    if let Some(what) = closing_question(g.command, g.params, g.unsaved, g.unsaved_chat_only) {
         return Verdict::Ask(what);
     }
     if g.mode == PermissionMode::All || g.always_allow.iter().any(|c| c == g.command) {
@@ -921,6 +934,7 @@ mod tests {
             undo_before_message: false,
             existing_layout: false,
             unsaved: false,
+            unsaved_chat_only: false,
         })
     }
 
@@ -946,6 +960,7 @@ mod tests {
                 undo_before_message: false,
                 existing_layout: false,
                 unsaved,
+                unsaved_chat_only: false,
             })
         };
         for mode in [
@@ -985,6 +1000,13 @@ mod tests {
                 )
             );
         }
+        // #1198: only the conversation unsaved: the question says so.
+        assert_eq!(
+            closing_question("design.new", &json!({}), true, true).as_deref(),
+            Some(
+                "start a new design in place of this design, whose conversation is unsaved (the design itself has no unsaved changes)"
+            )
+        );
         // Nothing unsaved: replacing runs as the mode says.
         assert_eq!(
             gate(PermissionMode::All, "design.new", json!({}), false),
@@ -1052,6 +1074,7 @@ mod tests {
             undo_before_message: false,
             existing_layout,
             unsaved: false,
+            unsaved_chat_only: false,
         };
         assert!(matches!(verdict(&g(true)), Verdict::Ask(w) if w.contains("replace")));
         assert_eq!(verdict(&g(false)), Verdict::Run);
@@ -1395,6 +1418,7 @@ mod tests {
                 undo_before_message: false,
                 existing_layout: false,
                 unsaved: false,
+                unsaved_chat_only: false,
             }),
             Verdict::Run
         );
@@ -1475,6 +1499,7 @@ mod tests {
             undo_before_message: false,
             existing_layout: false,
             unsaved: false,
+            unsaved_chat_only: false,
         };
         assert!(matches!(verdict(&g), Verdict::Refuse(_)));
         g.effect = Effect::Read;
