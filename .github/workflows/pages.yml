@@ -14,6 +14,9 @@ on:
       - "web/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "THIRD_PARTY_NOTICES.md"
+      - "LICENSE-MIT"
+      - "LICENSE-APACHE"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -55,6 +58,11 @@ jobs:
           wasm-bindgen --target web --no-typescript --out-dir site/pkg \
             target/wasm32-unknown-unknown/release/openstitch_web.wasm
           echo "${GITHUB_SHA::7}" > site/version.txt
+          # The notices and licences of what the page runs (#1175), as plain text so the
+          # browser shows them; Help ▸ About links them (panes::WEB_NOTICES and the licences).
+          cp THIRD_PARTY_NOTICES.md site/THIRD_PARTY_NOTICES.txt
+          cp LICENSE-MIT site/LICENSE-MIT.txt
+          cp LICENSE-APACHE site/LICENSE-APACHE.txt
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

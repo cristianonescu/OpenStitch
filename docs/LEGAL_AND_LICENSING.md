@@ -137,13 +137,15 @@ the project keeps:
 
 Runtime crates and bundled fonts are listed with their licences in `THIRD_PARTY_NOTICES.md`,
 which every package ships (the macOS app, the Windows MSI and zip, the Linux AppImage, tarball
-and Flatpak, and the command-line archives), and in docs/ARCHITECTURE.md.
+and Flatpak, and the command-line archives) and the browser version publishes beside its page
+with the two licence files, linked from Help ▸ About (#1175), and in docs/ARCHITECTURE.md.
 
 **Crates in the shipped programs (#1171).** `tools/third_party.py` generates the table of every
 crate the shipped programs link from `cargo metadata`, with no build: the normal dependencies
 of the editor, `stitchtool`, `openstitch-mcp`, the Linux thumbnailer, the browser version and
 the Windows Explorer thumbnail handler, on every target they ship for, OpenStitch's own crates
-left out. `--check` fails when the table is stale; the release gate runs it (RELEASING.md).
+left out. `--check` fails when the table is stale; CI runs it on every pull request and on
+main (the `icons` job in rust.yml, #1175), and the release gate runs it again (RELEASING.md).
 
 - **Count (2026-11-16):** 469 crates, 425 names.
 - **Licence families, by the licence each crate is used under** (the table's *Used under*
