@@ -281,7 +281,8 @@ fn assistant_instructions_are_short_and_point_at_the_skill() {
     assert!(instructions.contains("ask_user") && instructions.contains("suggest_replies"));
     // #1188: a command held for the user's approval.
     assert!(instructions.contains("approval card"), "{instructions}");
-    assert!(instructions.len() < 1000, "{}", instructions.len());
+    // 1100 since #1186 (closing, quitting and replacing unsaved work always ask).
+    assert!(instructions.len() < 1100, "{}", instructions.len());
     editor.finish();
 }
 

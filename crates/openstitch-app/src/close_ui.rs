@@ -8,6 +8,58 @@ use crate::app::EditorApp;
 use eframe::egui::{self, Key, Modifiers, RichText};
 use openstitch_app::editor::close_prompt::{self, Choice, Pending};
 
+/// Closing the window or a tab while the Assistant works (#1186): Stop and close (the turn
+/// stops, then the usual unsaved-changes question) or Cancel (Escape).
+pub fn turn_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let Some((pending, stopping)) = app.turn_close.clone() else {
+        return;
+    };
+    let what = match pending {
+        Pending::CloseTab => "Closing this tab stops it first.",
+        _ => "Closing OpenStitch stops it first.",
+    };
+    let mut stop = false;
+    let mut cancel = false;
+    let modal = egui::Modal::new(egui::Id::unique("turn-close-prompt")).show(ctx, |ui| {
+        ui.set_width(400.0);
+        ui.heading("The Assistant is still working");
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new(format!(
+                "{what} What it changed so far stays, as one undo step; then you can save."
+            ))
+            .weak(),
+        );
+        ui.add_space(12.0);
+        if stopping {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label("Stopping the Assistant…");
+            });
+            return;
+        }
+        ui.horizontal(|ui| {
+            stop = ui
+                .button(RichText::new("Stop and close").strong())
+                .on_hover_text("Stops the Assistant, then asks about unsaved changes")
+                .clicked();
+            cancel = ui
+                .button(t("ui-cancel"))
+                .on_hover_text(t("ui-back-to-the-editor-esc-tip"))
+                .clicked();
+        });
+    });
+    if stopping {
+        ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        return;
+    }
+    if stop {
+        app.stop_turn_and_close();
+    } else if cancel || modal.should_close() {
+        app.turn_close = None;
+    }
+}
+
 pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let Some(pending) = app.close_prompt.pending().cloned() else {
         return;

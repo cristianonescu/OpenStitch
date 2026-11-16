@@ -18,7 +18,7 @@ use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::assistant_attach::{self, Attachment, MAX_FILES};
-use openstitch_app::editor::assistant_chat::{
+use openstitch_app::editor::assistant_chat::{self,
     AGENT_REPLY_TIMEOUT_S, APPROVAL_TIMEOUT_S, AiPrefs, BRIDGE_TIMEOUT_S, GateInput, PRESETS,
     PermissionMode, Preset, Protocol, SENT_AGAIN_REPLY, ScriptRecord, TURN_ENDED_REPLY, Verdict,
     apply_preset, declined_reply, is_this_computer, resolve_scratch_names, unanswered_reply,
@@ -351,9 +351,26 @@ pub fn tool_label(name: &str, input: &Value) -> String {
             Some(c) => format!("Ran {c}"),
             None => "Ran a command".into(),
         },
-        "run_batch" => match input.get("steps").and_then(Value::as_array).map(Vec::len) {
-            Some(1) => "Ran 1 command".into(),
-            Some(n) => format!("Ran {n} commands"),
+        "run_batch" => match input.get("steps").and_then(Value::as_array) {
+            // #1186: a group that closes, saves or replaces something names its commands.
+            Some(steps)
+                if steps.iter().any(|s| {
+                    assistant_chat::consequential(
+                        s["command"].as_str().unwrap_or_default(),
+                        s.get("params").unwrap_or(&Value::Null),
+                    )
+                }) =>
+            {
+                let names: Vec<&str> = steps.iter().filter_map(|s| s["command"].as_str()).collect();
+                format!(
+                    "Ran {} command{}: {}",
+                    steps.len(),
+                    if steps.len() == 1 { "" } else { "s" },
+                    names.join(", ")
+                )
+            }
+            Some(steps) if steps.len() == 1 => "Ran 1 command".into(),
+            Some(steps) => format!("Ran {} commands", steps.len()),
             None => "Ran commands".into(),
         },
         "view_render" => "Looked at the design".into(),
@@ -950,6 +967,23 @@ fn close_hint_ok(app: &mut EditorApp) {
     }
 }
 
+/// Whether the Assistant's turn runs (#1186: a close asks first while it does).
+pub fn turn_running(app: &EditorApp) -> bool {
+    app.assistant.panel.busy()
+}
+
+/// Tests elsewhere: a turn that runs (or not), without a model.
+#[cfg(test)]
+pub(crate) fn set_test_turn(app: &mut EditorApp, running: bool) {
+    app.assistant.panel.turn = running.then(|| Turn {
+        undo_start: app.undo_groups.len(),
+        edits: 0,
+        text: String::new(),
+        used_tools: false,
+        reply: String::new(),
+    });
+}
+
 /// Stop: ends the turn; what it already changed stays, as one undo step.
 pub fn stop(app: &mut EditorApp) {
     let panel = &mut app.assistant.panel;
@@ -1146,10 +1180,18 @@ fn run_job(app: &mut EditorApp, job: Job) {
         .unwrap_or_default()
         .to_string();
     let effect = effect_of(app, &command);
+    let revision = app.revision;
     // Only the Assistant's own jobs may ask the user or suggest replies (#1172).
     app.assistant.panel.offers.from_assistant = true;
     let reply = app.remote_request(&job.request);
     app.assistant.panel.offers.from_assistant = false;
+    // #1186: a command that closes, saves or replaces something is named in the chat.
+    let params = job.request.get("params").cloned().unwrap_or(json!({}));
+    if reply["ok"] == json!(true)
+        && let Some(n) = assistant_chat::consequence_notice(&command, &params, app.revision != revision)
+    {
+        app.assistant.panel.items.push(Item::Notice(n));
+    }
     if reply["ok"] == json!(true)
         && let Some(effect) = effect
     {
@@ -1209,6 +1251,7 @@ fn handle_job(app: &mut EditorApp, mut job: Job) {
             && params["name"]
                 .as_str()
                 .is_some_and(|n| app.ui.prefs.layouts.iter().any(|(l, _)| l == n.trim())),
+        unsaved: app.is_dirty(),
     });
     match v {
         Verdict::Run => run_job(app, job),
@@ -1255,6 +1298,19 @@ pub fn answer(app: &mut EditorApp, index: usize, a: Answer) {
     let approval = app.assistant.panel.approvals.remove(index);
     match a {
         Answer::Deny => reply_err(approval.job, declined_reply(&approval.what)),
+        Answer::Always
+            if assistant_chat::always_asks(
+                &approval.command,
+                approval.job.request.get("params").unwrap_or(&json!({})),
+            ) =>
+        {
+            // #1186: closing, quitting and replacing unsaved work always ask.
+            app.assistant.panel.items.push(Item::Notice(format!(
+                "{} always asks first, so it was allowed this once and not added to Always allow.",
+                approval.command
+            )));
+            run_job(app, approval.job);
+        }
         Answer::Always => {
             let list = &mut app.ui.prefs.ai.always_allow;
             if !list.contains(&approval.command) {
@@ -1453,20 +1509,16 @@ fn kept_fingerprint(items: &[Item]) -> (usize, usize) {
 
 /// A change to the kept chat (a message, a reply, New chat on a chat that had rows) marks the
 /// document unsaved, as an edit does (#1169): the title shows it, closing asks to save, and
-/// autosave takes it. Not with "Save the chat with the project" off, not for a conversation that
-/// belongs to another document, and not for an untitled design with no objects: there the chat
-/// alone does not ask to be saved (closing would otherwise ask after every question).
+/// autosave takes it, on any design, an untitled empty one included (#1186: a chat on an empty
+/// page was lost on close without a question). Not with "Save the chat with the project" off,
+/// and not for a conversation that belongs to another document.
 fn note_chat_changes(app: &mut EditorApp) {
     let now = kept_fingerprint(&app.assistant.panel.items);
     if now == app.assistant.panel.kept {
         return;
     }
     app.assistant.panel.kept = now;
-    let empty_untitled = app.path.is_none() && app.session.design().objects.is_empty();
-    if app.ui.prefs.ai.save_chat
-        && app.assistant.panel.owner == Some(app.chat_doc)
-        && !empty_untitled
-    {
+    if app.ui.prefs.ai.save_chat && app.assistant.panel.owner == Some(app.chat_doc) {
         app.chat_edits = app.chat_edits.wrapping_add(1);
         app.mark_unsaved();
     }
@@ -4610,6 +4662,10 @@ mod tests {
             reply(&[], "done", "end_turn"),
         ]);
         send(&mut app, "two boxes on a new page".into(), no_wake());
+        // #1186: a new design in place of unsaved work (the chat counts) asks first.
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        assert!(app.assistant.panel.approvals[0].what.starts_with("start a new design in place"));
+        answer(&mut app, 0, Answer::Once);
         run(&mut app, idle);
         let script = app.assistant.panel.script.script().expect("script");
         let mut s = openstitch_engine::Session::new(std::env::temp_dir());
@@ -5530,12 +5586,20 @@ mod tests {
                 objects,
                 app.session.design().objects.len()
             );
+            // The close during the turn asks first, whatever is saved.
             app.guarded(Pending::Exit);
+            if app.turn_close.is_none() || app.exit_approved() {
+                lost.push(case);
+            }
+            // Stop and close: the turn stops, then the usual unsaved-changes question.
+            app.stop_turn_and_close();
+            let _ = release.send(());
+            run(&mut app, idle);
+            app.poll_turn_close();
+            assert!(app.turn_close.is_none(), "{case}");
             if !(app.close_prompt.is_open() && !app.exit_approved()) {
                 lost.push(case);
             }
-            let _ = release.send(());
-            run(&mut app, idle);
         }
         let _ = std::fs::remove_dir_all(&dir);
         assert!(lost.is_empty(), "closed with no question: {lost:?}");
@@ -5575,9 +5639,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// With "Save the chat with the project" off the chat never marks anything, and an untitled
-    /// design with no objects is not marked by a chat alone (closing would ask after every
-    /// question).
+    /// With "Save the chat with the project" off the chat never marks anything, and with
+    /// nothing unsaved the window closes without a question; with the setting on, a chat marks
+    /// an untitled empty design too (#1186: it was lost on close without a question).
     #[test]
     fn a_chat_that_is_not_saved_marks_nothing() {
         use openstitch_app::editor::close_prompt::Pending;
@@ -5595,7 +5659,69 @@ mod tests {
         assert!(empty.session.design().objects.is_empty() && empty.path.is_none());
         send(&mut empty, "what can you do?".into(), no_wake());
         run(&mut empty, idle);
-        assert!(!empty.is_dirty(), "an untitled empty design with only a chat");
+        assert!(empty.is_dirty(), "an untitled empty design with a chat");
+        empty.guarded(Pending::Exit);
+        assert!(empty.close_prompt.is_open() && !empty.exit_approved());
+    }
+
+    /// #1186: under "Allow everything", with ui.run on Always allow, the model's quit still
+    /// asks; Always allow is refused for it with a notice; the close during the turn asks
+    /// first. A grouped row names its commands when one of them replaces the design.
+    #[test]
+    fn quitting_always_asks_and_is_never_always_allowed() {
+        let quit = ("ui.run", json!({ "action": "exit" }));
+        let (mut app, _) = app_with(vec![
+            reply(std::slice::from_ref(&quit), "", "tool_use"),
+            reply(&[], "Asked.", "end_turn"),
+        ]);
+        app.ui.prefs.ai.mode = PermissionMode::All;
+        app.ui.prefs.ai.always_allow = vec!["ui.run".into()];
+        send(&mut app, "quit".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        assert!(app.assistant.panel.approvals[0].what.contains("quit OpenStitch"));
+        answer(&mut app, 0, Answer::Always);
+        assert!(app.turn_close.is_some(), "the close during the turn asks first");
+        assert!(!app.exit_approved());
+        run(&mut app, idle);
+        assert!(app.assistant.panel.items.iter().any(|i| matches!(i, Item::Notice(n)
+            if n.contains("always asks first") && n.contains("not added to Always allow"))));
+        assert!(app.assistant.panel.items.iter().any(|i| matches!(i, Item::Notice(n)
+            if n == "The assistant asked to quit OpenStitch (ui.run exit).")));
+        let label = tool_label(
+            "run_batch",
+            &json!({ "steps": [{ "command": "shape.rectangle" }, { "command": "design.new" }] }),
+        );
+        assert_eq!(label, "Ran 2 commands: shape.rectangle, design.new");
+        assert_eq!(
+            tool_label("run_batch", &json!({ "steps": [{ "command": "shape.rectangle" }] })),
+            "Ran 1 command"
+        );
+    }
+
+    /// #1186 on #1178's path: a `design.new` from the model or a socket client over a design
+    /// with unsaved changes leaves the new design unsaved too (closing asks), and Undo brings the
+    /// previous design back.
+    #[test]
+    fn replacing_an_unsaved_design_does_not_make_it_look_saved() {
+        let (mut app, _) = app_with(Vec::new());
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 5, "y": 5, "width": 10, "height": 10 }),
+        ))
+        .expect("edit");
+        let before = app.session.design().objects.len();
+        assert!(app.is_dirty());
+        let r = app.remote_request(&json!({ "command": "design.new", "params": {} }));
+        assert_eq!(r["ok"], json!(true), "{r}");
+        assert!(app.session.design().objects.is_empty());
+        assert!(app.is_dirty(), "the replaced work is still unsaved");
+        app.undo();
+        assert_eq!(app.session.design().objects.len(), before, "Undo brings it back");
+        // Nothing unsaved: a new design is clean, as File ▸ New.
+        let (mut clean, _) = app_with(Vec::new());
+        assert!(!clean.is_dirty());
+        clean.remote_request(&json!({ "command": "design.new", "params": {} }));
+        assert!(!clean.is_dirty());
     }
 
     /// Each tab keeps its own chat: a new tab starts empty, switching back shows the first

@@ -680,6 +680,11 @@ Do not undo the user's own earlier work; to retry, undo or delete your own objec
 
 ## Rules
 
+- Quitting OpenStitch, closing a tab, and replacing a design that has unsaved changes (a new
+  design, opening another project or a template, a test swatch) always wait for the user's
+  answer, in every permission mode; Always allow does not cover them. If the user declines,
+  say what you would have done and do not try again or work around it. The chat names every
+  such command you run.
 - Prefer `run_batch`. Every step's parameters are checked before anything runs: a batch with
   mistakes changes nothing and returns **all** of them at once in `errors` (`step`, `command`,
   `param`, `message`); fix them all before resending. `validateOnly: true` checks a batch

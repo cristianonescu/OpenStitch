@@ -503,6 +503,96 @@ pub struct GateInput<'a> {
     pub undo_before_message: bool,
     /// `ui.layout` names a layout the user already saved (#551).
     pub existing_layout: bool,
+    /// The open design has unsaved changes, its conversation included (#1186).
+    pub unsaved: bool,
+}
+
+/// What the gate asks before a command closes the editor or a tab, or replaces a design that
+/// has unsaved changes (#1186). It asks in every permission mode, "Allow everything" included,
+/// and Always allow does not skip it ([`always_asks`]). None for other commands, and for a
+/// replacing command when nothing is unsaved.
+pub fn closing_question(command: &str, params: &Value, unsaved: bool) -> Option<String> {
+    let text = |k: &str| params[k].as_str().map(str::trim).unwrap_or_default();
+    match (command, text("action"), text("op")) {
+        ("ui.run", "exit", _) => return Some("quit OpenStitch".into()),
+        ("ui.documents", _, "close") => {
+            return Some(match params["index"].as_u64() {
+                Some(i) => format!("close tab {i}"),
+                None => "close this tab".into(),
+            });
+        }
+        _ => {}
+    }
+    if !unsaved {
+        return None;
+    }
+    let what = match (command, text("action")) {
+        ("design.new", _) | ("ui.run", "new") => "start a new design".to_string(),
+        ("project.open", _) => format!("open {}", short_path(text("path"))),
+        ("template.open", _) => format!("open the template {}", text("template")),
+        ("design.testSwatch" | "design.testSwatches", _) => "make a test swatch".into(),
+        ("fabric.calibrationSwatch", _) => "make a fabric calibration card".into(),
+        ("ui.recoveryRestore", _) => "restore a recovery copy".into(),
+        _ => return None,
+    };
+    Some(format!(
+        "{what} in place of this design, which has unsaved changes"
+    ))
+}
+
+/// A file's name for a question, without its folders.
+fn short_path(p: &str) -> String {
+    Path::new(p)
+        .file_name()
+        .map_or_else(|| p.to_string(), |n| n.to_string_lossy().into_owned())
+}
+
+/// Commands the gate always asks about, whatever Always allow holds (#1186): closing the editor
+/// or a tab, and what replaces the design (asked only while something is unsaved).
+pub fn always_asks(command: &str, params: &Value) -> bool {
+    closing_question(command, params, true).is_some()
+}
+
+/// What the chat says after the assistant ran `command` and it closed, saved or replaced
+/// something (#1186); `replaced`: the design changed. None for other commands.
+pub fn consequence_notice(command: &str, params: &Value, replaced: bool) -> Option<String> {
+    if !consequential(command, params) {
+        return None;
+    }
+    let file = params["path"].as_str().map(short_path);
+    let action = params["action"].as_str().unwrap_or_default();
+    Some(match (command, action) {
+        ("project.save", _) | ("ui.run", "save") => match file {
+            Some(f) => format!("The assistant saved the design as {f} ({command})."),
+            None => format!("The assistant saved the design ({command} {action})."),
+        },
+        ("ui.run", "exit") => "The assistant asked to quit OpenStitch (ui.run exit).".into(),
+        ("ui.documents", _) => "The assistant closed a tab (ui.documents close).".into(),
+        _ if replaced => format!(
+            "The assistant replaced the design ({}). The previous design is in Undo.",
+            if action.is_empty() {
+                command.to_string()
+            } else {
+                format!("{command} {action}")
+            }
+        ),
+        _ => format!(
+            "The assistant asked to replace the design ({}); nothing was replaced.",
+            if action.is_empty() {
+                command.to_string()
+            } else {
+                format!("{command} {action}")
+            }
+        ),
+    })
+}
+
+/// Commands that close, save or replace something (#1186): the chat names them when the
+/// assistant runs them, also inside a group of commands.
+pub fn consequential(command: &str, params: &Value) -> bool {
+    always_asks(command, params)
+        || command == "project.save"
+        || (command == "ui.run" && params["action"].as_str() == Some("save"))
 }
 
 /// What the gate asks before preferences the user set by hand are thrown away (#551): they have
@@ -658,6 +748,11 @@ pub fn verdict(g: &GateInput) -> Verdict {
             g.edit_limit
         ));
     }
+    // #1186: closing, quitting and replacing unsaved work ask in every mode, whatever Always
+    // allow holds.
+    if let Some(what) = closing_question(g.command, g.params, g.unsaved) {
+        return Verdict::Ask(what);
+    }
     if g.mode == PermissionMode::All || g.always_allow.iter().any(|c| c == g.command) {
         return Verdict::Run;
     }
@@ -810,7 +905,84 @@ mod tests {
             edit_limit: 0,
             undo_before_message: false,
             existing_layout: false,
+            unsaved: false,
         })
+    }
+
+    /// #1186: quitting and closing a tab ask in every mode and whatever Always allow holds;
+    /// what replaces the design asks while something is unsaved, naming it.
+    #[test]
+    fn closing_and_replacing_unsaved_work_always_asks() {
+        let gate = |mode, command: &str, params: Value, unsaved| {
+            let allow = vec![
+                "ui.run".to_string(),
+                "ui.documents".into(),
+                "design.new".into(),
+            ];
+            verdict(&GateInput {
+                mode,
+                command,
+                effect: Effect::Edit,
+                params: &params,
+                scratch: None,
+                always_allow: &allow,
+                edits: 0,
+                edit_limit: 0,
+                undo_before_message: false,
+                existing_layout: false,
+                unsaved,
+            })
+        };
+        for mode in [
+            PermissionMode::Ask,
+            PermissionMode::Edits,
+            PermissionMode::All,
+        ] {
+            assert_eq!(
+                gate(mode, "ui.run", json!({ "action": "exit" }), false),
+                Verdict::Ask("quit OpenStitch".into())
+            );
+            assert_eq!(
+                gate(
+                    mode,
+                    "ui.documents",
+                    json!({ "op": "close", "index": 2 }),
+                    false
+                ),
+                Verdict::Ask("close tab 2".into())
+            );
+            assert_eq!(
+                gate(mode, "design.new", json!({}), true),
+                Verdict::Ask(
+                    "start a new design in place of this design, which has unsaved changes".into()
+                )
+            );
+            assert!(matches!(
+                gate(mode, "project.open", json!({ "path": "/x/rose.osd" }), true),
+                Verdict::Ask(w) if w.starts_with("open rose.osd in place of this design")
+            ));
+        }
+        // Nothing unsaved: replacing runs as the mode says.
+        assert_eq!(
+            gate(PermissionMode::All, "design.new", json!({}), false),
+            Verdict::Run
+        );
+        assert!(always_asks("ui.run", &json!({ "action": "exit" })));
+        assert!(always_asks("template.open", &json!({ "template": "t" })));
+        assert!(!always_asks("ui.run", &json!({ "action": "zoomIn" })));
+        assert!(consequential("project.save", &json!({ "path": "a.osd" })));
+        assert_eq!(
+            consequence_notice("project.save", &json!({ "path": "/x/a.osd" }), false).as_deref(),
+            Some("The assistant saved the design as a.osd (project.save).")
+        );
+        assert_eq!(
+            consequence_notice("design.new", &json!({}), true).as_deref(),
+            Some("The assistant replaced the design (design.new). The previous design is in Undo.")
+        );
+        assert_eq!(
+            consequence_notice("shape.rectangle", &json!({}), true),
+            None
+        );
     }
 
     #[test]
@@ -856,6 +1028,7 @@ mod tests {
             edit_limit: 0,
             undo_before_message: false,
             existing_layout,
+            unsaved: false,
         };
         assert!(matches!(verdict(&g(true)), Verdict::Ask(w) if w.contains("replace")));
         assert_eq!(verdict(&g(false)), Verdict::Run);
@@ -1193,6 +1366,7 @@ mod tests {
                 edit_limit: 0,
                 undo_before_message: false,
                 existing_layout: false,
+                unsaved: false,
             }),
             Verdict::Run
         );
@@ -1272,6 +1446,7 @@ mod tests {
             edit_limit: 3,
             undo_before_message: false,
             existing_layout: false,
+            unsaved: false,
         };
         assert!(matches!(verdict(&g), Verdict::Refuse(_)));
         g.effect = Effect::Read;
