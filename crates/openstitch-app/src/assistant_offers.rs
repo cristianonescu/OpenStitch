@@ -127,6 +127,8 @@ fn str_list(v: &Value, key: &str) -> Result<Vec<String>, String> {
 /// user's own answer.
 pub fn is_answer(choice: &str) -> bool {
     let c = choice.to_lowercase().replace(['\u{2019}', '`'], "'");
+    // Whole phrases only, so "Monotype Italic", "Typewriter" or "Type it in capitals" (real
+    // answers about lettering) stay.
     ![
         "i'll type",
         "i will type",
@@ -136,13 +138,24 @@ pub fn is_answer(choice: &str) -> bool {
         "i will tell",
         "i'll write",
         "i will write",
+        "i'll specify",
+        "i will specify",
         "let me type",
-        "type it",
+        "let me write",
         "type my own",
         "my own answer",
     ]
     .iter()
-    .any(|p| c.contains(p))
+    .any(|p| has_phrase(&c, p))
+}
+
+/// Whether `phrase` occurs in `text` as whole words: at the start or after a non-letter, and at
+/// the end or before one.
+fn has_phrase(text: &str, phrase: &str) -> bool {
+    let word = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '\'');
+    text.match_indices(phrase).any(|(i, _)| {
+        !word(text[..i].chars().next_back()) && !word(text[i + phrase.len()..].chars().next())
+    })
 }
 
 /// `ui.askUser`'s params: `questions` [{question, choices}], 1 to [`MAX_QUESTIONS`], each with
@@ -731,13 +744,24 @@ mod tests {
     fn choices_that_are_not_answers_are_dropped() {
         for not in [
             "Full name, I'll type it",
+            "I'll type it",
+            "Other (I'll type it)",
+            "Let me type it",
             "Match my club kit (I\u{2019}ll say)",
             "I will tell you",
             "Let me type my own",
         ] {
             assert!(!is_answer(not), "{not}");
         }
-        for yes in ["Round", "80 mm", "Navy and white", "Typewriter font"] {
+        for yes in [
+            "Round",
+            "80 mm",
+            "Navy and white",
+            "Typewriter font",
+            "Typewriter",
+            "Monotype Italic",
+            "Type it in capitals",
+        ] {
             assert!(is_answer(yes), "{yes}");
         }
         let q = parse_questions(&json!({ "questions": [

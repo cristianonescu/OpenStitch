@@ -33,7 +33,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - **"Use your judgment"**: go on with your recommended (first) answers, and say what you
   assumed in your reply.
 - A result with `"approval": "the user approved this step on the approval card"` ran after the
-  user's yes: never say you acted without asking.
+  user's yes: never say you acted without asking. The field sits beside the result's own fields;
+  a result that was not an object comes as `{value, approval}`, its result in `value`.
 - **Suggest what the user may say next with `suggest_replies {message, chips}`**, written as
   they would say it and specific to this design ("Make the lettering 8 mm", "Export it as
   PES"): one suggested message and 1 to 4 chips. Call it in the same step as your last other
