@@ -15,6 +15,9 @@ pub enum Pending {
     Open(Option<PathBuf>),
     /// Close the active tab (#552): its close button, `ui.documents` close.
     CloseTab,
+    /// The Template Wizard's Next on step 1: the template opens as a new, untitled design, as
+    /// File ▸ New does (#1179), never under the open project's file name.
+    Template(String),
 }
 
 /// The prompt's buttons (Enter = Save, Escape = Cancel).

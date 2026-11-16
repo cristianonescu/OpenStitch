@@ -1337,13 +1337,10 @@ fn template_window(app: &mut EditorApp, ctx: &egui::Context) {
     } else if back {
         app.lettering.templates.step = 1;
     } else if next && step == 1 {
-        if let Some(r) = app.lettering.templates.open_chosen()
-            && let Some(v) = app.execute(&r)
-        {
-            app.lettering.templates.set_slots(&v);
-            app.lettering.templates.step = 2;
-            app.selection.clear();
-            app.fit_requested = true;
+        // The template opens as a new, untitled design, as File ▸ New does: unsaved changes are
+        // asked about first, and with Open designs in tabs it gets its own tab (#1179).
+        if let Some(id) = app.lettering.templates.chosen.clone() {
+            app.guarded(openstitch_app::editor::close_prompt::Pending::Template(id));
         }
     } else if next && step == 2 {
         let r = app.lettering.templates.fill();

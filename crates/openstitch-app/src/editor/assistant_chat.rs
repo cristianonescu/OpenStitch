@@ -976,6 +976,14 @@ mod tests {
                 gate(mode, "project.open", json!({ "path": "/x/rose.osd" }), true),
                 Verdict::Ask(w) if w.starts_with("open rose.osd in place of this design")
             ));
+            // #1179: a template replaces the design as design.new does, so it asks the same way.
+            assert_eq!(
+                gate(mode, "template.open", json!({ "template": "builtin:team-badge" }), true),
+                Verdict::Ask(
+                    "open the template builtin:team-badge in place of this design, which has unsaved changes"
+                        .into()
+                )
+            );
         }
         // Nothing unsaved: replacing runs as the mode says.
         assert_eq!(

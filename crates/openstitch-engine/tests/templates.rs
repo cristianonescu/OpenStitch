@@ -214,3 +214,21 @@ fn version_1_templates_keep_their_capital_height_metrics() {
             .all(|t| t.metrics == openstitch_design::TextMetrics::CapHeight)
     );
 }
+
+#[test]
+fn template_open_says_it_replaces_the_design_with_an_untitled_one() {
+    // #1179: the description the Assistant and scripts read says what the command does to the
+    // open design, and what the editor makes of it.
+    let spec = openstitch_engine::commands::all()
+        .into_iter()
+        .find(|c| c.id == "template.open")
+        .expect("template.open");
+    for want in [
+        "Replace the open design",
+        "new, untitled design",
+        "unsaved changes are asked about first",
+        "project.save then needs a path",
+    ] {
+        assert!(spec.summary.contains(want), "{want}: {}", spec.summary);
+    }
+}

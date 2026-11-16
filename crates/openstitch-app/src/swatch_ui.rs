@@ -304,7 +304,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     if ui
                         .button(t("ui-open-it"))
                         .on_hover_text(
-                            "Opens the swatch in place of this design (Undo brings it back)",
+                            "Opens the swatch as File ▸ Open does: unsaved changes are asked about first",
                         )
                         .clicked()
                     {
@@ -349,9 +349,16 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         app.status = openstitch_app::tf!("ui-status-saved-the-fabric", fabric = r["fabric"]["name"].as_str().unwrap_or(""));
     }
     if open_saved && let Some(p) = d.saved.take() {
-        app.open_path(&p);
+        open_saved_swatch(app, p);
     }
     ctx.data_mut(|m| m.insert_temp(id(), d));
+}
+
+/// "Open it" on a saved swatch: as File ▸ Open (#1179), unsaved changes are asked about first,
+/// and with Open designs in tabs the swatch gets its own tab; an `.osd` swatch is then the
+/// document's file, a machine file opens as a new, untitled design.
+pub(crate) fn open_saved_swatch(app: &mut EditorApp, p: PathBuf) {
+    app.guarded(openstitch_app::editor::close_prompt::Pending::Open(Some(p)));
 }
 
 #[cfg(test)]

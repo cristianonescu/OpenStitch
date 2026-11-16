@@ -47,8 +47,9 @@ impl EditorApp {
     }
 
     /// Edits are one Undo step each; undo/redo act like the Edit menu, so a client's undo also
-    /// undoes a grouped user gesture as a whole. `project.open`, `design.new` and `project.save`
-    /// then do what File ▸ Open, New and Save do ([`EditorApp::after_remote_file_command`]).
+    /// undoes a grouped user gesture as a whole. `project.open`, `design.new`, `template.open`
+    /// and `project.save` then do what File ▸ Open, New (a template opens as New does, #1179)
+    /// and Save do ([`EditorApp::after_remote_file_command`]).
     pub(crate) fn remote_request(&mut self, request: &Value) -> Value {
         let command = request
             .get("command")
@@ -157,8 +158,9 @@ impl EditorApp {
     /// the Assistant or a socket client (#1178): the opened file becomes the document's file,
     /// with a new conversation identity and the chat it kept (`after_open`; during the
     /// Assistant's turn its conversation goes on and the file keeps its own); a new design is a
-    /// new document (`after_load`); a save makes that file the document's file, as Save As does,
-    /// and the conversation stays with it.
+    /// new document (`after_load`), and so is an opened template (#1179: it never keeps the
+    /// open project's file name, so the next Save asks for one); a save makes that file the
+    /// document's file, as Save As does, and the conversation stays with it.
     ///
     /// A design that had unsaved changes stays in Undo after an open or a new design, and the
     /// new one is marked unsaved, so closing still asks (#1186): it must not look saved.
@@ -173,7 +175,7 @@ impl EditorApp {
                     }
                 }
             }
-            "design.new" => {
+            "design.new" | "template.open" => {
                 self.after_load(None);
                 if unsaved_before {
                     self.mark_unsaved();

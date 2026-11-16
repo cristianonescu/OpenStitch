@@ -230,7 +230,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "template.open",
-            "Open a template as the design (Template Wizard step 2); returns its slots",
+            "Replace the open design with a template (Template Wizard step 2); returns its slots. In the editor the result is a new, untitled design (#1179): unsaved changes are asked about first, and project.save then needs a path",
             Effect::Edit,
             vec![req(
                 "template",

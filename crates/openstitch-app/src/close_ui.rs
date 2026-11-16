@@ -70,6 +70,9 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         Pending::New => "Your changes will be lost if you start a new design without saving.",
         Pending::Open(_) => "Your changes will be lost if you open another design without saving.",
         Pending::CloseTab => "Your changes will be lost if you close this tab without saving.",
+        Pending::Template(_) => {
+            "Your changes will be lost if you open a template without saving."
+        }
     };
     let mut choice = None;
     let modal = egui::Modal::new(egui::Id::unique("close-prompt")).show(ctx, |ui| {
