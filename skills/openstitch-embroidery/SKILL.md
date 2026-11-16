@@ -126,9 +126,14 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   one satin). It sews thin features (ropes, whiskers) as running lines, but adds no colour stop
   for a short one: a thread's lines under 40 mm in all that would need a block of their own are
   left out.
-- Colours: `"#rrggbb"`, a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Blue"`,
-  `"Prussian Blue"`, `"Deep Gold"`, `"Leaf Green"`, ...; case-insensitive), or a Brother chart
-  number 1-64. A name that is not in the chart is refused; use `#rrggbb` when unsure.
+- Colours: a thread code as a string (`"205"`: the default chart's thread first, then
+  Brother's chart, then the other built-in charts), brand and code (`"Brother 205"`,
+  `"Madeira 1801"`), a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Prussian Blue"`,
+  `"Deep Gold"`, ...; case-insensitive), `{builtin, code}`, or `"#rrggbb"`. The user's "205" or
+  "Brother 205" is a colour parameter as it is. A JSON number is a PEC chart number 1-64, not a
+  code: 7 is PEC entry 7, give `"007"` for code 007. A code two threads of one chart share is
+  refused as ambiguous with both named, an unknown one with the nearest codes: ask the user
+  which, never guess.
 - `object.get` returns outline points in **0.1 mm** units (x 100 = 10 mm). Commands always take
   mm.
 
@@ -424,9 +429,13 @@ then style them in the next.
   `threads.find` finds a thread by them ("1801" is 001 White). Every thread the commands
   report has `code` (the code on its spool: Brother 007 for a PEC chart thread, never its PEC
   number), `brand` and `pecIndex` (the PEC chart number a PES file gives it) as separate fields
-  (`design.info` `threads`, the `digitize.*` results, `stitches.points` `threadDetails`). Name a
-  thread to the user by that code, as every colour list in the window shows it beside the
-  swatch; `ui.threadLabels {list}` returns what a list shows. `threads.find`
+  (`design.info` `threads`, the `digitize.*` results, `stitches.points` `threadDetails`), and
+  `text`, the colour as the user reads it (`object.list` `regionThread`/`lineThread`,
+  `design.timeline` and `design.route` too). Name every colour to the user by brand, code and
+  name ("Brother 205 Yellow"), as every colour list in the window shows the code beside the
+  swatch; a custom colour (no code) as its `text` gives it, "Custom colour, nearest Brother 205
+  Yellow" (`nearest` has the thread and its ΔE). Never say a hex value to the user.
+  `ui.threadLabels {list}` returns what a list shows. `threads.find`
   `{query}` finds a thread by code or name (`charts: ["brother"]` searches the PEC chart as the
   editor's colour picker search does). After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
@@ -435,7 +444,8 @@ then style them in the next.
   lists theirs) or name a brand, take **every** colour from that chart: pick entries for new
   objects, or `threads.remap {chart | builtin}` the design. Never quote a catalogue number
   that is not in a chart: look it up with `threads.find {query}` first, and if it is not
-  there, give the colour as `#rrggbb` and say no thread matches. From a photo or list of their
+  there, give the colour as `#rrggbb` and tell the user no thread matches, naming the nearest
+  thread rather than the hex value. From a photo or list of their
   spools, propose a chart (colour, and the code only when the label is legible) and create it
   with `threads.createChart` and `threads.addColor` only after the user confirms; the editor
   asks them too.

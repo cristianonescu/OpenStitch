@@ -54,15 +54,87 @@ pub fn thread_code(t: &Thread) -> Option<String> {
         .map(str::to_string)
 }
 
-/// What a swatch shows beside or under it: the thread's code, or its `#rrggbb` when it has none.
-pub fn thread_label(t: &Thread) -> String {
+/// The thread's own code as a swatch shows it ("PEC 62" for a PEC entry Brother's catalogue
+/// has no code for), or `None` for a custom colour.
+fn own_label(t: &Thread) -> Option<String> {
     // A PEC entry with no Brother code (62-64) says it is a PEC number.
     if let Some(i) = pec_chart_entry(t)
         && brother_embroidery_code(i).is_none()
     {
-        return format!("PEC {i}");
+        return Some(format!("PEC {i}"));
     }
-    thread_code(t).unwrap_or_else(|| t.hex())
+    thread_code(t)
+}
+
+/// Whether `t` is a custom colour: a colour with no code on a spool (an imported SVG's, a stitch
+/// file's without thread data, one picked by value). It is named by its nearest thread (#1184).
+pub fn is_custom(t: &Thread) -> bool {
+    own_label(t).is_none()
+}
+
+/// The thread of `chart` nearest `t` by CIEDE2000, with the ΔE: what a custom colour is named
+/// by (#1184). Ties go to the earlier thread. `None` for an empty chart.
+pub fn nearest_thread<'a>(t: &Thread, chart: &'a [Thread]) -> Option<(&'a Thread, f64)> {
+    chart
+        .iter()
+        .map(|c| (c, crate::colour::delta_e(t, c)))
+        .fold(None, |best: Option<(&Thread, f64)>, (c, d)| match best {
+            Some((_, bd)) if bd <= d => best,
+            _ => Some((c, d)),
+        })
+}
+
+/// The mark before a custom colour's nearest code in a swatch caption ("≈205", #1184).
+pub const NEAREST_MARK: char = '≈';
+
+/// What a swatch shows beside or under it (#798, #1184): the thread's code ("007", "PEC 62"),
+/// or for a custom colour the code of the nearest thread of `chart` marked as nearest
+/// ("≈205"); "custom" when there is no chart to name it by. Never a hex value.
+pub fn thread_label(t: &Thread, chart: &[Thread]) -> String {
+    if let Some(own) = own_label(t) {
+        return own;
+    }
+    match nearest_thread(t, chart).and_then(|(n, _)| own_label(n)) {
+        Some(code) => format!("{NEAREST_MARK}{code}"),
+        None => "custom".into(),
+    }
+}
+
+/// A thread as a person names it: brand, code and name ("Brother 205 Yellow"), the parts it
+/// has. Empty for a colour with none of them.
+pub fn thread_title(t: &Thread) -> String {
+    let code = own_label(t);
+    [thread_brand(t), code.as_deref(), t.name.as_deref()]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// A colour as text for a person (#1184): a thread's brand, code and name, or for a custom
+/// colour "Custom colour, nearest Brother 205 Yellow" (its own name first when it has one,
+/// "Sky: custom colour, nearest …"). Never a hex value; the ΔE is for replies, not people.
+pub fn thread_text(t: &Thread, chart: &[Thread]) -> String {
+    if !is_custom(t) {
+        return thread_title(t);
+    }
+    let custom = match nearest_thread(t, chart) {
+        Some((n, _)) => format!("custom colour, nearest {}", thread_title(n)),
+        None => "custom colour".into(),
+    };
+    match t.name.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(name) => format!("{name}: {custom}"),
+        None => capitalised(&custom),
+    }
+}
+
+fn capitalised(s: &str) -> String {
+    let mut c = s.chars();
+    c.next()
+        .map(|f| f.to_uppercase().chain(c).collect())
+        .unwrap_or_default()
 }
 
 /// The thread's brand as a person reads it: "Brother" for a PEC chart thread and for Brother's
@@ -82,6 +154,7 @@ mod tests {
     fn a_thread_shows_its_own_charts_code() {
         // A Brother/PEC thread: its Embroidery code, not its PEC number.
         let prussian = PEC_CHART[1].clone().expect("entry 1");
+        let thread_label = |t: &Thread| super::thread_label(t, &[]);
         assert_eq!(thread_label(&prussian), "007");
         assert_eq!(pec_index(&prussian), 1);
         assert_eq!(thread_brand(&prussian), Some("Brother"));
@@ -114,14 +187,52 @@ mod tests {
         mine.catalog_number = Some("A7".into());
         mine.brand = Some("Mine".into());
         assert_eq!(thread_label(&mine), "A7");
-        // A custom colour: its hex; its PEC number is the nearest entry's.
+        // A custom colour with no chart to name it by: "custom", never its hex; its PEC number
+        // is the nearest entry's.
         let custom = Thread::rgb(0x0E1F7D);
-        assert_eq!(thread_label(&custom), "#0e1f7d");
+        assert_eq!(thread_label(&custom), "custom");
         assert_eq!(thread_code(&custom), None);
         assert_eq!(pec_index(&custom), 1);
         // A thread with only a PEC entry's name and colour (an older file) is that entry.
         let mut named = Thread::rgb(prussian.rgb_value());
         named.name = prussian.name.clone();
         assert_eq!(thread_label(&named), "007");
+    }
+
+    #[test]
+    fn a_custom_colour_is_named_by_its_nearest_thread_never_by_hex() {
+        // #1184: New Brothread's 205 is the nearest of the kit to a yellow a little off it.
+        let kit: &[Thread] = &crate::brands::NEW_BROTHREAD;
+        let yellow = kit
+            .iter()
+            .find(|t| t.catalog_number.as_deref() == Some("205"))
+            .expect("205 in the kit");
+        let off = Thread::rgb(yellow.rgb_value() ^ 0x000203);
+        assert!(is_custom(&off));
+        let (near, de) = nearest_thread(&off, kit).expect("a nearest thread");
+        assert_eq!(near.catalog_number.as_deref(), Some("205"));
+        assert!(de > 0.0 && de < 2.0, "ΔE {de}");
+        assert_eq!(thread_label(&off, kit), "≈205");
+        let title = thread_title(yellow);
+        assert_eq!(title, "New Brothread 205 Yellow");
+        assert_eq!(thread_text(yellow, kit), title);
+        assert_eq!(
+            thread_text(&off, kit),
+            format!("Custom colour, nearest {title}")
+        );
+        // Its own name first when it has one; no chart leaves only "custom colour".
+        let sky = off.clone().with_name("Sky");
+        assert_eq!(
+            thread_text(&sky, kit),
+            format!("Sky: custom colour, nearest {title}")
+        );
+        assert_eq!(thread_text(&off, &[]), "Custom colour");
+        for s in [
+            thread_label(&off, kit),
+            thread_text(&off, kit),
+            thread_text(&off, &[]),
+        ] {
+            assert!(!s.contains('#'), "{s}");
+        }
     }
 }

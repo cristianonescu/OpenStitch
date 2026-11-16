@@ -783,3 +783,29 @@ fn curve_parameters_get_array_schemas() {
     assert_eq!(curve["type"], "array");
     assert_eq!(curve["items"]["items"]["type"], "number");
 }
+
+#[test]
+fn every_colour_parameter_says_what_it_takes_and_what_is_stored() {
+    // #1184 and the param-description rule (owner 2026-11-14): each colour parameter's
+    // description, as a client sees it, says a code is given as a string, that a JSON number is
+    // a PEC chart number and not a code, and what is stored.
+    let forms = openstitch_engine::commands::COLOR_FORMS;
+    for want in [
+        "\"205\"",
+        "Brother 205",
+        "PEC chart number 1-64, not a code",
+        "stored",
+    ] {
+        assert!(forms.contains(want), "COLOR_FORMS lacks {want}");
+    }
+    let mut colour_params = 0;
+    for spec in openstitch_engine::commands::all() {
+        for doc in spec.params.iter().filter(|d| d.kind == "color") {
+            colour_params += 1;
+            let shown = openstitch_mcp::tools::property_schema(doc);
+            let text = shown["description"].as_str().unwrap_or_default();
+            assert!(text.contains(forms), "{} {}: {text}", spec.id, doc.name);
+        }
+    }
+    assert!(colour_params > 10, "{colour_params} colour parameters");
+}

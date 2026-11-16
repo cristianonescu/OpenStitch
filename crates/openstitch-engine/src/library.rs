@@ -364,9 +364,13 @@ fn unix(t: SystemTime) -> Option<u64> {
     t.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs())
 }
 
-fn thread_json(t: &Thread) -> Value {
+/// A design file's thread: `color` (`#rrggbb`, for scripts), its own name, brand and number,
+/// and `text`, how a person reads it: brand, code and name, a custom colour (a DST's, say) by
+/// the nearest thread of `chart` (#1184).
+fn thread_json(t: &Thread, chart: &[Thread]) -> Value {
     let mut m = Map::new();
     m.insert("color".into(), json!(t.hex()));
+    m.insert("text".into(), json!(openstitch_core::thread_text(t, chart)));
     for (k, v) in [
         ("name", &t.name),
         ("brand", &t.brand),
@@ -383,7 +387,7 @@ fn round1(v: f64) -> f64 {
     (v * 10.0).round() / 10.0
 }
 
-fn info_json(i: &DesignInfo, colors: bool) -> Value {
+fn info_json(i: &DesignInfo, colors: bool, chart: &[Thread]) -> Value {
     let mut v = json!({
         "path": text(&i.path),
         "name": i.file_name(),
@@ -404,8 +408,8 @@ fn info_json(i: &DesignInfo, colors: bool) -> Value {
             v["sewingMinutes"] = json!(round1(s.sewing_minutes));
             v["properties"] = json!(s.properties);
             if colors {
-                v["colorSequence"] = s.sequence.iter().map(thread_json).collect();
-                v["colors"] = s.totals.iter().map(thread_json).collect();
+                v["colorSequence"] = s.sequence.iter().map(|t| thread_json(t, chart)).collect();
+                v["colors"] = s.totals.iter().map(|t| thread_json(t, chart)).collect();
             }
         }
         Err(e) => {
@@ -460,12 +464,13 @@ fn list(s: &mut EngineState, p: &Params) -> CommandResult {
         .cloned()
         .collect();
     let mut index = Index::default();
+    let chart = crate::user::reference_threads(&s.user);
     let designs: Vec<Value> = files
         .iter()
         .skip(offset)
         .take(limit)
         .map(|f| match decode.then(|| index.info(f, &limits)) {
-            Some(Ok(i)) => info_json(&i, colors),
+            Some(Ok(i)) => info_json(&i, colors, &chart),
             Some(Err(e)) => {
                 let mut v = plain_json(f);
                 v["readable"] = json!(false);
@@ -490,7 +495,11 @@ fn list(s: &mut EngineState, p: &Params) -> CommandResult {
 fn info_one(s: &mut EngineState, p: &Params) -> CommandResult {
     let path = s.resolve(&p.string("path", None)?, Access::Read, &p.command)?;
     let (i, _) = info::inspect(&path, &Limits::default()).map_err(|e| lib_err(p, e))?;
-    Ok(info_json(&i, true))
+    Ok(info_json(
+        &i,
+        true,
+        &crate::user::reference_threads(&s.user),
+    ))
 }
 
 fn range<T: PartialOrd + Copy>(
@@ -592,9 +601,10 @@ fn search(s: &mut EngineState, p: &Params) -> CommandResult {
         &limits,
         &mut Index::default(),
     );
+    let chart = crate::user::reference_threads(&s.user);
     Ok(json!({
         "path": text(&dir),
-        "designs": found.designs.iter().take(limit).map(|i| info_json(i, colors)).collect::<Vec<_>>(),
+        "designs": found.designs.iter().take(limit).map(|i| info_json(i, colors, &chart)).collect::<Vec<_>>(),
         "matches": found.designs.len(),
         "searched": found.searched,
         "more": found.designs.len() > limit,
@@ -721,6 +731,7 @@ fn setup(p: &Params) -> Result<Setup, CommandError> {
         brand_numbers: p.bool("brandNumbers", Some(false))?,
         units,
         title: p.string("title", Some(""))?,
+        reference: Vec::new(),
     })
 }
 
@@ -738,7 +749,9 @@ fn catalog_out(s: &mut EngineState, p: &Params) -> CommandResult {
         return Err(p.invalid("format", "must be pdf, png, html or csv"));
     }
     let output = s.resolve(&raw, Access::Write, &p.command)?;
-    let setup = setup(p)?;
+    let mut setup = setup(p)?;
+    // A colour with no name or number is named by its nearest thread (#1184).
+    setup.reference = crate::user::reference_threads(&s.user);
     let overwrite = p.bool("overwrite", Some(false))?;
     let dpi = p.opt("dpi", 150.0, 36.0, 300.0)?;
     let limits = Limits::default();

@@ -159,10 +159,15 @@ pub(crate) fn default_line() -> Thread {
     PEC_CHART[20].clone().unwrap_or(Thread::rgb(0))
 }
 
-/// `"#rrggbb"`, a Brother PEC chart name (`"Red"`), chart number 1–64, or a thread of a
-/// built-in chart (#796): `{"builtin": "newBrothread", "code": "001"}` (`index`, from 0,
-/// instead of `code` picks by position), or a whole thread: `{"color": "#rrggbb", "code",
-/// "brand", "description"}` (a thread of one of the user's charts, as the colour picker gives it).
+/// What every colour parameter accepts, for its description (#1184, the param-description rule).
+pub const COLOR_FORMS: &str = "A thread code as a string (\"205\", looked up in the default chart first, then Brother's chart, then the other built-in charts; two threads with that code in the same chart are refused as ambiguous, an unknown code is refused with the nearest codes), brand and code (\"Brother 205\", \"Madeira 1801\"), a Brother thread name (\"Red\"), {builtin, code}, or #rrggbb. A JSON number is a PEC chart number 1-64, not a code: 7 is PEC entry 7, give \"007\" for code 007. The thread is stored as given: its colour with its code, brand and name";
+
+/// `"#rrggbb"`, a Brother PEC chart name (`"Red"`), a thread code (`"205"`) or brand and code
+/// (`"Brother 205"`, #1184), chart number 1–64 (a JSON number: a PEC chart number, not a
+/// code), or a thread of a built-in chart (#796): `{"builtin": "newBrothread", "code": "001"}`
+/// (`index`, from 0, instead of `code` picks by position), or a whole thread: `{"color":
+/// "#rrggbb", "code", "brand", "description"}` (a thread of one of the user's charts, as the
+/// colour picker gives it). See [`thread_by_code`] for how a code is looked up.
 pub(crate) fn thread(p: &Params, key: &str) -> Result<Option<Thread>, CommandError> {
     let Some(v) = p.get(key) else { return Ok(None) };
     if v.is_object() {
@@ -183,10 +188,122 @@ pub(crate) fn thread(p: &Params, key: &str) -> Result<Option<Thread>, CommandErr
         .iter()
         .flatten()
         .find(|t| t.name.as_deref().is_some_and(|n| n.eq_ignore_ascii_case(s)));
-    named.cloned().map(Some).ok_or_else(|| {
-        p.invalid(
-            key,
-            "must be #rrggbb, a Brother thread name, chart number 1-64 or {builtin, code}",
+    if let Some(t) = named {
+        return Ok(Some(t.clone()));
+    }
+    thread_by_code(s)
+        .map(Some)
+        .map_err(|why| p.invalid(key, why))
+}
+
+/// The chart tiers a thread code is looked up in, in order (#1184): the user's default chart
+/// (while a command runs), Brother's chart (its BROTHER EMBROIDERY codes), then every other
+/// built-in chart.
+fn code_tiers() -> Vec<(String, Vec<Thread>)> {
+    let builtins = crate::thread_match::builtins();
+    let mut tiers = Vec::new();
+    if let Some((c, threads)) = crate::user::running_default_chart() {
+        let name = match &c {
+            crate::user::ChartRef::Builtin(id) => builtins
+                .iter()
+                .find(|b| b.id == id.as_str())
+                .map_or_else(|| id.clone(), |b| b.name.to_string()),
+            crate::user::ChartRef::Chart(n) => n.clone(),
+        };
+        tiers.push((name, threads));
+    }
+    let (brother, rest): (Vec<_>, Vec<_>) = builtins.into_iter().partition(|b| b.id == "brother");
+    for b in brother.into_iter().chain(rest) {
+        tiers.push((
+            b.name.to_string(),
+            b.entries.into_iter().map(|(_, t)| t).collect(),
+        ));
+    }
+    tiers
+}
+
+/// Whether `t` is the thread `query` names: its code ("205"), its brand (or the start of it,
+/// a word) and code ("Brother 205", "Madeira 1801"), or its name.
+fn names_thread(t: &Thread, query: &str) -> bool {
+    let q = query.trim();
+    let code = openstitch_core::thread_code(t);
+    let own = t.catalog_number.as_deref().map(str::trim);
+    let is_code = |c: &str| {
+        code.as_deref().is_some_and(|k| k.eq_ignore_ascii_case(c))
+            || own.is_some_and(|k| k.eq_ignore_ascii_case(c))
+    };
+    if is_code(q)
+        || t.name
+            .as_deref()
+            .is_some_and(|n| n.trim().eq_ignore_ascii_case(q))
+    {
+        return true;
+    }
+    let Some((brand, c)) = q.rsplit_once(char::is_whitespace) else {
+        return false;
+    };
+    let brand = brand.trim().to_lowercase();
+    !brand.is_empty()
+        && is_code(c.trim())
+        && [openstitch_core::thread_brand(t), t.brand.as_deref()]
+            .into_iter()
+            .flatten()
+            .map(str::to_lowercase)
+            .any(|b| b == brand || b.starts_with(&format!("{brand} ")))
+}
+
+/// The thread a code or brand-and-code string names (#1184): the first chart tier
+/// ([`code_tiers`]) that has it decides, so "205" is the default chart's 205 when that chart
+/// has one. Two different threads in the same tier are refused as ambiguous, naming them; a code
+/// no chart has is refused with the nearest codes, never guessed.
+pub(crate) fn thread_by_code(query: &str) -> Result<Thread, String> {
+    let tiers = code_tiers();
+    for (chart, threads) in &tiers {
+        let mut found: Vec<&Thread> = Vec::new();
+        for t in threads.iter().filter(|t| names_thread(t, query)) {
+            if !found.iter().any(|f| {
+                f.rgb_value() == t.rgb_value()
+                    && openstitch_core::thread_code(f) == openstitch_core::thread_code(t)
+            }) {
+                found.push(t);
+            }
+        }
+        match found.as_slice() {
+            [] => {}
+            [one] => return Ok((*one).clone()),
+            many => {
+                let names: Vec<String> = many
+                    .iter()
+                    .take(5)
+                    .map(|t| openstitch_core::thread_title(t))
+                    .collect();
+                return Err(format!(
+                    "'{query}' is ambiguous in {chart}: {}; give the brand and code, or {{builtin, code}}",
+                    names.join(", ")
+                ));
+            }
+        }
+    }
+    // Nothing has it: offer the codes that come nearest, as threads.find ranks them.
+    let mut near: Vec<(u8, String)> = tiers
+        .iter()
+        .flat_map(|(_, threads)| threads.iter())
+        .filter_map(|t| {
+            crate::thread_match::find_rank(t, query.trim())
+                .map(|r| (r, openstitch_core::thread_title(t)))
+        })
+        .collect();
+    near.sort();
+    near.dedup_by(|a, b| a.1 == b.1);
+    let near: Vec<String> = near.into_iter().take(5).map(|(_, t)| t).collect();
+    Err(if near.is_empty() {
+        format!(
+            "no thread has the code or name '{query}' (threads.find searches the charts); give #rrggbb for a colour no thread has"
+        )
+    } else {
+        format!(
+            "no thread has the code or name '{query}'; nearest: {}",
+            near.join(", ")
         )
     })
 }
@@ -250,7 +367,11 @@ pub(crate) fn indexes(p: &Params, d: &Design) -> Result<Vec<usize>, CommandError
         .collect()
 }
 
-fn describe(o: &DesignObject) -> Value {
+/// An object as `object.list` reports it. Its colours are `regionColor` / `lineColor`
+/// (`#rrggbb`, for scripts) and `regionThread` / `lineThread`: the thread's code, brand, name
+/// and `text`, and for a custom colour the nearest thread of the user's default chart, which is
+/// how a colour is named to the user (#1184).
+fn describe(o: &DesignObject, chart: &[Thread]) -> Value {
     let mut r = json!({ "id": o.id, "kind": kind_str(o.kind), "visible": o.visible });
     if let Some(n) = &o.name {
         r["name"] = json!(n);
@@ -261,10 +382,12 @@ fn describe(o: &DesignObject) -> Value {
     if let Some(region) = &o.region {
         r["region"] = json!(region.kind.id());
         r["regionColor"] = json!(region.thread.hex());
+        r["regionThread"] = crate::thread_match::describe_near(&region.thread, chart);
     }
     if let Some(line) = &o.line {
         r["line"] = json!(line.kind.id());
         r["lineColor"] = json!(line.thread.hex());
+        r["lineThread"] = crate::thread_match::describe_near(&line.thread, chart);
     }
     if let Some(g) = o.group {
         r["group"] = json!(g);
@@ -319,6 +442,11 @@ fn kind_str(k: ObjectKind) -> &'static str {
 }
 
 pub fn stats(p: &StitchPattern) -> Value {
+    stats_near(p, &[])
+}
+
+/// [`stats`] with each thread named against `chart` (a custom colour's nearest thread, #1184).
+pub fn stats_near(p: &StitchPattern, chart: &[Thread]) -> Value {
     let b = p.bounds();
     json!({
         "stitches": p.count(Command::Stitch),
@@ -330,8 +458,9 @@ pub fn stats(p: &StitchPattern) -> Value {
         "widthMM": (b.width() / MM * 10.0).round() / 10.0,
         "heightMM": (b.height() / MM * 10.0).round() / 10.0,
         "colors": p.threads.iter().map(Thread::hex).collect::<Vec<_>>(),
-        // Each colour block's thread: code, brand, name and PEC number (#798).
-        "threads": p.threads.iter().map(crate::thread_match::describe).collect::<Vec<_>>(),
+        // Each colour block's thread: code, brand, name and PEC number (#798), and how a
+        // person reads it, a custom colour by its nearest thread (#1184).
+        "threads": p.threads.iter().map(|t| crate::thread_match::describe_near(t, chart)).collect::<Vec<_>>(),
     })
 }
 
@@ -625,7 +754,7 @@ fn design_commands() -> Vec<CommandSpec> {
                     "pageHeightMM": s.design.page.height / MM,
                     "pageMode": if s.design.hoop_size_page() { "hoop" } else { "custom" },
                     "objects": s.design.objects.len(),
-                    "stitchStats": stats(&pattern),
+                    "stitchStats": stats_near(&pattern, &crate::user::reference_threads(&s.user)),
                     "estimates": crate::machine::estimates(&s.design, &pattern),
                     "sewingArea": crate::machine::sewing_area(&s.design, &pattern),
                     "production": crate::production::info(&s.design, &pattern),
@@ -637,11 +766,16 @@ fn design_commands() -> Vec<CommandSpec> {
             "Generate stitches and report statistics",
             Effect::Read,
             vec![],
-            |s, _| Ok(stats(&Compiler::for_design(&s.design).compile(&s.design))),
+            |s, _| {
+                Ok(stats_near(
+                    &Compiler::for_design(&s.design).compile(&s.design),
+                    &crate::user::reference_threads(&s.user),
+                ))
+            },
         ),
         spec(
             "object.list",
-            "List objects in sewing order; the optional filters keep only matching ones (Select Same)",
+            "List objects in sewing order; each colour is regionThread / lineThread (code, brand, name and text, how the user reads it; a custom colour by the nearest thread of the default chart) beside regionColor / lineColor (#rrggbb, for scripts); the optional filters keep only matching ones (Select Same)",
             Effect::Read,
             vec![
                 opt(
@@ -677,12 +811,13 @@ fn design_commands() -> Vec<CommandSpec> {
             ],
             |s, p| {
                 let keep = crate::layout::list_filter(&s.design, p)?;
+                let chart = crate::user::reference_threads(&s.user);
                 Ok(Value::Array(
                     s.design
                         .objects
                         .iter()
                         .filter(|o| keep.as_ref().is_none_or(|f| f(o)))
-                        .map(describe)
+                        .map(|o| describe(o, &chart))
                         .collect(),
                 ))
             },

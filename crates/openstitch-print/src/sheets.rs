@@ -100,6 +100,10 @@ pub struct Options {
     /// The editor works in inches (#519): actual-size pages also get a 2-inch scale bar beside
     /// the 50 mm one.
     pub inches: bool,
+    /// The chart a custom colour is named by on a job sheet: "Custom colour, nearest Brother
+    /// 205 Yellow", so the person at the machine knows which spool to load and that it is not
+    /// exact (#1184). The user's default chart; empty leaves "Custom colour".
+    pub reference: Vec<Thread>,
 }
 
 impl Default for Options {
@@ -110,6 +114,7 @@ impl Default for Options {
             center_mark: true,
             template_grid: false,
             inches: false,
+            reference: Vec::new(),
         }
     }
 }

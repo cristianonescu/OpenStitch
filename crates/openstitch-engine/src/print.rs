@@ -190,6 +190,7 @@ fn run(s: &mut EngineState, p: &Params) -> CommandResult {
             "inch" => true,
             _ => return Err(p.invalid("units", "use mm or inch")),
         },
+        reference: crate::user::reference_threads(&s.user),
     };
     let mode = p.string("mode", Some("actual"))?;
     let d = &s.design;

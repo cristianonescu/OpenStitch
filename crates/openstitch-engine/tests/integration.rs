@@ -178,6 +178,8 @@ mod templates;
 mod thread_lists;
 #[path = "thread_match.rs"]
 mod thread_match;
+#[path = "thread_names.rs"]
+mod thread_names;
 #[path = "timeline.rs"]
 mod timeline;
 #[path = "transfer.rs"]

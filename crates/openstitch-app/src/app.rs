@@ -321,6 +321,8 @@ pub struct EditorApp {
     pub ui: crate::ribbon::RibbonState,
     /// Check Design, the density map and the sewing-order review (#503-#505).
     pub quality: crate::quality_ui::QualityState,
+    /// The Sewing Order list's small pictures (#1185).
+    pub thumbs: crate::thumbs_ui::ThumbCache,
     /// Self-update: startup check, dialog, download and restart.
     pub update: crate::update_ui::UpdateState,
     /// "Save changes to NAME?" when closing, File ▸ New or Open would lose unsaved changes.
@@ -439,6 +441,7 @@ impl EditorApp {
             splash: None,
             ui: Default::default(),
             quality: Default::default(),
+            thumbs: Default::default(),
             update: Default::default(),
             close_prompt: ClosePrompt::default(),
             machine_setup: Default::default(),
@@ -740,6 +743,8 @@ impl EditorApp {
             requested: false,
             done: Arc::new(AtomicBool::new(false)),
         });
+        // A screenshot shows every Sewing Order picture drawn, never one waiting (#1185).
+        self.thumbs.unlimited = self.screenshot.is_some();
     }
 
     // MARK: commands
@@ -2309,6 +2314,8 @@ impl eframe::App for EditorApp {
         crate::files::run_ready(self);
         // Options ▸ Language (#555): the window's texts for this frame.
         openstitch_app::editor::i18n::set_language(&self.ui.prefs.language);
+        // Custom colours are named by the default chart's nearest thread (#1184).
+        crate::panels::set_reference(self.session.user_settings());
         // A hover preview lasts while a picture picker's tile is hovered (#656).
         self.pickers_frame_end();
         self.pickers_frame_start();

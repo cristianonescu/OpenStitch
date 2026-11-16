@@ -279,10 +279,19 @@ fn assistant_instructions_are_short_and_point_at_the_skill() {
     assert!(instructions.contains("run_batch"), "{instructions}");
     // #1172 added when to ask and to suggest replies.
     assert!(instructions.contains("ask_user") && instructions.contains("suggest_replies"));
+    // #1184: colours are named by thread, never by hex value.
+    assert!(
+        instructions.contains("Colours: brand, code, name; no hex"),
+        "{instructions}"
+    );
     // #1188: a command held for the user's approval.
     assert!(instructions.contains("approval card"), "{instructions}");
-    // 1100 since #1186 (closing, quitting and replacing unsaved work always ask).
-    assert!(instructions.len() < 1100, "{}", instructions.len());
+    // #1186: closing, quitting and replacing unsaved work wait for the user.
+    assert!(
+        instructions.contains("Closing/replacing unsaved work: ask first"),
+        "{instructions}"
+    );
+    assert!(instructions.len() < 1000, "{}", instructions.len());
     editor.finish();
 }
 

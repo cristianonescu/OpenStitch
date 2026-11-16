@@ -1468,7 +1468,10 @@ pub fn moves(t: &Traced) -> Vec<Move> {
     out
 }
 
-pub fn route(d: &Design, t: &Traced) -> Value {
+/// The sewing order step by step (`design.route`). Each step's `color` is `#rrggbb` for
+/// scripts and `thread` names it as a person reads it, a custom colour by the nearest thread of
+/// `chart` (#1184).
+pub fn route(d: &Design, t: &Traced, chart: &[openstitch_core::Thread]) -> Value {
     let st = &t.pattern.stitches;
     let threads = &t.pattern.threads;
     let trim_limit = Compiler::for_design(d)
@@ -1541,7 +1544,8 @@ pub fn route(d: &Design, t: &Traced) -> Value {
         };
         steps.push(json!({
             "step": k + 1, "id": id, "name": o.and_then(|o| o.name.clone()),
-            "color": threads.get(colour).map(|c| format!("#{:02x}{:02x}{:02x}", c.red, c.green, c.blue)),
+            "color": threads.get(colour).map(openstitch_core::Thread::hex),
+            "thread": threads.get(colour).map(|c| openstitch_core::thread_text(c, chart)),
             "start": mm(start), "end": mm(end), "move": mv, "warnings": warnings,
             // Needle drops sewn when the step ends (the Stitch Simulator's position).
             "drops": st[..=last].iter().filter(|s| s.command == Command::Stitch).count(),
@@ -1841,7 +1845,13 @@ pub fn commands() -> Vec<CommandSpec> {
             "Review Sewing Order (beyond PE-DESIGN): each sewn object in order with its start and end and the move to the next (trim, jump, colour change, stop or sewn across, with its length), warnings for untrimmed jumps and long same-thread moves, and totals (trims, colour changes, travel, trims per 1,000 stitches)",
             Effect::Read,
             vec![],
-            |s, _| Ok(route(&s.design, &Traced::new(&s.design))),
+            |s, _| {
+                Ok(route(
+                    &s.design,
+                    &Traced::new(&s.design),
+                    &crate::user::reference_threads(&s.user),
+                ))
+            },
         ),
         spec(
             "design.cleanup",

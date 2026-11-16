@@ -427,6 +427,71 @@ fn describe_thread(t: &Thread) -> Value {
     crate::thread_match::describe(t)
 }
 
+/// The threads of chart `c`: a built-in chart's, or one of the user's (none when it is gone).
+pub fn chart_threads(c: &ChartRef, u: &UserSettings) -> Vec<Thread> {
+    match c {
+        ChartRef::Builtin(id) => crate::thread_match::builtins()
+            .into_iter()
+            .find(|b| b.id == id)
+            .map(|b| b.entries.into_iter().map(|(_, t)| t).collect())
+            .unwrap_or_default(),
+        ChartRef::Chart(n) => u
+            .thread_charts
+            .iter()
+            .find(|ch| ch.name == *n)
+            .map(|ch| ch.threads.clone())
+            .unwrap_or_default(),
+    }
+}
+
+/// The chart a custom colour is named by: the nearest of the user's default chart's threads,
+/// marked as nearest (#1184).
+pub fn reference_threads(u: &UserSettings) -> Vec<Thread> {
+    chart_threads(&u.default_chart(), u)
+}
+
+thread_local! {
+    /// The user's default chart while a command runs: the first place a colour parameter given
+    /// as a thread code is looked up ([`crate::commands::thread`], #1184).
+    static DEFAULT_CHART: std::cell::RefCell<Option<(ChartRef, Vec<Thread>)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Makes `u`'s default chart the one colour parameters look codes up in first, until dropped.
+pub(crate) struct DefaultChartScope(Option<(ChartRef, Vec<Thread>)>);
+
+impl DefaultChartScope {
+    pub(crate) fn enter(u: &UserSettings) -> Self {
+        let c = u.default_chart();
+        // A built-in chart is resolved only when a code is looked up; the user's own is copied.
+        let mine = match &c {
+            ChartRef::Chart(_) => chart_threads(&c, u),
+            ChartRef::Builtin(_) => Vec::new(),
+        };
+        Self(DEFAULT_CHART.with(|d| d.replace(Some((c, mine)))))
+    }
+}
+
+impl Drop for DefaultChartScope {
+    fn drop(&mut self) {
+        let before = self.0.take();
+        DEFAULT_CHART.with(|d| *d.borrow_mut() = before);
+    }
+}
+
+/// The default chart of the command that is running (none outside one), and its threads.
+pub(crate) fn running_default_chart() -> Option<(ChartRef, Vec<Thread>)> {
+    DEFAULT_CHART.with(|d| {
+        d.borrow().clone().map(|(c, mine)| match &c {
+            ChartRef::Chart(_) => (c, mine),
+            ChartRef::Builtin(_) => {
+                let threads = chart_threads(&c, &UserSettings::default());
+                (c, threads)
+            }
+        })
+    })
+}
+
 /// Other makers' codes printed for `t` (New Brothread's conversion card, #796).
 pub fn cross_references(t: &Thread) -> &'static [(&'static str, &'static str)] {
     match (t.brand.as_deref(), t.catalog_number.as_deref()) {

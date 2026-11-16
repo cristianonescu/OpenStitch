@@ -229,11 +229,13 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.label(
                             egui::RichText::new(format!(
                                 "{} share {}",
-                                m["from"]
+                                // The design colours by their swatch captions ("≈205"), never
+                                // hex (#1184).
+                                m["fromThreads"]
                                     .as_array()
                                     .into_iter()
                                     .flatten()
-                                    .filter_map(Value::as_str)
+                                    .filter_map(|t| t["label"].as_str())
                                     .collect::<Vec<_>>()
                                     .join(", "),
                                 thread_label(&m["to"])
