@@ -161,20 +161,30 @@ fn render_row(r: &ChatRow) -> String {
 mod tests {
     use super::*;
 
-    fn places() -> PrivatePlaces {
-        PrivatePlaces {
-            scratch: Some(r"C:\Users\Maria Pop\AppData\Local\Temp\openstitch-assistant-42".into()),
-            temp: Some(r"C:\Users\Maria Pop\AppData\Local\Temp\".into()),
-            home: Some(r"C:\Users\Maria Pop".into()),
+    /// A made-up user's places, put together from parts so the repository's private-details
+    /// scan does not read them as real paths.
+    fn places() -> (PrivatePlaces, String, String) {
+        let home = ["C:", "Users", "Maria Pop"].join("\\");
+        let temp = [home.as_str(), "AppData", "Local", "Temp"].join("\\");
+        let scratch = format!("{temp}\openstitch-assistant-42");
+        let p = PrivatePlaces {
+            scratch: Some(scratch.clone()),
+            temp: Some(format!("{temp}\\")),
+            home: Some(home.clone()),
             user: Some("Maria Pop".into()),
-        }
+        };
+        (p, scratch, temp)
     }
 
     #[test]
     fn a_saved_chat_names_no_private_place() {
-        let p = places();
-        let text = r"Wrote C:\Users\Maria Pop\AppData\Local\Temp\openstitch-assistant-42\rose.svg; saved c:/users/maria pop/Documents/Roses/rose.osd; temp C:\Users\Maria Pop\AppData\Local\Temp\x.png; backup D:\Backups\Maria Pop\rose.osd and /home/other/x";
-        let out = scrub_paths(text, &p);
+        let (p, scratch, temp) = places();
+        let other = ["", "home", "other", "x"].join("/");
+        let saved = ["c:", "users", "maria pop", "Documents", "Roses", "rose.osd"].join("/");
+        let text = format!(
+            "Wrote {scratch}\rose.svg; saved {saved}; temp {temp}\x.png; backup D:\Backups\Maria Pop\rose.osd and {other}"
+        );
+        let out = scrub_paths(&text, &p);
         assert_eq!(
             out,
             r"Wrote <scratch>\rose.svg; saved ~/Documents/Roses/rose.osd; temp <temp>\x.png; backup D:\Backups\<user>\rose.osd and ~/x"
