@@ -676,6 +676,7 @@ impl EditorApp {
                 "advancedAttributes" => json!(prefs.advanced_attributes),
                 "aiFeatures" => json!(prefs.ai.enabled),
                 "assistantMemory" => json!(prefs.ai.memory),
+                "assistantSaveChat" => json!(prefs.ai.save_chat),
                 "checkUpdates" => json!(prefs.updates.check),
                 "includePrereleases" => json!(prefs.updates.include_prereleases),
                 "optimizeEntryExit" => json!(self.session.user_settings().optimize_entry_exit),
@@ -803,6 +804,7 @@ impl EditorApp {
             "advancedAttributes" => self.ui.prefs.advanced_attributes = bool_value(name, v)?,
             "aiFeatures" => self.ui.prefs.ai.enabled = bool_value(name, v)?,
             "assistantMemory" => self.ui.prefs.ai.memory = bool_value(name, v)?,
+            "assistantSaveChat" => self.ui.prefs.ai.save_chat = bool_value(name, v)?,
             "checkUpdates" => self.ui.prefs.updates.check = bool_value(name, v)?,
             "includePrereleases" => {
                 self.ui.prefs.updates.include_prereleases = bool_value(name, v)?

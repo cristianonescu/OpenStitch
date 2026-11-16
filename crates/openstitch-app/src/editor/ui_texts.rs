@@ -1268,7 +1268,7 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("ui-new-chat", "New chat"),
     (
         "ui-start-a-new-conversation-the-design-tip",
-        "Start a new conversation; the design stays",
+        "Start a new conversation; the design stays. The project's next save keeps no chat.",
     ),
     ("ui-save-as-script", "Save as script"),
     ("ui-allow-once", "Allow once"),

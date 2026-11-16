@@ -738,7 +738,9 @@ View ▸ Show/Hide ▸ **Assistant** (Ctrl/Cmd+Shift+A) docks a chat on the righ
 
 **Save as script.** The message's engine edits are recorded (`ScriptRecord`) and written as a `stitchtool exec` script.
 
-**Preferences and key.** The preferences are in `ui.json` under `ai`: on/off, model, effort, address, permissions, limit, always-allowed commands and timeout. The API key is only in the system keychain (`keyring`, service "OpenStitch assistant", one entry per address). It is never sent to an address `key_safe_for` refuses.
+**Kept conversation (#1169).** A save writes the conversation into the `.osd` (`openstitch_design::saved_chat`, the engine's `EngineState::chat`, set by `assistant_panel::chat_to_session` before `project.save`, parking a tab and autosave), private paths scrubbed (`editor::assistant_saved`). `project.open` reads it back and `EditorApp::after_load` shows it; the first message to a new worker carries it as quoted file content. Each document has its own (`EditorApp::chat_doc`). See `docs/research/beyond/ai-integration.md` section 4.11.
+
+**Preferences and key.** The preferences are in `ui.json` under `ai`: on/off, model, effort, address, permissions, limit, always-allowed commands, timeout and "Save the chat with the project" (`saveChat`). The API key is only in the system keychain (`keyring`, service "OpenStitch assistant", one entry per address). It is never sent to an address `key_safe_for` refuses.
 
 **Tests.** `assistant_panel::tests` drives whole turns with a scripted SSE transport:
 - one undo step per message;

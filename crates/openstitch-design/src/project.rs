@@ -3,6 +3,7 @@
 //! (the Design Database, thumbnailers) do not depend on the command engine.
 
 use crate::fonts::{self, DesignFont, FontData, MAX_DESIGN_FONTS, MAX_TOTAL_FONT_BYTES};
+use crate::saved_chat::SavedChat;
 use crate::{Design, text};
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +19,10 @@ pub const FORMAT: &str = "openstitch.design";
 /// 6: a zigzag net's Spacing is the gap between bands, as PE-DESIGN's (#1109), and its band
 /// is no longer capped at 0.8 × the line pitch; nets of older files keep their lines and
 /// bands (see [`migrate_v5_zigzag_net_spacing`]).
+///
+/// An optional `assistant` field beside `design` keeps the Assistant's conversation (#1169,
+/// [`SavedChat`]). It needed no version step: readers before it ignore the field (alpha.15
+/// opens such a file, and drops the chat if it saves it again).
 pub const VERSION: u32 = 6;
 pub const EXTENSION: &str = "osd";
 pub const MAX_SIZE: usize = 64 << 20;
@@ -27,6 +32,9 @@ struct Envelope {
     format: String,
     version: u32,
     design: Design,
+    /// Read leniently ([`SavedChat::from_value`]): a damaged chat never fails the design.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    assistant: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -36,15 +44,31 @@ struct Header {
 }
 
 pub fn encode(design: &Design) -> Result<Vec<u8>, String> {
+    encode_with_chat(design, None)
+}
+
+/// The project file with the Assistant's conversation (#1169); an empty or absent chat writes no
+/// `assistant` field.
+pub fn encode_with_chat(design: &Design, chat: Option<&SavedChat>) -> Result<Vec<u8>, String> {
+    let assistant = match chat.filter(|c| !c.is_empty()) {
+        Some(c) => Some(serde_json::to_value(c.clone().limited()).map_err(|e| e.to_string())?),
+        None => None,
+    };
     let env = Envelope {
         format: FORMAT.into(),
         version: VERSION,
         design: design.clone(),
+        assistant,
     };
     serde_json::to_vec_pretty(&env).map_err(|e| e.to_string())
 }
 
 pub fn decode(data: &[u8]) -> Result<Design, String> {
+    decode_with_chat(data).map(|(d, _)| d)
+}
+
+/// The design and the conversation it keeps, if any (#1169).
+pub fn decode_with_chat(data: &[u8]) -> Result<(Design, Option<SavedChat>), String> {
     if data.len() > MAX_SIZE {
         return Err(format!("file larger than {} MiB", MAX_SIZE >> 20));
     }
@@ -77,7 +101,8 @@ pub fn decode(data: &[u8]) -> Result<Design, String> {
     if header.version < 6 {
         migrate_v5_zigzag_net_spacing(&mut env.design);
     }
-    Ok(env.design)
+    let chat = env.assistant.as_ref().and_then(SavedChat::from_value);
+    Ok((env.design, chat))
 }
 
 /// Before version 6 a zigzag net's Spacing was its line pitch (8.0 mm unset) and its band at
@@ -551,5 +576,60 @@ mod tests {
             .as_object_mut()
             .expect("line")
             .remove("angle");
+    }
+
+    /// #1169: a chat is kept beside the design and read back as it was.
+    #[test]
+    fn a_project_keeps_its_chat_beside_the_design() {
+        use crate::saved_chat::{ChatRole, ChatRow, SavedChat};
+        let chat = SavedChat {
+            rows: vec![
+                ChatRow::new(ChatRole::User, "Make the square blue"),
+                ChatRow {
+                    failed: true,
+                    ..ChatRow::new(ChatRole::Tool, "Ran object.setRegion")
+                },
+                ChatRow::new(ChatRole::Assistant, "Done."),
+            ],
+        };
+        let bytes = encode_with_chat(&design(), Some(&chat)).expect("encode");
+        let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(v["version"], VERSION, "no version step");
+        assert_eq!(v["assistant"]["rows"][1]["role"], "tool");
+        let (d, back) = decode_with_chat(&bytes).expect("decode");
+        assert_eq!((d, back), (design(), Some(chat)));
+        // No chat, or an empty one: no field.
+        for c in [None, Some(&SavedChat::default())] {
+            let v: serde_json::Value =
+                serde_json::from_slice(&encode_with_chat(&design(), c).expect("encode"))
+                    .expect("json");
+            assert!(v.get("assistant").is_none());
+        }
+        // A damaged chat never fails the design.
+        let mut v = v;
+        v["assistant"] = serde_json::json!({"rows": "nonsense"});
+        let (d, back) = decode_with_chat(&serde_json::to_vec(&v).expect("bytes")).expect("decode");
+        assert_eq!((d, back), (design(), None));
+    }
+
+    /// #1169: alpha.15's reader (this envelope, without the `assistant` field, and the same
+    /// header check) opens a file that keeps a chat: the design is intact, the chat ignored.
+    #[test]
+    fn alpha_15_opens_a_project_that_keeps_a_chat() {
+        use crate::saved_chat::{ChatRole, ChatRow, SavedChat};
+        #[derive(Deserialize)]
+        struct Alpha15Envelope {
+            format: String,
+            version: u32,
+            design: Design,
+        }
+        let chat = SavedChat {
+            rows: vec![ChatRow::new(ChatRole::User, "hello")],
+        };
+        let bytes = encode_with_chat(&design(), Some(&chat)).expect("encode");
+        let old: Alpha15Envelope = serde_json::from_slice(&bytes).expect("alpha.15 reads it");
+        assert_eq!((old.format.as_str(), old.version), (FORMAT, 6));
+        assert!(old.version <= 6, "alpha.15 refuses only versions above 6");
+        assert_eq!(old.design, design());
     }
 }

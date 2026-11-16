@@ -255,6 +255,13 @@ pub struct EditorApp {
     /// new design + import + centre) is one Undo.
     pub(crate) undo_groups: Vec<usize>,
     pub(crate) redo_groups: Vec<usize>,
+    /// Which document this is, for the Assistant's conversation (#1169): the chat belongs to
+    /// the document it was restored or started in, and only that document's save writes it.
+    /// A new one for every New, Open and tab.
+    pub(crate) chat_doc: u64,
+    /// Counts changes to the kept chat (#1169), so autosave sees a conversation change as it sees
+    /// a design change ([`EditorApp::snapshot_key`]).
+    pub(crate) chat_edits: u64,
     /// Inside [`EditorApp::with_one_refresh`]: whether an edit is waiting for its stitch compile.
     refresh_deferred: Option<bool>,
     /// Rulers, grid, measure tool, Reference window, Design Settings, estimates.
@@ -399,6 +406,8 @@ impl EditorApp {
             frames: 0,
             undo_groups: Vec::new(),
             redo_groups: Vec::new(),
+            chat_doc: crate::assistant_panel::next_document(),
+            chat_edits: 0,
             refresh_deferred: None,
             workspace: Default::default(),
             edit: Default::default(),
@@ -728,6 +737,10 @@ impl EditorApp {
     /// Runs one command; reports failures in the status bar. Returns the command's result.
     pub fn execute(&mut self, r: &CommandRequest) -> Option<Value> {
         openstitch_app::editor::crash::note_command(r.command);
+        if r.command == "project.save" {
+            // The document's conversation goes into the file with it (#1169).
+            crate::assistant_panel::chat_to_session(self);
+        }
         let effect = self.effects.get(r.command).copied();
         let before = (effect == Some(Effect::Edit)).then(|| self.session.design().clone());
         match self.session.execute(r.command, Some(&r.params)) {
@@ -1045,6 +1058,12 @@ impl EditorApp {
         self.revision != self.saved_revision
     }
 
+    /// What autosave compares: the design's revision and the chat's changes (#1169).
+    pub(crate) fn snapshot_key(&self) -> u64 {
+        self.revision
+            .wrapping_add(self.chat_edits.wrapping_mul(0x9E37_79B9_7F4A_7C15))
+    }
+
     pub fn undo(&mut self) {
         let steps = self.undo_groups.pop().unwrap_or(1);
         let done = self.history("history.undo", steps);
@@ -1271,6 +1290,9 @@ impl EditorApp {
     }
 
     pub(crate) fn after_load(&mut self, path: Option<PathBuf>) {
+        // A new document: its own conversation, the one its file keeps or none (#1169).
+        self.chat_doc = crate::assistant_panel::next_document();
+        crate::assistant_panel::document_loaded(self);
         self.recovery.recovered_from = None;
         self.path = path;
         self.selection.clear();

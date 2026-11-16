@@ -39,6 +39,7 @@ pub struct Document {
     spans: Vec<(u64, std::ops::Range<usize>)>,
     estimate: Option<openstitch_design::Estimate>,
     recovered_from: Option<String>,
+    chat_doc: u64,
 }
 
 impl Document {
@@ -70,6 +71,7 @@ impl Document {
             spans: Vec::new(),
             estimate: None,
             recovered_from: None,
+            chat_doc: crate::assistant_panel::next_document(),
         }
     }
 
@@ -144,6 +146,7 @@ impl EditorApp {
         swap(&mut self.quality.spans, &mut doc.spans);
         swap(&mut self.workspace.estimate, &mut doc.estimate);
         swap(&mut self.recovery.recovered_from, &mut doc.recovered_from);
+        swap(&mut self.chat_doc, &mut doc.chat_doc);
     }
 
     /// Parks the active design in its slot and makes `doc` active.
@@ -151,7 +154,11 @@ impl EditorApp {
         self.tools.cancel();
         self.playing = false;
         self.tabs.high = self.tabs.high.max(self.revision);
+        // The chat stays with its document (#1169): kept in it while it is parked, and the tab
+        // switched to shows its own (unless a turn runs).
+        crate::assistant_panel::chat_to_session(self);
         self.swap_document(&mut doc);
+        crate::assistant_panel::document_activated(self);
         // `doc` now holds the parked design. Shared settings follow the user across tabs.
         self.session.copy_user_settings(&doc.session);
         let clean = self.revision == self.saved_revision;

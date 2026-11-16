@@ -508,6 +508,7 @@ fn design_commands() -> Vec<CommandSpec> {
                     "custom" => true,
                     _ => return Err(p.invalid("pageMode", "must be hoop or custom")),
                 };
+                s.chat = None;
                 s.design = Design::new(
                     p.string("name", Some("Untitled"))?,
                     DesignPage {
@@ -3498,8 +3499,12 @@ fn file_commands() -> Vec<CommandSpec> {
             vec![PATH],
             |s, p| {
                 let path = s.resolve(&p.string("path", None)?, Access::Write, &p.command)?;
-                crate::fsio::write(&path, project::encode(&s.design)?)
-                    .map_err(|e| p.failed(e.to_string()))?;
+                // The editor sets the document's conversation before a save (#1169).
+                crate::fsio::write(
+                    &path,
+                    project::encode_with_chat(&s.design, s.chat.as_ref())?,
+                )
+                .map_err(|e| p.failed(e.to_string()))?;
                 Ok(json!({ "path": path.display().to_string() }))
             },
         ),
@@ -3510,7 +3515,7 @@ fn file_commands() -> Vec<CommandSpec> {
             vec![PATH],
             |s, p| {
                 let (_, data) = read_file(s, p, project::MAX_SIZE)?;
-                s.design = project::decode(&data)?;
+                (s.design, s.chat) = project::decode_with_chat(&data)?;
                 Ok(json!({ "name": s.design.name, "objects": s.design.objects.len() }))
             },
         ),
