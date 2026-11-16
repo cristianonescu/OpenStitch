@@ -633,14 +633,18 @@ circle, and the whole message is one undo step.*
 - (+) **Asks first** before saving, exporting, opening files, sending to the machine, quitting or
   changing a thread chart (Allow once, Always allow, Deny). With a coding agent the card waits
   for your answer (up to 4 minutes), and the agent is told whether you declined; a command sent
-  again while its card is open uses that card ([#1188]).
+  again while its card is open uses that card ([#1188]). Quitting, closing a tab and replacing
+  a design with unsaved changes always ask, in every permission mode, and cannot be put on
+  Always allow; closing the window while the assistant works asks you to stop it first
+  ([#1186]).
 - (+) **Pictures:** attach or drop files; **View** and **Selection** send the design and what is
   selected. A coding agent that takes pictures, such as Claude Code, gets them in the message
   as the Claude API does; one that does not looks at them with a tool ([#1168]).
 - (+) **Memory:** short notes about your machine, threads and preferences, kept on your computer
   and written only after you allow it ([#491]).
 - (+) **The chat is kept with the project:** saving writes the conversation into the `.osd`, and
-  opening it lets you read it and go on where it stopped ([#1169]). Pictures, the assistant's
+  opening it lets you read it and go on where it stopped ([#1169]). A chat counts as unsaved
+  work, so closing asks to save it ([#1186]). Pictures, the assistant's
   thinking, tool results and keys are never kept. "Save the chat with the project" (Assistant
   settings, on by default) turns it off, and a kept chat goes at the next save. Saves and
   opens the assistant runs are handled as File ▸ Save and Open are ([#1176], [#1178],
@@ -760,6 +764,7 @@ tests and the keychain round trip
 [#1184]: https://github.com/cristianonescu/OpenStitch/issues/1184
 [#1185]: https://github.com/cristianonescu/OpenStitch/issues/1185
 [#1187]: https://github.com/cristianonescu/OpenStitch/issues/1187
+[#1186]: https://github.com/cristianonescu/OpenStitch/issues/1186
 [#1188]: https://github.com/cristianonescu/OpenStitch/issues/1188
 [#1172]: https://github.com/cristianonescu/OpenStitch/issues/1172
 [#492]: https://github.com/cristianonescu/OpenStitch/issues/492

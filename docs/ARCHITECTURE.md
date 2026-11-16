@@ -750,12 +750,13 @@ sent.
 
 View ▸ Show/Hide ▸ **Assistant** (Ctrl/Cmd+Shift+A) docks a chat on the right (`assistant_panel.rs`).
 
-**The worker thread** owns the conversation (`openstitch-assistant`) and an `openstitch-mcp` assistant `Server`. The server's `EditorLink` is a channel to the UI thread, not the socket, so the model sees the same nine tools as `openstitch-mcp --assistant`.
+**The worker thread** owns the conversation (`openstitch-assistant`) and an `openstitch-mcp` assistant `Server`. The server's `EditorLink` is a channel to the UI thread, not the socket, so the model sees the same tools as `openstitch-mcp --assistant` (twelve since #1168 and #1172; the README's MCP section lists them).
 
 **Running a command.** Each engine or `ui.*` command the server sends arrives on the UI thread as a job. It passes `editor::assistant_chat::verdict`, then runs through `remote_request`, the socket's own path. The gate judges each command by its declared effect:
 - reads run;
 - edits run (they ask in "Ask every time");
 - file commands, `transfer.*`, a parameter naming a file outside the scratch folder, Exit, and an undo past the message's start all ask, with Allow once, Always allow or Deny;
+- quitting (`ui.run {action: exit}`), closing a tab (`ui.documents {op: close}`), and, while the design has unsaved changes (its conversation included), anything that replaces it (`design.new`, `project.open`, `template.open`, test swatches, the calibration card, restoring a recovery copy) always ask, in every permission mode, "Allow everything" included, and Always allow does not skip them (`assistant_chat::closing_question`, `always_asks`; #1186). The user closing the window or a tab while a turn runs gets Stop and close first, then the usual unsaved-changes question (`close_ui`);
 - a question nobody answers is declined after 240 s;
 - an optional limit on changes per message refuses further edits.
 
