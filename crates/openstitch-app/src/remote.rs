@@ -57,16 +57,45 @@ impl EditorApp {
         if command == "commands.list" || command.starts_with("ui.") {
             return self.remote_ui_request(command, request);
         }
+        let mut request = std::borrow::Cow::Borrowed(request);
         if command == "project.save" {
             // The Assistant's own saves and a socket client's write the document's conversation
             // as File ▸ Save does (#1176).
             crate::assistant_panel::chat_to_session(self);
+            // A relative path is taken from the design's own folder, never from the process's
+            // working folder (#1187).
+            match self.beside_the_design(&request) {
+                Ok(Some(r)) => request = std::borrow::Cow::Owned(r),
+                Ok(None) => {}
+                Err(e) => return failed(&request, &e),
+            }
         }
+        let request = request.as_ref();
         let reply = self.remote_engine_request(command, request);
         if reply["ok"] == json!(true) {
             self.after_remote_file_command(command, &reply["result"]);
         }
         reply
+    }
+
+    /// `request` with its relative `path` joined to the folder of the design's file (#1187);
+    /// `None` when the path is absolute or missing (the engine says what is wrong), an error
+    /// when it is relative and the design has no file.
+    fn beside_the_design(&self, request: &Value) -> Result<Option<Value>, String> {
+        let Some(path) = request.pointer("/params/path").and_then(Value::as_str) else {
+            return Ok(None);
+        };
+        if std::path::Path::new(path).is_absolute() {
+            return Ok(None);
+        }
+        let Some(folder) = self.path.as_ref().and_then(|p| p.parent()) else {
+            return Err(format!(
+                "the design has no file yet, so '{path}' has no folder to be relative to: give a full path"
+            ));
+        };
+        let mut r = request.clone();
+        r["params"]["path"] = json!(folder.join(path).display().to_string());
+        Ok(Some(r))
     }
 
     /// What the editor does after the menu's own Open, New and Save, for the same commands from
@@ -167,6 +196,17 @@ impl EditorApp {
         }
         Value::Object(reply)
     }
+}
+
+/// The engine's failure reply for `request`, with `error`.
+fn failed(request: &Value, error: &str) -> Value {
+    let mut reply = Map::new();
+    if let Some(id) = request.get("id") {
+        reply.insert("id".into(), id.clone());
+    }
+    reply.insert("ok".into(), json!(false));
+    reply.insert("error".into(), json!(error));
+    Value::Object(reply)
 }
 
 #[cfg(test)]
