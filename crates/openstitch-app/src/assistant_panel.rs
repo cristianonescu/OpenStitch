@@ -5818,6 +5818,59 @@ Attached: rose.png".into())];
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// #1203: `library.move` takes each entry out of its folder, so a relative source in its
+    /// `paths` list is beside the design like its destination; an absolute one stays as given;
+    /// an untitled design is refused. From the Assistant, the chat names every file by its full
+    /// path, one line each.
+    #[test]
+    fn a_move_takes_its_relative_sources_beside_the_design() {
+        let dir = project_dir("move");
+        let elsewhere = project_dir("move-elsewhere");
+        let (mut app, _) = app_with(Vec::new());
+        save_to(&mut app, &dir.join("design.osd"));
+        for f in ["a.pes", "b.pes"] {
+            std::fs::write(dir.join(f), b"x").expect("file");
+        }
+        for f in ["c.pes", "d.pes"] {
+            std::fs::write(elsewhere.join(f), b"x").expect("file");
+        }
+        std::fs::create_dir_all(dir.join("moved")).expect("folder");
+        let c = elsewhere.join("c.pes").display().to_string();
+        let r = app.remote_request(&json!({ "command": "library.move",
+            "params": { "paths": ["a.pes", c], "destination": "moved" } }));
+        assert_eq!(r["ok"], json!(true), "{r}");
+        assert!(dir.join("moved").join("a.pes").is_file() && !dir.join("a.pes").exists());
+        assert!(dir.join("moved").join("c.pes").is_file() && !elsewhere.join("c.pes").exists());
+        assert!(!std::path::Path::new("moved").exists(), "nothing in the working folder");
+        let (mut untitled, _) = app_with(Vec::new());
+        let r = untitled.remote_request(&json!({ "command": "library.move",
+            "params": { "paths": ["b.pes"], "destination": dir.join("moved").display().to_string() } }));
+        assert_eq!(r["ok"], json!(false), "{r}");
+        assert!(r["error"].as_str().is_some_and(|e| e.contains("ask the user where to write it")), "{r}");
+        // From the Assistant: the card and one chat line per file, by full path.
+        let d = elsewhere.join("d.pes").display().to_string();
+        let (mut asked, _) = app_with(vec![
+            reply(&[("library.move", json!({ "paths": ["b.pes", d.clone()], "destination": "moved" }))], "", "tool_use"),
+            reply(&[], "Moved.", "end_turn"),
+        ]);
+        asked.open_path(&dir.join("design.osd"));
+        send(&mut asked, "move them".into(), no_wake());
+        run(&mut asked, |a| !a.assistant.panel.approvals.is_empty());
+        let b = dir.join("b.pes").display().to_string();
+        let moved = dir.join("moved").display().to_string();
+        let what = asked.assistant.panel.approvals[0].what.clone();
+        assert!(what.contains(&b) && what.contains(&moved), "{what}");
+        answer(&mut asked, 0, Answer::Once);
+        run(&mut asked, idle);
+        for p in [&b, &d, &moved] {
+            let line = format!("The assistant wrote {p} (library.move).");
+            assert!(asked.assistant.panel.items.contains(&Item::Notice(line.clone())), "{line}");
+        }
+        assert!(dir.join("moved").join("b.pes").is_file() && dir.join("moved").join("d.pes").is_file());
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&elsewhere);
+    }
+
     /// #1199 on the Assistant's path: the card shows the full path before anything is written,
     /// the chat names the file written by its full path, and the saved chat keeps that path
     /// scrubbed (the temporary folder, under the home folder on Windows, as `<temp>`).

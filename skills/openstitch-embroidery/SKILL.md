@@ -329,7 +329,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    In the editor, a relative name for any file you write (`project.save`, `design.export`,
    `design.exportBundle`, pictures, thread lists, swatches, library folders) lands beside the
    design's own file, and the approval card and the chat show the full path. An untitled design
-   has no folder yet: ask the user where to save and give a full path. To save
+   has no folder yet: ask the user where to save and give a full path. Files a command only reads
+   (an input picture, the files a copy takes) keep the working folder, so give a full path for
+   inputs. To save
    a design that already has a file to that same file, `execute ui.run {action: "save"}` (the
    user is asked first, as for any save). Right after your own save, `ui.state` has
    `unsavedDesign: false` and `unsavedConversationOnly: true` while your reply goes on: the

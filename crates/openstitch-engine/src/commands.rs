@@ -657,37 +657,42 @@ pub const EDITOR_RELATIVE_NOTE: &str = concat!(
 /// What a write target the command fills in itself adds (#1203).
 pub const EDITOR_DEFAULT_NOTE: &str = " Left out in the editor, it is the folder of the design's own file (refused while the design has no file).";
 
+/// What a param a file-writing command only reads adds in its description (#1203).
+pub const EDITOR_READ_NOTE: &str = " Only read: a relative path is taken from the working folder, also in the editor, so give a full path for a file next to the design.";
+
 /// Adds [`EDITOR_RELATIVE_NOTE`] (and [`EDITOR_DEFAULT_NOTE`]) to the write targets of every
-/// file-writing command (#1199, #1203). The descriptions are made once per process.
+/// file-writing command, and [`EDITOR_READ_NOTE`] to the params it only reads (#1199, #1203).
+/// The descriptions are made once per process.
 fn note_editor_paths(v: &mut [CommandSpec]) {
     use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
-    static NOTED: OnceLock<Mutex<HashMap<(&'static str, bool), &'static str>>> = OnceLock::new();
+    static NOTED: OnceLock<Mutex<HashMap<(&'static str, u8), &'static str>>> = OnceLock::new();
     let mut noted = NOTED
         .get_or_init(Default::default)
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     for c in v.iter_mut().filter(|c| c.effect == Effect::File) {
         let id = c.id;
-        for p in c
-            .params
-            .iter_mut()
-            .filter(|p| write_targets(id).any(|w| w == p.name))
-        {
-            if p.summary.contains("design's own file") {
+        for p in c.params.iter_mut() {
+            let Some(&(_, role)) = file_params(id).iter().find(|(n, _)| *n == p.name) else {
                 continue;
-            }
-            let fills = DEFAULT_WRITE_TARGETS.contains(&(id, p.name));
+            };
+            // 0: a write target; 1: one the command fills in itself; 2: only read.
+            let kind: u8 = match role {
+                FileParam::Writes if p.summary.contains("design's own file") => continue,
+                FileParam::Writes if DEFAULT_WRITE_TARGETS.contains(&(id, p.name)) => 1,
+                FileParam::Writes => 0,
+                FileParam::Reads => 2,
+                FileParam::NotAPath => continue,
+            };
             let s = p.summary;
-            p.summary = noted.entry((s, fills)).or_insert_with(|| {
-                let default = if fills { EDITOR_DEFAULT_NOTE } else { "" };
-                Box::leak(
-                    format!(
-                        "{}.{EDITOR_RELATIVE_NOTE}{default}",
-                        s.trim_end_matches('.')
-                    )
-                    .into_boxed_str(),
-                )
+            p.summary = noted.entry((s, kind)).or_insert_with(|| {
+                let add = match kind {
+                    0 => EDITOR_RELATIVE_NOTE.to_string(),
+                    1 => format!("{EDITOR_RELATIVE_NOTE}{EDITOR_DEFAULT_NOTE}"),
+                    _ => EDITOR_READ_NOTE.to_string(),
+                };
+                Box::leak(format!("{}.{add}", s.trim_end_matches('.')).into_boxed_str())
             });
         }
     }

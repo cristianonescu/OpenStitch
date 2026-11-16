@@ -1203,6 +1203,25 @@ fn every_file_param_of_a_file_command_is_classified() {
                 p.summary
             );
         }
+        // A param only read says it keeps the working folder, also in the editor.
+        for (r, _) in file_params(c.id)
+            .iter()
+            .filter(|(_, f)| *f == openstitch_engine::commands::FileParam::Reads)
+        {
+            let p = c
+                .params
+                .iter()
+                .find(|p| p.name == *r)
+                .expect("a listed read param exists");
+            assert!(
+                p.summary
+                    .contains("taken from the working folder, also in the editor"),
+                "{}.{}: {}",
+                c.id,
+                r,
+                p.summary
+            );
+        }
     }
     for (id, params) in FILE_PARAMS {
         let c = commands
