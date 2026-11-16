@@ -559,10 +559,10 @@ pub fn consequence_notice(command: &str, params: &Value, replaced: bool) -> Opti
     if !consequential(command, params) {
         return None;
     }
-    let file = params["path"].as_str().map(short_path);
     let action = params["action"].as_str().unwrap_or_default();
     Some(match (command, action) {
-        ("project.save", _) | ("ui.run", "save") => match file {
+        ("project.save", _) | ("ui.run", "save") => match params["path"].as_str() {
+            // The full path written (#1199).
             Some(f) => format!("The assistant saved the design as {f} ({command})."),
             None => format!("The assistant saved the design ({command} {action})."),
         },
@@ -976,7 +976,7 @@ mod tests {
         assert!(consequential("project.save", &json!({ "path": "a.osd" })));
         assert_eq!(
             consequence_notice("project.save", &json!({ "path": "/x/a.osd" }), false).as_deref(),
-            Some("The assistant saved the design as a.osd (project.save).")
+            Some("The assistant saved the design as /x/a.osd (project.save).")
         );
         assert_eq!(
             consequence_notice("design.new", &json!({}), true).as_deref(),

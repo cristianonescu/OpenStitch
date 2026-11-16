@@ -22,8 +22,8 @@ pub use brother::{
 };
 pub use charts::{HUS_CHART, JEF_CHART, PEC_CHART, SEW_CHART, SHV_CHART};
 pub use thread_code::{
-    NEAREST_MARK, is_custom, nearest_thread, pec_chart_entry, pec_index, thread_brand, thread_code,
-    thread_label, thread_text, thread_title,
+    NEAREST_MARK, is_custom, nearest_thread, pec_chart_entry, pec_index, same_thread, thread_brand,
+    thread_code, thread_label, thread_text, thread_title,
 };
 
 /// Brother chart entries a colour is matched against: 1–61. PE-DESIGN 11.50 never picked 62–64

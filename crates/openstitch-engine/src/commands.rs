@@ -367,6 +367,14 @@ pub(crate) fn indexes(p: &Params, d: &Design) -> Result<Vec<usize>, CommandError
         .collect()
 }
 
+/// An object's thread as `object.list` reports it: the brand as a person reads it, "Brother"
+/// for both stored forms of a Brother thread (#1197); charts keep the brand they store.
+fn object_thread(t: &openstitch_core::Thread, chart: &[openstitch_core::Thread]) -> Value {
+    let mut v = crate::thread_match::describe_near(t, chart);
+    v["brand"] = json!(openstitch_core::thread_brand(t));
+    v
+}
+
 /// An object as `object.list` reports it. Its colours are `regionColor` / `lineColor`
 /// (`#rrggbb`, for scripts) and `regionThread` / `lineThread`: the thread's code, brand, name
 /// and `text`, and for a custom colour the nearest thread of the user's default chart, which is
@@ -382,12 +390,12 @@ fn describe(o: &DesignObject, chart: &[Thread]) -> Value {
     if let Some(region) = &o.region {
         r["region"] = json!(region.kind.id());
         r["regionColor"] = json!(region.thread.hex());
-        r["regionThread"] = crate::thread_match::describe_near(&region.thread, chart);
+        r["regionThread"] = object_thread(&region.thread, chart);
     }
     if let Some(line) = &o.line {
         r["line"] = json!(line.kind.id());
         r["lineColor"] = json!(line.thread.hex());
-        r["lineThread"] = crate::thread_match::describe_near(&line.thread, chart);
+        r["lineThread"] = object_thread(&line.thread, chart);
     }
     if let Some(g) = o.group {
         r["group"] = json!(g);
@@ -547,7 +555,44 @@ pub fn all() -> Vec<CommandSpec> {
         vec![],
         |_, _| Ok(Value::Null),
     ));
+    note_editor_paths(&mut v);
     v
+}
+
+/// Param names of a file-writing command whose relative value the editor takes from the design's
+/// own folder (#1199).
+pub const BESIDE_DESIGN_KEYS: [&str; 3] = ["path", "output", "dir"];
+
+/// What a file-writing command's path, output or dir param adds in its description (#1199).
+pub const EDITOR_RELATIVE_NOTE: &str = " In the editor (the Assistant, socket clients) a relative     path is taken from the folder of the design's own file, and refused while the design has no     file; stitchtool and openstitch-mcp on their own take it from their working folder.";
+
+/// Adds [`EDITOR_RELATIVE_NOTE`] to the path params of every file-writing command (#1199). The
+/// descriptions are made once per process.
+fn note_editor_paths(v: &mut [CommandSpec]) {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static NOTED: OnceLock<Mutex<HashMap<&'static str, &'static str>>> = OnceLock::new();
+    let mut noted = NOTED
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for c in v.iter_mut().filter(|c| c.effect == Effect::File) {
+        for p in c
+            .params
+            .iter_mut()
+            .filter(|p| BESIDE_DESIGN_KEYS.contains(&p.name) && p.kind == "string")
+        {
+            if p.summary.contains("design's own file") {
+                continue;
+            }
+            let s = p.summary;
+            p.summary = noted.entry(s).or_insert_with(|| {
+                Box::leak(
+                    format!("{}.{EDITOR_RELATIVE_NOTE}", s.trim_end_matches('.')).into_boxed_str(),
+                )
+            });
+        }
+    }
 }
 
 fn list() -> Value {
