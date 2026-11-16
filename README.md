@@ -635,6 +635,8 @@ See also [New: the Assistant](#new-the-assistant).
   selected.
 - (+) **Memory:** short notes about your machine, threads and preferences, kept on your computer
   and written only after you allow it ([#491]).
+- (+) **The chat is kept with the project:** saving writes the conversation into the `.osd`, and
+  opening it lets you read it and go on where it stopped ([#1169]).
 - (+) **Your threads only:** colours come from your own or a named chart, and catalogue numbers are
   looked up, never invented ([#495]).
 - (+) **Embroidery skill** with illustrated example designs and a composition guide, and a
@@ -731,6 +733,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#489]: https://github.com/cristianonescu/OpenStitch/issues/489
 [#490]: https://github.com/cristianonescu/OpenStitch/issues/490
 [#491]: https://github.com/cristianonescu/OpenStitch/issues/491
+[#1169]: https://github.com/cristianonescu/OpenStitch/issues/1169
 [#492]: https://github.com/cristianonescu/OpenStitch/issues/492
 [#493]: https://github.com/cristianonescu/OpenStitch/issues/493
 [#494]: https://github.com/cristianonescu/OpenStitch/issues/494

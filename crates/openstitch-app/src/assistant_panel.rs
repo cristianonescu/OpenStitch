@@ -4908,11 +4908,23 @@ mod tests {
     fn live_acp_1169_phase_1() {
         let Some(dir) = live_dir() else { return };
         let mut app = live_app();
+        // The View picture goes with it (since #1168 an agent gets it as an image).
+        app.assistant.panel.attach_view = true;
         live_turn(
             &mut app,
-            "Please remember this for later in our conversation: the code word for this design is heron-417, and the thread for the border is Brother 019. Just confirm in one short sentence; do not change the design.",
+            "Please remember this for later in our conversation: the code word for this design is heron-417, and the thread for the border is Brother 019. In one short sentence, confirm and say what the attached picture of the view shows; do not change the design.",
         );
-        save_to(&mut app, &dir.join("live.osd"));
+        let file = dir.join("live.osd");
+        save_to(&mut app, &file);
+        let user = saved_json(&file)["assistant"]["rows"][0]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        eprintln!("SAVED USER ROW: {user}");
+        assert!(
+            user.ends_with("Attached: view (the attached files and pictures are not kept)"),
+            "{user}"
+        );
         new_chat(&mut app);
     }
 

@@ -25,3 +25,16 @@ pub fn ai_switched_off(_app: &mut EditorApp) {}
 pub fn show_sample_notices(_app: &mut EditorApp) {}
 
 pub fn panel(_app: &mut EditorApp, _ui: &mut egui::Ui) {}
+
+/// A new document identity (#1169); the browser keeps no conversation, but tabs still count.
+pub fn next_document() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// No conversation to keep in the browser (#1169): a save writes the chat the file had.
+pub fn chat_to_session(_app: &mut EditorApp) {}
+
+pub fn document_loaded(_app: &mut EditorApp) {}
+
+pub fn document_activated(_app: &mut EditorApp) {}
