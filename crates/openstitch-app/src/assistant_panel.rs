@@ -1030,6 +1030,9 @@ pub fn next_document() -> u64 {
     NEXT.fetch_add(1, Ordering::Relaxed)
 }
 
+/// What a kept user message that had attachments ends with (#1169).
+const NOT_KEPT: &str = " (the attached files and pictures are not kept)";
+
 /// The chat as the active document's file keeps it (#1169): its text rows, private paths
 /// replaced, without thinking, tool details or the restore notice; `None` when empty.
 pub fn chat_to_save(app: &EditorApp) -> Option<SavedChat> {
@@ -1043,8 +1046,9 @@ pub fn chat_to_save(app: &EditorApp) -> Option<SavedChat> {
         .filter_map(|item| match item {
             Item::User(t) => Some(ChatRow::new(
                 ChatRole::User,
-                if t.contains("\nAttached: ") {
-                    format!("{} (the attached files and pictures are not kept)", scrub(t))
+                // A restored row has the note already (#1187): once only.
+                if t.contains("\nAttached: ") && !t.ends_with(NOT_KEPT) {
+                    format!("{}{NOT_KEPT}", scrub(t))
                 } else {
                     scrub(t)
                 },
@@ -5603,6 +5607,75 @@ mod tests {
         }
         let _ = std::fs::remove_dir_all(&dir);
         assert!(lost.is_empty(), "closed with no question: {lost:?}");
+    }
+
+    /// #1187: a kept user message that had attachments ends with the note once, however often
+    /// the project is opened and saved again.
+    #[test]
+    fn the_attachments_note_is_kept_once_through_open_and_save() {
+        let dir = project_dir("note-once");
+        let file = dir.join("a.osd");
+        let (mut app, _) = app_with(Vec::new());
+        app.assistant.panel.owner = Some(app.chat_doc);
+        app.assistant.panel.items = vec![Item::User("what is this?
+Attached: rose.png".into())];
+        save_to(&mut app, &file);
+        for _ in 0..3 {
+            let (mut again, _) = app_with(Vec::new());
+            again.open_path(&file);
+            again.assistant.panel.items.push(Item::Assistant("A rose.".into()));
+            save_to(&mut again, &file);
+        }
+        let text = saved_json(&file)["assistant"]["rows"][0]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        assert_eq!(text.matches(NOT_KEPT).count(), 1, "{text}");
+        assert!(text.ends_with(NOT_KEPT), "{text}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1187: a relative `project.save` path from the Assistant or a socket client is taken
+    /// from the design's own folder, never the working folder, and refused while the design has
+    /// no file; the param description says so. `ui.run save` saves a design that has a file and
+    /// is refused only when a dialog would open.
+    #[test]
+    fn saves_from_the_assistant_land_beside_the_design() {
+        let dir = project_dir("relative");
+        let file = dir.join("a.osd");
+        let (mut app, _) = app_with(Vec::new());
+        let r = app.remote_request(&json!({ "command": "project.save", "params": { "path": "x.osd" } }));
+        assert_eq!(r["ok"], json!(false), "{r}");
+        assert!(r["error"].as_str().is_some_and(|e| e.contains("no file yet")), "{r}");
+        assert!(!std::path::Path::new("x.osd").exists(), "nothing in the working folder");
+        save_to(&mut app, &file);
+        let r = app.remote_request(&json!({ "command": "project.save", "params": { "path": "copy.osd" } }));
+        assert_eq!(r["ok"], json!(true), "{r}");
+        assert!(dir.join("copy.osd").is_file(), "beside the design");
+        assert!(!std::path::Path::new("copy.osd").exists(), "not in the working folder");
+        let save = app
+            .session
+            .commands()
+            .into_iter()
+            .find(|c| c.id == "project.save")
+            .expect("project.save");
+        assert!(save.params[0].summary.contains("taken from the folder of the design's own file"));
+
+        // ui.run save: the design's own file, once it has one.
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 5, "y": 5, "width": 10, "height": 10 }),
+        ))
+        .expect("edit");
+        assert!(app.is_dirty());
+        let r = app.ui_command("ui.run", Some(&json!({ "action": "save" }))).expect("saved");
+        assert!(!app.is_dirty(), "{r}");
+        let (mut untitled, _) = app_with(Vec::new());
+        let e = untitled
+            .ui_command("ui.run", Some(&json!({ "action": "save" })))
+            .expect_err("a dialog would open");
+        assert!(e.contains("opens a file dialog"), "{e}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A conversation alone is an unsaved change while it is saved with the project: talking
