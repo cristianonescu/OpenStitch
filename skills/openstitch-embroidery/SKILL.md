@@ -421,7 +421,8 @@ then style them in the next.
 These act on the editor window, not the design file: `ui.state`, `ui.select`, `ui.actions` and
 `ui.run` (the ribbon's actions), `ui.zoom`, `ui.settings` and `ui.set` (view settings),
 `ui.render` (what `view_render` uses), `ui.simulate` (the stitch simulator), `ui.help`,
-`ui.update`, `ui.scratchWrite` (what `scratch_write` uses), `ui.notesRead`, `ui.notesWrite`
+`ui.update`, `ui.scratchWrite` (what `scratch_write` uses), `ui.scratchView` (what
+`scratch_view` uses), `ui.notesRead`, `ui.notesWrite`
 and `ui.notesClear` (what `notes_read` and `notes_write` use; see Memory). To find a command
 by words ("where is arrange copy?"), `ui.searchCommands {query}` gives the same list as the
 user's Ctrl+K palette, with each command's ribbon place and shortcut; run it with `ui.run`.
@@ -539,6 +540,11 @@ afresh).
 
 - File commands only reach the folders the editor allows (the conversation's scratch folder,
   and folders the user approves). A refused path is not an error to work around: tell the user.
+- A picture the user attached is in the scratch folder, named in the message with its path.
+  When the message shows it, look at it there. When the message says it is not shown (a coding
+  agent that takes no pictures), call `scratch_view {file}` with its file name
+  (`attached-....png`) to see it; do not say you cannot see it. `scratch_view` also shows a
+  picture you wrote with `scratch_write`.
 - To import model-made artwork, write it with `scratch_write` (SVG text, or a PNG/JPEG as
   base64) and pass the returned `path` to `import.svg` or a `digitize.*` command. A bare file
   name you just wrote (`heart.svg`) also means the scratch folder's file, but the full path is

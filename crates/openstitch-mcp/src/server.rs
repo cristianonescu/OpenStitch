@@ -130,7 +130,8 @@ impl Server {
 
     /// Like [`Server::with_live`], offering the `--assistant` meta tools (`commands_list`,
     /// `command_describe`, `execute`, `run_batch`, `view_render`, `scratch_write`,
-    /// `skill_reference`, `notes_read`, `notes_write`) instead of one tool per command. The command list is the editor's
+    /// `scratch_view`, `skill_reference`, `notes_read`, `notes_write`) instead of one tool per
+    /// command. The command list is the editor's
     /// own `commands.list`, which includes its `ui.*` commands.
     pub fn with_assistant(mut self, client: impl EditorLink + 'static) -> Self {
         self.live = Some(Box::new(client));

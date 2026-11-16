@@ -120,6 +120,42 @@ fn a_turn_maps_updates_and_answers_permissions() {
     conv.stop();
 }
 
+/// #1168: pictures go as ACP image blocks ahead of the text, only to an agent whose `initialize`
+/// result advertises `promptCapabilities.image` (as claude-agent-acp 0.100.0 does).
+#[test]
+fn pictures_go_as_image_blocks_only_to_an_agent_that_takes_them() {
+    let picture = [("image/png".to_string(), "iVBORw0KGgo=".to_string())];
+    for (scenario, takes) in [("images", true), ("normal", false)] {
+        let dir = temp_dir(&format!("img-{scenario}"));
+        let mut conv = AcpConversation::start(&config(scenario, &dir)).expect("start");
+        assert_eq!(conv.takes_images(), takes, "{scenario}");
+        let stop = conv.prompt_with_images(
+            "What is this?",
+            &picture,
+            &AtomicBool::new(false),
+            &mut |_| {},
+        );
+        assert_eq!(stop, StopKind::EndTurn, "{scenario}");
+        let msgs = received(&dir);
+        let blocks = method(&msgs, "session/prompt")["params"]["prompt"]
+            .as_array()
+            .expect("prompt blocks")
+            .clone();
+        let text = blocks.last().expect("text block");
+        assert_eq!(text["type"], "text", "{scenario}");
+        assert_eq!(text["text"], "What is this?", "{scenario}");
+        if takes {
+            assert_eq!(blocks.len(), 2, "{blocks:?}");
+            assert_eq!(blocks[0]["type"], "image");
+            assert_eq!(blocks[0]["mimeType"], "image/png");
+            assert_eq!(blocks[0]["data"], "iVBORw0KGgo=");
+        } else {
+            assert_eq!(blocks.len(), 1, "no picture for {scenario}: {blocks:?}");
+        }
+        conv.stop();
+    }
+}
+
 #[test]
 fn initialize_declares_no_file_system_and_no_terminal() {
     let dir = temp_dir("init");
