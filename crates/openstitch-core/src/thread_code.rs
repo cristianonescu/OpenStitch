@@ -184,6 +184,10 @@ mod tests {
         catalogue.catalog_number = Some("800".into());
         assert_ne!(pec, catalogue);
         assert!(same_thread(&pec, &catalogue) && same_thread(&catalogue, &pec));
+        // The code shown (the Sewing Order list's label) is the chart code for both (#1184).
+        assert_eq!(thread_label(&pec, &[]), "800");
+        assert_eq!(thread_label(&catalogue, &[]), "800");
+        assert_eq!(thread_brand(&pec), thread_brand(&catalogue));
         let mut other_code = catalogue.clone();
         other_code.catalog_number = Some("405".into());
         assert!(!same_thread(&pec, &other_code));
