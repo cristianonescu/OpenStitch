@@ -227,7 +227,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
             "Copy files and folders into a folder; nothing is overwritten",
             Effect::File,
             vec![
-                req("paths", "[string]", "Files and folders"),
+                req("paths", "[string]", "Files and folders to copy (only read)"),
                 req("destination", "string", "Folder"),
                 opt("conflict", "string", CONFLICT),
             ],
@@ -238,7 +238,11 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
             "Move files and folders into a folder; nothing is overwritten",
             Effect::File,
             vec![
-                req("paths", "[string]", "Files and folders"),
+                req(
+                    "paths",
+                    "[string]",
+                    "Files and folders to move: each is taken out of its folder, so a relative one is resolved as the destination is (unlike library.copy's, which are only read)",
+                ),
                 req("destination", "string", "Folder"),
                 opt("conflict", "string", CONFLICT),
             ],

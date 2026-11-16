@@ -382,8 +382,20 @@ pub const TURN_ENDED_REPLY: &str =
 pub const SENT_AGAIN_REPLY: &str = "the same request was sent again while its approval card was open; the user's answer goes to the newer request";
 
 /// Parameters that hold a file or folder name.
-const FILE_KEYS: [&str; 7] = [
-    "path", "file", "dir", "folder", "output", "source", "target",
+/// #1203: also `out`, `destination`, `csv` and a `paths` list, so the approval card names every
+/// file a command reads or writes (`library.move`'s sources and destination, a digitize mask).
+const FILE_KEYS: [&str; 11] = [
+    "path",
+    "file",
+    "dir",
+    "folder",
+    "output",
+    "source",
+    "target",
+    "out",
+    "destination",
+    "csv",
+    "paths",
 ];
 
 /// The real location of `p`: symlinks resolved on the file if it exists, else on its parent

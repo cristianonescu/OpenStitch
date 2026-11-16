@@ -93,25 +93,62 @@ impl EditorApp {
         if self.session.permits(command).map(|c| c.effect) != Ok(Effect::File) {
             return Ok(None);
         }
-        let mut r = request.clone();
-        let mut changed = false;
-        for key in openstitch_engine::commands::BESIDE_DESIGN_KEYS {
-            let Some(path) = request.pointer(&format!("/params/{key}")).and_then(Value::as_str)
-            else {
-                continue;
+        use openstitch_engine::commands::{DEFAULT_WRITE_TARGETS, write_targets};
+        let folder = self.path.as_ref().and_then(|p| p.parent());
+        let refuse = |what: &str| {
+            format!(
+                "the design has no file yet, so {what} has no folder to be relative to: ask the user where to write it, then give a full path"
+            )
+        };
+        // A relative name joined to the design's folder; a rooted path ("/x" on Windows too)
+        // is not a bare name and stays as given.
+        let join = |v: &Value| -> Result<Option<Value>, String> {
+            let Some(path) = v.as_str() else {
+                return Ok(None);
             };
-            // A rooted path ("/x" on Windows too) is not a bare name: it stays as given.
             let p = std::path::Path::new(path);
             if path.trim().is_empty() || p.is_absolute() || p.has_root() {
-                continue;
+                return Ok(None);
             }
-            let Some(folder) = self.path.as_ref().and_then(|p| p.parent()) else {
-                return Err(format!(
-                    "the design has no file yet, so '{path}' has no folder to be relative to: ask the user where to write it, then give a full path"
-                ));
-            };
-            r["params"][key] = json!(folder.join(path).display().to_string());
-            changed = true;
+            let folder = folder.ok_or_else(|| refuse(&format!("'{path}'")))?;
+            Ok(Some(json!(folder.join(path).display().to_string())))
+        };
+        let mut r = request.clone();
+        let mut changed = false;
+        // Only what the command writes (#1203): a param it reads stays as given.
+        for key in write_targets(command) {
+            let value = request.pointer(&format!("/params/{key}")).cloned();
+            match value {
+                Some(Value::Array(items)) => {
+                    let mut out = Vec::with_capacity(items.len());
+                    for item in &items {
+                        match join(item)? {
+                            Some(joined) => {
+                                out.push(joined);
+                                changed = true;
+                            }
+                            None => out.push(item.clone()),
+                        }
+                    }
+                    r["params"][key] = Value::Array(out);
+                }
+                Some(v) => {
+                    if let Some(joined) = join(&v)? {
+                        r["params"][key] = joined;
+                        changed = true;
+                    }
+                }
+                // A target the command fills in itself (the session folder) is the design's.
+                None if DEFAULT_WRITE_TARGETS.contains(&(command, key)) => {
+                    let folder = folder.ok_or_else(|| refuse(&format!("the default {key}")))?;
+                    if !r["params"].is_object() {
+                        r["params"] = json!({});
+                    }
+                    r["params"][key] = json!(folder.display().to_string());
+                    changed = true;
+                }
+                None => {}
+            }
         }
         Ok(changed.then_some(r))
     }

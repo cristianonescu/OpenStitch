@@ -1196,8 +1196,12 @@ fn run_job(app: &mut EditorApp, job: Job) {
             Some(n) => app.assistant.panel.items.push(Item::Notice(n)),
             // #1199: every file a model-run command writes, by its full path, one line each.
             None if effect == Some(Effect::File) => {
-                for key in openstitch_engine::commands::BESIDE_DESIGN_KEYS {
-                    if let Some(p) = params[key].as_str().filter(|p| !p.trim().is_empty()) {
+                for key in openstitch_engine::commands::write_targets(&command) {
+                    let written: Vec<&str> = match &params[key] {
+                        Value::Array(items) => items.iter().filter_map(Value::as_str).collect(),
+                        v => v.as_str().into_iter().collect(),
+                    };
+                    for p in written.into_iter().filter(|p| !p.trim().is_empty()) {
                         app.assistant
                             .panel
                             .items
@@ -5764,6 +5768,11 @@ Attached: rose.png".into())];
         let (mut app, _) = app_with(Vec::new());
         save_to(&mut app, &dir.join("design.osd"));
         let first = app.session.design().objects[0].id;
+        let picture = dir.join("picture.png");
+        image::RgbImage::from_fn(40, 40, |x, _| if x < 20 { image::Rgb([200, 30, 30]) } else { image::Rgb([240, 240, 240]) })
+            .save(&picture)
+            .expect("png");
+        std::fs::create_dir_all(dir.join("copies")).expect("copies");
         for (command, params, written) in [
             ("design.export", json!({ "path": "out.pes" }), "out.pes"),
             ("design.exportBundle", json!({ "path": "bundle.zip" }), "bundle.zip"),
@@ -5773,6 +5782,9 @@ Attached: rose.png".into())];
             ("threads.exportCsv", json!({ "builtin": "brother", "path": "chart.csv" }), "chart.csv"),
             ("nameDrop.writeCsv", json!({ "path": "names.csv", "rows": [["Ana"]] }), "names.csv"),
             ("library.createFolder", json!({ "path": ".", "name": "made" }), "made"),
+            // #1203: the targets not named path, output or dir.
+            ("digitize.segment", json!({ "path": picture.display().to_string(), "point": [0.25, 0.5], "out": "mask.png" }), "mask.png"),
+            ("library.copy", json!({ "paths": [dir.join("out.pes").display().to_string()], "destination": "copies" }), "copies/out.pes"),
             ("design.testSwatch", json!({ "ids": [first], "path": "swatch.pes" }), "swatch.pes"),
         ] {
             let r = app.remote_request(&json!({ "command": command, "params": params }));
@@ -5780,22 +5792,83 @@ Attached: rose.png".into())];
             assert!(dir.join(written).exists(), "{command}: {written} beside the design");
             assert!(!std::path::Path::new(written).exists() || written == "made", "{command}: not in the working folder");
         }
+        // #1203: nameDrop.export without dir writes beside the design, not in the working folder.
+        let text = app.remote_request(&json!({ "command": "text.add", "params": { "text": "Ana", "size": 6, "x": 20, "y": 20, "fill": "Red" } }));
+        let text = text["result"]["id"].as_u64().expect("text id");
+        app.remote_request(&json!({ "command": "text.setNameDrop", "params": { "id": text, "label": "Name" } }));
+        let r = app.remote_request(&json!({ "command": "nameDrop.export", "params": { "rows": [["Ana"]], "name": "tag" } }));
+        assert_eq!(r["ok"], json!(true), "nameDrop.export: {r}");
+        assert!(std::fs::read_dir(&dir).expect("dir").flatten().any(|e| e.file_name().to_string_lossy().starts_with("tag")), "nameDrop.export beside the design");
         let (mut untitled, _) = app_with(Vec::new());
-        let r = untitled.remote_request(&json!({ "command": "design.export", "params": { "path": "x.pes" } }));
+        for (command, params) in [
+            ("design.export", json!({ "path": "x.pes" })),
+            ("digitize.segment", json!({ "path": picture.display().to_string(), "point": [0.25, 0.5], "out": "mask.png" })),
+            ("library.copy", json!({ "paths": [picture.display().to_string()], "destination": "copies" })),
+            ("nameDrop.export", json!({ "rows": [["Ana"]], "name": "tag" })),
+        ] {
+            let r = untitled.remote_request(&json!({ "command": command, "params": params }));
+            assert_eq!(r["ok"], json!(false), "{command}: {r}");
+            assert!(r["error"].as_str().is_some_and(|e| e.contains("ask the user where to write it")), "{command}: {r}");
+        }
+        // A param the command only reads stays as given: an untitled design's relative input
+        // picture is not refused as a write (the engine looks for it where it always did).
+        let r = untitled.remote_request(&json!({ "command": "digitize.segment",
+            "params": { "path": "no-such-picture.png", "point": [0.25, 0.5], "out": dir.join("m2.png").display().to_string() } }));
+        assert!(!r["error"].as_str().unwrap_or_default().contains("ask the user where"), "{r}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1203: `library.move` takes each entry out of its folder, so a relative source in its
+    /// `paths` list is beside the design like its destination; an absolute one stays as given;
+    /// an untitled design is refused. From the Assistant, the chat names every file by its full
+    /// path, one line each.
+    #[test]
+    fn a_move_takes_its_relative_sources_beside_the_design() {
+        let dir = project_dir("move");
+        let elsewhere = project_dir("move-elsewhere");
+        let (mut app, _) = app_with(Vec::new());
+        save_to(&mut app, &dir.join("design.osd"));
+        for f in ["a.pes", "b.pes"] {
+            std::fs::write(dir.join(f), b"x").expect("file");
+        }
+        for f in ["c.pes", "d.pes"] {
+            std::fs::write(elsewhere.join(f), b"x").expect("file");
+        }
+        std::fs::create_dir_all(dir.join("moved")).expect("folder");
+        let c = elsewhere.join("c.pes").display().to_string();
+        let r = app.remote_request(&json!({ "command": "library.move",
+            "params": { "paths": ["a.pes", c], "destination": "moved" } }));
+        assert_eq!(r["ok"], json!(true), "{r}");
+        assert!(dir.join("moved").join("a.pes").is_file() && !dir.join("a.pes").exists());
+        assert!(dir.join("moved").join("c.pes").is_file() && !elsewhere.join("c.pes").exists());
+        assert!(!std::path::Path::new("moved").exists(), "nothing in the working folder");
+        let (mut untitled, _) = app_with(Vec::new());
+        let r = untitled.remote_request(&json!({ "command": "library.move",
+            "params": { "paths": ["b.pes"], "destination": dir.join("moved").display().to_string() } }));
         assert_eq!(r["ok"], json!(false), "{r}");
         assert!(r["error"].as_str().is_some_and(|e| e.contains("ask the user where to write it")), "{r}");
-        // Every file-writing command's description says so, read from the registry.
-        for c in app.session.commands() {
-            if c.effect != openstitch_engine::Effect::File {
-                continue;
-            }
-            for p in &c.params {
-                if openstitch_engine::commands::BESIDE_DESIGN_KEYS.contains(&p.name) && p.kind == "string" {
-                    assert!(p.summary.contains("design's own file"), "{}: {}", c.id, p.summary);
-                }
-            }
+        // From the Assistant: the card and one chat line per file, by full path.
+        let d = elsewhere.join("d.pes").display().to_string();
+        let (mut asked, _) = app_with(vec![
+            reply(&[("library.move", json!({ "paths": ["b.pes", d.clone()], "destination": "moved" }))], "", "tool_use"),
+            reply(&[], "Moved.", "end_turn"),
+        ]);
+        asked.open_path(&dir.join("design.osd"));
+        send(&mut asked, "move them".into(), no_wake());
+        run(&mut asked, |a| !a.assistant.panel.approvals.is_empty());
+        let b = dir.join("b.pes").display().to_string();
+        let moved = dir.join("moved").display().to_string();
+        let what = asked.assistant.panel.approvals[0].what.clone();
+        assert!(what.contains(&b) && what.contains(&moved), "{what}");
+        answer(&mut asked, 0, Answer::Once);
+        run(&mut asked, idle);
+        for p in [&b, &d, &moved] {
+            let line = format!("The assistant wrote {p} (library.move).");
+            assert!(asked.assistant.panel.items.contains(&Item::Notice(line.clone())), "{line}");
         }
+        assert!(dir.join("moved").join("b.pes").is_file() && dir.join("moved").join("d.pes").is_file());
         let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&elsewhere);
     }
 
     /// #1199 on the Assistant's path: the card shows the full path before anything is written,
