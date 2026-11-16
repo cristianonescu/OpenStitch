@@ -427,6 +427,8 @@ pub struct Panel {
     pub tokens: (u64, u64),
     /// Counts conversations, so a new chat's rows get new widget IDs.
     chat: u64,
+    /// Questions, suggested replies and fix chips (#1172).
+    pub offers: crate::assistant_offers::Offers,
     /// Settings popup: the key being typed (never shown again once saved).
     key_input: String,
     image_key_input: String,
@@ -477,6 +479,11 @@ fn store_key(base_url: &str, key: &str) -> Result<(), String> {
 impl Panel {
     pub fn busy(&self) -> bool {
         self.turn.is_some()
+    }
+
+    /// The conversation's number: a new chat counts up.
+    pub fn chat_id(&self) -> u64 {
+        self.chat
     }
 
     fn api_key(&self, base_url: &str) -> Option<String> {
@@ -800,6 +807,11 @@ pub fn system_prompt(app: &mut EditorApp) -> String {
 /// The agent's tool server is this editor's own executable in `--assistant-mcp` mode, so it
 /// works from every package (the separate `openstitch-mcp` ships only in the CLI archive).
 fn mcp_program() -> Option<std::path::PathBuf> {
+    // The live tests run a real agent, whose bridge must be the editor, not the test binary.
+    #[cfg(test)]
+    if let Some(exe) = std::env::var_os("OPENSTITCH_TEST_EDITOR_EXE") {
+        return Some(exe.into());
+    }
     std::env::current_exe().ok().filter(|p| p.is_file())
 }
 
@@ -947,6 +959,16 @@ pub fn stop(app: &mut EditorApp) {
             .answer(json!({ "ok": false, "error": "stopped by the user" }));
     }
     panel.queue.clear();
+}
+
+/// `--show assistant-questions` / `assistant-suggestions` (#1172).
+pub fn show_sample_offers(app: &mut EditorApp, questions: bool) {
+    crate::assistant_offers::show_sample(app, questions);
+}
+
+/// `ui.askUser` and `ui.suggestReplies` (#1172).
+pub fn offer(app: &mut EditorApp, command: &str, params: Option<&Value>) -> Result<Value, String> {
+    crate::assistant_offers::command(app, command, params)
 }
 
 /// New chat: a fresh conversation (the design and its undo history stay).
@@ -1122,7 +1144,10 @@ fn run_job(app: &mut EditorApp, job: Job) {
         .unwrap_or_default()
         .to_string();
     let effect = effect_of(app, &command);
+    // Only the Assistant's own jobs may ask the user or suggest replies (#1172).
+    app.assistant.panel.offers.from_assistant = true;
     let reply = app.remote_request(&job.request);
+    app.assistant.panel.offers.from_assistant = false;
     if reply["ok"] == json!(true)
         && let Some(effect) = effect
     {
@@ -1255,6 +1280,8 @@ fn finish_turn(app: &mut EditorApp, end: claude::StopKind, wake: Waker) {
         // The model has the restored chat now (#1169).
         panel.restored = None;
     }
+    crate::assistant_offers::end_turn(app, turn.edits > 0, &end); // #1172
+    let panel = &mut app.assistant.panel;
     match end {
         claude::StopKind::EndTurn => {}
         claude::StopKind::MaxTokens => panel.items.push(Item::Notice(
@@ -1432,7 +1459,7 @@ fn note_chat_changes(app: &mut EditorApp) {
     }
 }
 
-fn waker(ctx: &egui::Context) -> Waker {
+pub(crate) fn waker(ctx: &egui::Context) -> Waker {
     let ctx = ctx.clone();
     Arc::new(move || ctx.request_repaint())
 }
@@ -2648,6 +2675,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                 if !app.assistant.panel.items.is_empty() && save_chat_switch(app, ui) {
                     app.ui.save_prefs();
                 }
+                crate::assistant_offers::row(app, ui, &ctx); // #1172: questions, chips
                 for q in &app.assistant.panel.queue {
                     ui.label(RichText::new(format!("Queued: {q}")).weak());
                 }
@@ -3725,6 +3753,473 @@ mod tests {
                     .is_some_and(|u| u.starts_with("data:image/png;base64,"))),
             "{user}"
         );
+    }
+
+    /// Five clarifying questions for a new design (#1172).
+    fn badge_questions() -> Value {
+        json!({ "questions": [
+            { "question": "How big should the badge be?", "choices": ["80 mm", "100 mm", "120 mm"] },
+            { "question": "Which shape?", "choices": ["Round", "Shield", "Oval"] },
+            { "question": "Which colours?", "choices": ["Club colours", "Two colours", "Full colour"] },
+            { "question": "What lettering?", "choices": ["Club name only", "Name and year"] },
+            { "question": "Which fabric?", "choices": ["Cotton jersey", "Polo piqué", "Cap"] },
+        ]})
+    }
+
+    fn offers(app: &EditorApp) -> &crate::assistant_offers::Offers {
+        &app.assistant.panel.offers
+    }
+
+    /// The text of the last user message the transport sent (Claude API body).
+    fn last_user_text(transport: &Scripted) -> String {
+        let requests = transport.requests.lock().expect("lock");
+        let body = requests.last().expect("a request");
+        body["messages"]
+            .as_array()
+            .expect("messages")
+            .iter()
+            .rev()
+            .find(|m| {
+                m["role"] == "user"
+                    && (m["content"].is_string()
+                        || m["content"]
+                            .as_array()
+                            .is_some_and(|a| a.iter().any(|b| b["type"] == "text")))
+            })
+            .map(|m| m["content"].to_string())
+            .unwrap_or_default()
+    }
+
+    /// #1172, the Claude API: a new design gets questions that end the turn; the card's answers
+    /// (a picked chip, a typed answer, one left to the assistant) go back as one user message and
+    /// the work follows; the model's suggestions then show.
+    #[test]
+    fn a_new_design_gets_questions_and_the_answers_lead_to_the_work() {
+        let (mut app, transport) = app_with(vec![
+            reply_tool("ask_user", badge_questions(), "tool_use"),
+            reply(&[], "A few questions first.", "end_turn"),
+        ]);
+        let before = app.session.design().objects.len();
+        send(&mut app, "make me a badge for my cycling club".into(), no_wake());
+        run(&mut app, idle);
+        assert_eq!(app.session.design().objects.len(), before, "no work yet");
+        let q = offers(&app).questions.clone().expect("the card");
+        assert_eq!(q.questions.len(), 5);
+        assert!(offers(&app).suggestions.is_none(), "the card is the reply");
+        // The chat keeps the questions as one Assistant row.
+        assert!(app.assistant.panel.items.iter().any(|i| matches!(i,
+            Item::Assistant(t) if t.contains("1. How big should the badge be? (80 mm / 100 mm / 120 mm)"))));
+        {
+            let q = app.assistant.panel.offers.questions.as_mut().expect("card");
+            q.questions[0].picked = Some(1);
+            q.questions[4].typed = "a cycling jersey".into();
+        }
+        let answers = crate::assistant_offers::answers_message(
+            app.assistant.panel.offers.questions.as_ref().expect("card"),
+        );
+        transport.replies.lock().expect("lock").extend([
+            reply(&[rect(10.0)], "", "tool_use"),
+            reply_tool(
+                "suggest_replies",
+                json!({ "message": "Add the year under the name", "chips": ["Make it 80 mm", "Export it as PES"] }),
+                "tool_use",
+            ),
+            reply(&[], "Here is the badge.", "end_turn"),
+        ]);
+        send(&mut app, answers, no_wake());
+        assert!(offers(&app).questions.is_some(), "kept for the record…");
+        run(&mut app, idle);
+        let sent = last_user_text(&transport);
+        assert!(sent.contains("Answers:") && sent.contains("100 mm") && sent.contains("a cycling jersey") && sent.contains("your choice"), "{sent}");
+        assert_eq!(app.session.design().objects.len(), before + 1, "the work was done");
+        let o = offers(&app);
+        assert!(o.questions.is_none(), "answered");
+        let s = o.suggestions.as_ref().expect("suggestions");
+        assert_eq!(s.message, "Add the year under the name");
+        assert_eq!(s.chips, ["Make it 80 mm", "Export it as PES"]);
+    }
+
+    /// #1172: "Use your judgment" sends one message and the assistant goes on.
+    #[test]
+    fn use_your_judgment_skips_the_questions() {
+        let (mut app, transport) = app_with(vec![
+            reply_tool("ask_user", badge_questions(), "tool_use"),
+            reply(&[], "", "end_turn"),
+            reply(&[rect(10.0)], "", "tool_use"),
+            reply(&[], "Made a 100 mm round badge; I assumed club colours.", "end_turn"),
+        ]);
+        send(&mut app, "make me a badge for my cycling club".into(), no_wake());
+        run(&mut app, idle);
+        assert!(offers(&app).questions.is_some());
+        let before = app.session.design().objects.len();
+        send(
+            &mut app,
+            openstitch_app::editor::ui_texts::t("ui-use-your-judgment-message").into(),
+            no_wake(),
+        );
+        run(&mut app, idle);
+        assert!(last_user_text(&transport).contains("use your judgment"));
+        assert_eq!(app.session.design().objects.len(), before + 1);
+        assert!(offers(&app).questions.is_none());
+        assert!(offers(&app).suggestions.is_some(), "the fallback set");
+    }
+
+    /// #1172: a small edit gets no questions, and the fixed suggestions show when the model sends
+    /// none; after an error turn, the try-again set.
+    #[test]
+    fn a_small_edit_gets_no_questions_and_the_fallback_suggestions() {
+        let (mut app, transport) = app_with(vec![
+            reply(&[rect(10.0)], "", "tool_use"),
+            reply(&[], "Done.", "end_turn"),
+        ]);
+        // A clean design, so the set is the one for a change (the demo design has findings).
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "design.new",
+            json!({}),
+        ));
+        send(&mut app, "make the star red".into(), no_wake());
+        run(&mut app, idle);
+        let o = offers(&app);
+        assert!(o.questions.is_none());
+        assert_eq!(
+            o.suggestions.as_ref().expect("fallback"),
+            &crate::assistant_offers::fallback(crate::assistant_offers::Ending::Changed)
+        );
+        // An error turn (the endpoint answers nothing) still ends with chips.
+        transport
+            .replies
+            .lock()
+            .expect("lock")
+            .push_back("event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}\n\n".into());
+        send(&mut app, "and the circle".into(), no_wake());
+        run(&mut app, idle);
+        assert!(
+            app.assistant.panel.items.iter().any(|i| matches!(i, Item::Notice(n) if n.starts_with("Error"))),
+            "{:?}",
+            app.assistant.panel.items
+        );
+        assert_eq!(
+            offers(&app).suggestions.as_ref().expect("fallback"),
+            &crate::assistant_offers::fallback(crate::assistant_offers::Ending::Failed)
+        );
+    }
+
+    /// #1172: fix chips follow Check Design at the end of a turn, with the status bar's counts; a
+    /// clean design has none. A click's message names each finding with its object and rule.
+    #[test]
+    fn fix_chips_follow_check_design_after_a_turn() {
+        let (mut app, _) = app_with(vec![
+            reply(&[rect(10.0)], "", "tool_use"),
+            reply(&[], "Done.", "end_turn"),
+        ]);
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "design.new",
+            json!({}),
+        ));
+        send(&mut app, "add a box".into(), no_wake());
+        run(&mut app, idle);
+        crate::quality_ui::update(&mut app);
+        let clean = app.quality.check["errors"].as_u64().unwrap_or(0)
+            + app.quality.check["warnings"].as_u64().unwrap_or(0);
+        assert_eq!(clean, 0, "{}", app.quality.check);
+        assert!(offers(&app).fixes.is_empty(), "a clean design has no fix chips");
+        // The assistant adds a thin fill (a warning) and a 13 mm satin (an error), as in
+        // quality_ui's own test.
+        let (mut app, transport) = app_with(Vec::new());
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "design.new",
+            json!({}),
+        ));
+        let before = app.session.design().objects.len();
+        transport.replies.lock().expect("lock").extend([
+            reply(
+                &[
+                    ("shape.rectangle", json!({ "x": 40, "y": 20, "width": 2, "height": 1, "fill": "Red" })),
+                    ("shape.rectangle", json!({ "x": 50, "y": 20, "width": 13, "height": 40, "fill": "Red" })),
+                ],
+                "",
+                "tool_use",
+            ),
+            reply(&[], "Done.", "end_turn"),
+        ]);
+        send(&mut app, "add a bar and a dot".into(), no_wake());
+        run(&mut app, idle);
+        assert_eq!(app.session.design().objects.len(), before + 2);
+        let satin = app.session.design().objects.last().expect("bar").id;
+        transport.replies.lock().expect("lock").extend([
+            reply(
+                &[("object.setRegion", json!({ "ids": [satin], "type": "satin" }))],
+                "",
+                "tool_use",
+            ),
+            reply(&[], "Done.", "end_turn"),
+        ]);
+        send(&mut app, "make the bar satin".into(), no_wake());
+        run(&mut app, idle);
+        let c = app.quality.check.clone();
+        assert_eq!((c["errors"].clone(), c["warnings"].clone()), (json!(1), json!(1)), "{c}");
+        let labels: Vec<String> = offers(&app).fixes.iter().map(|f| f.label.clone()).collect();
+        assert_eq!(labels, ["Fix the error", "Fix the warning", "Explain them"]);
+        let errors = &offers(&app).fixes[0].message;
+        assert!(errors.starts_with("Fix the errors Check Design reports below. Fix only what has a fix"), "{errors}");
+        assert!(errors.contains(&format!("- error satinTooWide (#{satin}): ")), "{errors}");
+        assert!(!errors.contains("fillTooThin"), "{errors}");
+        assert!(offers(&app).fixes[1].message.contains("fillTooThin"));
+        // A click sends it as the user's message.
+        let message = errors.clone();
+        transport.replies.lock().expect("lock").push_back(reply(&[], "Narrowed it.", "end_turn"));
+        send(&mut app, message, no_wake());
+        run(&mut app, idle);
+        assert!(last_user_text(&transport).contains("satinTooWide"));
+    }
+
+    /// #1172, an OpenAI-compatible endpoint: the same tools by name.
+    #[test]
+    fn questions_and_suggestions_reach_an_openai_compatible_model_too() {
+        let tool = |name: &str, args: Value| -> String {
+            let mut s = format!(
+                "data: {}\n\n",
+                json!({ "id": "c", "object": "chat.completion.chunk", "model": "m", "choices": [
+                    { "index": 0, "delta": { "tool_calls": [{ "index": 0, "id": "call0", "type": "function",
+                    "function": { "name": name, "arguments": args.to_string() } }] }, "finish_reason": null }] })
+            );
+            s += &format!(
+                "data: {}\n\ndata: [DONE]\n\n",
+                json!({ "id": "c", "object": "chat.completion.chunk", "model": "m", "choices": [
+                    { "index": 0, "delta": {}, "finish_reason": "tool_calls" }] })
+            );
+            s
+        };
+        let (mut app, _) = app_with(vec![
+            tool("ask_user", badge_questions()),
+            openai_reply(&[], "A few questions first.", "stop"),
+            openai_reply(&[rect(10.0)], "", "tool_calls"),
+            tool("suggest_replies", json!({ "message": "Make it bigger", "chips": ["Add a border"] })),
+            openai_reply(&[], "Done.", "stop"),
+        ]);
+        local_openai(&mut app);
+        send(&mut app, "make me a badge for my cycling club".into(), no_wake());
+        run(&mut app, idle);
+        assert_eq!(offers(&app).questions.as_ref().map(|q| q.questions.len()), Some(5));
+        send(&mut app, "Answers:\n1. …".into(), no_wake());
+        run(&mut app, idle);
+        assert!(offers(&app).questions.is_none());
+        assert_eq!(offers(&app).suggestions.as_ref().map(|s| s.message.as_str()), Some("Make it bigger"));
+    }
+
+    /// #1172, a coding agent: its bridge's ui.askUser and ui.suggestReplies, on the private socket,
+    /// reach the same panel state; a script on the automation socket cannot ask.
+    #[test]
+    fn a_coding_agent_asks_through_its_bridge() {
+        let mut app = EditorApp::new(Launch {
+            demo: true,
+            ..Launch::default()
+        });
+        assert!(
+            app.ui_command("ui.askUser", Some(&badge_questions())).is_err(),
+            "only the Assistant, during its turn"
+        );
+        let listener = openstitch_remote::Server::start(openstitch_remote::ServerConfig::default())
+            .expect("listener");
+        let endpoint = listener.endpoint().clone();
+        let config = claude::AcpConfig {
+            program: std::path::PathBuf::from("no-such-agent-program"),
+            args: Vec::new(),
+            cwd: std::env::temp_dir(),
+            mcp: claude::McpServer {
+                name: claude::BRIDGE_NAME.into(),
+                command: std::path::PathBuf::from("no-such-mcp"),
+                args: Vec::new(),
+                env: Vec::new(),
+            },
+            system: String::new(),
+            extra_path: Vec::new(),
+        };
+        app.assistant.panel.worker = Some(Worker::start_agent(config, listener, no_wake()));
+        app.assistant.panel.turn = Some(Turn {
+            undo_start: app.undo_groups.len(),
+            edits: 0,
+            text: "make me a badge".into(),
+            used_tools: true,
+            reply: String::new(),
+        });
+        let questions = badge_questions();
+        let client = std::thread::spawn(move || {
+            let mut c = openstitch_remote::Client::new(endpoint).expect("connect");
+            let asked = c.handle(&json!({ "command": "ui.askUser", "params": questions }));
+            let bad = c.handle(&json!({ "command": "ui.suggestReplies", "params": { "message": "", "chips": [] } }));
+            (asked, bad)
+        });
+        let start = Instant::now();
+        while !client.is_finished() {
+            serve(&mut app, no_wake());
+            assert!(start.elapsed() < Duration::from_secs(30));
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let (asked, bad) = client.join().expect("client");
+        assert_eq!(asked["ok"], json!(true), "{asked}");
+        assert!(asked["result"]["next"].as_str().is_some_and(|n| n.contains("End your turn")));
+        assert_eq!(bad["ok"], json!(false), "{bad}");
+        finish_turn(&mut app, claude::StopKind::EndTurn, no_wake());
+        assert_eq!(offers(&app).questions.as_ref().map(|q| q.questions.len()), Some(5));
+    }
+
+    /// #1172: the card's and the chips' controls are buttons Tab reaches, and a chip's text from
+    /// the model is drawn as it is (plain text, cut).
+    #[test]
+    fn the_chips_are_reached_by_keyboard() {
+        let (mut app, _) = app_with(vec![
+            reply_tool(
+                "suggest_replies",
+                json!({ "message": "Make it **bold** <b>now</b>", "chips": ["[Export](https://example.com) it", "x".repeat(200)] }),
+                "tool_use",
+            ),
+            reply(&[], "Done.", "end_turn"),
+        ]);
+        send(&mut app, "hello".into(), no_wake());
+        run(&mut app, idle);
+        let s = offers(&app).suggestions.clone().expect("suggestions");
+        assert_eq!(s.message, "Make it **bold** <b>now</b>", "kept as plain text");
+        assert_eq!(s.chips[1].chars().count(), crate::assistant_offers::CHIP_CHARS);
+        let ctx = egui::Context::default();
+        let mut focused = Vec::new();
+        for frame in 0..6 {
+            let mut raw = egui::RawInput::default();
+            if frame > 0 {
+                raw.events.push(egui::Event::Key {
+                    key: egui::Key::Tab,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                });
+            }
+            let mut out = ctx.run_ui(raw, |ui| {
+                let _ = crate::assistant_offers::ui(&mut app, ui);
+            });
+            out.textures_delta.clear();
+            focused.push(ctx.memory(|m| m.focused()));
+        }
+        let reached: std::collections::HashSet<_> = focused.iter().flatten().collect();
+        // Send, Edit and the two chips: each Tab moves to the next button.
+        assert!(reached.len() >= 4, "{focused:?}");
+    }
+
+    /// One live turn: sends `text`, allows every permission question once (as the user would
+    /// click), and waits for the end. Returns the seconds and the tokens (input, output) it took.
+    fn live_offers_turn(app: &mut EditorApp, text: &str) -> (f64, (u64, u64)) {
+        let (start, tokens) = (Instant::now(), app.assistant.panel.tokens);
+        eprintln!("\n>>> USER: {text}");
+        send(app, text.into(), no_wake());
+        while app.assistant.panel.busy() {
+            serve(app, no_wake());
+            if !app.assistant.panel.approvals.is_empty() {
+                eprintln!("    (allowed once: {})", app.assistant.panel.approvals[0].what);
+                answer(app, 0, Answer::Once);
+            }
+            assert!(start.elapsed() < Duration::from_secs(600), "no answer");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let t = app.assistant.panel.tokens;
+        (
+            start.elapsed().as_secs_f64(),
+            (t.0 - tokens.0, t.1 - tokens.1),
+        )
+    }
+
+    fn print_turn(app: &EditorApp, from: usize, took: (f64, (u64, u64))) {
+        for i in &app.assistant.panel.items[from..] {
+            match i {
+                Item::Assistant(t) => eprintln!("<<< ASSISTANT: {t}"),
+                Item::Tool { name, .. } => eprintln!("    [tool] {name}"),
+                Item::Notice(n) => eprintln!("    [notice] {n}"),
+                _ => {}
+            }
+        }
+        let o = &app.assistant.panel.offers;
+        if let Some(s) = &o.suggestions {
+            eprintln!("    [suggested] {} | chips: {:?}", s.message, s.chips);
+        }
+        for f in &o.fixes {
+            eprintln!("    [fix chip] {}", f.label);
+        }
+        eprintln!(
+            "    [turn] {:.1} s, {} input / {} output tokens",
+            took.0, took.1.0, took.1.1
+        );
+    }
+
+    /// #1172, live: Claude Code (claude-agent-acp, signed in by the owner) with the editor's real
+    /// bridge (`OPENSTITCH_TEST_EDITOR_EXE` = a built `openstitch` executable). A badge for a
+    /// cycling club gets a questionnaire; its answers lead to a design; "make the star red" gets
+    /// none; every turn ends with suggestions. Prints the conversation for the PR.
+    /// Run by hand: `OPENSTITCH_TEST_EDITOR_EXE=… cargo test -p openstitch-app --bin openstitch
+    /// -- --ignored claude_code_asks --nocapture`.
+    #[test]
+    #[ignore = "live: needs Claude Code (claude-agent-acp) signed in and OPENSTITCH_TEST_EDITOR_EXE"]
+    fn claude_code_asks_before_a_new_design_and_not_for_a_small_edit() {
+        assert!(
+            std::env::var_os("OPENSTITCH_TEST_EDITOR_EXE").is_some(),
+            "set OPENSTITCH_TEST_EDITOR_EXE to a built openstitch executable"
+        );
+        let (mut app, _) = app_with(Vec::new());
+        app.ui.prefs.ai.protocol = Protocol::Agent;
+        app.ui.prefs.ai.agent = "claude".into();
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "design.new",
+            json!({}),
+        ));
+        let from = app.assistant.panel.items.len();
+        let took = live_offers_turn(&mut app, "make me a badge for my cycling club");
+        print_turn(&app, from, took);
+        let q = app.assistant.panel.offers.questions.clone().expect("a questionnaire");
+        for (i, question) in q.questions.iter().enumerate() {
+            eprintln!("    [question {}] {} {:?}", i + 1, question.text, question.choices);
+        }
+        assert!((5..=10).contains(&q.questions.len()), "{q:?}");
+        assert!(app.session.design().objects.is_empty(), "no work before the answers");
+        // Answer like a user: the club's name typed, the colours typed, the last question left
+        // open, a chip for the others (the second, which is rarely "I'll type it").
+        {
+            let card = app.assistant.panel.offers.questions.as_mut().expect("card");
+            let last = card.questions.len() - 1;
+            for (i, question) in card.questions.iter_mut().enumerate() {
+                let text = question.text.to_lowercase();
+                if text.contains("name") || text.contains("text") || text.contains("letter") {
+                    question.typed = "Hilltop Wheelers".into();
+                } else if text.contains("colour") || text.contains("color") {
+                    question.typed = "Blue and yellow".into();
+                } else if i != last {
+                    question.picked = Some(1.min(question.choices.len() - 1));
+                }
+            }
+        }
+        let answers = crate::assistant_offers::answers_message(
+            app.assistant.panel.offers.questions.as_ref().expect("card"),
+        );
+        let from = app.assistant.panel.items.len();
+        let took = live_offers_turn(&mut app, &answers);
+        print_turn(&app, from, took);
+        assert!(!app.session.design().objects.is_empty(), "the badge was made");
+        assert!(app.assistant.panel.offers.questions.is_none());
+        assert!(app.assistant.panel.offers.suggestions.is_some());
+        // A small, fully specified edit: no questions.
+        app.assistant.panel.worker = None;
+        app.assistant.panel.items.clear();
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "design.new",
+            json!({}),
+        ));
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "shape.preset",
+            json!({ "kind": "star", "cx": 50, "cy": 50, "width": 40, "height": 40 }),
+        ));
+        let from = app.assistant.panel.items.len();
+        let took = live_offers_turn(&mut app, "make the star red");
+        print_turn(&app, from, took);
+        assert!(app.assistant.panel.offers.questions.is_none(), "no questionnaire");
+        assert!(app.assistant.panel.offers.suggestions.is_some());
+        app.assistant.panel.worker = None;
     }
 
     /// #1168, live: the panel's own path (`send`, the worker, `AcpConversation`) to the real

@@ -271,6 +271,39 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         )],
     },
     UiCommand {
+        id: "ui.askUser",
+        summary: "The Assistant's clarifying questions (#1172), during its own turn only: shown on a card with answer chips and a field for a typed answer, plus Send answers and Use your judgment. It returns at once; end the turn, and the answers come as the user's next message. Texts are made plain and cut (question 200, choice 60 characters)",
+        effect: Effect::Read,
+        params: &[
+            p(
+                "questions",
+                "[{question, choices}]",
+                true,
+                "1 to 10 questions, each with 2 to 4 different answer choices; ask 5 to 10 only for a new design or a large change with open choices",
+            ),
+            p(
+                "intro",
+                "string",
+                false,
+                "One short line before the questions",
+            ),
+        ],
+    },
+    UiCommand {
+        id: "ui.suggestReplies",
+        summary: "What the user may say next (#1172), during the Assistant's own turn only: one suggested message (Send or Edit) and 1 to 4 chips, shown when the turn ends; a click only sends that text as the user's message. Duplicates go; texts are made plain and cut (chip 80, message 300 characters)",
+        effect: Effect::Read,
+        params: &[
+            p(
+                "message",
+                "string",
+                true,
+                "The one suggested reply, as the user would write it",
+            ),
+            p("chips", "[string]", true, "1 to 4 short replies"),
+        ],
+    },
+    UiCommand {
         id: "ui.notesRead",
         summary: "The Assistant's memory (#491): the notes it keeps about this user between conversations (machine, threads, fabric, preferences, lessons), as Markdown, with its size and limit; an error when the user turned memory off",
         effect: Effect::Read,

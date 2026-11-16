@@ -108,6 +108,10 @@ circle, and the whole message is one undo step.*
 - **It remembers you:** tell it your machine, the threads you own or how you like your satin, and
   it keeps a short note for later conversations, asking first each time. The notes stay on your
   computer, you can read, edit or clear them in its settings, or turn memory off.
+- **It asks, then suggests:** for a new design it first asks a few questions with answer chips
+  (or uses its judgment); after every reply it suggests what to say next, and offers **Fix**
+  chips when Check Design finds errors or warnings
+  ([#1172](https://github.com/cristianonescu/OpenStitch/issues/1172)).
 
 Benchmark on 12 embroidery tasks: Claude Code 12/12, Ollama gpt-oss:20b 8/12. It has been tested
 on macOS and Windows (12/12 there too); on Linux, CI runs its tests and the keychain round trip
@@ -637,6 +641,9 @@ See also [New: the Assistant](#new-the-assistant).
   and written only after you allow it ([#491]).
 - (+) **The chat is kept with the project:** saving writes the conversation into the `.osd`, and
   opening it lets you read it and go on where it stopped ([#1169]).
+- (+) **Questions and suggested replies:** before a new design it asks 5 to 10 questions with
+  answer chips (or uses its judgment); after every reply it offers a suggested message and chips,
+  and **Fix** chips when Check Design finds errors or warnings ([#1172]).
 - (+) **Your threads only:** colours come from your own or a named chart, and catalogue numbers are
   looked up, never invented ([#495]).
 - (+) **Embroidery skill** with illustrated example designs and a composition guide, and a
@@ -734,6 +741,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#490]: https://github.com/cristianonescu/OpenStitch/issues/490
 [#491]: https://github.com/cristianonescu/OpenStitch/issues/491
 [#1169]: https://github.com/cristianonescu/OpenStitch/issues/1169
+[#1172]: https://github.com/cristianonescu/OpenStitch/issues/1172
 [#492]: https://github.com/cristianonescu/OpenStitch/issues/492
 [#493]: https://github.com/cristianonescu/OpenStitch/issues/493
 [#494]: https://github.com/cristianonescu/OpenStitch/issues/494
@@ -1199,9 +1207,10 @@ claude mcp add openstitch -- "$PWD/target/release/openstitch-mcp" --root ~/Embro
 ```
 
 To let an MCP client control the whole editor (the base of the B17 AI assistant), start the
-editor with `--listen 0` and register `openstitch-mcp --assistant`. It offers nine tools
+editor with `--listen 0` and register `openstitch-mcp --assistant`. It offers twelve tools
 instead of one per command: `commands_list`, `command_describe`, `execute`, `run_batch`,
-`view_render`, `scratch_write`, `skill_reference`, `notes_read` and `notes_write`. They reach every engine command and the
+`view_render`, `scratch_write`, `scratch_view`, `skill_reference`, `notes_read`, `notes_write`,
+`ask_user` and `suggest_replies`. They reach every engine command and the
 editor's `ui.*` commands: ribbon and menu commands, selection, zoom, settings, the simulator,
 Help and updates. A bundled embroidery skill (`skills/openstitch-embroidery`) tells the model
 how to build designs that sew well.

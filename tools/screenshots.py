@@ -57,6 +57,11 @@ SCENES = {
                                 [("docs/images/rust-editor-assistant-notices-light.png", 1600)]),
     "assistant-notices-dark": (["--demo", "--show", "assistant-notices", "--theme", "dark"],
                                [("docs/images/rust-editor-assistant-notices-dark.png", 1600)]),
+    # #1172: the questions card, and a reply's suggested message, chips and fix chips.
+    "assistant-questions": (["--demo", "--show", "assistant-questions"],
+                            [("docs/images/rust-editor-assistant-questions.png", 1600)]),
+    "assistant-suggestions": (["--demo", "--show", "assistant-suggestions"],
+                              [("docs/images/rust-editor-assistant-suggestions.png", 1600)]),
     "start-cards": (["--no-splash"], [("docs/images/rust-editor-start-cards.png", 1600)]),
     "basic-attributes": (["--demo", "--select", "2", "--show", "basic"],
                          [("docs/images/rust-editor-basic-attributes.png", 1600)]),
