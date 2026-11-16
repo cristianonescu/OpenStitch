@@ -15,11 +15,38 @@ The coordinators (Mac: image digitizing, the AI assistant, the kit and calibrati
 tooling, tests; Windows: the stitch engine, formats, lettering and the release gate) refresh
 this file at each day's close-out.
 
-Updated 2026-11-16: alpha.13, alpha.14 and alpha.15 have shipped their plans (summaries below).
-Development pauses after alpha.15 by the owner's decision. The open work is the Future
-milestone. The sections after the summaries are the 2026-11-04 round, kept for history.
-(2026-11-16, later: `v0.1.0-alpha.15` is published, and a `v0.1.0-alpha.16` milestone is open
-with #1168, #1169, #1171 and #1172.)
+Updated 2026-11-16: alpha.13 to alpha.16 have shipped their plans (summaries below).
+Development is paused after alpha.16 until the owner says to resume. The open work is the
+Future milestone. The sections after the summaries are the 2026-11-04 round, kept for history.
+
+## Shipped in alpha.16 (2026-11-16)
+
+12 pull requests merged after `v0.1.0-alpha.15`, all on 2026-11-16, for what the owner asked for
+after alpha 15. By area:
+
+- **The Assistant:** a coding agent sees the pictures you attach (#1168); the chat is kept with
+  the project and goes on where it stopped, with a setting to turn it off (#1169, #1176, #1178,
+  #1187); it asks questions before a new design, suggests replies and offers fix chips (#1172);
+  a coding agent waits for the answer on an approval card (#1188); it sees its own save (#1196),
+  and every file it writes lands beside the design (#1199).
+- **Closing:** quitting, closing a tab and replacing unsaved work always ask, in every
+  permission mode; closing while the Assistant works asks first; a chat is unsaved work (#1186).
+- **Thread colours:** colours named by thread code, never by hex value, with "≈" for the nearest
+  thread (#1184); one Brother thread named two ways sews as one colour block (#1197).
+- **Editor:** the Sewing Order list's small pictures are the objects' own stitches (#1185).
+- **Documentation:** the README reworked for new users, every Markdown document checked, the
+  third-party notices generated from `cargo metadata`, the docs images regenerated (#1171).
+- **Tested:** Windows end to end, 19 of 19 with Claude Code and the real editor's tools on
+  989a6e17; macOS phase 2 with Claude Code; the browser version in WebKit (not in a real Safari).
+
+Still open and in the Future milestone: #1182 (macOS Finder thumbnails and Quick Look), #1179
+(templates and test swatches keep the open file's path), #1175 (notices for the browser version,
+and the CI check), #1198 (Assistant wording), #1180 and #1170 (the Assistant panel), and the
+parked #1043/#1071 and #1131/#1088.
+
+Development is paused after alpha.16 until the owner says to resume.
+
+What shipped, by area: [releases/v0.1.0-alpha.16.md](releases/v0.1.0-alpha.16.md).
 
 ## Shipped in alpha.15 (2026-11-16)
 
