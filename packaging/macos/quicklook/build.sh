@@ -1,14 +1,15 @@
 #!/bin/sh
 # Builds the Quick Look thumbnail extension (#557) into an app bundle's Contents/PlugIns.
-#   packaging/macos/quicklook/build.sh <OpenStitch.app> <openstitch-thumbnailer> <version>
-# The extension is a small Swift shim (outside the Cargo workspace) that runs the bundled Rust
-# renderer, openstitch-thumbnailer, on the file Finder asks about. Universal (arm64 + x86_64),
+#   packaging/macos/quicklook/build.sh <OpenStitch.app> <libopenstitch_quicklook.a> <version>
+# The extension is a small Swift shim (outside the Cargo workspace) linked with the Rust
+# renderer, the universal static library built from render/ (#1182: the extension's sandbox
+# cannot start a helper program, so the renderer runs in-process). Universal (arm64 + x86_64),
 # ad-hoc signed like the app (docs/DISTRIBUTION.md "Thumbnails"). Also builds
 # openstitch-quicklook-check, the same Swift code path as a command, into $CHECK_OUT if set.
 set -eu
 
 app=$1
-helper=$2
+lib=$2
 version=$3
 here=$(cd "$(dirname "$0")" && pwd)
 appex="$app/Contents/PlugIns/OpenStitchThumbnail.appex"
@@ -40,7 +41,8 @@ plutil -lint "$plist"
 swiftc_for() {
     # $1: arch, $2: output, rest: swiftc arguments
     arch=$1; out=$2; shift 2
-    xcrun swiftc -swift-version 5 -O -target "$arch-apple-macos11.0" -o "$out" "$@"
+    xcrun swiftc -swift-version 5 -O -target "$arch-apple-macos11.0" -o "$out" \
+        -Xlinker -dead_strip -import-objc-header "$here/openstitch_quicklook.h" "$lib" "$@"
 }
 for arch in arm64 x86_64; do
     # An app extension's entry point is NSExtensionMain, not main.
@@ -51,6 +53,7 @@ for arch in arm64 x86_64; do
         "$here/Renderer.swift" "$here/ThumbnailProvider.swift"
     if [ -n "${CHECK_OUT:-}" ]; then
         swiftc_for "$arch" "$work/check-$arch" -module-name OpenStitchQuickLookCheck -parse-as-library \
+            -framework QuickLookThumbnailing -framework AppKit \
             "$here/Renderer.swift" "$here/Check.swift"
     fi
 done
@@ -59,10 +62,5 @@ if [ -n "${CHECK_OUT:-}" ]; then
     lipo -create -output "$CHECK_OUT" "$work/check-arm64" "$work/check-x86_64"
 fi
 
-# The Rust renderer, beside the extension's executable (Bundle.url(forAuxiliaryExecutable:)).
-cp "$helper" "$appex/Contents/MacOS/openstitch-thumbnailer"
-
-# Inside out: the helper (inherits the extension's sandbox), then the sandboxed extension.
-codesign --force --sign - --entitlements "$here/Helper.entitlements" \
-    "$appex/Contents/MacOS/openstitch-thumbnailer"
+# The extension holds one executable, the renderer linked in; it is sandboxed.
 codesign --force --sign - --entitlements "$here/Thumbnail.entitlements" "$appex"
