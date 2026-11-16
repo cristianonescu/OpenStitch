@@ -715,6 +715,15 @@ loopback listener the panel opens, with its endpoint file in the 0700 scratch fo
 drains that listener in `serve`, through the same gate and undo bookkeeping as the in-process
 link, and not through `serve_remote`'s `Policy`.
 
+**Approvals and timeouts (#1188).** A command the gate asks about waits on a card for
+`APPROVAL_TIMEOUT_S` (240 s). The private socket waits `AGENT_REPLY_TIMEOUT_S` (270 s) for the
+editor's reply, and the bridge's client (`assistant_panel::bridge_client`) waits
+`BRIDGE_TIMEOUT_S` (300 s), so a held command is never cut off by a transport timeout first.
+Claude Code's own MCP tool-call limit is 24 h. The agent is told which way the card ended:
+declined, unanswered (it did not run; do not retry) or the turn ended. A request equal to one
+already waiting (same command and params, an agent retrying) takes that card over, and the
+earlier copy is told it was sent again.
+
 **Questions, suggested replies and fix chips (#1172).** `assistant_offers.rs` holds them. The
 model hands questions and suggestions over with the meta tools `ask_user` and `suggest_replies`
 (editor commands `ui.askUser` and `ui.suggestReplies`, read-only, refused outside the
