@@ -35,6 +35,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   tool call (beside the final `view_render` or `design.check`), so it costs no extra step;
   never alone after your answer. A reply without tool calls skips it: the panel then shows its
   own suggestions. Nothing is sent until the user clicks. Plain text only.
+- **A command waiting for the user's approval** (saving, exporting, opening files, sending to the
+  machine) waits on a card in the panel for up to 4 minutes. Tell the user to answer the card;
+  do not send the command again and never say the editor is unreachable. "Declined" means the
+  user said no; "nobody answered the approval card" means it did not run: say so and ask.
 - When the turn ends with Check Design errors or warnings, the panel offers "Fix the …" chips. A
   message from one lists each finding (severity, rule, objects, message): fix only what has a
   fix (`design.check` gives it), and say which ones cannot be fixed and why.

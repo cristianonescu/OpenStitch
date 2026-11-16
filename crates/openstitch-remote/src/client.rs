@@ -101,10 +101,19 @@ impl Client {
                 reply.insert("id".into(), id.clone());
             }
             reply.insert("ok".into(), json!(false));
-            reply.insert(
-                "error".into(),
-                json!(format!("cannot reach the editor: {e}")),
-            );
+            // A read that timed out reached the editor, which has not answered yet (#1188).
+            let error = if matches!(
+                e.kind(),
+                io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+            ) {
+                format!(
+                    "the editor did not answer within {} s; a command may be waiting for the user's answer on an approval card: ask the user to answer it, do not retry",
+                    self.timeout.as_secs()
+                )
+            } else {
+                format!("cannot reach the editor: {e}")
+            };
+            reply.insert("error".into(), json!(error));
             Value::Object(reply)
         })
     }

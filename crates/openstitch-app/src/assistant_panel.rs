@@ -19,8 +19,10 @@ use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::assistant_attach::{self, Attachment, MAX_FILES};
 use openstitch_app::editor::assistant_chat::{
-    APPROVAL_TIMEOUT_S, AiPrefs, GateInput, PRESETS, PermissionMode, Preset, Protocol,
-    ScriptRecord, Verdict, apply_preset, is_this_computer, resolve_scratch_names, verdict,
+    AGENT_REPLY_TIMEOUT_S, APPROVAL_TIMEOUT_S, AiPrefs, BRIDGE_TIMEOUT_S, GateInput, PRESETS,
+    PermissionMode, Preset, Protocol, SENT_AGAIN_REPLY, ScriptRecord, TURN_ENDED_REPLY, Verdict,
+    apply_preset, declined_reply, is_this_computer, resolve_scratch_names, unanswered_reply,
+    verdict,
 };
 use openstitch_app::editor::ribbon::Action;
 use openstitch_app::keys;
@@ -850,7 +852,7 @@ fn start_agent(app: &mut EditorApp, id: &str, wake: Waker) -> Result<Worker, Str
     let listener = openstitch_remote::Server::start(openstitch_remote::ServerConfig {
         write_roots: vec![scratch.clone()],
         endpoint_file: Some(endpoint.clone()),
-        reply_timeout: Duration::from_secs(APPROVAL_TIMEOUT_S + 30),
+        reply_timeout: Duration::from_secs(AGENT_REPLY_TIMEOUT_S),
         ..openstitch_remote::ServerConfig::default()
     })
     .map_err(|e| format!("The agent's private socket did not open: {e}"))?;
@@ -1215,13 +1217,31 @@ fn handle_job(app: &mut EditorApp, mut job: Job) {
     match v {
         Verdict::Run => run_job(app, job),
         Verdict::Refuse(why) => reply_err(job, why),
-        Verdict::Ask(what) => app.assistant.panel.approvals.push(Approval {
-            job,
-            command,
-            what,
-            since: Instant::now(),
-        }),
+        Verdict::Ask(what) => {
+            let panel = &mut app.assistant.panel;
+            // #1188: the same request again while its card is open (an agent retrying) takes
+            // that card over: one card, its timer kept, and the earlier copy is told why.
+            let same = panel.approvals.iter_mut().find(|a| {
+                a.command == command && a.job.request.get("params") == job.request.get("params")
+            });
+            match same {
+                Some(a) => reply_err(std::mem::replace(&mut a.job, job), SENT_AGAIN_REPLY.into()),
+                None => panel.approvals.push(Approval {
+                    job,
+                    command,
+                    what,
+                    since: Instant::now(),
+                }),
+            }
+        }
     }
+}
+
+/// The client `openstitch --assistant-mcp` reaches the editor with: its private socket, with a
+/// timeout longer than the approval window (#1188).
+pub fn bridge_client(endpoint_file: &std::path::Path) -> std::io::Result<openstitch_remote::Client> {
+    Ok(openstitch_remote::Client::from_file(endpoint_file)?
+        .with_timeout(Duration::from_secs(BRIDGE_TIMEOUT_S)))
 }
 
 /// The user's answer to a question.
@@ -1238,10 +1258,7 @@ pub fn answer(app: &mut EditorApp, index: usize, a: Answer) {
     }
     let approval = app.assistant.panel.approvals.remove(index);
     match a {
-        Answer::Deny => reply_err(
-            approval.job,
-            format!("the user declined: {}", approval.what),
-        ),
+        Answer::Deny => reply_err(approval.job, declined_reply(&approval.what)),
         Answer::Always => {
             let list = &mut app.ui.prefs.ai.always_allow;
             if !list.contains(&approval.command) {
@@ -1260,8 +1277,7 @@ fn finish_turn(app: &mut EditorApp, end: claude::StopKind, wake: Waker) {
         return;
     };
     for a in app.assistant.panel.approvals.drain(..) {
-        a.job
-            .answer(json!({ "ok": false, "error": "the turn ended" }));
+        reply_err(a.job, TURN_ENDED_REPLY.into());
     }
     let start = turn.undo_start.min(app.undo_groups.len());
     let steps: usize = app.undo_groups.drain(start..).sum();
@@ -1416,10 +1432,7 @@ pub fn serve(app: &mut EditorApp, wake: Waker) {
         .partition(|a| a.since.elapsed() >= timeout);
     panel.approvals = keep;
     for a in late {
-        reply_err(
-            a.job,
-            "nobody answered in time; the user did not allow it".into(),
-        );
+        reply_err(a.job, unanswered_reply());
     }
     for e in events {
         match e {
@@ -3121,7 +3134,7 @@ mod tests {
     #[test]
     fn an_unanswered_question_is_declined_after_the_timeout() {
         let save = ("design.export", json!({ "path": "/nonexistent-dir/x.pes" }));
-        let (mut app, _) = app_with(vec![
+        let (mut app, transport) = app_with(vec![
             reply(&[save], "", "tool_use"),
             reply(&[], "ok", "end_turn"),
         ]);
@@ -3131,6 +3144,89 @@ mod tests {
             Instant::now() - Duration::from_secs(APPROVAL_TIMEOUT_S + 1);
         run(&mut app, idle);
         assert!(app.assistant.panel.approvals.is_empty());
+        // #1188: the model is told what happened and not to retry on its own.
+        let result = transport.requests.lock().expect("lock")[1].to_string();
+        assert!(
+            result.contains("nobody answered the approval card within 240 s")
+                && result.contains("do not retry it on your own"),
+            "{result}"
+        );
+    }
+
+    /// #1188: a coding agent's bridge client (`bridge_client`, as `openstitch --assistant-mcp`
+    /// builds it) waits on the private socket while a command is held on an approval card for
+    /// more than the remote client's default 60 s, and gets the user's answer, not "cannot
+    /// reach the editor". A retry of the same request while the card is open keeps one card.
+    #[test]
+    fn a_held_command_waits_past_a_minute_and_a_retry_keeps_one_card() {
+        let mut app = EditorApp::new(Launch {
+            demo: true,
+            ..Launch::default()
+        });
+        let dir = openstitch_testutil::TempDir::new("1188-bridge");
+        let endpoint_file = dir.join("agent-endpoint.json");
+        let listener = openstitch_remote::Server::start(openstitch_remote::ServerConfig {
+            endpoint_file: Some(endpoint_file.clone()),
+            reply_timeout: Duration::from_secs(AGENT_REPLY_TIMEOUT_S),
+            ..openstitch_remote::ServerConfig::default()
+        })
+        .expect("listener");
+        let config = claude::AcpConfig {
+            program: std::path::PathBuf::from("no-such-agent-program"),
+            args: Vec::new(),
+            cwd: std::env::temp_dir(),
+            mcp: claude::McpServer {
+                name: claude::BRIDGE_NAME.into(),
+                command: std::path::PathBuf::from("no-such-mcp"),
+                args: Vec::new(),
+                env: Vec::new(),
+            },
+            system: String::new(),
+            extra_path: Vec::new(),
+        };
+        app.assistant.panel.worker = Some(Worker::start_agent(config, listener, no_wake()));
+        let save = json!({ "command": "project.save", "params": { "path": "/nonexistent-dir/x.osd" } });
+        let ask = |request: Value| {
+            let file = endpoint_file.clone();
+            std::thread::spawn(move || {
+                let mut c = bridge_client(&file).expect("bridge client");
+                c.handle(&request)
+            })
+        };
+        let first = ask(save.clone());
+        let start = Instant::now();
+        let serve_until = |app: &mut EditorApp, until: &dyn Fn(&EditorApp) -> bool| {
+            while !until(app) {
+                serve(app, no_wake());
+                assert!(start.elapsed() < Duration::from_secs(120), "stuck");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        };
+        serve_until(&mut app, &|a| !a.assistant.panel.approvals.is_empty());
+        // The agent sends it again: still one card, the earlier copy told why.
+        let second = ask(save);
+        serve_until(&mut app, &|_| first.is_finished());
+        assert_eq!(app.assistant.panel.approvals.len(), 1, "one card");
+        let first = first.join().expect("first");
+        assert!(
+            first["error"]
+                .as_str()
+                .is_some_and(|e| e.contains("sent again while its approval card was open")),
+            "{first}"
+        );
+        // Past the remote client's default 60 s, the user declines.
+        let held = Instant::now() + Duration::from_secs(65);
+        serve_until(&mut app, &|_| Instant::now() >= held);
+        assert_eq!(app.assistant.panel.approvals.len(), 1);
+        answer(&mut app, 0, Answer::Deny);
+        serve_until(&mut app, &|_| second.is_finished());
+        let second = second.join().expect("second");
+        let error = second["error"].as_str().unwrap_or_default();
+        assert!(
+            error.starts_with("the user declined on the approval card"),
+            "{second}"
+        );
+        assert!(!error.contains("cannot reach the editor"), "{second}");
     }
 
     #[test]

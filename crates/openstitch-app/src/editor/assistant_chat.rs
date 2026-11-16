@@ -350,6 +350,37 @@ pub enum Verdict {
 /// Seconds a question waits before it is declined.
 pub const APPROVAL_TIMEOUT_S: u64 = 240;
 
+/// Seconds a coding agent's private socket waits for the editor's reply to one request: the
+/// approval window and time to run the command (#1188).
+pub const AGENT_REPLY_TIMEOUT_S: u64 = APPROVAL_TIMEOUT_S + 30;
+
+/// Seconds `openstitch --assistant-mcp` (the agent's bridge) waits for each reply: longer than
+/// the socket, so a command held for the user's answer is never reported as an unreachable
+/// editor. The remote client's own default is 60 s (#1188).
+pub const BRIDGE_TIMEOUT_S: u64 = AGENT_REPLY_TIMEOUT_S + 30;
+
+/// What a command held on an approval card answers when the user declines it (#1188).
+pub fn declined_reply(what: &str) -> String {
+    format!(
+        "the user declined on the approval card: {what}. It did not run; do not retry it unless the user asks"
+    )
+}
+
+/// What a held command answers when nobody answered its card in time (#1188).
+pub fn unanswered_reply() -> String {
+    format!(
+        "nobody answered the approval card within {APPROVAL_TIMEOUT_S} s, so it was declined and did not run. Tell the user it needs their answer on the card in the Assistant panel; do not retry it on your own"
+    )
+}
+
+/// What a held command answers when the turn ended before the user answered (#1188).
+pub const TURN_ENDED_REPLY: &str =
+    "it did not run: the Assistant's turn ended before the user answered the approval card";
+
+/// What an earlier copy of a request answers when the same request comes again while its card
+/// is open: one card, and the user's answer goes to the newer request (#1188).
+pub const SENT_AGAIN_REPLY: &str = "the same request was sent again while its approval card was open; the user's answer goes to the newer request";
+
 /// Parameters that hold a file or folder name.
 const FILE_KEYS: [&str; 7] = [
     "path", "file", "dir", "folder", "output", "source", "target",
@@ -741,6 +772,18 @@ impl ScriptRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1188: the bridge outwaits the private socket, which outwaits the approval card, and
+    /// both are past the remote client's default 60 s.
+    #[test]
+    fn the_bridge_waits_longer_than_an_approval() {
+        const { assert!(APPROVAL_TIMEOUT_S > 60) };
+        const { assert!(AGENT_REPLY_TIMEOUT_S > APPROVAL_TIMEOUT_S) };
+        const { assert!(BRIDGE_TIMEOUT_S > AGENT_REPLY_TIMEOUT_S) };
+        assert!(declined_reply("save x.osd").contains("do not retry"));
+        assert!(unanswered_reply().contains("answer on the card"));
+        assert!(TURN_ENDED_REPLY.contains("did not run"));
+    }
 
     /// An absolute scratch folder on every OS (`/tmp/...` is not absolute on Windows). It must
     /// exist: the gate resolves symlinks.
