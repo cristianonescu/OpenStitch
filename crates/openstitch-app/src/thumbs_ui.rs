@@ -21,10 +21,12 @@ use std::time::Duration;
 
 /// Drawing time allowed per frame, all pictures together.
 pub const BUDGET: Duration = Duration::from_millis(4);
-/// Most picture bytes kept (RGBA): about 2,300 rows' pictures at 60 px.
+/// Most picture bytes kept (RGBA): about 3,100 rows' pictures at 52 px (a 30 pt tile at 2x).
 pub const CAP_BYTES: usize = 32 << 20;
 /// The tile behind a picture whose colours are all near white.
 const DARK_TILE: Color32 = Color32::from_gray(110);
+/// Space between a tile's edge and its picture, points.
+const INSET: f32 = 2.0;
 
 struct Entry {
     /// [`Source::key`] of the picture.
@@ -228,7 +230,10 @@ pub fn thumbnail(
         return resp;
     }
     cache.begin(ui.ctx(), compiled);
-    let px = (size * ui.ctx().pixels_per_point()).round().max(1.0) as u32;
+    // The picture sits 2 pt inside its tile, so the tile shows round it: a white object on its
+    // grey tile reads as a shape, not as an empty tile.
+    let inner = rect.shrink(INSET);
+    let px = (inner.width() * ui.ctx().pixels_per_point()).round().max(1.0) as u32;
     let picture = cache.picture(ui.ctx(), compiled, o, px);
     let painter = ui.painter_at(rect);
     let dark = picture.is_some_and(|(_, d)| d);
@@ -242,7 +247,7 @@ pub fn thumbnail(
     match picture {
         Some((texture, _)) => {
             let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
-            painter.image(texture, rect, uv, Color32::WHITE);
+            painter.image(texture, inner, uv, Color32::WHITE);
         }
         None => {
             quick_outlines(&painter, rect, o);
@@ -449,11 +454,11 @@ mod tests {
         let sizes = |app: &EditorApp| -> Vec<[usize; 2]> {
             app.thumbs.entries.values().map(|e| e.texture.size()).collect()
         };
-        assert!(sizes(&app).iter().all(|s| *s == [30, 30]), "{:?}", sizes(&app));
+        assert!(sizes(&app).iter().all(|s| *s == [26, 26]), "{:?}", sizes(&app));
         ctx.set_pixels_per_point(2.0);
         list_frame(&ctx, &mut app);
         list_frame(&ctx, &mut app);
-        assert!(sizes(&app).iter().all(|s| *s == [60, 60]), "{:?}", sizes(&app));
+        assert!(sizes(&app).iter().all(|s| *s == [52, 52]), "{:?}", sizes(&app));
     }
 
     #[test]
@@ -461,7 +466,7 @@ mod tests {
         let ctx = egui::Context::default();
         let mut app = app_with(10);
         app.thumbs.unlimited = true;
-        app.thumbs.cap = 3 * 30 * 30 * 4;
+        app.thumbs.cap = 3 * 26 * 26 * 4;
         let objects = app.session.design().objects.clone();
         for o in &objects {
             let compiled = Compiled {
@@ -476,7 +481,7 @@ mod tests {
             out.textures_delta.clear();
         }
         let (held, bytes) = app.thumbs.held();
-        assert_eq!((held, bytes), (3, 3 * 30 * 30 * 4));
+        assert_eq!((held, bytes), (3, 3 * 26 * 26 * 4));
         let kept: std::collections::BTreeSet<u64> = app.thumbs.entries.keys().copied().collect();
         let last: std::collections::BTreeSet<u64> =
             objects.iter().rev().take(3).map(|o| o.id).collect();
