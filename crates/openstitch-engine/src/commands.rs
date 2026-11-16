@@ -3631,7 +3631,11 @@ fn file_commands() -> Vec<CommandSpec> {
             "project.save",
             "Save the editable design (.osd). In the editor it also writes the Assistant's conversation with the design (text only), unless the setting assistantSaveChat is off",
             Effect::File,
-            vec![PATH],
+            vec![req(
+                "path",
+                "string",
+                "File path (relative to the session directory). From the editor's Assistant or a socket client, a relative path is taken from the folder of the design's own file, and refused while the design has no file",
+            )],
             |s, p| {
                 let path = s.resolve(&p.string("path", None)?, Access::Write, &p.command)?;
                 // The editor sets the document's conversation before a save (#1169).

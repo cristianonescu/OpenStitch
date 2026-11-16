@@ -547,6 +547,15 @@ impl EditorApp {
             return Err(format!("{} is not available in OpenStitch yet", info.label));
         }
         match assistant::route(a) {
+            // Save writes the design's own file when it has one, as Ctrl+S does (#1187).
+            Route::File(_) if a == Action::Save && self.path.is_some() => {
+                self.save(false);
+                return if self.is_dirty() {
+                    Err(self.status.clone())
+                } else {
+                    Ok(json!({ "saved": self.path.as_ref().map(|p| p.display().to_string()) }))
+                };
+            }
             Route::File(c) => {
                 return Err(format!(
                     "{} opens a file dialog; run {c} with a path instead",

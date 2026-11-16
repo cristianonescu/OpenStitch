@@ -706,6 +706,9 @@ pub fn verdict(g: &GateInput) -> Verdict {
         Some(format!("use {}", files.join(", ")))
     } else if g.command == "ui.run" && g.params["action"] == json!("exit") {
         Some("quit OpenStitch".into())
+    } else if g.command == "ui.run" && g.params["action"] == json!("save") {
+        // It writes the design's own file since #1187: a save, as project.save.
+        Some("save the design to its file".into())
     } else if g.undo_before_message {
         Some("undo a change made before this message".into())
     } else {
@@ -975,6 +978,11 @@ mod tests {
         assert!(matches!(
             gate(Edits, "ui.run", Effect::Edit, json!({ "action": "exit" })),
             Verdict::Ask(w) if w.contains("quit")
+        ));
+        // #1187: ui.run save writes the design's file, so it asks as a save does.
+        assert!(matches!(
+            gate(Edits, "ui.run", Effect::Edit, json!({ "action": "save" })),
+            Verdict::Ask(w) if w == "save the design to its file"
         ));
         assert_eq!(
             gate(
