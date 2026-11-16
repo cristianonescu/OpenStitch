@@ -12,7 +12,9 @@ packages and the web page ship, on every target they ship for:
 - `openstitch-app` (the editor), `stitchtool`, `openstitch-mcp` and `openstitch-render` (the
   Linux thumbnailer), from the workspace, for macOS (Apple Silicon and Intel), Windows and Linux;
 - `openstitch-web` for `wasm32-unknown-unknown` (the browser page);
-- the Windows Explorer thumbnail handler, `packaging/windows/thumbnails` (its own workspace).
+- the Windows Explorer thumbnail handler, `packaging/windows/thumbnails` (its own workspace);
+- the renderer linked into the macOS Quick Look extension, `packaging/macos/quicklook/render`
+  (its own workspace, #1182).
 
 Proc-macro crates and their dependencies are listed too, though they run only at compile time.
 Each crate gets its name, version, licence (the package's SPDX expression, or its licence file
@@ -41,6 +43,7 @@ SHIPPED = [
     (ROOT / "Cargo.toml", ["openstitch-app", "stitchtool", "openstitch-mcp", "openstitch-render"], NATIVE),
     (ROOT / "Cargo.toml", ["openstitch-web"], ["wasm32-unknown-unknown"]),
     (ROOT / "packaging/windows/thumbnails/Cargo.toml", None, ["x86_64-pc-windows-msvc"]),
+    (ROOT / "packaging/macos/quicklook/render/Cargo.toml", None, ["aarch64-apple-darwin", "x86_64-apple-darwin"]),
 ]
 # SPDX ids of the permissive licences the project has accepted (MIT/Apache/BSD/ISC/Zlib/MPL and
 # Unicode-style). A crate whose expression offers none of these as a whole alternative is flagged.

@@ -6,7 +6,8 @@
 # Download the artifact first, for example:
 #   gh run download <run-id> -n openstitch-main-<sha>-macos-universal -D artifact
 #
-# Checks: universal binary, bundle metadata, ad-hoc signature, licence files, the editor
+# Checks: universal binary, the Quick Look extension (universal, sandboxed, no helper program,
+# #1182), bundle metadata, ad-hoc signature, licence files, the editor
 # starting headless on the demo, a PES file and the Design Database (screenshots), and the CLI
 # writing PES v6 and DST. Everything runs in a temporary folder; nothing is installed.
 set -euo pipefail
@@ -32,6 +33,17 @@ bin=$app/Contents/MacOS/openstitch
 archs=$(lipo -archs "$bin")
 [[ $archs == *x86_64* && $archs == *arm64* ]] || fail "binary is not universal ($archs)"
 ok "universal binary ($archs)"
+
+appex=$app/Contents/PlugIns/OpenStitchThumbnail.appex
+qlexe=$appex/Contents/MacOS/OpenStitchThumbnail
+archs=$(lipo -archs "$qlexe")
+[[ $archs == *x86_64* && $archs == *arm64* ]] || fail "Quick Look extension is not universal ($archs)"
+[[ $(ls "$appex/Contents/MacOS") == OpenStitchThumbnail ]] || fail "Quick Look extension holds more than its executable"
+for a in arm64 x86_64; do
+  nm -arch $a "$qlexe" | grep -q ' T _openstitch_ql_thumbnail$' || fail "Quick Look extension ($a) lacks the renderer"
+done
+codesign -d --entitlements - --xml "$appex" 2>/dev/null | grep -q com.apple.security.app-sandbox || fail "Quick Look extension is not sandboxed"
+ok "Quick Look extension: universal ($archs), renderer linked in, sandboxed"
 
 plist=$app/Contents/Info.plist
 for key in CFBundleIdentifier CFBundleShortVersionString LSMinimumSystemVersion; do

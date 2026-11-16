@@ -1,0 +1,24 @@
+# The Rust renderer linked into the macOS Quick Look thumbnail extension (#557, #1182): a static
+# library with one C function the Swift extension calls in-process. The extension's sandbox
+# forbids starting any process (posix_spawn fails with EPERM), so the renderer cannot run as a
+# helper program there. A separate project outside the Cargo workspace: a C entry point needs
+# unsafe code, which the workspace forbids (the same arrangement as packaging/windows/thumbnails).
+[package]
+name = "openstitch-quicklook"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+name = "openstitch_quicklook"
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+openstitch-render = { path = "../../../../crates/openstitch-render" }
+
+[workspace]
+
+[profile.release]
+lto = true
+codegen-units = 1
