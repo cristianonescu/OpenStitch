@@ -321,6 +321,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    fails) and returns `problems`, Check Design's errors: tell the user about any. With
    `checks: "strict"` it writes nothing and fails while `design.check` has any error: use it when
    the file goes straight to a machine without anyone looking at the problems first.
+   In the editor, a relative `project.save` name lands beside the design's own file. An
+   untitled design has no folder yet: ask the user where to save and give a full path. To save
+   a design that already has a file to that same file, `execute ui.run {action: "save"}` (the
+   user is asked first, as for any save).
    To show how it will look worn, `design.mockup {path: "name.png", garment: "tshirt" | "cap" |
    "tote", placement: "centre" | "leftChest" (T-shirt only), color: "#rrggbb"}` draws it at true
    size on the garment; when the result has `fits: false`, tell the user the design is larger
