@@ -559,36 +559,134 @@ pub fn all() -> Vec<CommandSpec> {
     v
 }
 
-/// Param names of a file-writing command whose relative value the editor takes from the design's
-/// own folder (#1199).
-pub const BESIDE_DESIGN_KEYS: [&str; 3] = ["path", "output", "dir"];
+/// What a file command does with one of its string params that names a file or folder (#1199,
+/// #1203): the editor takes a relative [`FileParam::Writes`] target from the folder of the
+/// design's own file and leaves the others as given.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FileParam {
+    /// A file or folder the command writes, creates, renames or moves.
+    Writes,
+    /// A file or folder the command only reads: relative to the working folder, as before.
+    Reads,
+    /// A name inside a folder, or a volume from `transfer.volumes`: not a path to resolve.
+    NotAPath,
+}
 
-/// What a file-writing command's path, output or dir param adds in its description (#1199).
-pub const EDITOR_RELATIVE_NOTE: &str = " In the editor (the Assistant, socket clients) a relative     path is taken from the folder of the design's own file, and refused while the design has no     file; stitchtool and openstitch-mcp on their own take it from their working folder.";
+/// Every file-writing command (Effect::File) with its string params that name a file or folder,
+/// and what it does with each (#1203). The registry test fails for a file command whose such
+/// param is not listed here, so a new command cannot be missed.
+pub const FILE_PARAMS: &[(&str, &[(&str, FileParam)])] = {
+    use FileParam::{NotAPath, Reads, Writes};
+    &[
+        ("background.save", &[("path", Writes)]),
+        ("design.export", &[("path", Writes)]),
+        ("design.exportBundle", &[("path", Writes)]),
+        ("design.exportPicture", &[("path", Writes)]),
+        ("design.exportThreads", &[("path", Writes)]),
+        ("design.exportVideo", &[("path", Writes)]),
+        ("design.mockup", &[("path", Writes)]),
+        ("design.print", &[("path", Writes)]),
+        ("design.testSwatch", &[("path", Writes)]),
+        ("design.testSwatches", &[("path", Writes)]),
+        (
+            "digitize.exportOutlines",
+            &[("path", Reads), ("out", Writes)],
+        ),
+        ("digitize.lineImage", &[("path", Reads), ("out", Writes)]),
+        ("digitize.segment", &[("path", Reads), ("out", Writes)]),
+        ("fabric.calibrationSwatch", &[("path", Writes)]),
+        ("fonts.save", &[("path", Writes)]),
+        ("library.catalog", &[("paths", Reads), ("output", Writes)]),
+        ("library.convert", &[("paths", Reads), ("output", Writes)]),
+        ("library.copy", &[("paths", Reads), ("destination", Writes)]),
+        (
+            "library.createFolder",
+            &[("path", Writes), ("name", NotAPath)],
+        ),
+        // A move takes each entry out of its folder: its sources are written too.
+        (
+            "library.move",
+            &[("paths", Writes), ("destination", Writes)],
+        ),
+        ("library.rename", &[("path", Writes), ("name", NotAPath)]),
+        (
+            "nameDrop.export",
+            &[("csv", Reads), ("dir", Writes), ("name", NotAPath)],
+        ),
+        ("nameDrop.writeCsv", &[("path", Writes)]),
+        ("pattern.export", &[("path", Writes)]),
+        ("project.save", &[("path", Writes)]),
+        ("sections.export", &[("path", Writes)]),
+        ("sewing.export", &[("path", Writes)]),
+        ("template.save", &[("path", Writes)]),
+        ("threads.exportCsv", &[("path", Writes)]),
+        ("threads.exportList", &[("path", Writes)]),
+        ("threads.exportPalette", &[("path", Writes)]),
+        ("transfer.send", &[("volume", NotAPath), ("name", NotAPath)]),
+    ]
+};
 
-/// Adds [`EDITOR_RELATIVE_NOTE`] to the path params of every file-writing command (#1199). The
-/// descriptions are made once per process.
+/// Write targets a command fills in itself when they are left out: there it uses the session
+/// folder, which in the editor is the working folder, so the editor gives the design's folder
+/// instead (#1203).
+pub const DEFAULT_WRITE_TARGETS: &[(&str, &str)] = &[("nameDrop.export", "dir")];
+
+/// The params of `command` that name a file or folder, with what it does with each.
+pub fn file_params(command: &str) -> &'static [(&'static str, FileParam)] {
+    FILE_PARAMS
+        .iter()
+        .find(|(c, _)| *c == command)
+        .map_or(&[], |(_, p)| p)
+}
+
+/// The params `command` writes to: in the editor a relative one is beside the design (#1199).
+pub fn write_targets(command: &str) -> impl Iterator<Item = &'static str> {
+    file_params(command)
+        .iter()
+        .filter(|(_, f)| *f == FileParam::Writes)
+        .map(|(n, _)| *n)
+}
+
+/// What a file-writing command's write-target param adds in its description (#1199).
+pub const EDITOR_RELATIVE_NOTE: &str = concat!(
+    " In the editor (the Assistant, socket clients) a relative path is taken from the folder of ",
+    "the design's own file, and refused while the design has no file; stitchtool and ",
+    "openstitch-mcp on their own take it from their working folder."
+);
+
+/// What a write target the command fills in itself adds (#1203).
+pub const EDITOR_DEFAULT_NOTE: &str = " Left out in the editor, it is the folder of the design's own file (refused while the design has no file).";
+
+/// Adds [`EDITOR_RELATIVE_NOTE`] (and [`EDITOR_DEFAULT_NOTE`]) to the write targets of every
+/// file-writing command (#1199, #1203). The descriptions are made once per process.
 fn note_editor_paths(v: &mut [CommandSpec]) {
     use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
-    static NOTED: OnceLock<Mutex<HashMap<&'static str, &'static str>>> = OnceLock::new();
+    static NOTED: OnceLock<Mutex<HashMap<(&'static str, bool), &'static str>>> = OnceLock::new();
     let mut noted = NOTED
         .get_or_init(Default::default)
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     for c in v.iter_mut().filter(|c| c.effect == Effect::File) {
+        let id = c.id;
         for p in c
             .params
             .iter_mut()
-            .filter(|p| BESIDE_DESIGN_KEYS.contains(&p.name) && p.kind == "string")
+            .filter(|p| write_targets(id).any(|w| w == p.name))
         {
             if p.summary.contains("design's own file") {
                 continue;
             }
+            let fills = DEFAULT_WRITE_TARGETS.contains(&(id, p.name));
             let s = p.summary;
-            p.summary = noted.entry(s).or_insert_with(|| {
+            p.summary = noted.entry((s, fills)).or_insert_with(|| {
+                let default = if fills { EDITOR_DEFAULT_NOTE } else { "" };
                 Box::leak(
-                    format!("{}.{EDITOR_RELATIVE_NOTE}", s.trim_end_matches('.')).into_boxed_str(),
+                    format!(
+                        "{}.{EDITOR_RELATIVE_NOTE}{default}",
+                        s.trim_end_matches('.')
+                    )
+                    .into_boxed_str(),
                 )
             });
         }

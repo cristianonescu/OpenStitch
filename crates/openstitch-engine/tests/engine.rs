@@ -1126,3 +1126,95 @@ fn a_relative_path_without_the_editor_is_the_working_folders() {
     run(&mut s, "design.export", json!({"path": "here.pes"}));
     assert!(tmp.path().join("here.pes").is_file());
 }
+
+/// #1203: every string param of a file-writing command that names a file or folder (by its name,
+/// or a description that starts so or names a path) is classified in `FILE_PARAMS`, so a new
+/// command or param cannot be missed; every classified param exists; every write target's
+/// description carries the editor's rule; no description has a run of spaces.
+#[test]
+fn every_file_param_of_a_file_command_is_classified() {
+    use openstitch_engine::commands::{FILE_PARAMS, file_params, write_targets};
+    const NAMES: [&str; 16] = [
+        "path",
+        "paths",
+        "out",
+        "output",
+        "dir",
+        "destination",
+        "csv",
+        "volume",
+        "file",
+        "files",
+        "folder",
+        "target",
+        "source",
+        "dest",
+        "image",
+        "images",
+    ];
+    let tmp = temp_dir();
+    let s = Session::new(tmp.path());
+    let commands = s.commands();
+    for c in commands
+        .iter()
+        .filter(|c| c.effect == openstitch_engine::Effect::File)
+    {
+        for p in c.params.iter().filter(|p| p.kind.contains("string")) {
+            let summary = p.summary.to_lowercase();
+            let names_a_file = NAMES.contains(&p.name)
+                || [
+                    "file",
+                    "folder",
+                    "image file",
+                    "output",
+                    "csv file",
+                    "where to write",
+                ]
+                .iter()
+                .any(|w| summary.starts_with(w))
+                || summary.contains("file path");
+            if names_a_file {
+                assert!(
+                    file_params(c.id).iter().any(|(n, _)| *n == p.name),
+                    "{}.{} names a file or folder but is not in FILE_PARAMS",
+                    c.id,
+                    p.name
+                );
+            }
+            assert!(
+                !p.summary.contains("  "),
+                "{}.{}: {}",
+                c.id,
+                p.name,
+                p.summary
+            );
+        }
+        for w in write_targets(c.id) {
+            let p = c
+                .params
+                .iter()
+                .find(|p| p.name == w)
+                .expect("a listed write target exists");
+            assert!(
+                p.summary.contains("design's own file"),
+                "{}.{}: {}",
+                c.id,
+                w,
+                p.summary
+            );
+        }
+    }
+    for (id, params) in FILE_PARAMS {
+        let c = commands
+            .iter()
+            .find(|c| c.id == *id)
+            .unwrap_or_else(|| panic!("{id} is not a command"));
+        assert_eq!(c.effect, openstitch_engine::Effect::File, "{id}");
+        for (n, _) in *params {
+            assert!(
+                c.params.iter().any(|p| p.name == *n),
+                "{id}.{n} is not a param"
+            );
+        }
+    }
+}
