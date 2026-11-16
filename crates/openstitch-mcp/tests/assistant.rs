@@ -279,7 +279,9 @@ fn assistant_instructions_are_short_and_point_at_the_skill() {
     assert!(instructions.contains("run_batch"), "{instructions}");
     // #1172 added when to ask and to suggest replies.
     assert!(instructions.contains("ask_user") && instructions.contains("suggest_replies"));
-    assert!(instructions.len() < 900, "{}", instructions.len());
+    // #1188: a command held for the user's approval.
+    assert!(instructions.contains("approval card"), "{instructions}");
+    assert!(instructions.len() < 1000, "{}", instructions.len());
     editor.finish();
 }
 

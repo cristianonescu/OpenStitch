@@ -315,7 +315,8 @@ fn window_icon() -> egui::IconData {
 /// Assistant panel starts this for a coding agent (B17 A3), so the packages need no separate
 /// `openstitch-mcp` beside the editor.
 fn assistant_mcp(endpoint: &str) -> ! {
-    let code = match openstitch_remote::Client::from_file(std::path::Path::new(endpoint))
+    // The bridge waits longer than the approval window (#1188).
+    let code = match crate::assistant_panel::bridge_client(std::path::Path::new(endpoint))
         .map_err(|e| e.to_string())
         .and_then(|client| {
             openstitch_mcp::Server::new(openstitch_mcp::Config::default())
