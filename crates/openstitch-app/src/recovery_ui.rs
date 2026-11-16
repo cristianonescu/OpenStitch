@@ -116,14 +116,16 @@ pub fn write_now(app: &mut EditorApp, wait: bool) -> std::io::Result<()> {
         .as_ref()
         .map(|s| s.id().to_string())
         .unwrap_or_default();
+    crate::assistant_panel::chat_to_session(app);
     let design = app.session.design().clone();
+    let chat = app.session.chat().cloned();
     let info = Info {
         original: app.path.clone(),
         name: app.document_name(),
         time: now_seconds(),
         process: std::process::id(),
     };
-    let job = move || match openstitch_engine::project::encode(&design) {
+    let job = move || match openstitch_engine::project::encode_with_chat(&design, chat.as_ref()) {
         Ok(bytes) => recovery::write_snapshot(&dir, &id, &bytes, &info),
         Err(e) => Err(std::io::Error::other(e.to_string())),
     };
@@ -332,6 +334,31 @@ mod tests {
         assert!(c.recovery.has_snapshot());
         // With unsaved changes, a restore is refused.
         assert!(restore(&mut c, "4000000000-7").is_err());
+    }
+
+    /// #1169: a recovery snapshot keeps the conversation as a save does, and a restore shows it.
+    #[test]
+    fn a_recovered_design_brings_its_chat_back() {
+        use crate::assistant_panel::Item;
+        let tmp = openstitch_testutil::TempDir::new("recovery-chat");
+        let dir = tmp.path().join(recovery::FOLDER);
+        let mut a = window(&dir);
+        edit(&mut a);
+        let owner = a.chat_doc;
+        a.assistant.panel.owner = Some(owner);
+        a.assistant.panel.items = vec![
+            Item::User("make a box".into()),
+            Item::Assistant("A box.".into()),
+        ];
+        write_now(&mut a, true).expect("snapshot");
+        let own = a.recovery.slot.as_ref().expect("slot").id().to_string();
+        crashed(&dir, &own, "4000000000-3");
+        drop(a);
+        let mut c = window(&dir);
+        restore(&mut c, "4000000000-3").expect("restore");
+        let items = &c.assistant.panel.items;
+        assert_eq!(items[0], Item::User("make a box".into()));
+        assert_eq!(items[1], Item::Assistant("A box.".into()));
     }
 
     /// A crashed window's files under a dead process id, copied from `from`'s snapshot.

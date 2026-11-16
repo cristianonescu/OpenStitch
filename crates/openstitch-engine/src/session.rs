@@ -19,6 +19,9 @@ pub struct EngineState {
     pub capabilities: Capabilities,
     /// Attribute sets and user thread charts (not part of the design).
     pub user: crate::user::UserSettings,
+    /// The Assistant's conversation this document keeps (#1169): read by `project.open`,
+    /// written by `project.save`, cleared by `design.new`. The editor sets it before a save.
+    pub chat: Option<openstitch_design::saved_chat::SavedChat>,
 }
 
 impl EngineState {
@@ -94,6 +97,7 @@ impl Session {
                 sandbox: None,
                 capabilities: Capabilities::FULL,
                 user: Default::default(),
+                chat: None,
             },
             user_path: None,
             user_store: None,
@@ -230,6 +234,16 @@ impl Session {
         &self.state.design
     }
 
+    /// The Assistant's conversation this document keeps (#1169).
+    pub fn chat(&self) -> Option<&openstitch_design::saved_chat::SavedChat> {
+        self.state.chat.as_ref()
+    }
+
+    /// Sets what `project.save` writes as the document's conversation (#1169).
+    pub fn set_chat(&mut self, chat: Option<openstitch_design::saved_chat::SavedChat>) {
+        self.state.chat = chat;
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }
@@ -303,6 +317,9 @@ impl Session {
                 {
                     m.insert("handEditsDropped".into(), json!(self.hand_edits_dropped));
                 }
+                // `project.open` reads the document's conversation, `design.new` clears it
+                // (#1169); it is not part of the design's undo history.
+                self.state.chat = scratch.chat.take();
                 if scratch.design != self.state.design {
                     self.undo
                         .push(std::mem::replace(&mut self.state.design, scratch.design));

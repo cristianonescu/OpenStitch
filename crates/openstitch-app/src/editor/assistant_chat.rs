@@ -203,6 +203,9 @@ pub struct AiPrefs {
     /// "Let the Assistant remember things" (#491): the notes go into each conversation's system
     /// prompt and `notes_write` may change them. Off: neither.
     pub memory: bool,
+    /// "Save the chat with the project" (#1169): a save writes the document's conversation into
+    /// the `.osd`. Off: nothing is written, and a chat the file kept is removed on its next save.
+    pub save_chat: bool,
 }
 
 pub const DEFAULT_MODEL: &str = "claude-opus-5-5";
@@ -227,6 +230,7 @@ impl Default for AiPrefs {
             panel_open: true,
             close_hint: true,
             memory: true,
+            save_chat: true,
         }
     }
 }
@@ -242,7 +246,7 @@ impl AiPrefs {
             "agent": self.agent,
             "imageUrl": self.image_url, "imageModel": self.image_model,
             "panelOpen": self.panel_open, "closeHint": self.close_hint,
-            "memory": self.memory,
+            "memory": self.memory, "saveChat": self.save_chat,
         })
     }
 
@@ -312,6 +316,7 @@ impl AiPrefs {
             panel_open: v["panelOpen"].as_bool().unwrap_or(d.panel_open),
             close_hint: v["closeHint"].as_bool().unwrap_or(d.close_hint),
             memory: v["memory"].as_bool().unwrap_or(d.memory),
+            save_chat: v["saveChat"].as_bool().unwrap_or(d.save_chat),
         }
     }
 }
@@ -538,6 +543,13 @@ pub fn memory_question(command: &str, params: &Value) -> Option<String> {
                 "turn its memory on".into()
             } else {
                 "turn its memory off".into()
+            })
+        }
+        "ui.set" if params["name"] == json!("assistantSaveChat") => {
+            Some(if params["value"] == json!(true) {
+                "save the chat with the project".into()
+            } else {
+                "stop saving the chat with the project".into()
             })
         }
         _ => None,

@@ -625,6 +625,11 @@ pub const SETTINGS: &[Setting] = &[
         "Let the Assistant remember things",
         "bool",
     ),
+    s(
+        "assistantSaveChat",
+        "Save the chat with the project: a save writes the conversation into the .osd; off, nothing is written and a chat the file kept is removed on its next save",
+        "bool",
+    ),
     s("checkUpdates", "Check for updates at startup", "bool"),
     s("includePrereleases", "Include pre-releases", "bool"),
     s("optimizeEntryExit", "Optimize Entry/Exit Points", "bool"),
