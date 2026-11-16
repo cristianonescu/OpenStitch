@@ -102,7 +102,7 @@ the Flatpak are under [More builds](#more-builds); building it yourself is under
 
 ## Status at a glance
 
-Current release: **v0.1.0-alpha.16** ([notes](docs/releases/v0.1.0-alpha.16.md)).
+Current release: **v0.1.0-alpha.17** ([notes](docs/releases/v0.1.0-alpha.17.md)).
 
 OpenStitch is checked against PE-DESIGN 11.50 itself. Simple test designs made in a licensed copy
 through its normal interface are committed under `compat/reference/`. The compatibility harness
@@ -115,7 +115,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Compatibility specs | 524: 524 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 42: 33 at the reference tier, 7 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 8 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 80 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 76 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -698,7 +698,8 @@ tests and the keychain round trip
   every machine format as downloads ([#556], [#693]). No Assistant and no MCP control in the
   browser yet ([#766]).
 - (+) **macOS Finder thumbnails** through a Quick Look extension, for `.osd`, `.pes` and 16 more
-  formats ([#557]).
+  formats ([#557]); since alpha 17 the extension draws with the renderer linked into it, as
+  macOS's sandbox lets it start no helper ([#1182](https://github.com/cristianonescu/OpenStitch/issues/1182)).
 - (+) **Linux file-manager thumbnails** for `.osd` and `.pes`.
 - **File associations** for `.osd` and `.pes` on every OS.
 
@@ -924,6 +925,8 @@ Other things to know:
 - **Builds are not code-signed:** macOS and Windows warn on first launch (see
   [Download](#download)).
 - **macOS:** double-clicking a `.osd` or `.pes` file in Finder does not open it; use File ▸ Open.
+- **macOS 27:** `qlmanage -t` does not reach third-party thumbnail extensions, so it shows no
+  OpenStitch thumbnail from the command line; Finder does show them.
 - **Updates:** versions before v0.1.0-alpha.4 have no updater and must be replaced by hand.
 
 Bugs reported on GitHub:
@@ -948,9 +951,6 @@ Bugs reported on GitHub:
 - [#1155](https://github.com/cristianonescu/OpenStitch/issues/1155) Candlewick: a 40 mm square imported from PE-DESIGN sews 29 knots where PE-DESIGN sews 28
 - [#1160](https://github.com/cristianonescu/OpenStitch/issues/1160) PES 0110: what a candlewick line's +48 and +50 hold (3.0 or 14.0 at +50, not the density)
 - [#1163](https://github.com/cristianonescu/OpenStitch/issues/1163) Zigzag net Density shows 2.25 /mm in the inspector where PE-DESIGN's dialog shows 4.5
-- [#1179](https://github.com/cristianonescu/OpenStitch/issues/1179) Template open and test swatches replace the design but keep the open file's path, so the next Save overwrites the project
-- [#1182](https://github.com/cristianonescu/OpenStitch/issues/1182) macOS Quick Look: qlmanage -t on a .pes hangs with no thumbnail (installed 2026-11-13 build; alpha.15 unverified)
-- [#1198](https://github.com/cristianonescu/OpenStitch/issues/1198) Assistant wording: typed-answer choices on question cards, the replace question for a chat-only change, and acting without asking
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
@@ -1027,7 +1027,6 @@ Open enhancement issues:
 - [#1141](https://github.com/cristianonescu/OpenStitch/issues/1141) Fill Direction: normalise to PE-DESIGN's 0 to 359 on input and import
 - [#1145](https://github.com/cristianonescu/OpenStitch/issues/1145) Convert a satin between its centre-line form and its two-sides form, both ways, keeping the stitches
 - [#1170](https://github.com/cristianonescu/OpenStitch/issues/1170) Assistant: continue a restored chat with the coding agent's own session (ACP session/load)
-- [#1175](https://github.com/cristianonescu/OpenStitch/issues/1175) CI: check THIRD_PARTY_NOTICES.md against cargo metadata, and ship it with the browser version
 - [#1180](https://github.com/cristianonescu/OpenStitch/issues/1180) Commands to drive the Assistant panel for tests and scripting
 - [#1192](https://github.com/cristianonescu/OpenStitch/issues/1192) Sewing Order list: lay out only the rows on screen (a frame takes about 40 ms with 1,000 objects)
 <!-- /status:issues-planned -->

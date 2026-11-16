@@ -15,9 +15,35 @@ The coordinators (Mac: image digitizing, the AI assistant, the kit and calibrati
 tooling, tests; Windows: the stitch engine, formats, lettering and the release gate) refresh
 this file at each day's close-out.
 
-Updated 2026-11-16: alpha.13 to alpha.16 have shipped their plans (summaries below).
-Development is paused after alpha.16 until the owner says to resume. The open work is the
+Updated 2026-11-16: alpha.13 to alpha.17 have shipped their plans (summaries below).
+Development is paused after alpha.17 until the owner says to resume. The open work is the
 Future milestone. The sections after the summaries are the 2026-11-04 round, kept for history.
+
+## Shipped in alpha.17 (2026-11-16)
+
+4 pull requests merged after `v0.1.0-alpha.16`, all on 2026-11-16, small fixes the owner gave the
+go-ahead for after alpha 16:
+
+- **The Assistant:** the question card's recommended answer comes first, marked, and a question
+  left open takes it (#1205); clearer wording on question cards and after an approved step
+  (#1198).
+- **Files:** a template opens as an untitled design, so it can no longer be saved over the
+  project that was open; a test swatch's Open it asks about unsaved changes (#1179).
+- **macOS:** Finder thumbnails and Quick Look work again, with the renderer linked into the
+  extension (#1182).
+- **Licences:** CI checks the third-party notices on every pull request, and the browser version
+  publishes them and links them from Help ▸ About (#1175).
+- **Tested:** automatic tests and CI on the three systems (with CI's macOS thumbnail check); the
+  question card live with Claude Code on Windows; the Quick Look fix on a Mac on its branch
+  build. The macOS release build was not checked by hand (the Mac is shut down), the Windows MSI
+  was not installed, and real Safari was not run.
+
+Still open and in the Future milestone: #1180 and #1170 (the Assistant panel), #1192 (laying out
+only the Sewing Order rows on screen), and the parked #1043/#1071 and #1131/#1088.
+
+Development is paused after alpha.17 until the owner says to resume.
+
+What shipped, by area: [releases/v0.1.0-alpha.17.md](releases/v0.1.0-alpha.17.md).
 
 ## Shipped in alpha.16 (2026-11-16)
 
@@ -44,7 +70,7 @@ Still open and in the Future milestone: #1182 (macOS Finder thumbnails and Quick
 and the CI check), #1198 (Assistant wording), #1180 and #1170 (the Assistant panel), and the
 parked #1043/#1071 and #1131/#1088.
 
-Development is paused after alpha.16 until the owner says to resume.
+Development was paused after alpha.16, then resumed for alpha.17 by the owner's go-ahead.
 
 What shipped, by area: [releases/v0.1.0-alpha.16.md](releases/v0.1.0-alpha.16.md).
 
