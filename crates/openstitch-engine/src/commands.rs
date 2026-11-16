@@ -3494,7 +3494,7 @@ fn file_commands() -> Vec<CommandSpec> {
     let mut v = vec![
         spec(
             "project.save",
-            "Save the editable design (.osd)",
+            "Save the editable design (.osd). In the editor it also writes the Assistant's conversation with the design (text only), unless the setting assistantSaveChat is off",
             Effect::File,
             vec![PATH],
             |s, p| {
@@ -3510,7 +3510,7 @@ fn file_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "project.open",
-            "Open an editable design (.osd), replacing the current one",
+            "Open an editable design (.osd), replacing the current one. A conversation the file kept is shown again in the editor's Assistant panel; the reply has the file's path, and chatRows counts the conversation's rows (0: none)",
             Effect::Edit,
             vec![PATH],
             |s, p| {
@@ -3521,6 +3521,8 @@ fn file_commands() -> Vec<CommandSpec> {
                     "name": s.design.name,
                     "objects": s.design.objects.len(),
                     "path": path.display().to_string(),
+                    // How many rows of the Assistant's conversation the file kept (#1176).
+                    "chatRows": s.chat.as_ref().map_or(0, |c| c.rows.len()),
                 }))
             },
         ),

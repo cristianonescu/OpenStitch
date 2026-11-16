@@ -4841,6 +4841,33 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// #1176: a save the model asks for (`execute project.save`, through the gate) writes the
+    /// conversation as File ▸ Save does, and none with "Save the chat with the project" off.
+    #[test]
+    fn a_save_the_assistant_runs_keeps_the_conversation() {
+        let dir = project_dir("tool-save");
+        for keep in [true, false] {
+            let file = dir.join(format!("{keep}.osd"));
+            let save = ("project.save", json!({ "path": file.display().to_string() }));
+            let (mut app, _) = app_with(vec![
+                reply(std::slice::from_ref(&save), "", "tool_use"),
+                reply(&[], "Saved.", "end_turn"),
+            ]);
+            app.ui.prefs.ai.save_chat = keep;
+            send(&mut app, "save the design".into(), no_wake());
+            run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+            answer(&mut app, 0, Answer::Once);
+            run(&mut app, idle);
+            let v = saved_json(&file);
+            if keep {
+                assert_eq!(v["assistant"]["rows"][0]["text"], "save the design", "{v}");
+            } else {
+                assert!(v.get("assistant").is_none(), "{v}");
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// A conversation alone is an unsaved change while it is saved with the project: talking
     /// without an edit marks the design unsaved, closing asks, autosave sees it, and saving
     /// clears it. Opening a project with a chat is not a change, and New chat on it is.
