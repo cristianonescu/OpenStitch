@@ -47,7 +47,8 @@ impl EditorApp {
     }
 
     /// Edits are one Undo step each; undo/redo act like the Edit menu, so a client's undo also
-    /// undoes a grouped user gesture as a whole.
+    /// undoes a grouped user gesture as a whole. `project.open`, `design.new` and `project.save`
+    /// then do what File ▸ Open, New and Save do ([`EditorApp::after_remote_file_command`]).
     pub(crate) fn remote_request(&mut self, request: &Value) -> Value {
         let command = request
             .get("command")
@@ -56,6 +57,46 @@ impl EditorApp {
         if command == "commands.list" || command.starts_with("ui.") {
             return self.remote_ui_request(command, request);
         }
+        if command == "project.save" {
+            // The Assistant's own saves and a socket client's write the document's conversation
+            // as File ▸ Save does (#1176).
+            crate::assistant_panel::chat_to_session(self);
+        }
+        let reply = self.remote_engine_request(command, request);
+        if reply["ok"] == json!(true) {
+            self.after_remote_file_command(command, &reply["result"]);
+        }
+        reply
+    }
+
+    /// What the editor does after the menu's own Open, New and Save, for the same commands from
+    /// the Assistant or a socket client (#1178): the opened file becomes the document's file,
+    /// with a new conversation identity and the chat it kept (`after_open`; during the
+    /// Assistant's turn its conversation goes on and the file keeps its own); a new design is a
+    /// new document (`after_load`); a save makes that file the document's file, as Save As does,
+    /// and the conversation stays with it.
+    fn after_remote_file_command(&mut self, command: &str, result: &Value) {
+        let path = || result["path"].as_str().map(std::path::PathBuf::from);
+        match command {
+            "project.open" => {
+                if let Some(p) = path() {
+                    self.after_open(&p);
+                }
+            }
+            "design.new" => self.after_load(None),
+            "project.save" => {
+                if let Some(p) = path() {
+                    self.status = openstitch_app::tf!("ui-status-saved", path = p.display());
+                    self.ui.add_recent(&p);
+                    self.path = Some(p);
+                    self.mark_saved();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn remote_engine_request(&mut self, command: &str, request: &Value) -> Value {
         match self.session.permits(command).map(|c| c.effect) {
             Ok(Effect::History) => {
                 let undo = command == "history.undo";

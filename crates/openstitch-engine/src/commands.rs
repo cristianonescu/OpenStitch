@@ -3514,9 +3514,14 @@ fn file_commands() -> Vec<CommandSpec> {
             Effect::Edit,
             vec![PATH],
             |s, p| {
-                let (_, data) = read_file(s, p, project::MAX_SIZE)?;
+                let (path, data) = read_file(s, p, project::MAX_SIZE)?;
                 (s.design, s.chat) = project::decode_with_chat(&data)?;
-                Ok(json!({ "name": s.design.name, "objects": s.design.objects.len() }))
+                // The file opened, for the editor's title and its next Save (#1178).
+                Ok(json!({
+                    "name": s.design.name,
+                    "objects": s.design.objects.len(),
+                    "path": path.display().to_string(),
+                }))
             },
         ),
     ];
