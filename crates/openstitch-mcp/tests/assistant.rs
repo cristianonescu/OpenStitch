@@ -638,6 +638,33 @@ fn view_render_returns_an_image_block_and_the_stats() {
 
 /// #1172: ask_user and suggest_replies forward to the editor's ui.askUser and ui.suggestReplies;
 /// ask_user's result tells the model to end its turn.
+/// #1205: ask_user's description and schema say the first choice is the one the assistant
+/// recommends, and what a skipped question means.
+#[test]
+fn ask_user_puts_the_recommended_answer_first() {
+    let (editor, client) = Editor::start();
+    let mut mcp = Mcp::new(client);
+    let list: Value = serde_json::from_str(&mcp.list_line()).expect("json");
+    let tool = list["result"]["tools"]
+        .as_array()
+        .expect("tools")
+        .iter()
+        .find(|t| t["name"] == "ask_user")
+        .expect("ask_user")
+        .clone();
+    let d = tool["description"].as_str().expect("description");
+    assert!(d.contains("the one you recommend first"), "{d}");
+    assert!(d.contains("your recommended (first) answer"), "{d}");
+    let choices = &tool["inputSchema"]["properties"]["questions"]["items"]["properties"]["choices"];
+    assert!(
+        choices["description"]
+            .as_str()
+            .is_some_and(|s| s.contains("the recommended one first")),
+        "{choices}"
+    );
+    editor.finish();
+}
+
 #[test]
 fn ask_user_and_suggest_replies_forward_and_say_what_comes_next() {
     let (editor, client) = Editor::start();

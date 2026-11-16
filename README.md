@@ -650,8 +650,9 @@ circle, and the whole message is one undo step.*
   opens the assistant runs are handled as File ▸ Save and Open are ([#1176], [#1178],
   [#1187]).
 - (+) **Questions and suggested replies:** before a new design it asks 5 to 10 questions with
-  answer chips (or uses its judgment); after every reply it offers a suggested message and chips,
-  and **Fix** chips when Check Design finds errors or warnings ([#1172]).
+  answer chips, its recommended answer first and marked so, or a typed answer (or it uses its
+  judgment and takes its recommendations); after every reply it offers a suggested message and
+  chips, and **Fix** chips when Check Design finds errors or warnings ([#1172], [#1205]).
 - (+) **Your threads only:** colours come from your own or a named chart, and catalogue numbers are
   looked up, never invented ([#495]).
 - (+) **Embroidery skill** with illustrated example designs and a composition guide, and a
@@ -767,6 +768,7 @@ tests and the keychain round trip
 [#1186]: https://github.com/cristianonescu/OpenStitch/issues/1186
 [#1188]: https://github.com/cristianonescu/OpenStitch/issues/1188
 [#1172]: https://github.com/cristianonescu/OpenStitch/issues/1172
+[#1205]: https://github.com/cristianonescu/OpenStitch/issues/1205
 [#492]: https://github.com/cristianonescu/OpenStitch/issues/492
 [#493]: https://github.com/cristianonescu/OpenStitch/issues/493
 [#494]: https://github.com/cristianonescu/OpenStitch/issues/494
