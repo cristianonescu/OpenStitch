@@ -166,7 +166,7 @@ fn the_test_swatches_leave_the_open_design_and_its_file_alone() {
                 let r = app.remote_request(&json!({ "command": command, "params": params }));
                 assert_eq!(r["ok"], json!(true), "{command}: {r}");
             } else {
-                app.execute(&CommandRequest::new(*command, params))
+                app.execute(&CommandRequest::new(command, params))
                     .unwrap_or_else(|| panic!("{command}: {}", app.status));
             }
             assert!(out.is_file(), "{command} wrote its file");
