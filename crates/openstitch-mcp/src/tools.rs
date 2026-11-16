@@ -24,6 +24,8 @@ pub enum Meta {
     ViewRender,
     ScratchWrite,
     ScratchView,
+    AskUser,
+    SuggestReplies,
     SkillReference,
     NotesRead,
     NotesWrite,

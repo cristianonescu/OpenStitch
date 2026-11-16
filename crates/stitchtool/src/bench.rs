@@ -1234,6 +1234,14 @@ impl Headless {
                 })
             }
             "ui.scratchWrite" => self.scratch_write(params),
+            // #1172: nobody answers questions here; the task goes on with stated assumptions.
+            "ui.askUser" => Ok(json!({
+                "shown": 0,
+                "next": "No user is here to answer: do not wait; use your judgment, say what you assumed, and do the work now.",
+            })),
+            "ui.suggestReplies" => {
+                Ok(json!({ "shown": params["chips"].as_array().map_or(0, Vec::len) }))
+            }
             "ui.notesRead" => Ok(self.notes_json()),
             "ui.notesWrite" => self.notes_write(params),
             _ => return self.session.handle(request),

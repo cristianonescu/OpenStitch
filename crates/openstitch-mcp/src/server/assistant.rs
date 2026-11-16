@@ -15,7 +15,9 @@ command_describe; prefer run_batch to many execute calls. Check your work with v
 design.info. Lengths are millimetres, angles degrees. Never claim a result you did not check. \
 Pictures: an attached one is in the scratch folder (scratch_view shows it); stitch it with \
 digitize.autoPunch (compatMode openStitch). Else use generate_image if offered, or an SVG via \
-scratch_write and import.svg; say why. Save lasting user facts with notes_write; never secrets.";
+scratch_write and import.svg; say why. Save lasting user facts with notes_write; never secrets. \
+A new design or large change with open choices: first ask_user 5-10 real questions, then stop; \
+small or exact requests: none. Call suggest_replies with your last other tool call, never alone.";
 
 /// The notes sections (`openstitch_assistant::notes::SECTIONS`; this crate does not depend on
 /// it, and the editor checks the names again).
@@ -171,6 +173,65 @@ pub(super) fn tools(max_batch_steps: usize, max_render_pixels: u32) -> Vec<Tool>
                     "file": { "type": "string", "minLength": 1, "description": "The picture's file name in the scratch folder (.png, .jpg, .jpeg or .bmp), such as attached-logo.png" },
                 },
                 "required": ["file"],
+                "additionalProperties": false,
+            }),
+            read.clone(),
+        ),
+        (
+            "ask_user",
+            Meta::AskUser,
+            "Ask the user",
+            "Ask clarifying questions before a new design or a large change that leaves real \
+             choices open (size and hoop, fabric, colours, style, lettering, stitch types, \
+             density, what must stay): 5 to 10 questions, only ones whose answer would change the \
+             result, each with 2 to 4 short answer choices. Never ask what the request, the design \
+             or your notes already answer; ask nothing for a small or fully specified request. \
+             The user sees a card with answer chips and can always type their own answer or \
+             skip, so every choice is an answer itself, never \"I'll type it\". After calling it, end \
+             your turn without doing the work: the answers come as the next user message. If the \
+             user says to use your judgment, go on and state what you assumed."
+                .to_string(),
+            json!({
+                "type": "object",
+                "properties": {
+                    "intro": { "type": "string", "maxLength": 300, "description": "One short line before the questions (optional)" },
+                    "questions": {
+                        "type": "array", "minItems": 1, "maxItems": 10,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "question": { "type": "string", "minLength": 1, "maxLength": 200, "description": "One short question" },
+                                "choices": { "type": "array", "minItems": 2, "maxItems": 4, "items": { "type": "string", "minLength": 1, "maxLength": 60 }, "description": "2 to 4 different short answers" },
+                            },
+                            "required": ["question", "choices"],
+                            "additionalProperties": false,
+                        },
+                    },
+                },
+                "required": ["questions"],
+                "additionalProperties": false,
+            }),
+            read.clone(),
+        ),
+        (
+            "suggest_replies",
+            Meta::SuggestReplies,
+            "Suggest replies",
+            "What the user is likely to say next, shown when your reply ends as one suggested \
+             message (Send or Edit) and 1 to 4 short chips. Call it once per reply in the same \
+             step as your last other tool call (beside the final view_render or design.check), \
+             so it adds no step; never call it alone after your answer. In a reply with no other \
+             tool call, do not call it: the panel shows its own suggestions. Write them as the user \
+             would, specific to this design (\"Make the lettering 8 mm\", \"Export it as PES\"). \
+             Nothing is sent until the user clicks one. Plain text only."
+                .to_string(),
+            json!({
+                "type": "object",
+                "properties": {
+                    "message": { "type": "string", "minLength": 1, "maxLength": 300, "description": "The one suggested reply" },
+                    "chips": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "string", "minLength": 1, "maxLength": 80 }, "description": "1 to 4 short replies" },
+                },
+                "required": ["message", "chips"],
                 "additionalProperties": false,
             }),
             read.clone(),
@@ -337,6 +398,28 @@ impl Server {
                     .map(|v| tool_success(&v))
             }
             Meta::ScratchView => self.scratch_view(arguments),
+            Meta::AskUser => {
+                only("ask_user", arguments, &["intro", "questions"])?;
+                let reply = self.run("ui.askUser", arguments)?;
+                let n = reply.get("shown").and_then(Value::as_u64).unwrap_or(0);
+                // A host with nobody to ask (the bench) says what to do instead.
+                if n == 0
+                    && let Some(next) = reply.get("next").and_then(Value::as_str)
+                {
+                    return Ok(text_result(next));
+                }
+                Ok(text_result(&format!(
+                    "The user sees your {n} questions with answer chips. End your turn now \
+                     without doing the work; their answers come as the next message."
+                )))
+            }
+            Meta::SuggestReplies => {
+                only("suggest_replies", arguments, &["message", "chips"])?;
+                self.run("ui.suggestReplies", arguments)?;
+                Ok(text_result(
+                    "Shown under your reply; nothing is sent until the user clicks.",
+                ))
+            }
             Meta::SkillReference => skill_reference(arguments),
             Meta::NotesRead => {
                 only("notes_read", arguments, &[])?;

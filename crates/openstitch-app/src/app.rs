@@ -110,7 +110,7 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 39] = [
+pub const SHOW: [&str; 41] = [
     "update",
     "stitch-table",
     "large-text",
@@ -147,6 +147,8 @@ pub const SHOW: [&str; 39] = [
     "print",
     "assistant",
     "assistant-notices",
+    "assistant-questions",
+    "assistant-suggestions",
     "basic",
     "getting-started",
     "machine-setup",
@@ -597,6 +599,9 @@ impl EditorApp {
                     }
                 }
                 "assistant-notices" => crate::assistant_panel::show_sample_notices(self),
+                // #1172: a question card, and a reply's suggestions with fix chips.
+                "assistant-questions" => crate::assistant_panel::show_sample_offers(self, true),
+                "assistant-suggestions" => crate::assistant_panel::show_sample_offers(self, false),
                 // Sewing Attributes in its Basic view (#553), not saved.
                 "basic" => self.ui.prefs.advanced_attributes = false,
                 "getting-started" => self.ui.start.page_open = true,
