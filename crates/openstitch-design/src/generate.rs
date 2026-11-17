@@ -387,6 +387,8 @@ pub fn join_short_stitches(run: &mut Run) {
 
 /// Shortest row span [`fill_edge_to_edge`] sews, 0.1 mm.
 const MIN_EDGE_ROW_SPAN: f64 = 3.0;
+/// How near a row's sampled line lies to the start point to count as the row through it, 0.1 mm.
+const ROW_THROUGH: f64 = 1e-2;
 
 /// [`fill_shifted`] with PE-DESIGN's row placement: the first row lies on one edge of the
 /// region and the last on the other (a 40 mm square at 4.5 rows/mm has 181 rows), instead of
@@ -401,23 +403,35 @@ pub fn fill_edge_to_edge(
     entry: Option<Vec2>,
     sloped: bool,
 ) -> Vec<Run> {
-    fill_edge_to_edge_travel(contours, p, holes, stagger, entry, sloped, false)
+    fill_edge_to_edge_travel(
+        contours, p, holes, stagger, entry, None, sloped, false, None,
+    )
 }
 
 /// [`fill_edge_to_edge`] whose travel from the entry point to the first row, between its
 /// halves and back walks along the outline when `along` is set (#628), instead of PE-DESIGN's
-/// straight run across the region.
+/// straight run across the region. With an `exit` point other than the entry, a Type 1 fill
+/// whose every row is one span ends there: its halves meet on the exit, and the travel to the
+/// first of them starts from the entry (see [`pe_halves`]). `origin` is the origin of
+/// PE-DESIGN's coordinates in design space, where a Type 1 fill's needle grid starts (see
+/// [`edge_rows_travel`]).
+// The fill entry points pass their few switches straight through.
+#[allow(clippy::too_many_arguments)]
 pub fn fill_edge_to_edge_travel(
     contours: &[Contour],
     p: &RegionParams,
     holes: &[Contour],
     stagger: Stagger,
     entry: Option<Vec2>,
+    exit: Option<Vec2>,
     sloped: bool,
     along: bool,
+    origin: Option<Vec2>,
 ) -> Vec<Run> {
-    let mut runs =
-        edge_rows_travel(contours, p, holes, stagger, entry, sloped, along, false).swap_remove(0);
+    let mut runs = edge_rows_travel(
+        contours, p, holes, stagger, entry, exit, sloped, along, false, origin,
+    )
+    .swap_remove(0);
     runs.iter_mut().for_each(join_short_stitches);
     runs
 }
@@ -438,9 +452,13 @@ pub fn fill_edge_to_edge_travel_hidden(
     holes: &[Contour],
     stagger: Stagger,
     entry: Option<Vec2>,
+    exit: Option<Vec2>,
     sloped: bool,
+    origin: Option<Vec2>,
 ) -> Vec<Vec<Run>> {
-    let mut candidates = edge_rows_travel(contours, p, holes, stagger, entry, sloped, false, true);
+    let mut candidates = edge_rows_travel(
+        contours, p, holes, stagger, entry, exit, sloped, false, true, origin,
+    );
     for runs in &mut candidates {
         runs.iter_mut().for_each(join_short_stitches);
     }
@@ -457,7 +475,10 @@ pub(crate) fn edge_to_edge_rows(
     entry: Option<Vec2>,
     sloped: bool,
 ) -> Vec<Run> {
-    edge_rows_travel(contours, p, holes, stagger, entry, sloped, false, false).swap_remove(0)
+    edge_rows_travel(
+        contours, p, holes, stagger, entry, None, sloped, false, false, None,
+    )
+    .swap_remove(0)
 }
 
 // The fill entry points pass their few switches straight through (#469 added `hidden`).
@@ -470,18 +491,34 @@ fn edge_rows_travel(
     holes: &[Contour],
     stagger: Stagger,
     entry: Option<Vec2>,
+    exit: Option<Vec2>,
     sloped: bool,
     along: bool,
     hidden: bool,
+    origin: Option<Vec2>,
 ) -> Vec<Vec<Run>> {
     let l = p.stitch_length;
     let start = entry.map(|e| e.rotated(-p.angle.to_radians()));
-    let anchor = grid_anchor(contours, p, holes);
-    if let (Some(s), Some(a)) = (start, anchor)
+    // Where the halves of a convex Type 1 fill meet: its end point, the start point without
+    // one (PE-DESIGN 11.50, machine-jumps' and sew-order-six-objects' squares; #1088).
+    let end = exit
+        .filter(|_| !sloped)
+        .map(|e| e.rotated(-p.angle.to_radians()))
+        .or(start);
+    // PE-DESIGN 11.50 lays a Fill's needle grid out from the origin of its own coordinates
+    // (`origin`, see `compile::PE_ORIGIN`): seen from there along the rows, row k's grid lies
+    // at (k + 1) times the Frequency's step, whatever the shape and wherever it is (the sweep
+    // squares at 0, 30, 45, 90 and 135 degrees, tatami-40-pos0 and -pos2, machine-jumps'
+    // squares; #1131). Stitch Type 2's grid stays with the shape (tatami-40-st2-dir30,
+    // -pos0-st2-dir30 and -pos2-st2-dir30 hold the same needle points at three places), as
+    // does a fill sewn without an origin.
+    let anchor = fill_anchor(contours, p, holes, sloped, origin);
+    if let (Some(from), Some(s), Some(a)) = (start, end, anchor)
         && let Some(run) = pe_halves(
-            &edge_row_spans(contours, p, holes, true),
+            &edge_row_spans(contours, p, holes, true, !sloped, !sloped),
             p,
             stagger,
+            from,
             s,
             a,
             sloped,
@@ -493,7 +530,14 @@ fn edge_rows_travel(
     // Regions with several spans per row keep the older order; with a Frequency their rows
     // take PE-DESIGN's spacing (stretched to the far edge, as in its pentagon) and grid (row k
     // at (k + 1)·shift from the rotated bounds' minimum, points down to 0.3 mm from the ends).
-    let spans = edge_row_spans(contours, p, holes, stagger.anchored(0).is_some());
+    let spans = edge_row_spans(
+        contours,
+        p,
+        holes,
+        stagger.anchored(0).is_some(),
+        !sloped,
+        false,
+    );
     let min_x = anchor;
     // The needle grid moves on in sewing order, as in PE-DESIGN 11: a fill sewn from its last
     // row (an entry at the bottom of a rectangle) counts the rows from there.
@@ -864,6 +908,36 @@ pub(crate) fn grid_anchor(
     )
 }
 
+/// Where a fill's needle grid starts along its rows (rotated space): at `origin` for a Type 1
+/// fill sewn with one (see [`edge_rows_travel`]), else at the shape ([`grid_anchor`]).
+pub(crate) fn fill_anchor(
+    contours: &[Contour],
+    p: &RegionParams,
+    holes: &[Contour],
+    sloped: bool,
+    origin: Option<Vec2>,
+) -> Option<f64> {
+    grid_anchor(contours, p, holes).map(|a| match origin {
+        Some(o) if !sloped => o.rotated(-p.angle.to_radians()).x,
+        _ => a,
+    })
+}
+
+/// The rows of a Type 1 [`fill_edge_to_edge`] across the region (rotated space): where row 0
+/// lies and how far apart the rows are, stretched to end on the far edge.
+pub(crate) fn fill_row_frame(contours: &[Contour], p: &RegionParams) -> Option<(f64, f64)> {
+    let b = crate::region::rotated_bounds(contours, p.angle)?;
+    let (h, s) = (b.height(), p.row_spacing);
+    (h > 0.0 && s > 0.0).then(|| (b.min_y, h / stretched_gaps(h, s) as f64))
+}
+
+/// How many row gaps PE-DESIGN 11.50 fits into a height `h` at `s` apart: the nearest whole
+/// number, a half going down (at 4.5 rows/mm 148.5 gaps sew as 148, 31.8 as 32, 245.9 as 246,
+/// 254.6 as 255; #1131).
+fn stretched_gaps(h: f64, s: f64) -> usize {
+    ((h / s) - 0.5 - 1e-6).ceil().clamp(1.0, 100_000.0) as usize
+}
+
 /// PE-DESIGN's needle grid inside `span` (its ends left out): every `l` from `phase`, without
 /// points closer than [`PE_END_GAP`] to an end.
 pub(crate) fn pe_grid(span: &Span, phase: f64, l: f64) -> Vec<f64> {
@@ -885,22 +959,34 @@ pub(crate) fn pe_grid(span: &Span, phase: f64, l: f64) -> Vec<f64> {
 
 /// PE-DESIGN 11's fill order for a region whose every row is one span (a convex region),
 /// starting and ending at `s` (rotated space). The rows on each side of `s` are a half, sewn
-/// from its far edge in towards `s`; the row through `s` belongs to both, and a half holding
-/// nothing but that row is left out. The half on the rotated minimum side goes first. Each
-/// half's first row is sewn along the row direction (+x) and its last row back (−x), so the
-/// first row is sewn out and back when the half has an odd number of rows. Rows sewn +x keep
-/// both edge points; rows sewn −x have none (the stitches go straight from row to row), except
-/// a half's last row, and except when rows are more than [`FILL_TRAVEL`] apart: then every row
+/// from its far edge in towards `s`; the half on the rotated minimum side goes first. A row
+/// lying exactly on `s` closes the first half, and the second half too unless it would be sewn
+/// there as one of that half's edge rows (see `shared` below); a half holding nothing but that
+/// row is left out.
+///
+/// Each half's last row is sewn towards its end nearer `s`, and the rows before it alternate.
+/// Which rows keep both edge points depends on where the half starts (#1131):
+/// - at a full row (rows along an edge of the outline), the rows sewn forward (+x) keep them;
+///   the travel from `s` reaches that row's low end, so the row is sewn out and back when it
+///   has to be sewn back;
+/// - at a corner of the outline, which is one needle point, the rows sewn back (−x) keep them
+///   (PE-DESIGN 11.50's squares at 30, 45 and 135 degrees, its 5 and 15 mm squares, an ellipse).
+///
+/// The other rows have no edge points (the stitches go straight from row to row), except a
+/// half's last row, and except when rows are more than [`FILL_TRAVEL`] apart: then every row
 /// keeps its ends and the needle walks from row to row in stitches up to that length. Straight
 /// runs of stitches up to [`FILL_TRAVEL`] go from `s` to each half's first row and from the last
 /// row back to `s`. Row k's needle grid lies `(k + 1)·shift` of a stitch from `min_x` (see
-/// [`grid_anchor`]), k counted from the minimum side (PE's Frequency, or the seeded random
+/// [`edge_rows_travel`]), k counted from the minimum side (PE's Frequency, or the seeded random
 /// stagger); with [`Stagger::Third`] the old ⅓ stagger stays.
 /// `None` when a row has more than one span or there are no rows.
+// One argument per switch of the fill (#469 added the last on the callers' side).
+#[allow(clippy::too_many_arguments)]
 fn pe_halves(
     spans: &[RowSpan],
     p: &RegionParams,
     stagger: Stagger,
+    from: Vec2,
     s: Vec2,
     min_x: f64,
     sloped: bool,
@@ -917,10 +1003,24 @@ fn pe_halves(
     } else {
         p.row_spacing
     };
-    // The row through s: the nearest row within half a spacing.
-    let through = spans
-        .iter()
-        .position(|r| (r.y - s.y).abs() <= gap / 2.0 + 1e-9);
+    let pull = p.pull_compensation.max(0.0);
+    // A corner of the outline: a row that is one needle point.
+    let point = |r: &RowSpan| r.range.end() - r.range.start() - 2.0 * pull < MIN_EDGE_ROW_SPAN;
+    // A row is sewn last towards its end nearer s (the low end when s is midway).
+    let closing = |r: &RowSpan| (r.range.end() - s.x).abs() < (s.x - r.range.start()).abs() - 1e-6;
+    // The row through s closes the first half: the row lying on s (rows are sampled just
+    // inside their line, so within a hundredth). It closes the second half too only where it
+    // is not sewn the way that half's edge rows are: forward from a corner (machine-jumps'
+    // squares), back from a full row (tatami-40-st1-dir90), not back from a corner
+    // (fill-square-5mm-under-sewing). Stitch Type 2 keeps its earlier rule: the row nearest s,
+    // within half a spacing, ends both halves.
+    let reach = if sloped {
+        gap / 2.0 + 1e-9
+    } else {
+        ROW_THROUGH
+    };
+    let through = spans.iter().position(|r| (r.y - s.y).abs() <= reach);
+    let shared = sloped || through.is_some_and(|t| closing(&spans[t]) == point(last));
     let low: Vec<&RowSpan> = spans
         .iter()
         .enumerate()
@@ -930,27 +1030,27 @@ fn pe_halves(
     let mut high: Vec<&RowSpan> = spans
         .iter()
         .enumerate()
-        .filter(|(i, r)| through.map_or(r.y > s.y, |t| *i >= t))
+        .filter(|(i, r)| through.map_or(r.y > s.y, |t| if shared { *i >= t } else { *i > t }))
         .map(|(_, r)| r)
         .collect();
     high.reverse();
     let mut halves = vec![low, high];
-    let shared_only = |h: &Vec<&RowSpan>| h.len() == 1 && through.is_some();
+    let shared_only =
+        |h: &Vec<&RowSpan>| h.len() == 1 && through.is_some_and(|t| h[0].row == spans[t].row);
     if halves.iter().any(|h| h.len() > 1) {
         halves.retain(|h| !h.is_empty() && !shared_only(h));
     }
     let walk = gap > FILL_TRAVEL;
-    let pull = p.pull_compensation.max(0.0);
+    // Rows count from the region's first edge, sewn or not (a sharp tip's first rows are not).
     let grid = |r: &RowSpan| -> Vec<f64> {
-        let k = (r.row - first.row) as f64;
-        let phase = match stagger.anchored(k as usize) {
+        let phase = match stagger.anchored(r.row) {
             Some(f) => min_x + f * l,
             None => stagger.phase(r.row) * l,
         };
         pe_grid(&r.range, phase, l)
     };
     let home = from_rotated(s, p.angle);
-    let mut run: Run = vec![home];
+    let mut run: Run = vec![from_rotated(from, p.angle)];
     // Straight travel in equal stitches up to FILL_TRAVEL; a needle point within 0.1 mm of
     // the target (a row end sampled just inside the outline) is moved onto it.
     let go = |run: &mut Run, to: Vec2| {
@@ -990,43 +1090,67 @@ fn pe_halves(
             go(&mut run, home);
             continue;
         }
-        let odd = half.len() % 2 == 1;
-        let mut passes = vec![(half[0], true)];
-        if odd {
-            passes.push((half[0], false));
-        }
-        for (i, r) in half.iter().enumerate().skip(1) {
-            passes.push((r, (i % 2 == 1) == odd));
+        let m = half.len();
+        let (far, near) = (half[0], half[m - 1]);
+        let closing = closing(near);
+        let dir = |i: usize| ((m - 1 - i) % 2 == 0) == closing;
+        // Each pass: its row, sewn forward (+x), with its edge points.
+        let mut passes: Vec<(&RowSpan, bool, bool)> = Vec::with_capacity(m + 1);
+        if point(far) {
+            // From a corner of the outline, one needle point: the rows sewn back keep their
+            // edge points.
+            passes.extend(half.iter().enumerate().map(|(i, r)| (*r, dir(i), !dir(i))));
+        } else {
+            // From a row's low end: the rows sewn forward keep them, and the first row is sewn
+            // out and back when it would otherwise start at its far end.
+            if !dir(0) {
+                passes.push((far, true, true));
+            }
+            passes.extend(half.iter().enumerate().map(|(i, r)| (*r, dir(i), dir(i))));
         }
         let n = passes.len();
-        for (i, (r, forward)) in passes.into_iter().enumerate() {
+        for (i, (r, forward, edges)) in passes.into_iter().enumerate() {
             let (lo, hi) = (*r.range.start(), *r.range.end());
-            let mut xs = grid(r);
-            let ends = forward || walk || i + 1 == n;
-            if ends {
+            // A corner of the outline is one needle point.
+            let (lo, hi) = if point(r) {
+                ((lo + hi) / 2.0, (lo + hi) / 2.0)
+            } else {
+                (lo, hi)
+            };
+            let mut xs = if point(r) { Vec::new() } else { grid(r) };
+            if edges || walk || i + 1 == n {
                 xs.insert(0, lo);
                 xs.push(hi);
             }
             if !forward {
                 xs.reverse();
             }
+            // Travel reaches the outline; the row end lies the pull compensation beyond.
+            let edge = |start: bool| {
+                let x = if forward == start {
+                    lo + pull
+                } else {
+                    hi - pull
+                };
+                from_rotated(v2(x.clamp(lo, hi), r.y), p.angle)
+            };
             let pts: Vec<Vec2> = xs
                 .iter()
                 .map(|&x| from_rotated(v2(x, r.y), p.angle))
                 .collect();
-            let Some(&head) = pts.first() else { continue };
             if i == 0 {
-                // Travel reaches the outline; the row end lies the pull compensation beyond.
-                go(&mut run, from_rotated(v2(lo + pull, r.y), p.angle));
-                run.push(head);
-            } else if walk {
-                go(&mut run, head);
-            } else {
-                run.push(head);
+                go(&mut run, edge(true));
             }
-            run.extend(pts.into_iter().skip(1));
+            if let Some(&head) = pts.first() {
+                if i == 0 || !walk {
+                    run.push(head);
+                } else {
+                    go(&mut run, head);
+                }
+                run.extend(pts.into_iter().skip(1));
+            }
             if i + 1 == n {
-                go(&mut run, from_rotated(v2(lo + pull, r.y), p.angle));
+                go(&mut run, edge(false));
             }
         }
         go(&mut run, home);
@@ -1096,12 +1220,17 @@ fn sloped_half(
 /// fills the height and the last row lies on the far edge (PE-DESIGN: 149 rows over 33 mm at
 /// 4.5 rows/mm, 33/148 mm apart). Spans shorter than
 /// [`MIN_EDGE_ROW_SPAN`] are left out: an end row that only touches a curved outline at its
-/// tip would otherwise be a stitch a fraction of a millimetre long.
+/// tip would otherwise be a stitch a fraction of a millimetre long. With `nearest` the
+/// stretched rows take PE-DESIGN's count ([`stretched_gaps`]) instead of the whole gaps that
+/// fit; with `corners` the first and last row stay however short they are, for [`pe_halves`]:
+/// a corner of the outline that PE-DESIGN sews as one needle point.
 fn edge_row_spans(
     contours: &[Contour],
     p: &RegionParams,
     holes: &[Contour],
     stretch: bool,
+    nearest: bool,
+    corners: bool,
 ) -> Vec<RowSpan> {
     let Some(b) = crate::region::rotated_bounds(contours, p.angle) else {
         return Vec::new();
@@ -1110,27 +1239,45 @@ fn edge_row_spans(
     if !(h > 0.0 && s > 0.0) {
         return Vec::new();
     }
-    let n = ((h / s) + 1e-6).floor().clamp(1.0, 100_000.0) as usize;
+    let n = if stretch && nearest {
+        stretched_gaps(h, s)
+    } else {
+        ((h / s) + 1e-6).floor().clamp(1.0, 100_000.0) as usize
+    };
     let s = if stretch { h / n as f64 } else { s };
     let inside = 1e-3_f64.min(h / 4.0);
-    (0..=n)
+    let mut spans: Vec<RowSpan> = (0..=n)
         .flat_map(|row| {
             // Sampled just past the row's line, so a row on a horizontal edge inside the region
             // (a notch's end) does not run along that edge across the gap.
             let y = (b.min_y + row as f64 * s + inside).clamp(b.min_y + inside, b.max_y - inside);
+            let corner = corners && (row == 0 || row == n);
             crate::region::spans_at(contours, holes, p.angle, y)
                 .into_iter()
                 .filter_map(move |sp| {
                     let lo = sp.start() - p.pull_compensation;
                     let hi = sp.end() + p.pull_compensation;
-                    (hi - lo >= MIN_EDGE_ROW_SPAN).then_some(RowSpan {
+                    (hi - lo >= MIN_EDGE_ROW_SPAN || corner).then_some(RowSpan {
                         row,
                         y,
                         range: lo..=hi,
                     })
                 })
         })
-        .collect()
+        .collect();
+    if corners {
+        // A corner row stays only next to a sewn row: at a sharp tip, where the rows beside it
+        // are left out as well, it goes with them.
+        let short = |r: &RowSpan| r.range.end() - r.range.start() < MIN_EDGE_ROW_SPAN;
+        if spans.len() > 1 && short(&spans[0]) && spans[1].row != spans[0].row + 1 {
+            spans.remove(0);
+        }
+        let k = spans.len();
+        if k > 1 && short(&spans[k - 1]) && spans[k - 2].row + 1 != spans[k - 1].row {
+            spans.pop();
+        }
+    }
+    spans
 }
 
 /// Tatami needle positions along `span`: its ends, and the `l` grid shifted by `phase` in

@@ -42,18 +42,21 @@ pub fn layers_with(
     holes: &[Contour],
     user: &[Pattern],
 ) -> Vec<Vec<Run>> {
-    layers_for(closed, r, holes, user, false)
+    layers_for(closed, r, holes, user, false, None)
 }
 
 /// [`layers_with`] for a letter of a text when `letter` is set: its fill under sewing keeps
 /// OpenStitch's earlier start and way into its rows, since no PE-DESIGN capture shows a
-/// letter's (#1088, as #1082 for its joins).
+/// letter's (#1088, as #1082 for its joins). `origin` is the origin of PE-DESIGN's coordinates
+/// in the contours' own, where a Fill's needle grid starts (#1131); without it the grid starts
+/// at the shape.
 pub fn layers_for(
     closed: &[Contour],
     r: &RegionSewing,
     holes: &[Contour],
     user: &[Pattern],
     letter: bool,
+    origin: Option<Vec2>,
 ) -> Vec<Vec<Run>> {
     // Entry and exit points off the outline (a node moved after they were placed, as
     // `object.setPoint` leaves them) are sewn where they snap to it: a fill travelled to the
@@ -72,11 +75,61 @@ pub fn layers_for(
     } else {
         r
     };
-    let mut out = layers_inner(closed, r, holes, user, letter);
+    let mut out = layers_inner(closed, r, holes, user, letter, origin);
     if r.kind == RegionType::Satin && r.underlay {
         link_underlay(&mut out, closed, holes);
     }
     out
+}
+
+/// The rows and needle grid of `r`'s top stitching when it is a plain Fill (Stitch Type 1, a
+/// Frequency, none of the fills that bend, split or thin its rows): what an engraved stamp
+/// lays its own grid on ([`crate::stamp::Rows`], #1144). `origin` as for [`layers_for`].
+pub(crate) fn plain_fill_rows(
+    closed: &[Contour],
+    r: &RegionSewing,
+    holes: &[Contour],
+    origin: Option<Vec2>,
+) -> Option<crate::stamp::Rows> {
+    let plain = r.kind == RegionType::Fill
+        && r.stitch_type != FillStitchType::Two
+        && r.direction_curve.is_none()
+        && r.direction_lines.len() < 2
+        && r.tartan.is_none()
+        && r.gradient.is_none()
+        && r.angle_lines.len() < 2
+        && r.flow_field.is_none()
+        && r.wave().is_none()
+        && r.sewn_gradation().is_none()
+        && r.sewn_feather().is_none()
+        && r.split_length.is_none()
+        && r.push_compensation.is_none_or(|p| p <= 0.0);
+    let generate::Stagger::Regular(shift) = r.fill_stagger() else {
+        return None;
+    };
+    if !plain {
+        return None;
+    }
+    let angle = if r.auto_direction {
+        auto_angle(closed)
+    } else {
+        geometry_angle(r.angle)
+    };
+    let p = RegionParams {
+        angle,
+        row_spacing: 10.0 / r.density.max(0.1),
+        stitch_length: r.stitch_length * 10.0,
+        pull_compensation: r.pull_compensation * 10.0,
+    };
+    let (first, gap) = generate::fill_row_frame(closed, &p)?;
+    let anchor = generate::fill_anchor(closed, &p, holes, false, origin)?;
+    Some(crate::stamp::Rows {
+        angle,
+        first,
+        gap,
+        anchor,
+        shift,
+    })
 }
 
 /// Satin: the under sewing layers become one run that travels inside the region from layer
@@ -162,6 +215,7 @@ fn layers_inner(
     holes: &[Contour],
     user: &[Pattern],
     letter: bool,
+    origin: Option<Vec2>,
 ) -> Vec<Vec<Run>> {
     // Skeleton: the top stitching is a satin column along the centre line.
     if let Some(skeleton) = &r.skeleton
@@ -176,7 +230,7 @@ fn layers_inner(
         if first.is_some() {
             plain.underlay = false;
         }
-        let mut out = layers_inner(closed, &plain, holes, user, letter);
+        let mut out = layers_inner(closed, &plain, holes, user, letter, origin);
         out.pop();
         out.extend(first.into_iter().chain(second).map(|run| vec![run]));
         // Raised satin's padding lanes under the column, following its width (#685).
@@ -348,7 +402,7 @@ fn layers_inner(
     {
         let mut plain = r.clone();
         plain.angle_lines.clear();
-        let mut out = layers_inner(closed, &plain, holes, user, letter);
+        let mut out = layers_inner(closed, &plain, holes, user, letter, origin);
         out.pop();
         let spacing = 10.0 / r.density.max(0.1);
         let stitch = r.stitch_length * 10.0;
@@ -383,7 +437,7 @@ fn layers_inner(
     {
         let mut plain = r.clone();
         plain.flow_field = None;
-        let mut out = layers_inner(closed, &plain, holes, user, letter);
+        let mut out = layers_inner(closed, &plain, holes, user, letter, origin);
         out.pop();
         let spacing = 10.0 / r.density.max(0.1);
         let stitch = r.stitch_length * 10.0;
@@ -481,7 +535,7 @@ fn layers_inner(
         if first.is_some() {
             plain.underlay = false;
         }
-        let mut out = layers_inner(closed, &plain, holes, user, letter);
+        let mut out = layers_inner(closed, &plain, holes, user, letter, origin);
         out.pop();
         out.extend(first.into_iter().chain(second).map(|run| vec![run]));
         // Raised satin's padding lanes under the column (#685).
@@ -662,7 +716,9 @@ fn layers_inner(
                 top_holes,
                 r.fill_stagger(),
                 r.entry,
+                r.exit,
                 r.stitch_type == FillStitchType::Two,
+                origin,
             )
             .into_iter()
             .map(|runs| {
@@ -683,8 +739,10 @@ fn layers_inner(
             top_holes,
             r.fill_stagger(),
             r.entry,
+            r.exit,
             r.stitch_type == FillStitchType::Two,
             entry_travel_along_outline(r),
+            origin,
         ),
         // A feathered edge alone keeps the sawtooth (PE-DESIGN 11.50, satin-feather); so does
         // a pattern gradation on a satin split at its start point (satin-gradation).

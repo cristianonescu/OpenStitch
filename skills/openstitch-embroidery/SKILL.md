@@ -300,6 +300,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    along, where it passes nearest (a skeleton satin or satin line by a lead run under it); from a
    shell, `stitchtool optimize in.osd out.pes --auto-start nearest` sets it before reordering. Set a point by hand with
    `object.setEntryExit` (`regionEntry`, `regionExit`, `lineEntry`, `lineExit`; null clears).
+   A plain Fill ends on its `regionExit`. Its needle points along the rows sit on a page-wide
+   grid, as PE-DESIGN's do, so moving a filled shape can change its stitch count by a few.
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors;
    `level` is `readyToSew` (no errors or warnings), `sewableWithSmallRisks` (warnings only) or

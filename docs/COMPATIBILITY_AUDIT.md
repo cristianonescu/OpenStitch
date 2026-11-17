@@ -1190,6 +1190,29 @@ Line references are relative to `crates/`.
     the first row's start. Convex fills match PE-DESIGN's files needle point for needle point
     (`sweep-fill-*` specs, `same-stitches`); regions with several spans per row (U, holes) keep
     the older nearest-row order with PE's row ends and grid.
+  - Since 2026-11-17 (#1131, #1088; batch:win-fills) a Stitch Type 1 fill with one span per row
+    also follows what the diagonal and small-square references show:
+    - the row count is the nearest whole number of gaps, a half going down (148.5 → 148,
+      31.8 → 32, 245.9 → 246, 254.6 → 255; it was the whole gaps that fit);
+    - a corner of the outline is one needle point, and the rows sewn back from it keep their
+      edge points (from a full first row the rows sewn forward keep them, as before);
+    - only a row lying on the end point closes a half; it closes the second half too when it is
+      sewn there against that half's edge rows (machine-jumps, tatami-40-st1-dir90) and not
+      otherwise (fill-square-5mm-under-sewing);
+    - the halves meet on the end point when it differs from the start point (machine-jumps,
+      sew-order-six-objects);
+    - the needle grid starts at the origin of PE-DESIGN's page coordinates, 100 mm left of and
+      above the page's centre (five sweep angles within 0.04 mm; four positions at 30°), so the
+      needle points along a row depend on the shape's place on the page. PE-DESIGN does not
+      sew a moved object again (tatami-40-pos-center and -pos-right10 hold round 4's needle
+      points); OpenStitch sews from the model, so a moved fill takes the grid of its new place.
+    Measured: sweep-fill-dir-30 2040 (PE-DESIGN 2041, was 2049), -dir-135 2059 (2060, was
+    2062), tatami-40-st1-dir0 2005 (2006, was 2023), -st1-dir30 2031 (2032, was 2049),
+    machine-jumps 525 (525, was 509), sew-order-six-objects 2589 (2585, was 2649), the lone
+    5 mm square's top fill 64 (64, was 66). Left: Stitch Type 2 (its grid stays with the shape
+    in PE-DESIGN and its passes sit 0.13 to 0.58 mm from ours at 30°), the order of a fill's
+    parts (the U), and a needle point 0.33 to 0.37 mm from a short row's end that PE-DESIGN
+    leaves out.
   - Tests: `frequency_and_run_times_follow_the_guide_ranges`,
     `fill_frequency_sets_the_row_to_row_needle_shift` (0, 25 and 50 %, ±2 % of the stitch).
   - Half Stitch for Auto satin: done 2026-11-04 (#372, item 7's bend sweep).

@@ -73,7 +73,7 @@
           ]
         }
       },
-      "evidence": "PE-DESIGN's 85 needle points: 21 of under sewing (its diagonal row's point at (3.5,3.5) and a zero-length repeat at the (4,1) corner row) and 64 of top fill. OpenStitch sews 20 + 66: the same under sewing without the repeat, which its writer leaves out (#1132), and two more top-fill points, the top fill's own gap (#1131)",
+      "evidence": "PE-DESIGN's 85 needle points: 21 of under sewing (its diagonal row's point at (3.5,3.5) and a zero-length repeat at the (4,1) corner row) and 64 of top fill. OpenStitch sews 20 + 64: the same under sewing without the repeat, which its writer leaves out (#1132), and the same top fill (#1131)",
       "reference": {
         "tolerance": {
           "count": 1
@@ -131,10 +131,10 @@
           "keep": "from"
         }
       },
-      "evidence": "The top fill alone: the needle points from the entry (2.5, 5) on. PE-DESIGN 64, OpenStitch 66: the top fill's own gap (#1131)",
+      "evidence": "The top fill alone: the needle points from the entry (2.5, 5) on. PE-DESIGN 64, OpenStitch 64 (66 before #1131: 32 row gaps where there were 31, the corners as single needle points, edge points on the rows sewn back, and the row through the start point sewn once)",
       "reference": {
         "tolerance": {
-          "count": 2
+          "count": 0
         }
       }
     },

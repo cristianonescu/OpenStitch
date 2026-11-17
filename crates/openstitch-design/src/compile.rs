@@ -1034,6 +1034,15 @@ impl Writer {
     }
 }
 
+/// Where the centre of the Design Page lies in PE-DESIGN 11.50's own coordinates, 0.1 mm:
+/// 100 mm right of and below their origin, whatever the page's size (a Custom Size page's
+/// sections count from the same point, `openstitch_formats::pes11::section_starts`). A Type 1
+/// Fill's needle grid starts at that origin (#1131).
+const PE_ORIGIN: Vec2 = Vec2 {
+    x: 1000.0,
+    y: 1000.0,
+};
+
 fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
     let multi = design.machine.machine == crate::machine::MachineType::MultiNeedle;
     w.trim_jumps = !(multi && object.trim_jumps == Some(false));
@@ -1064,8 +1073,9 @@ fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
                 between,
                 breaks: &breaks,
             };
-            // Generated where the object's bounds start, then moved back (#567): row and needle
-            // grids follow the object, so moving it moves its stitches and nothing else.
+            // Generated where the object's bounds start, then moved back (#567): rows follow the
+            // object, so moving it moves its rows and nothing else. A Type 1 Fill's needle
+            // points along its rows stay on PE-DESIGN's page-wide grid (#1131).
             let anchor = object
                 .bounds()
                 .map_or(v2(0.0, 0.0), |b| v2(b.min_x, b.min_y));
@@ -1091,6 +1101,7 @@ fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
                     &turns,
                     &sewing,
                     area.as_deref(),
+                    design.page.center() - PE_ORIGIN - anchor,
                 ) {
                     if anchor != v2(0.0, 0.0) {
                         for p in e.runs.iter_mut().flatten() {
@@ -1284,6 +1295,7 @@ fn elements(
     turns: &[Option<f64>],
     sewing: &Sewing,
     area: Option<&[Contour]>,
+    origin: Vec2,
 ) -> Vec<Element> {
     if let Some(mut letters) = letter_line_elements(object, user) {
         for (index, e) in letters.iter_mut().enumerate().skip(1) {
@@ -1313,7 +1325,7 @@ fn elements(
             if closed.is_empty() {
                 continue;
             }
-            let mut layers = region::layers_for(&closed, region, holes, user, text);
+            let mut layers = region::layers_for(&closed, region, holes, user, text, Some(origin));
             // PE-DESIGN 11.50 sews a TrueType letter in Satin and in Fill stroke by stroke, each
             // stroke a column, in its Convert to Blocks order (docs/research/stroke-lettering.md).
             // Fill text under a Text Transform too (#428): PE-DESIGN sews it by stroke as well
@@ -1350,7 +1362,10 @@ fn elements(
             if let (Some(runs), Some(top)) = (by_stroke, layers.last_mut()) {
                 *top = runs;
             } else if let Some(top) = layers.last_mut() {
-                let runs = stamp::apply(std::mem::take(top), &region.stamps);
+                let rows = (!region.stamps.is_empty())
+                    .then(|| region::plain_fill_rows(&closed, region, holes, Some(origin)))
+                    .flatten();
+                let runs = stamp::apply_on(std::mem::take(top), &region.stamps, rows.as_ref());
                 // PE-DESIGN 11.50 sews Concentric Circle and Spiral in the order the Start
                 // Point button gives, jumping in and ending where the pattern ends (references
                 // concentric-*, spiral-*): no travel from R1 or to R2, no reversal. So does
