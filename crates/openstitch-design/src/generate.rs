@@ -446,6 +446,8 @@ pub fn fill_edge_to_edge_travel(
 ///    from it, every row sewn the way the Inside order sews it.
 ///
 /// A region whose rows are all one span has only the first.
+// The fill entry points pass their few switches straight through.
+#[allow(clippy::too_many_arguments)]
 pub fn fill_edge_to_edge_travel_hidden(
     contours: &[Contour],
     p: &RegionParams,
@@ -1093,7 +1095,7 @@ fn pe_halves(
         let m = half.len();
         let (far, near) = (half[0], half[m - 1]);
         let closing = closing(near);
-        let dir = |i: usize| ((m - 1 - i) % 2 == 0) == closing;
+        let dir = |i: usize| (m - 1 - i).is_multiple_of(2) == closing;
         // Each pass: its row, sewn forward (+x), with its edge points.
         let mut passes: Vec<(&RowSpan, bool, bool)> = Vec::with_capacity(m + 1);
         if point(far) {
