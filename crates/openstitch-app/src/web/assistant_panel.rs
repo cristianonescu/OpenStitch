@@ -15,8 +15,8 @@
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::assistant_chat::{
-    self, GateInput, PRESETS, Protocol, Verdict, declined_reply, is_this_computer,
-    resolve_scratch_names, verdict,
+    self, APPROVAL_TIMEOUT_S, GateInput, PRESETS, Protocol, Verdict, declined_reply,
+    is_this_computer, resolve_scratch_names, unanswered_reply, verdict,
 };
 use openstitch_app::editor::ui_texts::t;
 use openstitch_assistant::browser::BrowserFetch;
@@ -551,11 +551,14 @@ impl WebTools {
     }
 
     /// Shows the card and waits for its answer (Deny when Stop is pressed).
-    async fn ask(&self, what: Vec<String>) -> bool {
+    /// Shows the card and waits for its answer: `Some(allow)`, or `None` when nobody answered
+    /// within the desktop's approval window (APPROVAL_TIMEOUT_S). Stop answers Deny.
+    async fn ask(&self, what: Vec<String>) -> Option<bool> {
         if let Ok(mut app) = self.editor.try_borrow_mut() {
             app.assistant.panel.approval = Some(Approval { what, answer: None });
         }
         self.ctx.request_repaint();
+        let until = web_time::Instant::now() + Duration::from_secs(APPROVAL_TIMEOUT_S);
         loop {
             BrowserFetch
                 .sleep(Duration::from_millis(100), &self.cancel)
@@ -566,11 +569,15 @@ impl WebTools {
             let panel = &mut app.assistant.panel;
             if self.cancel.load(Ordering::SeqCst) {
                 panel.approval = None;
-                return false;
+                return Some(false);
             }
             if let Some(answer) = panel.approval.as_ref().and_then(|a| a.answer) {
                 panel.approval = None;
-                return answer;
+                return Some(answer);
+            }
+            if web_time::Instant::now() >= until {
+                panel.approval = None;
+                return None;
             }
         }
     }
@@ -601,10 +608,13 @@ impl AsyncTools for WebTools {
             let questions = self.questions(name, input);
             if !questions.is_empty() {
                 let what: Vec<String> = questions.iter().map(|(_, w)| w.clone()).collect();
-                if !self.ask(what.clone()).await {
-                    return claude::from_mcp_result(&openstitch_mcp::server::tool_failure(
-                        &declined_reply(&what.join("; ")),
-                    ));
+                let refused = match self.ask(what.clone()).await {
+                    Some(true) => None,
+                    Some(false) => Some(declined_reply(&what.join("; "))),
+                    None => Some(unanswered_reply()),
+                };
+                if let Some(why) = refused {
+                    return claude::from_mcp_result(&openstitch_mcp::server::tool_failure(&why));
                 }
                 if let Ok(mut app) = self.editor.try_borrow_mut() {
                     app.assistant.panel.approved = questions.into_iter().map(|(c, _)| c).collect();
@@ -886,7 +896,27 @@ fn approval_card(app: &mut EditorApp, ui: &mut egui::Ui) {
     });
 }
 
+/// Where a message goes (#766): said before the first one is sent, and always in view.
+pub fn recipient_notice(base_url: &str) -> String {
+    let host = claude_host(base_url);
+    format!(
+        "Your messages, the design's details and the pictures the Assistant looks at are sent \
+         from this page to {host}, and to nothing else of ours."
+    )
+}
+
+/// The host part of an address, for the notice; the whole address when it has none.
+fn claude_host(url: &str) -> String {
+    let rest = url.trim().split_once("://").map_or(url.trim(), |(_, r)| r);
+    rest.split(['/', '?', '#']).next().unwrap_or(rest).to_string()
+}
+
 fn input_row(app: &mut EditorApp, ui: &mut egui::Ui, ctx: &egui::Context) {
+    ui.label(
+        RichText::new(recipient_notice(&app.ui.prefs.ai.base_url))
+            .small()
+            .weak(),
+    );
     let busy = app.assistant.panel.busy();
     let r = ui.add(
         egui::TextEdit::multiline(&mut app.assistant.panel.input)
@@ -958,8 +988,9 @@ fn transcript(app: &mut EditorApp, ui: &mut egui::Ui) {
 ///   `remember: true` in this site's browser storage on this device. The reply never holds a key.
 /// - `ui.assistantSend {text}`: opens the panel and sends the message (`busy` is true while the
 ///   turn runs).
-/// - `ui.assistantState`: `{open, busy, approval, items: [{kind, text}], tokens}`, where
-///   `approval` is the waiting card's lines or null.
+/// - `ui.assistantState`: `{open, busy, sendsTo, approval, items: [{kind, text}], tokens}`,
+///   where `sendsTo` is the panel's notice of the host messages go to and `approval` is the
+///   waiting card's lines or null.
 /// - `ui.assistantAnswer {allow}`: answers the waiting approval card.
 /// - `ui.assistantStop`: Stop.
 pub fn page_command(
@@ -1060,6 +1091,8 @@ fn page_state(app: &EditorApp) -> Value {
     json!({
         "open": panel.open,
         "busy": panel.busy(),
+        // What the panel shows before a message is sent: where it goes.
+        "sendsTo": recipient_notice(&app.ui.prefs.ai.base_url),
         "approval": panel.approval.as_ref().filter(|a| a.answer.is_none()).map(|a| a.what.clone()),
         "items": items,
         "tokens": { "input": panel.tokens.0, "output": panel.tokens.1 },

@@ -26,3 +26,8 @@ include!("bin_modules.rs");
 pub use app::{EditorApp, Launch};
 #[cfg(target_arch = "wasm32")]
 pub use files::{Pick, PickRequest, SAVE_DIR, take_pick_requests};
+// The browser's Assistant (#766): the page registers its editor and routes its own commands.
+#[cfg(target_arch = "wasm32")]
+pub use assistant_panel::{
+    page_command as assistant_page_command, set_editor as set_assistant_editor,
+};

@@ -117,6 +117,10 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
     console.log(`${label}: Claude API protocol, a box`);
     await ok(page, { command: "ui.assistantSetup", params: { kind: "anthropic", address: model.address, model: "claude-test", key: KEY } });
     const before = await objects(page);
+    // Before the first message the panel names the host that receives it.
+    const host = new URL(model.address).host;
+    const notice = (await ok(page, { command: "ui.assistantState" })).sendsTo;
+    if (!notice.includes(host)) throw new Error(`the panel does not name ${host}: ${notice}`);
     await ok(page, { command: "ui.assistantSend", params: { text: "draw a box" } });
     let s = await settled(page);
     const after = await objects(page);
