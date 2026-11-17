@@ -616,6 +616,122 @@ fn a_fill_the_fabric_shows_through_gets_a_low_coverage_note() {
     );
 }
 
+/// #1120: the colour layers of one blend (likewise a gradient or tartan: one group, one
+/// outline) are judged together for `lowCoverage`, all their thread over their shared area, in
+/// one finding naming every layer. The rule is the plain fill's: together they must hide 40 %.
+#[test]
+fn a_blends_colour_layers_are_judged_together_for_coverage() {
+    let blend = |density: f64| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 20, "y": 20, "width": 40, "height": 30, "fill": "Blue"}),
+        );
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"ids": [1], "density": density, "underlay": false}),
+        );
+        let r = run(
+            &mut s,
+            "shape.blend",
+            json!({"id": 1, "thread2": "White", "angle": 90}),
+        );
+        let ids: Vec<u64> = r["ids"]
+            .as_array()
+            .expect("ids")
+            .iter()
+            .map(|v| v.as_u64().expect("id"))
+            .collect();
+        assert_eq!(ids.len(), 2, "two colour layers");
+        (s, ids)
+    };
+    let check = |s: &mut Session| {
+        let c = run(s, "design.check", json!({"rules": ["lowCoverage"]}));
+        found(&c, "lowCoverage").cloned()
+    };
+    // 1.6 lines/mm shared by two layers: each sews about half, under 40 % alone, but together
+    // they hide more than 40 %: no note.
+    let (mut s, ids) = blend(1.6);
+    assert!(check(&mut s).is_none(), "together they cover");
+    // A layer left alone (its partner deleted) is judged on its own thread: a note for it.
+    run(&mut s, "object.delete", json!({"ids": [ids[1]]}));
+    let f = check(&mut s).expect("one layer alone shows the fabric");
+    assert_eq!(f["ids"], json!([ids[0]]));
+    assert!(f["value"].as_f64().is_some_and(|v| v < 40.0), "{f}");
+    // A blend thin even together (0.8 lines/mm in all) still gets the note, once, naming both.
+    let (mut s, ids) = blend(0.8);
+    let c = run(&mut s, "design.check", json!({"rules": ["lowCoverage"]}));
+    let all: Vec<&Value> = c["findings"]
+        .as_array()
+        .expect("findings")
+        .iter()
+        .filter(|f| f["rule"] == "lowCoverage")
+        .collect();
+    assert_eq!(all.len(), 1, "{c}");
+    assert_eq!(all[0]["ids"], json!(ids));
+    assert_eq!(all[0]["severity"], json!("info"));
+    assert!(
+        all[0]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("2 colour layers together")),
+        "{c}"
+    );
+    // The answer keeps its shape: the same fields as a plain fill's note.
+    let mut plain = Session::new(std::env::temp_dir());
+    run(&mut plain, "machine.set", json!({"hoop": "100x100"}));
+    run(
+        &mut plain,
+        "shape.rectangle",
+        json!({"x": 20, "y": 20, "width": 40, "height": 30, "fill": "Blue"}),
+    );
+    run(
+        &mut plain,
+        "object.setRegion",
+        json!({"ids": [1], "density": 0.8, "underlay": false}),
+    );
+    let single = run(
+        &mut plain,
+        "design.check",
+        json!({"rules": ["lowCoverage"]}),
+    );
+    let keys = |f: &Value| {
+        let mut k: Vec<String> = f.as_object().expect("finding").keys().cloned().collect();
+        k.sort();
+        k
+    };
+    assert_eq!(
+        keys(all[0]),
+        keys(found(&single, "lowCoverage").expect("a plain thin fill"))
+    );
+    // An ids filter on one layer still finds the set's note.
+    let one = run(
+        &mut s,
+        "design.check",
+        json!({"rules": ["lowCoverage"], "ids": [ids[1]]}),
+    );
+    assert!(found(&one, "lowCoverage").is_some(), "{one}");
+}
+
+/// #1120: design.check's help says when colour layers are judged together.
+#[test]
+fn the_check_help_says_colour_layers_are_judged_together() {
+    let s = Session::new(std::env::temp_dir());
+    let spec = s
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "design.check")
+        .expect("design.check");
+    assert!(
+        spec.summary
+            .contains("the colour layers of one gradient, blend or tartan (one group, one outline) are judged together"),
+        "{}",
+        spec.summary
+    );
+}
+
 /// #1036: small text is judged by its own font's smallest good size (fonts.list sizeRange), not
 /// one size for every font. The fix offers the Small Text font where the text is big enough
 /// for it, else the font's smallest size, and clears the finding.

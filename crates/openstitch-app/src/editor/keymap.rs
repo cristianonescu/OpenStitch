@@ -47,6 +47,14 @@ pub const RESERVED: &[(&str, &str)] = &[
     ("Ctrl+W", "Close the window"),
 ];
 
+/// Keys a browser keeps for itself (#834): a web page never sees them, so in the browser
+/// version they cannot be given to a command, and New (Ctrl+N) is in the File menu there.
+pub const BROWSER_KEYS: &[(&str, &str)] = &[
+    ("Ctrl+N", "the browser's New Window"),
+    ("Ctrl+T", "the browser's New Tab"),
+    ("Ctrl+W", "the browser's Close Tab"),
+];
+
 /// Commands that also run while a text field has the keyboard (as before #551).
 pub const WHILE_TYPING: &[Action] = &[
     Action::New,
@@ -205,6 +213,11 @@ impl Keymap {
 
     /// What `chord` (canonical) does besides `except`: another command, or a reserved key.
     pub fn owner(&self, chord: &str, except: Action) -> Option<String> {
+        if crate::platform::in_browser()
+            && let Some((_, what)) = BROWSER_KEYS.iter().find(|(k, _)| *k == chord)
+        {
+            return Some((*what).to_string());
+        }
         if let Some((_, what)) = RESERVED.iter().find(|(k, _)| *k == chord) {
             return Some((*what).to_string());
         }
@@ -328,6 +341,22 @@ impl Keymap {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #834: in the browser Ctrl+N, Ctrl+T and Ctrl+W are the browser's, so none can be given
+    /// to a command there (the reason says whose they are); the desktop is unchanged.
+    #[test]
+    fn the_browsers_own_keys_are_refused_only_in_the_browser() {
+        let mut k = Keymap::default();
+        assert!(k.add(Action::Rectangle, "Ctrl+T").is_ok(), "desktop");
+        crate::platform::pretend_browser(true);
+        let mut k = Keymap::default();
+        for chord in ["Ctrl+N", "Ctrl+T", "Ctrl+W"] {
+            let e = k.add(Action::Rectangle, chord).expect_err(chord);
+            assert!(e.contains("the browser's"), "{e}");
+        }
+        assert!(k.add(Action::Rectangle, "Ctrl+Alt+R").is_ok());
+        crate::platform::pretend_browser(false);
+    }
 
     #[test]
     fn defaults_are_the_editors_own_shortcuts() {

@@ -209,6 +209,7 @@ Behaviour follows the guide's pages
 | Wizards | Embroidered Patch Wizard |  | `Action::Patch` | `wizard.patch` | yes |
 | Wizards | Cutwork Wizard |  | `Action::Cutwork` | `wizard.cutwork` | yes |
 | Sew | Sew Embroidery |  | `Action::SendEmbroidery` | `transfer.send` | yes |
+| Sew | Sew Embroidery ▸ Floppy Image… (beyond PE-DESIGN, #876) |  | `Action::FloppyImage` | `transfer.diskImage`, `transfer.diskImageList` | yes |
 | Sew | Test Swatches (in Sew Embroidery's menu; beyond PE-DESIGN) |  | `Action::TestSwatches` | `design.testSwatches` | yes |
 
 ### Image

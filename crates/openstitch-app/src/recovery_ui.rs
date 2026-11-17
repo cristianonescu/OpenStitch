@@ -1,11 +1,13 @@
 //! Autosave and recovery (#549): the window's snapshot slot and timer, the Recover Designs
 //! window shown at start when a crashed window left snapshots, and the `ui.recovery*`
-//! commands. The snapshot logic is in `openstitch_app::editor::recovery`.
+//! commands. The snapshot logic is in `openstitch_app::editor::recovery`. The desktop keeps
+//! snapshots in the recovery folder; the browser, which has none, in the store the page
+//! registers (#831, IndexedDB).
 
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
-use openstitch_app::editor::recovery::{self, Info, Orphan, Slot, Timer};
+use openstitch_app::editor::recovery::{self, Info, Orphan, Slot, Store, Timer};
 use serde_json::{Value, json};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -17,7 +19,11 @@ static WINDOWS: AtomicU32 = AtomicU32::new(0);
 pub struct RecoveryState {
     /// The recovery folder (`None`: no settings folder, e.g. tests and screenshots).
     pub dir: Option<PathBuf>,
+    /// The browser's snapshot store, used when there is no folder (#831).
+    pub store: Option<Store>,
     slot: Option<Slot>,
+    /// A snapshot of this window is in the store.
+    stored: bool,
     timer: Timer,
     /// Snapshots left by windows that ended without closing.
     pub offer: Vec<Orphan>,
@@ -36,16 +42,31 @@ impl RecoveryState {
         self.dir = Some(dir);
     }
 
+    /// Uses the browser's `store` (#831) and lists what closed or crashed tabs left; `ask`
+    /// opens the window when there is any.
+    pub fn start_store(&mut self, store: Store, ask: bool) {
+        self.offer = store.orphans();
+        self.open = ask && !self.offer.is_empty();
+        self.store = Some(store);
+    }
+
+    /// Whether autosave has a place to write (a folder or a store).
+    fn active(&self) -> bool {
+        self.dir.is_some() || self.store.is_some()
+    }
+
     fn refresh(&mut self) {
         if let Some(dir) = &self.dir {
             self.offer = recovery::orphans(dir);
+        } else if let Some(store) = &self.store {
+            self.offer = store.orphans();
         }
     }
 
-    /// Whether this window has a snapshot on disk.
+    /// Whether this window has a snapshot on disk or in the store.
     #[cfg(test)]
     pub fn has_snapshot(&self) -> bool {
-        self.slot.as_ref().is_some_and(Slot::exists)
+        self.stored || self.slot.as_ref().is_some_and(Slot::exists)
     }
 
     /// Waits for a snapshot being written.
@@ -58,8 +79,8 @@ impl RecoveryState {
 }
 
 fn now_seconds() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    openstitch_app::platform::SystemTime::now()
+        .duration_since(openstitch_app::platform::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())
 }
 
@@ -67,7 +88,7 @@ fn now_seconds() -> u64 {
 /// it when the design is saved or unchanged or autosave is off. Returns whether to come back
 /// soon (a snapshot is pending).
 pub fn tick(app: &mut EditorApp, now: f64) -> bool {
-    if app.recovery.dir.is_none() {
+    if !app.recovery.active() {
         return false;
     }
     let busy = app
@@ -81,6 +102,12 @@ pub fn tick(app: &mut EditorApp, now: f64) -> bool {
             && s.exists()
         {
             s.clear();
+        }
+        if app.recovery.stored
+            && let Some(store) = app.recovery.store
+        {
+            store.clear();
+            app.recovery.stored = false;
         }
         app.recovery.timer.written(app.snapshot_key());
         return busy;
@@ -99,8 +126,23 @@ pub fn tick(app: &mut EditorApp, now: f64) -> bool {
     false
 }
 
-/// Writes this window's snapshot: on a background thread, or now when `wait`.
+/// Writes this window's snapshot: on a background thread, or now when `wait`; to the browser's
+/// store (#831) always now, as the page has one thread.
 pub fn write_now(app: &mut EditorApp, wait: bool) -> std::io::Result<()> {
+    if app.recovery.dir.is_none()
+        && let Some(store) = app.recovery.store
+    {
+        app.recovery.timer.written(app.snapshot_key());
+        crate::assistant_panel::chat_to_session(app);
+        let bytes = openstitch_engine::project::encode_with_chat(
+            app.session.design(),
+            app.session.chat(),
+        )
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+        store.write(&bytes, &snapshot_info(app));
+        app.recovery.stored = true;
+        return Ok(());
+    }
     let Some(dir) = app.recovery.dir.clone() else {
         return Ok(());
     };
@@ -119,12 +161,7 @@ pub fn write_now(app: &mut EditorApp, wait: bool) -> std::io::Result<()> {
     crate::assistant_panel::chat_to_session(app);
     let design = app.session.design().clone();
     let chat = app.session.chat().cloned();
-    let info = Info {
-        original: app.path.clone(),
-        name: app.document_name(),
-        time: now_seconds(),
-        process: std::process::id(),
-    };
+    let info = snapshot_info(app);
     let job = move || match openstitch_engine::project::encode_with_chat(&design, chat.as_ref()) {
         Ok(bytes) => recovery::write_snapshot(&dir, &id, &bytes, &info),
         Err(e) => Err(std::io::Error::other(e.to_string())),
@@ -140,14 +177,45 @@ pub fn write_now(app: &mut EditorApp, wait: bool) -> std::io::Result<()> {
     Ok(())
 }
 
+/// What this window's snapshot is of.
+fn snapshot_info(app: &EditorApp) -> Info {
+    Info {
+        original: app.path.clone(),
+        name: app.document_name(),
+        time: now_seconds(),
+        // A browser tab has no process id (std's panics there): 0, as it is only shown.
+        process: if cfg!(target_arch = "wasm32") {
+            0
+        } else {
+            std::process::id()
+        },
+    }
+}
+
+/// Where a snapshot from the browser's store is put to be opened (#831): the page's memory in
+/// the browser, the system's temporary folder in a native test.
+fn staged(id: &str) -> PathBuf {
+    if cfg!(target_arch = "wasm32") {
+        PathBuf::from(format!("/web/recovery/{id}.osd"))
+    } else {
+        std::env::temp_dir().join(format!("openstitch-recovery-{}-{id}.osd", std::process::id()))
+    }
+}
+
+/// Drops a staged snapshot once it has opened.
+fn unstage(path: &std::path::Path) {
+    #[cfg(target_arch = "wasm32")]
+    let _ = openstitch_engine::fsio::memfs::take(path);
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = std::fs::remove_file(path);
+}
+
 /// Restore: the snapshot opens as an untitled design (the original file is never written),
 /// and its files go once this window has its own snapshot of it.
 pub fn restore(app: &mut EditorApp, id: &str) -> Result<Value, String> {
-    let dir = app
-        .recovery
-        .dir
-        .clone()
-        .ok_or("recovery is off in this window")?;
+    if !app.recovery.active() {
+        return Err("recovery is off in this window".into());
+    }
     app.recovery.refresh();
     let orphan = app
         .recovery
@@ -159,12 +227,25 @@ pub fn restore(app: &mut EditorApp, id: &str) -> Result<Value, String> {
     if app.is_dirty() {
         return Err("the open design has unsaved changes; save or close it first".into());
     }
-    let path = dir.join(format!("{id}.osd"));
+    let (path, staged_copy) = match (&app.recovery.dir, app.recovery.store) {
+        (Some(dir), _) => (dir.join(format!("{id}.osd")), false),
+        (None, Some(store)) => {
+            let bytes = store.read(id).map_err(|e| e.to_string())?;
+            let path = staged(id);
+            openstitch_app::platform::write_file(&path, bytes)?;
+            (path, true)
+        }
+        (None, None) => return Err("recovery is off in this window".into()),
+    };
     let r = CommandRequest::new(
         "project.open",
         json!({ "path": path.display().to_string() }),
     );
-    if app.execute(&r).is_none() {
+    let opened = app.execute(&r).is_some();
+    if staged_copy {
+        unstage(&path);
+    }
+    if !opened {
         return Err(app.status.clone());
     }
     app.after_load(None);
@@ -173,7 +254,7 @@ pub fn restore(app: &mut EditorApp, id: &str) -> Result<Value, String> {
     if app.ui.prefs.autosave {
         write_now(app, true).map_err(|e| e.to_string())?;
     }
-    recovery::discard(&dir, id).map_err(|e| e.to_string())?;
+    discard_one(app, id)?;
     app.recovery.refresh();
     app.recovery.open &= !app.recovery.offer.is_empty();
     app.status = openstitch_app::tf!("ui-status-recovered-untitled-until-you-save-it", name = orphan.name);
@@ -182,22 +263,30 @@ pub fn restore(app: &mut EditorApp, id: &str) -> Result<Value, String> {
 
 /// Discard one snapshot left by a crashed window, or all of them (`None`).
 pub fn discard(app: &mut EditorApp, id: Option<&str>) -> Result<Value, String> {
-    let dir = app
-        .recovery
-        .dir
-        .clone()
-        .ok_or("recovery is off in this window")?;
+    if !app.recovery.active() {
+        return Err("recovery is off in this window".into());
+    }
     app.recovery.refresh();
     let ids: Vec<String> = match id {
         Some(id) => vec![id.to_string()],
         None => app.recovery.offer.iter().map(|o| o.id.clone()).collect(),
     };
     for id in &ids {
-        recovery::discard(&dir, id).map_err(|e| format!("{id}: {e}"))?;
+        discard_one(app, id).map_err(|e| format!("{id}: {e}"))?;
     }
     app.recovery.refresh();
     app.recovery.open &= !app.recovery.offer.is_empty();
     Ok(json!({ "discarded": ids }))
+}
+
+/// Removes one snapshot an ended window left, from the folder or the store.
+fn discard_one(app: &EditorApp, id: &str) -> Result<(), String> {
+    match (&app.recovery.dir, app.recovery.store) {
+        (Some(dir), _) => recovery::discard(dir, id),
+        (None, Some(store)) => store.discard(id),
+        (None, None) => Err(std::io::Error::other("recovery is off in this window")),
+    }
+    .map_err(|e| e.to_string())
 }
 
 /// `ui.recoveryList`: the snapshots crashed windows left.
@@ -421,6 +510,84 @@ mod tests {
             .expect("restore");
         assert_eq!(b.session.design().objects, a.session.design().objects);
         assert!(!dir.join("4000000000-3.osd").exists());
+    }
+
+    thread_local! {
+        /// The browser's IndexedDB in these tests: id, info JSON, project bytes.
+        static MEM: std::cell::RefCell<Vec<(String, String, Vec<u8>)>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    fn ids_in_store() -> Vec<String> {
+        MEM.with(|m| m.borrow().iter().map(|e| e.0.clone()).collect())
+    }
+
+    /// A tab whose snapshot id is `own`, on the shared in-memory store.
+    fn store(own: fn() -> String) -> Store {
+        Store {
+            own,
+            list: || MEM.with(|m| m.borrow().iter().map(|e| (e.0.clone(), e.1.clone())).collect()),
+            read: |id| MEM.with(|m| m.borrow().iter().find(|e| e.0 == id).map(|e| e.2.clone())),
+            write: |id, osd, info| {
+                MEM.with(|m| {
+                    let mut m = m.borrow_mut();
+                    m.retain(|e| e.0 != id);
+                    m.push((id.into(), info.into(), osd.to_vec()));
+                });
+            },
+            remove: |id| MEM.with(|m| m.borrow_mut().retain(|e| e.0 != id)),
+        }
+    }
+
+    fn tab(own: fn() -> String) -> EditorApp {
+        let mut app = EditorApp::new(Launch {
+            demo: true,
+            ..Launch::default()
+        });
+        app.recovery.start_store(store(own), true);
+        app
+    }
+
+    /// #831: in the browser (no recovery folder) a tab's snapshot goes to the page's store
+    /// after 3 s without a change, leaves it when autosave is turned off, and the next tab
+    /// offers what a closed tab left and restores it untitled; the closed tab's copy then goes.
+    #[test]
+    fn the_browser_store_keeps_a_closed_tabs_design() {
+        let mut a = tab(|| "1000-0".into());
+        assert!(!a.recovery.open, "nothing to recover");
+        edit(&mut a);
+        assert!(tick(&mut a, 100.0));
+        assert!(ids_in_store().is_empty(), "waits for 3 s without a change");
+        tick(&mut a, 103.5);
+        assert!(a.recovery.has_snapshot());
+        assert_eq!(ids_in_store(), ["1000-0"]);
+        // Autosave off: the tab's copy goes; back on, it is kept again.
+        a.ui.prefs.autosave = false;
+        tick(&mut a, 104.0);
+        assert!(ids_in_store().is_empty());
+        a.ui.prefs.autosave = true;
+        edit(&mut a);
+        tick(&mut a, 200.0);
+        tick(&mut a, 204.0);
+        assert_eq!(ids_in_store(), ["1000-0"]);
+        // Tab A is closed (its lock is gone, so the page lists its record); tab B opens.
+        let expected = a.session.design().clone();
+        drop(a);
+        let mut b = tab(|| "2000-0".into());
+        assert!(b.recovery.open);
+        assert_eq!(list(&mut b)["snapshots"][0]["id"], "1000-0");
+        // Its own copy is never offered, nor deleted through the command.
+        assert!(
+            b.ui_command("ui.recoveryDiscard", Some(&json!({ "id": "2000-0" })))
+                .is_err()
+        );
+        b.ui_command("ui.recoveryRestore", Some(&json!({ "id": "1000-0" })))
+            .expect("restore");
+        assert_eq!(b.session.design().objects, expected.objects);
+        assert!(b.path.is_none() && b.is_dirty(), "untitled until saved");
+        assert!(!b.recovery.open && b.recovery.offer.is_empty());
+        assert_eq!(ids_in_store(), ["2000-0"], "A's copy gone, B's own kept");
+        assert!(!staged("1000-0").exists(), "the staged copy is removed");
     }
 
     #[test]

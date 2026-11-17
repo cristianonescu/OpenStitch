@@ -493,6 +493,13 @@ impl EditorApp {
         }
         if l.user_settings.is_none()
             && l.screenshot.is_none()
+            && let Some(store) = openstitch_app::platform::recovery_store()
+        {
+            // No folder beside ui.json: the browser page's snapshot store (#831).
+            self.recovery.start_store(store, l.script.is_empty());
+        }
+        if l.user_settings.is_none()
+            && l.screenshot.is_none()
             && let Some(v) = openstitch_app::platform::stored_prefs()
                 .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         {
@@ -598,6 +605,7 @@ impl EditorApp {
                     }
                 }
                 "usb" => crate::transfer_ui::open(self),
+                "floppy" => crate::floppy_ui::open(self),
                 "arrange" => self.edit.arrange_open = true,
                 // The Assistant panel with one attachment chip (a stand-in text file), when the AI
                 // features are on in ui.json; for checking the panel's icons in screenshots.
@@ -2461,6 +2469,7 @@ impl eframe::App for EditorApp {
         crate::swatch_ui::window(self, &ctx);
         crate::jobsheet_ui::window(self, &ctx);
         crate::transfer_ui::window(self, &ctx);
+        crate::floppy_ui::window(self, &ctx);
         crate::edit_ui::windows(self, &ctx);
         crate::settings_ui::windows(self, &ctx);
         crate::colour_match_ui::windows(self, &ctx);
@@ -3036,6 +3045,9 @@ mod replace_design_tests;
 #[cfg(test)]
 #[path = "px_per_mm_tests.rs"]
 mod px_per_mm_tests;
+#[cfg(test)]
+#[path = "narrow_tests.rs"]
+mod narrow_tests;
 #[cfg(test)]
 #[path = "monkey_tests.rs"]
 mod monkey_tests;

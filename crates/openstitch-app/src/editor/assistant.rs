@@ -113,7 +113,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.browserLimits",
-        summary: "What the browser version cannot do (#830): inBrowser, the notice shown now (shown) and each limit (assistant, print, transfer, updates, folders, clipboardImages) with what it is, what to do instead, the issue that tracks it and the message the browser shows when it is used",
+        summary: "What the browser version cannot do (#830): inBrowser, the notice shown now (shown), the keys the browser keeps for itself and never passes to the editor (browserKeys: Ctrl+N, Ctrl+T, Ctrl+W; use the menus there, #834) and each limit (limits: print, transfer, updates, folders, clipboardImages, systemFonts: lettering in the computer's own fonts, #833) with what it is, what to do instead, the issue that tracks it and the message the browser shows when it is used. The Assistant itself works in the browser (#766)",
         effect: Effect::Read,
         params: &[],
     },

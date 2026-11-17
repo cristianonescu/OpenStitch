@@ -539,6 +539,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         New => app.guarded(Pending::New),
         Open => app.guarded(Pending::Open(None)),
         TestSwatches => app.ui.open_swatches = true,
+        FloppyImage => crate::floppy_ui::open(app),
         JobSheet => app.ui.open_job_sheet = true,
         CheckDesign => crate::quality_ui::open(app, crate::quality_ui::Tab::Check),
         DensityMap => crate::quality_ui::open(app, crate::quality_ui::Tab::Density),
@@ -884,6 +885,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             if ui.button(t("menu-send-to-usb-media")).clicked() {
                 crate::transfer_ui::open(app);
             }
+            menu_item(app, ui, FloppyImage);
             menu_item(app, ui, TestSwatches);
             menu_item(app, ui, ExportSections);
             ui.menu_button(t("menu-export"), |ui| export_menu(app, ui));
@@ -1914,7 +1916,53 @@ fn update_tab(app: &mut EditorApp) -> Vec<TabId> {
 
 /// Application button, ribbon tabs, Option and Help buttons.
 fn tab_strip(app: &mut EditorApp, ui: &mut egui::Ui, ctx_tabs: &[TabId]) {
+    // A narrow window (#834, a phone): the tabs, then Options and Help, scroll sideways (a
+    // finger drags them) instead of running off the edge.
+    if openstitch_app::editor::workspace::narrow(ui.ctx().content_rect().width()) {
+        // egui scrolls by dragging only when the drag starts between widgets; a finger on a
+        // tab must scroll the strip too, so a drag that starts on the strip moves it here.
+        let key = ui.make_persistent_id("ribbon-tabs-finger");
+        let (strip, offset) = ui
+            .data(|d| d.get_temp::<(egui::Rect, f32)>(key))
+            .unwrap_or((egui::Rect::NOTHING, 0.0));
+        let finger = ui.input(|i| {
+            let on_strip = i.pointer.press_origin().is_some_and(|p| strip.contains(p));
+            (on_strip && i.pointer.primary_down() && i.pointer.is_decidedly_dragging())
+                .then(|| i.pointer.delta().x)
+        });
+        let mut area = egui::ScrollArea::horizontal()
+            .id_salt("ribbon-tabs")
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden);
+        if let Some(dx) = finger {
+            area = area.horizontal_scroll_offset(offset - dx);
+        }
+        let out = area.show(ui, |ui| {
+            ui.horizontal(|ui| {
+                tabs_row(app, ui, ctx_tabs);
+                ui.add_space(12.0);
+                for a in [Action::Options, Action::Help] {
+                    menu_button(app, ui, a);
+                }
+            });
+        });
+        let max = (out.content_size.x - out.inner_rect.width()).max(0.0);
+        let offset = out.state.clamped_offset().x.clamp(0.0, max);
+        ui.data_mut(|d| d.insert_temp(key, (out.inner_rect, offset)));
+        return;
+    }
     ui.horizontal(|ui| {
+        tabs_row(app, ui, ctx_tabs);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            for a in [Action::Help, Action::Options] {
+                menu_button(app, ui, a);
+            }
+        });
+    });
+}
+
+/// The application button and the ribbon's tabs.
+fn tabs_row(app: &mut EditorApp, ui: &mut egui::Ui, ctx_tabs: &[TabId]) {
+    {
         app_button(app, ui);
         ui.add_space(6.0);
         let mut tabs: Vec<TabId> = TabId::FIXED.to_vec();
@@ -1937,19 +1985,16 @@ fn tab_strip(app: &mut EditorApp, ui: &mut egui::Ui, ctx_tabs: &[TabId]) {
                 app.ui.tab = t;
             }
         }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            for a in [Action::Help, Action::Options] {
-                let info = a.info();
-                let r = ui
-                    .add(
-                        egui::Button::new((info.label, crate::icons::ui_image(ui, "menu_caret")))
-                            .frame(false),
-                    )
-                    .on_hover_text(info.screen_tip(MAC));
-                egui::Popup::menu(&r).show(|ui| menu(app, a, ui));
-            }
-        });
-    });
+    }
+}
+
+/// Options or Help at the end of the tab strip, with its menu.
+fn menu_button(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
+    let info = a.info();
+    let r = ui
+        .add(egui::Button::new((info.label, crate::icons::ui_image(ui, "menu_caret"))).frame(false))
+        .on_hover_text(info.screen_tip(MAC));
+    egui::Popup::menu(&r).show(|ui| menu(app, a, ui));
 }
 
 /// Text of a ribbon tab.

@@ -20,7 +20,10 @@ Before a release:
   the screenshots and images (README refresh, step 5).
 - CI on `main` is green on macOS, Windows and Linux, and every compatibility spec passes.
 - `python3 -I tools/private_scan.py` prints no finding: no local folder paths, user or home
-  folders, notes folders or personal e-mail addresses in a tracked file (#1057). A harmless
+  folders, notes folders or personal e-mail addresses in a tracked file (#1057), and no path
+  embedded in a binary one: reference captures, fixtures, example designs and images are read for
+  drive-letter, parent-folder, user-profile and folder paths and the project's local folder names,
+  as ASCII and as UTF-16 (#1226). A harmless
   placeholder goes in `tools/private_scan_allow.tsv` with its reason, never under a wider pattern.
 - `python -I tools/third_party.py --check` passes: `THIRD_PARTY_NOTICES.md`, which every package
   ships, lists every crate the shipped programs link (#1171). CI runs the same check on every

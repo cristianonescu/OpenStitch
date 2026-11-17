@@ -36,6 +36,8 @@ pub struct Workspace {
     pub canvas: Option<egui::Rect>,
     /// File ▸ Send to USB Media.
     pub usb: crate::transfer_ui::UsbDialog,
+    /// Sew Embroidery ▸ Floppy Image… (#876).
+    pub floppy: crate::floppy_ui::FloppyDialog,
 }
 
 impl Default for Workspace {
@@ -56,6 +58,7 @@ impl Default for Workspace {
             estimate: None,
             canvas: None,
             usb: Default::default(),
+            floppy: Default::default(),
         }
     }
 }

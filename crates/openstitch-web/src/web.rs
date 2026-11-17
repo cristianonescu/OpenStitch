@@ -9,6 +9,7 @@
 
 use crate::session::WebSession;
 use base64::Engine as _;
+use openstitch_app::editor::recovery::Store;
 use openstitch_app::{EditorApp, Launch, Pick, PickRequest};
 use openstitch_engine::fsio::memfs;
 use serde_json::{Value, json};
@@ -89,6 +90,9 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
         renderer: eframe::Renderer::Glow,
         ..Default::default()
     };
+    // Crash recovery (#831): this tab's lock, and what closed or crashed tabs left, before the
+    // editor starts and offers them.
+    open_recovery().await;
     eframe::WebRunner::new()
         .start(
             canvas,
@@ -105,16 +109,125 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
                     read: read_user,
                     write: write_user,
                 });
+                // The autosave snapshots in IndexedDB (#831), when the browser gave storage.
+                if RECOVERY.with(|r| r.borrow().is_some()) {
+                    openstitch_app::platform::set_recovery_store(Store {
+                        own: recovery_own,
+                        list: recovery_list,
+                        read: recovery_read,
+                        write: recovery_write,
+                        remove: recovery_remove,
+                    });
+                }
                 let launch = Launch {
                     no_splash: true,
                     ..Launch::default()
                 };
                 let editor = Rc::new(RefCell::new(EditorApp::new(launch)));
                 EDITOR.with(|e| *e.borrow_mut() = Some(editor.clone()));
+                // The Assistant's turns run between frames with this editor (#766).
+                openstitch_app::set_assistant_editor(&editor);
                 Ok(Box::new(Page { editor }))
             }),
         )
         .await
+}
+
+#[wasm_bindgen(module = "/js/recovery.js")]
+extern "C" {
+    #[wasm_bindgen(js_name = recoveryOpen)]
+    async fn js_recovery_open() -> JsValue;
+    #[wasm_bindgen(js_name = recoveryWrite)]
+    fn js_recovery_write(id: &str, osd: &[u8], info: &str);
+    #[wasm_bindgen(js_name = recoveryRemove)]
+    fn js_recovery_remove(id: &str);
+}
+
+/// This tab's recovery slot and the snapshots closed or crashed tabs left (#831), read once
+/// from IndexedDB at start; `None` when the browser refused storage (recovery is then off).
+struct Recovery {
+    own: String,
+    /// Id, info JSON and project bytes of each snapshot offered.
+    orphans: Vec<(String, String, Vec<u8>)>,
+}
+
+thread_local! {
+    static RECOVERY: RefCell<Option<Recovery>> = const { RefCell::new(None) };
+}
+
+/// A property of a JS object, `None` when it is missing or reading it throws.
+fn prop(v: &JsValue, name: &str) -> Option<JsValue> {
+    js_sys::Reflect::get(v, &JsValue::from_str(name))
+        .ok()
+        .filter(|p| !p.is_undefined() && !p.is_null())
+}
+
+async fn open_recovery() {
+    let v = js_recovery_open().await;
+    let Some(own) = prop(&v, "own").and_then(|o| o.as_string()) else {
+        return;
+    };
+    let mut orphans = Vec::new();
+    if let Some(list) = prop(&v, "orphans").and_then(|l| l.dyn_into::<js_sys::Array>().ok()) {
+        for o in list.iter() {
+            let (Some(id), Some(info), Some(osd)) = (
+                prop(&o, "id").and_then(|x| x.as_string()),
+                prop(&o, "info").and_then(|x| x.as_string()),
+                prop(&o, "osd").and_then(|x| x.dyn_into::<js_sys::Uint8Array>().ok()),
+            ) else {
+                continue;
+            };
+            orphans.push((id, info, osd.to_vec()));
+        }
+    }
+    RECOVERY.with(|r| *r.borrow_mut() = Some(Recovery { own, orphans }));
+}
+
+fn recovery_own() -> String {
+    RECOVERY.with(|r| {
+        r.borrow()
+            .as_ref()
+            .map(|r| r.own.clone())
+            .unwrap_or_default()
+    })
+}
+
+fn recovery_list() -> Vec<(String, String)> {
+    RECOVERY.with(|r| {
+        r.borrow().as_ref().map_or_else(Vec::new, |r| {
+            r.orphans
+                .iter()
+                .map(|(id, info, _)| (id.clone(), info.clone()))
+                .collect()
+        })
+    })
+}
+
+fn recovery_read(id: &str) -> Option<Vec<u8>> {
+    if id == recovery_own() {
+        return None;
+    }
+    RECOVERY.with(|r| {
+        r.borrow()
+            .as_ref()?
+            .orphans
+            .iter()
+            .find(|o| o.0 == id)
+            .map(|o| o.2.clone())
+    })
+}
+
+fn recovery_write(id: &str, osd: &[u8], info: &str) {
+    js_recovery_write(id, osd, info);
+}
+
+fn recovery_remove(id: &str) {
+    RECOVERY.with(|r| {
+        if let Some(r) = r.borrow_mut().as_mut() {
+            r.orphans.retain(|o| o.0 != id);
+        }
+    });
+    js_recovery_remove(id);
 }
 
 /// The key the editor's preferences (the desktop's `ui.json`) have in localStorage (#797).
@@ -166,7 +279,8 @@ fn write_user(bytes: &[u8]) {
 
 /// The automation API: one JSON request in, one JSON reply out. Once the editor has started
 /// it takes the desktop socket's requests (engine commands and `ui.*`, on the editor's own
-/// history) plus the page's file commands ([`page_command`]); before that,
+/// history) plus the page's file commands ([`page_command`]) and the Assistant panel's
+/// (`ui.assistant*`, #766); before that,
 /// [`WebSession::handle`]. The page exposes it as `openstitch.run`.
 #[wasm_bindgen]
 pub fn run(request_json: &str) -> String {
@@ -176,7 +290,13 @@ pub fn run(request_json: &str) -> String {
                 Ok(mut e) => {
                     let command = request["command"].as_str().unwrap_or_default();
                     let params = request.get("params").cloned().unwrap_or(Value::Null);
-                    match page_command(&mut e, command, &params) {
+                    // The Assistant's own page commands (#766), then the file commands.
+                    let assistant = CTX.with(|c| {
+                        c.borrow().clone().and_then(|ctx| {
+                            openstitch_app::assistant_page_command(&mut e, command, &params, &ctx)
+                        })
+                    });
+                    match assistant.or_else(|| page_command(&mut e, command, &params)) {
                         Some(r) => reply_of(&request, r),
                         None => e.web_request(&request),
                     }

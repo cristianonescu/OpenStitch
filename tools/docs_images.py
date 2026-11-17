@@ -53,6 +53,8 @@ RECORDS = {
     "docs/images/assistant-agent-picture.png": "docs/research/beyond/ai-integration.md (#393, live Claude Code session)",
     "docs/images/assistant-ollama-vector-route.png": "docs/research/beyond/ai-integration.md (#393, live Ollama session)",
     "docs/images/assistant-windows-claude-code.png": "docs/research/beyond/ai-integration.md (#582, live Claude Code session on Windows, 2026-11-06, retaken with the #645 subtitle)",
+    **{f"docs/images/web-editor-{n}.png": "docs/DISTRIBUTION.md \"Web editor\" (#834, the browser editor at 600 and 390 CSS pixels before and after the narrow layout, main 94c8ec94 against batch:mac-wasm-3, 2026-11-17)"
+       for n in ["narrow-before", "narrow", "phone-before", "phone"]},
     **{f"docs/images/research/image-similarity/{n}.jpg": "docs/research/beyond/image-similarity-plan.md section 4.1"
        for n in ["g01-ap", "g05-ap", "g07-cs", "g08-ap", "p01-ps1", "p03-ps1", "p04-ps1", "p08-ps2"]},
 }

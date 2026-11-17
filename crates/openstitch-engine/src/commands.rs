@@ -623,6 +623,17 @@ pub const FILE_PARAMS: &[(&str, &[(&str, FileParam)])] = {
         ("threads.exportCsv", &[("path", Writes)]),
         ("threads.exportList", &[("path", Writes)]),
         ("threads.exportPalette", &[("path", Writes)]),
+        (
+            "transfer.diskImage",
+            &[
+                ("path", Writes),
+                ("add", Reads),
+                ("name", NotAPath),
+                ("remove", NotAPath),
+                ("label", NotAPath),
+                ("format", NotAPath),
+            ],
+        ),
         ("transfer.send", &[("volume", NotAPath), ("name", NotAPath)]),
     ]
 };
@@ -2518,7 +2529,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "width",
                     "mm",
-                    "Zigzag, motif, stem width; candlewick, chain size; E/V stroke, 0.5-10 (candlewick: PE-DESIGN's Size range is 3-10; below 3 is OpenStitch's own)",
+                    "Zigzag, motif, stem width; candlewick, chain size; E/V stroke, 0.5-10 (candlewick: PE-DESIGN's Size range is 3-10; below 3 is OpenStitch's own; PES version 11 stores a candlewick's Size at body +112, and the zigzag tool's default width 2.0, not the Size, at +48, #1160)",
                 ),
                 opt(
                     "density",
@@ -2538,7 +2549,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "spacing",
                     "mm",
-                    "Gap between motifs (0-20), stem stitches, knots (candlewick 0-100, PE-DESIGN's Spacing range), E/V strokes (0.5-20)",
+                    "Gap between motifs (0-20), stem stitches, knots (candlewick 0-100, PE-DESIGN's Spacing range; PES version 11 stores a candlewick's Spacing at body +114, #1160), E/V strokes (0.5-20)",
                 ),
                 opt(
                     "angle",

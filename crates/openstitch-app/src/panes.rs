@@ -110,6 +110,33 @@ fn floating(
     }
 }
 
+/// The panes of a narrow window (#834, a phone): every visible pane is a window, folded at
+/// first, stacked above the status bar, so the canvas keeps the whole width. Docked or floating
+/// is left as the preferences have it, for when the window is wide again.
+fn narrow_panes(app: &mut EditorApp, ctx: &egui::Context, screen: egui::Rect) {
+    let panes = [Pane::SewingOrder, Pane::Attributes, Pane::Simulator];
+    for (i, pane) in panes.into_iter().enumerate() {
+        if !pane.state(app).visible {
+            continue;
+        }
+        let mut open = true;
+        // Above the status bar, one title bar over the other; an opened one grows upwards.
+        let row = (panes.len() - 1 - i) as f32;
+        egui::Window::new(pane.title())
+            .id(egui::Id::unique(("narrow-pane", pane.title())))
+            .open(&mut open)
+            .default_open(false)
+            .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(4.0, -100.0 - 34.0 * row))
+            .default_width((screen.width() - 8.0).min(360.0))
+            .resizable(true)
+            .show(ctx, |ui| pane.contents(app, ui));
+        if !open {
+            pane.state(app).visible = false;
+            app.ui.save_prefs();
+        }
+    }
+}
+
 /// An egui panel on `side` (#551: panes dock on either side).
 fn panel(id: &'static str, side: openstitch_app::editor::prefs::Side) -> egui::Panel {
     use openstitch_app::editor::prefs::Side;
@@ -123,6 +150,11 @@ fn panel(id: &'static str, side: openstitch_app::editor::prefs::Side) -> egui::P
 
 /// Docks the visible panes around the work area (call before the central panel).
 pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
+    // A narrow window (#834, a phone) docks nothing: the canvas keeps the width, and the
+    // panes float folded instead (`floating_panes`).
+    if openstitch_app::editor::workspace::narrow(ui.ctx().content_rect().width()) {
+        return;
+    }
     let docked = |app: &mut EditorApp, p: Pane| {
         let s = *p.state(app);
         s.visible && !s.floating
@@ -152,6 +184,10 @@ pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
 /// The floating panes (call after the central panel).
 pub fn floating_panes(app: &mut EditorApp, ctx: &egui::Context) {
     let screen = ctx.content_rect();
+    if openstitch_app::editor::workspace::narrow(screen.width()) {
+        narrow_panes(app, ctx, screen);
+        return;
+    }
     let top = screen.min.y + 190.0;
     floating(
         app,

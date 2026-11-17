@@ -58,7 +58,7 @@ Its notes are in [docs/releases](docs/releases/).
 | macOS (Apple Silicon and Intel) | `OpenStitch-…-macos-universal.zip` |
 | Linux | `OpenStitch-…-linux-x86_64.AppImage` (`chmod +x` and run) or `….tar.gz` |
 | Command line (`stitchtool`, `openstitch-mcp`) | `openstitch-cli-…` for your system |
-| Browser | <https://cristianonescu.github.io/OpenStitch/>: nothing to install, nothing uploaded. No Assistant, printing or machine transfer yet. |
+| Browser | <https://cristianonescu.github.io/OpenStitch/>: nothing to install, nothing uploaded except what you send the Assistant (your messages, the design's details and the pictures it looks at), only to the model you choose. The Assistant works with the Claude API or a local Ollama, but it cannot yet see a picture you give it or import an SVG it draws ([#1224]). No printing or machine transfer yet. |
 
 The builds are not code-signed yet:
 - **macOS:** move `OpenStitch.app` to Applications, then right-click it and choose Open the first
@@ -615,6 +615,9 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - **USB stick or SD card:** the editor and the Design Database's Writing List find removable
   drives on every OS and write to them, asking before overwriting.
 - **PEC preview icons** and the 64-colour chart the machine shows.
+- (+) **Floppy disk images** for older machines that read floppies or a USB floppy emulator: a
+  1.44 MB image with the design and other files, made and edited in Sew Embroidery ▸ Floppy
+  Image… ([#876](https://github.com/cristianonescu/OpenStitch/issues/876)).
 - Wireless transfer and Link are not available; see [Not yet implemented](#not-yet-implemented).
 
 ### The AI Assistant and MCP
@@ -679,7 +682,7 @@ Benchmark of alpha 12 (2026-11-05) on its 12 embroidery tasks: Claude Code 12/12
 gpt-oss:20b 8/12. It was tested on macOS and Windows (12/12 there too); on Linux, CI runs its
 tests and the keychain round trip
 ([#401](https://github.com/cristianonescu/OpenStitch/issues/401)). Details are in the
-[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md). The benchmark has since grown to 32 tasks
+[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md). The benchmark has since grown to 35 tasks
 (`stitchtool bench-assistant --list`).
 
 ### Scripting (Python package)
@@ -704,8 +707,10 @@ tests and the keychain round trip
 - **Desktop editor** for macOS, Windows and Linux, with its own icons generated for OpenStitch.
 - (+) **[Editor in a web browser](https://cristianonescu.github.io/OpenStitch/)** (*partial*): the
   desktop editor in the page, opening files through the browser's picker and saving and exporting
-  every machine format as downloads ([#556], [#693]). No Assistant and no MCP control in the
-  browser yet ([#766]).
+  every machine format as downloads ([#556], [#693]). The Assistant panel works there too, with the
+  Claude API or an OpenAI-compatible endpoint such as a local Ollama, and the key kept in the page
+  unless you choose to remember it ([#766]). It cannot yet see a picture you give it or import an
+  SVG it draws ([#1224]), and an outside AI client cannot drive the page ([#1223]).
 - (+) **macOS Finder thumbnails** through a Quick Look extension, for `.osd`, `.pes` and 16 more
   formats ([#557]); since alpha 17 the extension draws with the renderer linked into it, as
   macOS's sandbox lets it start no helper ([#1182](https://github.com/cristianonescu/OpenStitch/issues/1182)).
@@ -857,6 +862,8 @@ tests and the keychain round trip
 [#556]: https://github.com/cristianonescu/OpenStitch/issues/556
 [#693]: https://github.com/cristianonescu/OpenStitch/issues/693
 [#766]: https://github.com/cristianonescu/OpenStitch/issues/766
+[#1223]: https://github.com/cristianonescu/OpenStitch/issues/1223
+[#1224]: https://github.com/cristianonescu/OpenStitch/issues/1224
 [#557]: https://github.com/cristianonescu/OpenStitch/issues/557
 [#558]: https://github.com/cristianonescu/OpenStitch/issues/558
 [#559]: https://github.com/cristianonescu/OpenStitch/issues/559
@@ -1097,8 +1104,10 @@ Linux packaging changes, and can be built locally from
 
 The [browser version](https://cristianonescu.github.io/OpenStitch/) is built from `main`. It
 opens designs and embroidery files from your disk and saves and exports them as downloads;
-nothing leaves the browser. It does less than the desktop app: no Assistant or MCP control,
-system clipboard, printing or folder choosing yet
+nothing leaves the browser except what you send the Assistant (your messages, the design's details
+and the pictures it looks at), which goes only to the model address you choose. It does less than the desktop app: its Assistant cannot see pictures you give it or import
+an SVG it draws ([#1224]), and there is no MCP control ([#1223]), system clipboard, printing or
+folder choosing yet
 ([docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#web-editor)).
 
 Details are in [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).

@@ -3600,6 +3600,171 @@ mod tests {
         assert!(result.to_string().contains("declined"), "{result}");
     }
 
+    /// #1232 (#1230's AI coverage review): `transfer.diskImage` writes a file, so it waits on
+    /// an approval card naming the image's full path; Deny writes nothing and the model is told.
+    #[test]
+    fn a_floppy_image_waits_for_approval_and_deny_writes_nothing() {
+        let dir = openstitch_testutil::TempDir::new("1232-floppy");
+        let image = dir.join("machine.img");
+        let path = image.display().to_string();
+        let extra = dir.join("notes.txt");
+        std::fs::write(&extra, b"hoop 100x100").expect("file");
+        let extra = extra.display().to_string();
+        let write = (
+            "transfer.diskImage",
+            json!({ "path": path, "addDesign": true, "format": "dst", "add": [extra] }),
+        );
+        let (mut app, transport) = app_with(vec![
+            reply(std::slice::from_ref(&write), "", "tool_use"),
+            reply(&[], "You declined.", "end_turn"),
+        ]);
+        send(&mut app, "put it on a floppy image".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let what = app.assistant.panel.approvals[0].what.clone();
+        assert!(
+            what.contains(&format!("write the floppy disk image {path}"))
+                && what.contains(&format!("copying {extra}")),
+            "the card names the image and the copied file: {what}"
+        );
+        assert!(!image.exists(), "nothing written while the card waits");
+        answer(&mut app, 0, Answer::Deny);
+        run(&mut app, idle);
+        assert!(!image.exists(), "Deny writes nothing");
+        let requests = transport.requests.lock().expect("lock");
+        let result = requests[1]["messages"]
+            .as_array()
+            .expect("m")
+            .last()
+            .cloned()
+            .expect("last");
+        assert!(result.to_string().contains("declined"), "{result}");
+    }
+
+    /// #1232: a relative image path is resolved beside the design's file before the card, which
+    /// shows the full path; an untitled design's relative path is refused, nothing asked.
+    #[test]
+    fn a_relative_floppy_image_is_beside_the_design_on_its_card() {
+        let dir = project_dir("1232-relative");
+        let write = (
+            "transfer.diskImage",
+            json!({ "path": "machine.img", "addDesign": true }),
+        );
+        let (mut app, _) = app_with(vec![
+            reply(std::slice::from_ref(&write), "", "tool_use"),
+            reply(&[], "ok", "end_turn"),
+        ]);
+        save_to(&mut app, &dir.join("design.osd"));
+        send(&mut app, "floppy".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let full = dir.join("machine.img").display().to_string();
+        let what = app.assistant.panel.approvals[0].what.clone();
+        assert!(what.contains(&full), "{what}");
+        answer(&mut app, 0, Answer::Deny);
+        run(&mut app, idle);
+        assert!(!dir.join("machine.img").exists());
+        // Untitled: refused before the gate, with no card.
+        let (mut untitled, _) = app_with(vec![
+            reply(std::slice::from_ref(&write), "", "tool_use"),
+            reply(&[], "ok", "end_turn"),
+        ]);
+        send(&mut untitled, "floppy".into(), no_wake());
+        run(&mut untitled, idle);
+        assert!(untitled.assistant.panel.approvals.is_empty());
+        assert!(!std::path::Path::new("machine.img").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1232: the cards of the other transfer commands are unchanged, and listing an image is
+    /// reading a file: no card in the scratch folder, "use <path>" outside it.
+    #[test]
+    fn transfer_cards_for_send_volumes_and_listing() {
+        let dir = openstitch_testutil::TempDir::new("1232-scratch");
+        let scratch = dir.path().to_path_buf();
+        let gate = |command: &str, effect: Effect, params: Value| {
+            assistant_chat::verdict(&assistant_chat::GateInput {
+                mode: PermissionMode::Ask,
+                command,
+                effect,
+                params: &params,
+                scratch: Some(scratch.as_path()),
+                always_allow: &[],
+                edits: 0,
+                edit_limit: 0,
+                undo_before_message: false,
+                existing_layout: false,
+                unsaved: false,
+                unsaved_chat_only: false,
+            })
+        };
+        let send = "send the design to the machine or a USB drive".to_string();
+        assert_eq!(
+            gate("transfer.send", Effect::File, json!({ "format": "pes" })),
+            Verdict::Ask(send.clone())
+        );
+        assert_eq!(
+            gate("transfer.volumes", Effect::Read, json!({})),
+            Verdict::Ask(send)
+        );
+        let inside = scratch.join("disk.img").display().to_string();
+        assert_eq!(
+            gate("transfer.diskImageList", Effect::Read, json!({ "path": inside })),
+            Verdict::Run
+        );
+        let outside = "/opt/designs/disk.img";
+        assert_eq!(
+            gate("transfer.diskImageList", Effect::Read, json!({ "path": outside })),
+            Verdict::Ask(format!("use {outside}"))
+        );
+    }
+
+    /// #1232: a coding agent's batch reaches the editor one step at a time through the bridge
+    /// (openstitch-mcp's run_batch), so a step holding transfer.diskImage gets the same card.
+    #[test]
+    fn a_batch_step_writing_a_floppy_image_shows_its_path() {
+        let mut app = EditorApp::new(Launch {
+            demo: true,
+            ..Launch::default()
+        });
+        let listener = openstitch_remote::Server::start(openstitch_remote::ServerConfig::default())
+            .expect("listener");
+        let endpoint = listener.endpoint().clone();
+        let config = claude::AcpConfig {
+            program: std::path::PathBuf::from("no-such-agent-program"),
+            args: Vec::new(),
+            cwd: std::env::temp_dir(),
+            mcp: claude::McpServer {
+                name: claude::BRIDGE_NAME.into(),
+                command: std::path::PathBuf::from("no-such-mcp"),
+                args: Vec::new(),
+                env: Vec::new(),
+            },
+            system: String::new(),
+            extra_path: Vec::new(),
+        };
+        app.assistant.panel.worker = Some(Worker::start_agent(config, listener, no_wake(), None));
+        let dir = openstitch_testutil::TempDir::new("1232-batch");
+        let image = dir.join("batch.img");
+        let path = image.display().to_string();
+        let sent = path.clone();
+        let client = std::thread::spawn(move || {
+            let mut c = openstitch_remote::Client::new(endpoint).expect("connect");
+            c.handle(&json!({ "command": "transfer.diskImage",
+                "params": { "path": sent, "addDesign": true } }))
+        });
+        let start = Instant::now();
+        while app.assistant.panel.approvals.is_empty() {
+            serve(&mut app, no_wake());
+            assert!(start.elapsed() < Duration::from_secs(30), "no approval asked");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let what = app.assistant.panel.approvals[0].what.clone();
+        assert!(what.contains(&path), "{what}");
+        answer(&mut app, 0, Answer::Deny);
+        let r = client.join().expect("client");
+        assert_eq!(r["ok"], json!(false), "{r}");
+        assert!(!image.exists());
+    }
+
     #[test]
     fn an_unanswered_question_is_declined_after_the_timeout() {
         let save = ("design.export", json!({ "path": "/nonexistent-dir/x.pes" }));

@@ -60,3 +60,13 @@ opt-level = 2
 
 [profile.dev.package.openstitch-digitize]
 opt-level = 2
+
+# The browser build (#696, docs/DISTRIBUTION.md "Web editor"): the release build linked as one
+# unit (fat LTO, one codegen unit) and stripped, which makes the page's .wasm a quarter smaller
+# at the same speed. Optimising for size ("s", "z") saves more but slows Auto Punch and exports
+# by 40-60 % in the browser, so it is not used.
+[profile.web-release]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = true

@@ -242,11 +242,65 @@ blocked site data) the defaults apply and nothing is kept. The user settings (th
 machine profile) are kept the same way under `openstitch.user` (#829): the page registers the store
 through `openstitch_app::platform::set_user_store`, the engine's `Session::with_user_store` reads it
 at start and writes every settings change back, and stored bytes that are not settings give a
-first run. The `.wasm` is about 17 MB
-(#696).
+first run.
+
+**Crash recovery (#831):** autosave (Options ▸ Autosave for crash recovery) keeps a copy of an
+unsaved design in the origin's IndexedDB (database `openstitch`, store `recovery`, one record per
+tab: `crates/openstitch-web/js/recovery.js`), written after 3 s without a change as on the
+desktop. Each tab holds a Web Lock named after its record while it is open, so a record whose
+lock nobody holds was left by a tab that was closed or crashed: the next visit shows the same
+Recover Designs window as the desktop, and `ui.recoveryList`, `ui.recoveryRestore` and
+`ui.recoveryDiscard` work there (`openstitch_app::editor::recovery::Store`, registered through
+`openstitch_app::platform::set_recovery_store`). A saved design, or autosave turned off, removes
+the tab's record. Every storage access is guarded: where the browser refuses IndexedDB (storage
+blocked, cleared site data) recovery is off and the editor works on as before; without Web Locks
+(an old browser) every other tab's record is offered.
+
+**Samples and fonts (#833):** the six File ▸ Open Sample designs are built into the page
+(`getting_started::embedded_sample`, about 190 KB of the `.wasm`), so they open there as on the
+desktop; Help ▸ Ready-to-Sew Designs opens the kit on GitHub. A page cannot read the fonts
+installed on the computer: the lettering font lists say so under them in the browser
+(`Limit::SystemFonts` in `ui.browserLimits`); the built-in fonts are there, and Load TrueType
+Font adds a font file.
+
+**Keys, screens and touch (#834):** Ctrl+S, Ctrl+P and Ctrl+O reach the editor (the browser's
+Save Page, Print and Open File do not open). Ctrl+N, Ctrl+T and Ctrl+W are the browser's own: a
+page never sees them, so in the browser they cannot be given to a command (Keyboard Shortcuts
+names them) and New is in the File menu; `ui.browserLimits` lists them as `browserKeys`. The
+editor draws at the screen's resolution (2 or 3 device pixels per CSS pixel). A window narrower
+than 640 points (a phone, a narrow browser window) docks no pane: the canvas keeps the whole
+width, the panes float folded above the status bar, and the ribbon's tabs scroll under a finger
+(`openstitch_app::editor::workspace::narrow`, `narrow_tests`); the desktop window is at least 900
+points wide, so it changes only with a large Text size. At 600 × 800 CSS pixels, before and
+after: [before](images/web-editor-narrow-before.png), [after](images/web-editor-narrow.png); at
+390 × 844 (a phone): [before](images/web-editor-phone-before.png),
+[after](images/web-editor-phone.png).
+
+**Download size (#696):** the page is built with the `web-release` profile (the release profile
+with fat LTO, one codegen unit and stripped symbols). Measured on `openstitch_web_bg.wasm`
+(wasm-bindgen output) at 94c8ec94, 2026-11-17:
+
+| Build | .wasm | gzip -9 (what Pages sends) | Brotli 11 | Speed (Auto Punch, PES export) |
+|---|---|---|---|---|
+| `--release` (before) | 33.2 MB | 10.4 MB | 6.9 MB | 1 × |
+| `web-release`: opt-level 3, fat LTO, 1 codegen unit, strip | 24.8 MB | 9.1 MB | 6.4 MB | 1 × |
+| the same with opt-level "s" | 22.5 MB | 7.9 MB | 5.7 MB | 1.4 × slower |
+| the same with opt-level "z" | 20.5 MB | 7.0 MB | 5.3 MB | 1.6 × slower |
+
+The size-optimised levels make Auto Punch and exports 40-60 % slower in the browser (Chromium,
+three Auto Punch runs and five PES exports in the page), so the page keeps opt-level 3; a
+per-crate opt-level 3 for the engine under "s" is lost to fat LTO (24.6 MB, as slow as "s"). The
+built-in samples (#833) add 0.19 MB: with them and the rest of this batch the `web-release` page
+is 25.0 MB (gzip 9.2 MB), against 33.4 MB (10.6 MB) the same code built `--release`. CI job `web`
+writes the `.wasm`'s gzip size to its summary.
+Not done: `wasm-opt`, and splitting digitizing into a second download.
 
 **Browsers:** `web/e2e/page.mjs` (Playwright, version pinned in `web/e2e/package-lock.json`;
-it also turns the start cards off and on with a reload after each, #797)
+it also turns the start cards off and on with a reload after each, #797; and since 2026-11-17
+opens a sample, presses Ctrl+S and Ctrl+P, runs at 2 device pixels per CSS pixel (Chromium and
+Firefox at a real scale of 2, since Playwright's emulation of it gives their canvases the wrong
+size), at phone width with a finger drawing and selecting, recovers a closed tab's design and
+runs with storage refused: #831, #833, #834)
 loads the page in Chromium, Firefox and WebKit (Safari's engine): the editor must start, File ▸
 Open (Ctrl+O) goes through the browser's real file picker, and PES and DST exports written to the
 editor's save folder arrive as real downloads that must be byte-identical to the native build.
@@ -254,7 +308,9 @@ Before part 2 all three passed on macOS (2026-11-07, `node web/e2e/page.mjs WEB_
 INPUT`). CI job `web` runs it on
 Linux: Chromium always counts; Firefox counts when Mesa (for WebGL on the GPU-less runner)
 installs within 8 minutes, else it is a CI warning; WebKit needs GTK 4 and GStreamer, which the
-runner lacks, so there it is a warning too. The screenshots are kept as the
+runner lacks, so there it is a warning too. **WebKit is therefore not covered by CI at all**:
+there is no macOS CI job (#1227 tracks one), and WebKit is checked only by running the page test
+locally on a Mac (last on 2026-11-17 at `batch:mac-wasm-3`'s head, every check passed). The screenshots are kept as the
 `openstitch-web-screenshots` artifact. Safari itself (macOS, iPadOS) is not run; WebKit is its
 engine.
 
@@ -272,8 +328,7 @@ the list, and on `wasm32` the library includes it too (`extern crate self as ope
 so `openstitch_app::EditorApp` exists for the web crate without moving any file. What a browser
 cannot do is behind small stand-ins, each identical to the desktop code on the desktop:
 `files.rs` (file dialogs: `rfd::FileDialog` on the desktop; in the browser the pickers returned
-nothing until part 2), `web/assistant_panel.rs` (no Assistant panel: it needs a model connection, the
-keychain and a local socket), `web/update_ui.rs` (no updater), `remote.rs` (no automation
+nothing until part 2), `web/assistant_panel.rs` (no Assistant panel then; since #766 the browser's own panel, below), `web/update_ui.rs` (no updater), `remote.rs` (no automation
 socket), the Assistant's notes compiled from `openstitch-assistant/src/notes.rs` without its
 network client, and no system trash. CI job `web` builds the whole package for `wasm32`.
 
@@ -291,10 +346,42 @@ through `files::pick_then(dialog, |app, path| …)`: on the desktop the dialog r
 action runs at the start of the next frame; in the browser the page shows its picker (with every
 filter, one file or several) and the action runs when the bytes are in memory. The engine reads
 those files through `fsio` (`fsio::metadata` and `fsio::read`, `std::fs` on the desktop).
-Dropped files arrive as egui's `dropped_files`, read with `bytes_async`. Still to come: an AI
-path (#766): the browser editor has no
-Assistant panel and no MCP or automation-socket control, only `openstitch.run` from code in the
-page.
+Dropped files arrive as egui's `dropped_files`, read with `bytes_async`.
+
+The Assistant (#766, 2026-11-17): `web/assistant_panel.rs` is now the browser's Assistant panel.
+- **The model:** the Claude API, or an OpenAI-compatible endpoint that allows the page's address.
+  For a local Ollama, start it with `OLLAMA_ORIGINS` set to the page's address.
+  - The page sends the requests itself with `fetch` (`openstitch_assistant::browser`), with the
+    Claude API's `anthropic-dangerous-direct-browser-access` header and no cookies.
+  - Stop and the request timeout abort them.
+- **The turn loop:** the desktop's own, run `async` between frames
+  (`Conversation::run_turn_async`).
+- **The tools:** the `openstitch-mcp` assistant tools (built without its `remote` feature) on the
+  page's editor, with the same gate. A tool call that needs approval waits for the card before
+  anything runs. A message's changes are one undo step.
+- **The key:** in the panel's memory for the session. **Remember on this device** keeps it in
+  the site's `localStorage` (`openstitch.ai.key <address>`), with a warning that it is
+  unencrypted there.
+  - It is sent only to the address it was entered for.
+  - It is never in the preferences, a file, a URL or a log.
+  - Changing the address clears the field, or shows the key remembered for the new address.
+    Unticking Remember removes the current address's key. **Forget all remembered keys**
+    (`ui.assistantForgetKeys`) removes every address's key.
+- **The model cannot drive the panel:** the gate refuses `ui.assistantSetup`, `Send`, `Answer`,
+  `Stop` and `ForgetKeys` to the model in every mode, `run_batch` included
+  (`assistant_chat::user_only`, checked first). A prompt-injected model therefore cannot move
+  the endpoint and send the key elsewhere.
+- **Narrow windows:** on a phone or a window narrower than 640 points (#834) the panel starts
+  closed, so the canvas shows; the ribbon opens it.
+- **Not in the browser yet:** the Assistant cannot see a picture the user gives it or import an
+  SVG it draws (no attachments and no scratch folder, #1224); coding agents (ACP) and question
+  cards are desktop-only.
+- **Page scripts:** they drive the panel through `openstitch.run`'s `ui.assistantSetup`,
+  `ui.assistantSend`, `ui.assistantState`, `ui.assistantAnswer` and `ui.assistantStop`
+  (`web/e2e/assistant.mjs` tests it against `web/e2e/fake-model.mjs` in Chromium, Firefox and
+  WebKit).
+- **Still to come:** MCP control of the page by an outside AI client (an opt-in local bridge,
+  #1223).
 
 **Build** (the CLI version must match `wasm-bindgen` in Cargo.lock):
 

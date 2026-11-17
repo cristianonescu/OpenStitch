@@ -559,9 +559,18 @@ pub struct Shape {
     /// -medium- and -light-square40 (round 15, #1142). The body template's 1 on every other
     /// line; written on candlewick lines only.
     pub candlewick_density: u16,
-    /// Zigzag width, mm.
+    /// Body +112 and +114: a candlewick line's Size and Spacing, mm (PE-DESIGN's defaults 5.0
+    /// and 1.0, which every line body carries whatever its type). Round 16's captures of one
+    /// 40 mm square (#1160): Size 5.0 to 6.0 moves +112 (50 to 60) and the sewn box, Spacing
+    /// 1.0 to 2.0 moves +114 (10 to 20) and nothing else.
+    pub candlewick_size: f32,
+    pub candlewick_spacing: f32,
+    /// Zigzag width, mm (+48). The zigzag tool's value, kept in the body while another line
+    /// type is sewn: on a candlewick line it is not the Size (#1160: 2.0 in the default
+    /// captures, 5.0 in round 15's squares, all sewn at Size 5.0; a zigzag set to 4.0 and the
+    /// line switched back to candlewick moved only +48 and +50).
     pub zigzag_width: f32,
-    /// Zigzag density, line/mm.
+    /// Zigzag density, line/mm (+50); kept like the width.
     pub zigzag_density: f32,
     /// Zigzag Sharp Corners button (body +62): 0 for button 1, 1 for button 2 (#373, the
     /// line-zigzag-miter-v75-b1/b2-m0 pair differs only here).
@@ -707,6 +716,8 @@ impl Shape {
             line_variant: 0,
             line_flag_84: 0,
             candlewick_density: 1,
+            candlewick_size: 5.0,
+            candlewick_spacing: 1.0,
             zigzag_width: 2.0,
             zigzag_density: 4.5,
             sharp_corners: 0,
@@ -1552,6 +1563,8 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         line_variant: u16_at(body, 86),
         line_flag_84: u16_at(body, 84),
         candlewick_density: u16_at(body, 110),
+        candlewick_size: f32::from(u16_at(body, 112)) / 10.0,
+        candlewick_spacing: f32::from(u16_at(body, 114)) / 10.0,
         zigzag_width: f32::from(u16_at(body, 48)) / 10.0,
         zigzag_density: f32::from(u16_at(body, 50)) / 10.0,
         sharp_corners: u16_at(body, 62),
@@ -2214,16 +2227,16 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
         put16(&mut head, 2 * k, *v as u16);
     }
     // Sewn extent: the bounds plus half the zigzag width while a zigzag or stem line is sewn,
-    // the whole zigzag width on a chain, and the E or V width (+90) on E, V, candlewick and
-    // motif lines (line-*-default: 2.0 mm and 2.5 mm, growth 10, 20 and 25; every owner line
-    // file has those two widths, so which field drives the stem, chain, candlewick and motif
-    // growth is inferred from the amounts, not seen varying).
+    // the whole zigzag width on a chain, the E or V width (+90) on E, V and motif lines
+    // (line-*-default: 2.0 mm and 2.5 mm, growth 10, 20 and 25; every owner line file has
+    // those two widths, so which field drives the stem, chain and motif growth is inferred
+    // from the amounts, not seen varying), and half the Size (+112) on a candlewick, the
+    // knot's radius (#1160: Size 5.0 grows the box by 25, Size 6.0 by 30).
     let half = match (s.line_sewn, s.line_type) {
         (true, Shape::LINE_ZIGZAG | Shape::LINE_STEM) => (s.zigzag_width * 5.0).round() as i16,
         (true, Shape::LINE_CHAIN) => (s.zigzag_width * 10.0).round() as i16,
-        (true, Shape::LINE_E_OR_V | Shape::LINE_CANDLEWICK | Shape::LINE_MOTIF) => {
-            (s.ev_width * 10.0).round() as i16
-        }
+        (true, Shape::LINE_CANDLEWICK) => (s.candlewick_size * 5.0).round() as i16,
+        (true, Shape::LINE_E_OR_V | Shape::LINE_MOTIF) => (s.ev_width * 10.0).round() as i16,
         _ => 0,
     };
     for (k, v) in [x0 - half, y0 - half, x1 + half, y1 + half]
@@ -2241,6 +2254,9 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     if s.line_type == Shape::LINE_CANDLEWICK {
         put16(&mut head, 110, s.candlewick_density);
     }
+    // A candlewick's Size and Spacing (#1160); PE-DESIGN's 5.0 and 1.0 on every other line.
+    put16(&mut head, 112, tenths(s.candlewick_size));
+    put16(&mut head, 114, tenths(s.candlewick_spacing));
     for (k, v) in s.transform.iter().enumerate() {
         head[16 + 4 * k..20 + 4 * k].copy_from_slice(&v.to_le_bytes());
     }
