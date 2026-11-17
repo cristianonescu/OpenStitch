@@ -903,10 +903,13 @@ Line references are relative to `crates/`.
       Size 3, 4, 5, 6, 7, 8 and 10); the 0.1 is fitted, anything above 0.073 up to 0.146
       gives the same counts. OpenStitch took the count from the density alone (24 at every
       Size) and sewed the whole run to the centre at the line's run pitch, so at Size 6.0 it sewed 658 needle
-      points where PE-DESIGN sews 756. Knots per side were already PE-DESIGN's. A density
-      PE-DESIGN does not have follows the same line through its three pitches, so its knot at
-      Size 5.0 can change (density 8: 12 points, it was 16). Left: one to three needle points
-      at the line's start and end (`candlewick_knots_have_pe_designs_points_at_every_size`,
+      points where PE-DESIGN sews 756. Knots per side were already PE-DESIGN's. **Changed
+      output, by extension and not by measurement:** PE-DESIGN's dialog takes Size 3.0 to
+      10.0 and three densities, so below Size 3.0 and for any other density the knot follows
+      the same rule without a reference, and existing designs with such candlewicks sew
+      fewer points (Size 2.0 Medium: 12 points, it was 24, the kit's line-sew-types row;
+      density 8 at Size 5.0: 12, it was 16). Left against PE-DESIGN: one or two needle points
+      at the line's start and end on 11 of the 20 measured settings, none on the other 9 (`candlewick_knots_have_pe_designs_points_at_every_size`,
       specs `line-candlewick-*-size*-square40`).
     - #1160: a candlewick line's Size and Spacing are the line body's +112 and +114; +48 and
       +50 are the zigzag tool's width and density, which PE-DESIGN keeps in every line body

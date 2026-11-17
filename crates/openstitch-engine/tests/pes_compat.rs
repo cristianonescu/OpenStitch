@@ -1185,7 +1185,9 @@ fn a_chain_with_alternating_links_is_refused_in_pes_11() {
         )
         .expect_err("refused");
     assert!(
-        refused.to_string().contains("every other link flipped"),
+        refused
+            .to_string()
+            .contains("set its arrange to normal or mirror, or use version 6"),
         "{refused}"
     );
 }
@@ -1209,7 +1211,18 @@ fn the_set_line_descriptions_say_where_pes_11_stores_a_stem_and_a_chain() {
         ("angle", "whole degrees at body +104"),
         ("single", "stores it at body +106"),
         ("runTimes", "a chain's Time at body +122"),
-        ("arrange", "a chain with alternate is refused there"),
+        (
+            "arrange",
+            "a chain with alternate is refused there: set normal or mirror, or export PES version 6",
+        ),
+        (
+            "width",
+            "below 3.0 the same rule is extended, not measured: a Medium knot of Size 2.0 has 12 points, 24 before #1236",
+        ),
+        (
+            "density",
+            "another density follows the same rule by extension, not measured, so it is not always twice the density: density 8 at Size 5.0 has 12 points, 16 before #1236",
+        ),
         ("chainShape", "stores it at body +118"),
     ] {
         let p = spec.params.iter().find(|p| p.name == param).expect(param);

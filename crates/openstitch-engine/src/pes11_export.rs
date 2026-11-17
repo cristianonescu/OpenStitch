@@ -824,12 +824,15 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
             Shape::LINE_CANDLEWICK
         }
         // A chain's Stitch Type, Size, Time and Arrange are +118 to +124 (#1237). PE-DESIGN's
-        // Arrange has two buttons, so links flipped in turn have no place in the file.
+        // Arrange has two buttons, so links flipped in turn have no place in the file. That its
+        // second Stitch Type button is the diamond link and its second Arrange button the
+        // mirrored side is inferred from OpenStitch's own two choices, not measured on
+        // PE-DESIGN's stitches.
         LineType::Chain => {
             use openstitch_design::model::{Arrange, ChainShape};
             if l.arrange == Arrange::Alternate {
                 return Err(format!(
-                    "object {id}: a chain line with every other link flipped is not mapped in PES 0110 (use version 6)"
+                    "object {id}: a chain line with every other link flipped (arrange alternate) has no place in PES 0110: set its arrange to normal or mirror, or use version 6"
                 ));
             }
             s.chain_type = u16::from(l.chain_shape == ChainShape::Diamond);

@@ -503,8 +503,9 @@ fn object(s: &Shape, table: &[Thread], notes: &mut Vec<String>) -> Result<Design
         }
         // A chain's Stitch Type, Size, Time and Arrange are +118 to +124 (#1237): the first
         // Stitch Type button (0) is the triangle link, the second the diamond; the second
-        // Arrange button (1) puts the links on the other side of the line. `object.setLine`
-        // takes a size of 0.5-10 and 1-6 passes.
+        // Arrange button (1) puts the links on the other side of the line. Both second buttons
+        // are inferred from OpenStitch's own two choices, not measured on PE-DESIGN's stitches.
+        // `object.setLine` takes a size of 0.5-10 and 1-6 passes.
         if kind == LineType::Chain {
             l.width = in_range(
                 notes,

@@ -597,7 +597,11 @@ pub fn candlewick(
 /// 7.1, 7.8 and 8, and 10 mm; Light 12, 20, 24, 32 and Dense 20, 32, 48, 64 at 3, 5, 7, 10).
 /// The 0.1 is fitted: any value above 0.073 up to 0.146 gives the same 16 counts. One over the
 /// pitch is `(points - 8) / 12` per mm, which is PE-DESIGN's three pitches and a straight line
-/// between and beyond them for OpenStitch's other densities. Always a multiple of four, so
+/// between and beyond them for OpenStitch's other densities. Measured only for those three
+/// densities from Size 3.0, the smallest PE-DESIGN's dialog takes, to 10.0: below 3.0 and for
+/// any other density the same rule is an extension, and such knots have fewer points than
+/// before #1236, when the count was `points` at every Size (Medium at Size 2.0: 12, it was 24;
+/// density 8, `points` 16, at Size 5.0: 12). Always a multiple of four, so
 /// the star's step of `points / 2 - 1` visits every point.
 pub(crate) fn candlewick_points(points: usize, size: f64) -> usize {
     let per_mm = (points as f64 - 8.0).max(0.0) / 12.0;
