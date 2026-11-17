@@ -58,7 +58,7 @@ Its notes are in [docs/releases](docs/releases/).
 | macOS (Apple Silicon and Intel) | `OpenStitch-…-macos-universal.zip` |
 | Linux | `OpenStitch-…-linux-x86_64.AppImage` (`chmod +x` and run) or `….tar.gz` |
 | Command line (`stitchtool`, `openstitch-mcp`) | `openstitch-cli-…` for your system |
-| Browser | <https://cristianonescu.github.io/OpenStitch/>: nothing to install, nothing uploaded except the Assistant's messages, to the model you choose. The Assistant works with the Claude API or a local Ollama, but it cannot yet see a picture you give it or import an SVG it draws ([#1224]). No printing or machine transfer yet. |
+| Browser | <https://cristianonescu.github.io/OpenStitch/>: nothing to install, nothing uploaded except what you send the Assistant (your messages, the design's details and the pictures it looks at), only to the model you choose. The Assistant works with the Claude API or a local Ollama, but it cannot yet see a picture you give it or import an SVG it draws ([#1224]). No printing or machine transfer yet. |
 
 The builds are not code-signed yet:
 - **macOS:** move `OpenStitch.app` to Applications, then right-click it and choose Open the first
@@ -1091,8 +1091,8 @@ Linux packaging changes, and can be built locally from
 
 The [browser version](https://cristianonescu.github.io/OpenStitch/) is built from `main`. It
 opens designs and embroidery files from your disk and saves and exports them as downloads;
-nothing leaves the browser except the Assistant's messages, which go only to the model address you
-choose. It does less than the desktop app: its Assistant cannot see pictures you give it or import
+nothing leaves the browser except what you send the Assistant (your messages, the design's details
+and the pictures it looks at), which goes only to the model address you choose. It does less than the desktop app: its Assistant cannot see pictures you give it or import
 an SVG it draws ([#1224]), and there is no MCP control ([#1223]), system clipboard, printing or
 folder choosing yet
 ([docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#web-editor)).

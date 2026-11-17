@@ -105,9 +105,10 @@ pub fn attach_files(app: &mut EditorApp, _paths: Vec<std::path::PathBuf>) {
 }
 
 /// What the browser's Assistant cannot do yet, shown in the panel at all times (#766).
+/// (Tracked as #1224 and #1223; the user's text names no issue.)
 pub const BROWSER_LIMITS: &str = "In the browser the Assistant cannot yet see a picture you give \
-it or import an SVG it draws (#1224), and outside AI clients cannot control this page (#1223). \
-The desktop editor does both.";
+it or import an SVG it draws, and outside AI clients cannot control this page. The desktop \
+editor does both.";
 
 pub fn set_open(app: &mut EditorApp, open: bool) {
     if open && !app.ui.prefs.ai.enabled {
