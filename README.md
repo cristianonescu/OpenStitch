@@ -650,7 +650,11 @@ circle, and the whole message is one undo step.*
   thinking, tool results and keys are never kept. "Save the chat with the project" (Assistant
   settings, on by default) turns it off, and a kept chat goes at the next save. Saves and
   opens the assistant runs are handled as File ▸ Save and Open are ([#1176], [#1178],
-  [#1187]).
+  [#1187]). On the same computer a coding agent such as Claude Code continues its own session
+  for the saved chat, with its earlier tool calls and pictures ([#1170]).
+- (+) **Scriptable:** tests and scripts drive the panel over the automation socket (open it,
+  pick the protocol and agent, send with attachments, read the chat, answer approval cards);
+  the assistant itself cannot use these commands ([#1180]).
 - (+) **Questions and suggested replies:** before a new design it asks 5 to 10 questions with
   answer chips, its recommended answer first and marked so, or a typed answer (or it uses its
   judgment and takes its recommendations); after every reply it offers a suggested message and
@@ -765,6 +769,8 @@ tests and the keychain round trip
 [#491]: https://github.com/cristianonescu/OpenStitch/issues/491
 [#1168]: https://github.com/cristianonescu/OpenStitch/issues/1168
 [#1169]: https://github.com/cristianonescu/OpenStitch/issues/1169
+[#1170]: https://github.com/cristianonescu/OpenStitch/issues/1170
+[#1180]: https://github.com/cristianonescu/OpenStitch/issues/1180
 [#1176]: https://github.com/cristianonescu/OpenStitch/issues/1176
 [#1178]: https://github.com/cristianonescu/OpenStitch/issues/1178
 [#1184]: https://github.com/cristianonescu/OpenStitch/issues/1184

@@ -131,6 +131,10 @@ harness. The details per item are in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDI
 Development is paused after alpha.17 until the owner says to resume. No further alpha is
 planned. The open work below and the open issues stay in the Future milestone.
 
+alpha.18, the Assistant: commands that drive its panel for tests and scripts (#1180), and a
+coding agent that continues its own session when a project's chat is reopened on the same PC
+(#1170).
+
 ## Still to do
 
 Assets (owner's rule of 2026-10-30, [research/asset-audit.md](research/asset-audit.md)): the

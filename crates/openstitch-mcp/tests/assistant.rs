@@ -925,6 +925,9 @@ fn every_command_the_skill_names_exists() {
         "ui.documents",
         "ui.loading",
         "ui.guides",
+        "ui.assistantSend",
+        "ui.assistantState",
+        "ui.assistantAnswer",
     ];
     // The web editor's own (crates/openstitch-web, #556; SKILL.md "Web editor").
     let web_ui = openstitch_web::session::UI_COMMANDS;
