@@ -86,7 +86,9 @@ fn rotated_shapes_and_curves_sew_the_same_bits_on_every_platform() {
 // on its 100 x 100 Hoop Size page each one-step tie-in starts on a stitch in place (1422 before).
 // Re-recorded on Windows on 2026-11-13 (#938): its H's junction squares are cut at the bar's
 // corners (same needle points, moved).
-const EXPECTED_ARCH: (usize, u64) = (1429, 10530594864167769664);
+// Re-recorded on Windows on 2026-11-17 (#938): each H's lower stem and junction square are
+// reached under the stem, not round its outline, and spaced over their whole length (1429 before).
+const EXPECTED_ARCH: (usize, u64) = (1366, 1685509951266935580);
 // 353 stitches until every run the writer trims after got PE-DESIGN's tie-in and lock (#289),
 // 357 until #567 (above); 353 until a stitch in place before a one-step tie-in on a Hoop Size
 // page (#1013, re-recorded on Windows on 2026-11-13).

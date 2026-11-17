@@ -659,6 +659,36 @@ Line references are relative to `crates/`.
   starting there here gives 10 degrees but drops A to 279, because our square (13 crossings
   against 18) and foot (32 against 37) are shorter. Our leg rungs tilt about 23 degrees where
   PE-DESIGN's tilt 35, so the same corners cut less of the outer side.
+  Since 2026-11-17 (#938): PE-DESIGN's Convert to Blocks of A (stroke-blocks-A) shows the left
+  leg's two sides joined over the leg's whole length, the inner side straight across the bar's
+  mouth, and the leg cut along its own crossings through the bar's two corners; stroke-satin-A
+  shows how the pieces are reached: 5 stitches down the leg's centre to the foot, the foot sewn
+  upwards with each crossing started on the bar's side, 3 stitches back up the centre to the
+  square. OpenStitch now does the same on every straight column a stroke leaves (A, H, K, T):
+  the cut is the crossing through the corner (it was the one whose middle is level with it,
+  0.4 mm lower on A's upper cut), the far piece and the square are led to under the column
+  (the walk round A's foot took 15 stitches), the far piece's crossings start on the leaving
+  stroke's side, and each of the three pieces is spaced over its whole length (rounding down
+  within each 3 mm sample lost up to a pair of needle points per sample). Text under 6 mm keeps
+  its travel (by way of the centre each end of the run is half a stroke's width, 0.4 mm at
+  4 mm). Measured (ours before → after / PE-DESIGN): A 294 → 291 / 290; A's foot 31 → 35 / 35
+  crossings, 16.9 → 10.9 / 8.5 degrees from level on its middle third; its square 13 → 17 / 17
+  crossings, starting 1.1 → 1.4 / 1.9 mm above the bar's top edge (the rest is the left leg's
+  outer side starting 0.5 mm lower at the apex than PE-DESIGN's); foot to square 15 → 5 / 5
+  stitches; H at 40 mm 575 → 548 / 556; K 312 → 297 / 293; K at 8 mm 131 → 125 / 128; T 209 →
+  201 / 186; H at 10 mm 150 → 143 / 149 (its blocks 25, 24, 7, 24 and 51 needle points, as
+  PE-DESIGN's; PE-DESIGN adds a 5-point tie-off at the end and one more run stitch); fill H
+  503 → 484 / 483, fill A 473 → 464 / 479, fill T 333 → 329 / 312. A stem that turns into a
+  bowl is one bent column and keeps its travel and spacing (R 323 → 321, P
+  342 unchanged; no PE-DESIGN capture of either). Of the 241 text specs 193
+  change (text-fit-* and text-transform-* contain H): 168 closer to PE-DESIGN in needle
+  points, 23 farther, all within their tolerances
+  (`satin_a_s_foot_and_square_are_cut_and_reached_as_pe_design_s`,
+  `a_column_s_far_piece_and_square_are_reached_under_it_and_spaced_whole`). M at 8 mm has no
+  trim, as PE-DESIGN's; M at 20 mm none against PE-DESIGN's one. Measured per block, W at
+  8 mm's 8 extra needle points (163 / 155) are all in its middle V (#1064), and M at 8 mm's
+  11 missing (154 / 165) are PE-DESIGN's start (8), its fan at each stem's top (5 and 6) less
+  the middle V (ours 8 over).
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.

@@ -255,6 +255,40 @@ fn rungs_even_at(rungs: &[[Vec2; 2]], pitch: f64, at: f64) -> Vec<[Vec2; 2]> {
         .collect()
 }
 
+/// Rungs `pitch` apart or a little more on the longer rail, counted over the whole column: its
+/// length (each section's longer rail, summed) divided into a whole number of equal steps,
+/// rounded down, each rung interpolated within its section. [`rungs_within_pitch`] rounds down
+/// within every section, as PE-DESIGN places Manual Punch satin between direction lines; this is
+/// for a column whose rungs are only samples of its sides (a piece of a letter's stroke, #938).
+pub fn rungs_whole(rungs: &[[Vec2; 2]], pitch: f64) -> Vec<[Vec2; 2]> {
+    if rungs.len() < 2 {
+        return rungs.to_vec();
+    }
+    let mut measure = vec![0.0];
+    for w in rungs.windows(2) {
+        let len = w[0][0].distance(w[1][0]).max(w[0][1].distance(w[1][1]));
+        measure.push(measure[measure.len() - 1] + len);
+    }
+    let total = measure[measure.len() - 1];
+    let n = ((total / pitch.max(0.1) + 1e-9).floor() as usize).clamp(1, 100_000);
+    (0..=n)
+        .map(|k| {
+            let target = total * k as f64 / n as f64;
+            let j = measure
+                .partition_point(|&m| m < target)
+                .clamp(1, rungs.len() - 1);
+            let span = measure[j] - measure[j - 1];
+            let t = if span > 1e-9 {
+                ((target - measure[j - 1]) / span).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let ([a, b], [c, d]) = (rungs[j - 1], rungs[j]);
+            [a.lerp(c, t), b.lerp(d, t)]
+        })
+        .collect()
+}
+
 /// Satin across the column as PE-DESIGN 11 sews Manual Punch satin: a sawtooth (see
 /// [`sawtooth`]) of rungs two crossings apart (`spacing` is the distance between crossings),
 /// each rung lengthened by `pull` at both ends.
@@ -1730,6 +1764,39 @@ mod tests {
             [v2(100.0, 0.0), v2(80.0, 40.0)],
             [v2(140.0, 80.0), v2(100.0, 80.0)],
         ]
+    }
+
+    #[test]
+    fn rungs_whole_rounds_once_over_the_column_not_within_each_section() {
+        // #938: a column 69 units long in three sections of 23, crossings 4 apart. Rounded down
+        // within each section that is 5 steps a section (15 in all, 4.6 apart); over the whole
+        // column it is 17 steps of 4.06.
+        let rungs: Vec<[Vec2; 2]> = (0..4)
+            .map(|k| [v2(0.0, 23.0 * k as f64), v2(30.0, 23.0 * k as f64)])
+            .collect();
+        assert_eq!(rungs_within_pitch(&rungs, 4.0).len(), 16);
+        let whole = rungs_whole(&rungs, 4.0);
+        assert_eq!(whole.len(), 18);
+        assert_eq!((whole[0], whole[17]), (rungs[0], rungs[3]));
+        for w in whole.windows(2) {
+            let step = w[0][0].distance(w[1][0]);
+            assert!((step - 69.0 / 17.0).abs() < 1e-9, "{step}");
+        }
+        // The satin sewn from them keeps every one: each step is at least the pitch.
+        assert_eq!(rungs_within_pitch(&whole, 4.0).len(), 18);
+        // A side that turns (a foot's rounded corner) is followed: every rung's ends lie on
+        // the sections' sides, the longer side measured section by section.
+        let bent = [
+            [v2(0.0, 0.0), v2(30.0, 0.0)],
+            [v2(0.0, 10.0), v2(40.0, 10.0)],
+            [v2(0.0, 50.0), v2(40.0, 50.0)],
+        ];
+        let whole = rungs_whole(&bent, 4.0);
+        let total = 10.0_f64.hypot(10.0) + 40.0;
+        assert_eq!(whole.len(), (total / 4.0).floor() as usize + 1);
+        assert!(whole.iter().all(|r| r[0].x == 0.0 && r[1].x <= 40.0));
+        // Fewer than two rungs are returned as they are.
+        assert_eq!(rungs_whole(&rungs[..1], 4.0), rungs[..1].to_vec());
     }
 
     #[test]
