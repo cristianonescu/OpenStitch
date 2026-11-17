@@ -785,6 +785,11 @@ From the competitor scan of 2026-11-15 (same document, Updates; filum, concepts 
 and an editor action that convert a satin between its centre-line form and its two-sides form
 (a Manual Punch column), both ways, keeping the stitches (#1145), an idea for Future.
 
+From the competitor scan of 2026-11-17 (same document, Updates; openhoop, concepts only): a
+monogram edited live on the design, the Monogram window filled from the selected monogram and
+each change rebuilt in place at once, with the style and frame choices shown as small pictures
+of the user's own letters (issue draft sent to the coordinator), an idea for Future.
+
 Deferred: shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
 rework and an intelligent multi-hoop split with editable lines (VP3, TAP, TBF, U01, DSB, DSZ,
