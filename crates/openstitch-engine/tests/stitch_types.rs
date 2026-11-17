@@ -2299,7 +2299,10 @@ fn direction_turns_the_zigzag_net() {
 /// tie-in, as the page is a Hoop Size one): stitch count and hash. Main before #1043's second
 /// part sewed 972 stitches, hash 6_462_209_893_352_527_947; the one more is a needle point on
 /// the outline at the top-left corner, where the diagonal back from a cut rung is cut too.
-const ZIGZAG_NET_0: (usize, u64) = (973, 17_908_954_492_682_872_431);
+/// Before #1043's outline travel 973 stitches, hash 17_908_954_492_682_872_431: the net now
+/// starts at the region's start, sews the lines before the bands, travels along the outline
+/// and has no edge run.
+const ZIGZAG_NET_0: (usize, u64) = (994, 5_701_389_481_929_730_607);
 
 /// #1058 through the command path: a zigzag net set with `object.setRegion` on a circle (a
 /// 64-sided polygon, 30 mm across) turned every 5° from 0° to 85° sews no rung across the
@@ -2787,6 +2790,53 @@ fn the_zigzag_net_descriptions_name_pe_designs_ranges() {
     }
 }
 
+/// #1163: `object.setRegion`'s `density` description says what a zigzag net stores (rungs per mm,
+/// as given) and how that maps to PE-DESIGN's Density, and the command does store it as given:
+/// 2.25 at the default, and a script's value unchanged.
+#[test]
+fn the_density_description_says_a_zigzag_net_stores_rungs_per_mm() {
+    let mut s = Session::new(std::env::temp_dir());
+    let summary = s
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion")
+        .params
+        .iter()
+        .find(|p| p.name == "density")
+        .expect("density")
+        .summary
+        .to_string();
+    for words in [
+        "zigzagNetFill: rungs per mm along each band, stored as given",
+        "half of PE-DESIGN's Density",
+        "2.25 (the default) is PE-DESIGN's 4.5",
+        "the inspector's Density field and a PES version 11 file show",
+    ] {
+        assert!(summary.contains(words), "{words:?} in {summary}");
+    }
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 30, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "zigzagNetFill"}),
+    );
+    let density = |s: &Session| {
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("region")
+            .density
+    };
+    assert_eq!(density(&s), 2.25);
+    run(&mut s, "object.setRegion", json!({"id": 1, "density": 3.0}));
+    assert_eq!(density(&s), 3.0);
+}
+
 /// #1046: `object.setLine`'s description of `profile` (what command_describe and the per-command
 /// tools give the Assistant) says that linear, smoothstep and stairs need more than 3 passes.
 #[test]
@@ -2930,4 +2980,237 @@ fn a_motif_line_cuts_the_corners_of_a_square() {
     assert!(!near(700.0, 700.0), "a motif spans the bottom-right corner");
     assert!(near(700.0, 300.0), "a run keeps the top-right corner");
     assert!(near(300.0, 700.0), "a run keeps the bottom-left corner");
+}
+
+/// The needle points (0.1 mm) of a zigzag net with under sewing (PE-DESIGN's default for the
+/// type; OpenStitch's is off) at Direction 0 on a 40 × 20 mm rectangle from (30, 40) mm: its
+/// lines lie at x = 31.5 + 8k and y = 41.5 + 8k mm.
+fn zigzag_net_40_by_20() -> Vec<(f64, f64)> {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 30, "y": 40, "width": 40, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "zigzagNetFill", "underlay": true}),
+    );
+    Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches
+        .iter()
+        .filter(|q| q.command == Command::Stitch)
+        .map(|q| (q.x, q.y))
+        .collect()
+}
+
+/// #1043: with under sewing a zigzag net sews in PE-DESIGN 11.50's order (round 13,
+/// zigzag-net-dir0 and zigzag-net-40x20-dir90): the line under every band first, those along the
+/// Direction and then those across it, and then the bands in the same order. A step over 2.5 mm
+/// is a rung or its diagonal back (the lines and the travel step 2 mm at most).
+#[test]
+fn a_zigzag_net_with_under_sewing_sews_its_lines_before_its_bands() {
+    let pts = zigzag_net_40_by_20();
+    let step = |i: usize| (pts[i + 1].0 - pts[i].0, pts[i + 1].1 - pts[i].1);
+    let steps = pts.len() - 1;
+    let first_rung = (0..steps)
+        .find(|&i| step(i).0.abs().max(step(i).1.abs()) > 25.0)
+        .expect("a rung");
+    // Every line is sewn before the first rung: the three along the Direction, then the five
+    // across it.
+    let along = |i: usize, y: f64| {
+        (pts[i].1 - y).abs() < 0.5 && (pts[i + 1].1 - y).abs() < 0.5 && step(i).0.abs() > 5.0
+    };
+    let across = |i: usize, x: f64| {
+        (pts[i].0 - x).abs() < 0.5 && (pts[i + 1].0 - x).abs() < 0.5 && step(i).1.abs() > 5.0
+    };
+    let mut last_along = 0;
+    for y in [415.0, 495.0, 575.0] {
+        let sewn: Vec<usize> = (0..first_rung).filter(|&i| along(i, y)).collect();
+        assert!(sewn.len() >= 15, "the line at y {y}: {} steps", sewn.len());
+        last_along = last_along.max(*sewn.last().expect("steps"));
+    }
+    let mut first_across = usize::MAX;
+    for x in [315.0, 395.0, 475.0, 555.0, 635.0] {
+        let sewn: Vec<usize> = (0..first_rung).filter(|&i| across(i, x)).collect();
+        assert!(sewn.len() >= 8, "the line at x {x}: {} steps", sewn.len());
+        first_across = first_across.min(sewn[0]);
+    }
+    assert!(
+        last_along < first_across,
+        "the lines along the Direction end at step {last_along}, those across start at {first_across}"
+    );
+    // Then the bands: those along the Direction (rungs up and down the page) before those
+    // across it.
+    let rungs = |up: bool| -> Vec<usize> {
+        (first_rung..steps)
+            .filter(|&i| {
+                let (dx, dy) = step(i);
+                if up { dy.abs() > 25.0 } else { dx.abs() > 25.0 }
+            })
+            .collect()
+    };
+    let (up, sideways) = (rungs(true), rungs(false));
+    assert!(
+        up.len() > 300 && sideways.len() > 150,
+        "{} {}",
+        up.len(),
+        sideways.len()
+    );
+    assert_eq!(up[0], first_rung, "the bands along the Direction first");
+    assert!(
+        up[up.len() - 1] < sideways[0],
+        "the last rung along the Direction at {}, the first across at {}",
+        up[up.len() - 1],
+        sideways[0]
+    );
+}
+
+/// #1043: no edge run under a zigzag net (PE-DESIGN 11.50 sews none, round 13, zigzag-net-dir0):
+/// from the start point at the bottom centre the needle goes along the bottom edge to the first
+/// line, 2.5 mm inside it, and sews it, where an edge run would walk the outline's 120 mm first;
+/// and before the first rung every needle point is on the outline itself (travel between line
+/// ends) or on a net line, none on an edge run's inset.
+#[test]
+fn a_zigzag_net_has_no_edge_run_under_it() {
+    let pts = zigzag_net_40_by_20();
+    let inside = |p: &(f64, f64)| {
+        (p.0 - 300.0)
+            .min(700.0 - p.0)
+            .min(p.1 - 400.0)
+            .min(600.0 - p.1)
+    };
+    assert!(
+        pts[..16].iter().any(|p| inside(p) > 20.0),
+        "the first needle points stay on the outline: {:?}",
+        &pts[..16]
+    );
+    let first_rung = (0..pts.len() - 1)
+        .find(|&i| {
+            (pts[i + 1].0 - pts[i].0)
+                .abs()
+                .max((pts[i + 1].1 - pts[i].1).abs())
+                > 25.0
+        })
+        .expect("a rung");
+    // Before the bands every needle point is on the outline (travel) or on a net line.
+    let on_line = |p: &(f64, f64)| {
+        [415.0, 495.0, 575.0].iter().any(|y| (p.1 - y).abs() < 0.5)
+            || [315.0, 395.0, 475.0, 555.0, 635.0]
+                .iter()
+                .any(|x| (p.0 - x).abs() < 0.5)
+    };
+    let off: Vec<&(f64, f64)> = pts[..first_rung]
+        .iter()
+        .filter(|p| inside(p) > 0.5 && !on_line(p))
+        .collect();
+    assert!(
+        off.is_empty(),
+        "needle points off the lines and the outline: {off:?}"
+    );
+}
+
+/// #1043: `travel` still changes a zigzag net now that it travels along the outline: off, from
+/// the first rung to the last no needle point lies on the bottom edge between two bands (the
+/// needle goes under the bands only; before and after, it walks from the start point and to the
+/// end point), and `object.setRegion`'s description says so for both nets.
+#[test]
+fn a_zigzag_net_with_travel_off_does_not_walk_the_outline() {
+    let net = |travel: bool| -> Vec<(f64, f64)> {
+        let mut s = Session::new(std::env::temp_dir());
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 30, "y": 40, "width": 40, "height": 20, "fill": "Red"}),
+        );
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "type": "zigzagNetFill", "underlay": false, "travel": travel}),
+        );
+        Compiler::for_design(s.design())
+            .compile(s.design())
+            .stitches
+            .iter()
+            .filter(|q| q.command == Command::Stitch)
+            .map(|q| (q.x, q.y))
+            .collect()
+    };
+    // Needle points on the bottom edge (y 60 mm; the lowest band along the Direction ends 1 mm
+    // above it) outside every band across the Direction (lines at x = 31.5 + 8k mm, bands 3 mm
+    // wide), between the first rung and the last: travel from one band's end to the next.
+    let along_edge = |pts: &[(f64, f64)]| {
+        let rungs: Vec<usize> = (0..pts.len() - 1)
+            .filter(|&i| {
+                (pts[i + 1].0 - pts[i].0)
+                    .abs()
+                    .max((pts[i + 1].1 - pts[i].1).abs())
+                    > 25.0
+            })
+            .collect();
+        pts[rungs[0]..=rungs[rungs.len() - 1]]
+            .iter()
+            .filter(|p| {
+                (p.1 - 600.0).abs() < 0.05
+                    && (0..5).all(|k| (p.0 - (315.0 + 80.0 * f64::from(k))).abs() > 16.0)
+            })
+            .count()
+    };
+    let (on, off) = (net(true), net(false));
+    assert!(
+        along_edge(&on) >= 3,
+        "on: {} needle points",
+        along_edge(&on)
+    );
+    assert_eq!(along_edge(&off), 0, "off");
+    assert_ne!(on, off);
+    let s = Session::new(".");
+    let summary = s
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion")
+        .params
+        .iter()
+        .find(|p| p.name == "travel")
+        .expect("travel")
+        .summary
+        .to_string();
+    for words in [
+        "zigzagNetFill: true travels along the outline between its lines and bands, as PE-DESIGN does",
+        "false only along the net's own lines under the bands, jumping to a part they do not reach",
+        "netFill: false sews each line as its own run",
+    ] {
+        assert!(summary.contains(words), "{words:?} in {summary}");
+    }
+}
+
+/// #1043: without under sewing a zigzag net travels along the outline between its bands, as
+/// PE-DESIGN 11.50 does (round 15, zigzag-net-40x20-dir90-no-under: 955 stitches, no needle point
+/// on a net line between bands), not along its own lines: on that 40 × 20 mm rectangle at
+/// Direction 90 within 5 % of PE-DESIGN's count (along the net lines it was 1,010).
+#[test]
+fn a_zigzag_net_without_under_sewing_travels_along_the_outline() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 30, "y": 40, "width": 40, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "zigzagNetFill", "spacing": 5.0, "density": 2.25,
+            "patternWidth": 3.0, "underlay": false, "angle": 90}),
+    );
+    let st = Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches;
+    let n = st.iter().filter(|q| q.command == Command::Stitch).count();
+    assert!(
+        (n as f64 - 955.0).abs() <= 955.0 * 0.05,
+        "{n} stitches against PE-DESIGN's 955"
+    );
 }

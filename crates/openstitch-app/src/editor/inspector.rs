@@ -139,6 +139,15 @@ impl Control {
         let param = self.param();
         let value = match (self, value.as_f64()) {
             (Control::Number { integer: true, .. }, Some(v)) => json!(v.round() as i64),
+            // A zigzag net's Density field is PE-DESIGN's lines per mm; the command takes the
+            // stored rungs per mm, half of it (#1163).
+            (
+                Control::Number {
+                    key: NET_DENSITY_KEY,
+                    ..
+                },
+                Some(v),
+            ) => json!(v / RegionSewing::ZIGZAG_NET_LINES_PER_RUNG),
             // The candlewick Density choices send their density (#1124).
             (
                 Control::Choice {
@@ -154,6 +163,9 @@ impl Control {
         json!({ param: value })
     }
 }
+
+/// Draft key of a zigzag net's Density field, shown in PE-DESIGN's lines per mm (#1163).
+pub const NET_DENSITY_KEY: &str = "region.netDensity";
 
 #[allow(clippy::too_many_arguments)]
 fn num(
@@ -563,12 +575,23 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
             | RegionType::Maze
             | RegionType::Meander
     );
-    if uses_density {
-        let unit = if r.kind == RegionType::ZigzagNetFill {
-            " /mm"
-        } else {
-            " rows/mm"
-        };
+    if uses_density && r.kind == RegionType::ZigzagNetFill {
+        // PE-DESIGN's Density of a zigzag net counts lines, a rung across and the diagonal back
+        // being two; `density` keeps rungs per mm. The field shows and takes PE-DESIGN's value
+        // (4.5 at the default, the number PES 0110 holds), and `Control::params` sends the
+        // rungs (#1163).
+        let lines = RegionSewing::ZIGZAG_NET_LINES_PER_RUNG;
+        let (lo, hi) = r.kind.density_range();
+        v.push(num(
+            "Density",
+            NET_DENSITY_KEY,
+            "density",
+            r.density * lines,
+            (lo * lines, hi * lines),
+            0.05,
+            " lines/mm",
+        ));
+    } else if uses_density {
         v.push(num(
             "Density",
             "region.density",
@@ -576,7 +599,7 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
             r.density,
             r.kind.density_range(),
             0.05,
-            unit,
+            " rows/mm",
         ));
     }
     if r.kind == RegionType::Fill {

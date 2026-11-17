@@ -735,7 +735,7 @@
    86.0,
    86.0
   ],
-  "stitches": 5382,
+  "stitches": 5272,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -748,10 +748,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 7.2,
+  "sewingMinutes": 7.1,
   "image": null,
   "preview": "previews/region-sew-types-2.png",
-  "sha256": "f0f27127efd5e4137d9938d11d2bb7de4ab768019a56cfd3f62a2affa1a0ab92",
+  "sha256": "65e523586820af8d44274ca526032a6c6a093605f38b25cd7fe76d3e395c2d45",
   "renderVersion": 3
  },
  "fills/fill-options.pes": {
@@ -1224,17 +1224,17 @@
    54.0,
    54.0
   ],
-  "stitches": 3303,
+  "stitches": 3351,
   "trims": 6,
   "threads": [
    "405 Blue",
    "405 Blue",
    "405 Blue"
   ],
-  "sewingMinutes": 4.4,
+  "sewingMinutes": 4.5,
   "image": null,
   "preview": "previews/cutwork.png",
-  "sha256": "d8485646c5833254950046a27aeddb323cd593260a9e3a62c640d0d425d65e16",
+  "sha256": "0acc3a8c45d047306d339f40f57d12a9c5054b445399d144020e459e3a2f1f59",
   "renderVersion": 3
  },
  "wizards/background-fill.pes": {
