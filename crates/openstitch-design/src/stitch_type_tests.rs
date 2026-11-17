@@ -369,7 +369,10 @@ fn candlewick_knots_have_pe_designs_points_at_every_size() {
         let mut last = 0;
         for tenths in 5..=200 {
             let n = lines::candlewick_points(points, tenths as f64);
-            assert!(n >= 4 && n.is_multiple_of(4) && n >= last, "{points} at {tenths}");
+            assert!(
+                n >= 4 && n.is_multiple_of(4) && n >= last,
+                "{points} at {tenths}"
+            );
             last = n;
         }
     }
