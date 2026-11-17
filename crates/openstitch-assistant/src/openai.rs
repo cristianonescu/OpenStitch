@@ -18,7 +18,6 @@
 //!   one when a request fails after the stream began);
 //! - tool call fragments without an `id` (every chunk example has one on the first fragment).
 
-use std::io::BufReader;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde_json::{Map, Value, json};
@@ -28,11 +27,11 @@ use crate::conversation::{
     BAD_JSON, CUT_OFF, DECLINED, End, NO_KEY, STOPPED, TOO_MANY, post_with_retry_status, str_field,
     summary, unsafe_address,
 };
-use crate::idle::{Progress, Watchdog};
-use crate::sse::SseReader;
+use crate::fetch::{AsyncTools, Events, Fetch};
+use crate::idle::Progress;
 use crate::{
-    Config, Conversation, Event, MAX_TOOL_CALLS_PER_MESSAGE, StopKind, ToolResult, Tools,
-    Transport, is_loopback, key_safe_for,
+    Config, Conversation, Event, MAX_TOOL_CALLS_PER_MESSAGE, StopKind, ToolResult, is_loopback,
+    key_safe_for,
 };
 
 /// What goes back in place of a picture: [OAI-CREATE] "For tool messages, only type `text` is
@@ -93,11 +92,11 @@ struct Call {
 }
 
 impl Conversation {
-    pub(crate) fn run_openai_turn(
+    pub(crate) async fn run_openai_turn(
         &mut self,
         cfg: &Config,
-        transport: &dyn Transport,
-        tools: &mut dyn Tools,
+        fetch: &dyn Fetch,
+        tools: &mut dyn AsyncTools,
         user_content: Vec<Value>,
         cancel: &AtomicBool,
         on_event: &mut dyn FnMut(Event),
@@ -136,46 +135,48 @@ impl Conversation {
                 return StopKind::Cancelled;
             }
             let body = request_body(cfg, &tool_defs, &self.messages);
-            let reader = match post_with_retry_status(
-                cfg, transport, &url, &headers, &body, cancel, on_event,
-            ) {
-                Ok(r) => r,
-                // Ollama 0.40.14 answers 400 "Multimodal data provided, but model does not
-                // support multimodal requests." for a model without vision (#416): the
-                // conversation goes on without its pictures, sent once more.
-                Err((StopKind::Error(_), Some(400)))
-                    if !self.text_only && leave_out_all_pictures(&mut self.messages) =>
+            let reader =
+                match post_with_retry_status(cfg, fetch, &url, &headers, &body, cancel, on_event)
+                    .await
                 {
-                    self.text_only = true;
-                    on_event(Event::Retrying {
-                        after: std::time::Duration::ZERO,
-                        reason: TEXT_ONLY.to_string(),
-                    });
-                    continue;
-                }
-                // The model's reply never arrives, so it is told, as for arguments that are not
-                // JSON (`BAD_JSON`), and asked again (#427); resending the same request fails
-                // the same way.
-                Err((StopKind::Error(msg), Some(500)))
-                    if unreadable < MAX_UNREADABLE_CALLS && msg.contains(UNREADABLE_CALL) =>
-                {
-                    unreadable += 1;
-                    let said: String = msg.chars().take(400).collect();
-                    self.messages
+                    Ok(r) => r,
+                    // Ollama 0.40.14 answers 400 "Multimodal data provided, but model does not
+                    // support multimodal requests." for a model without vision (#416): the
+                    // conversation goes on without its pictures, sent once more.
+                    Err((StopKind::Error(_), Some(400)))
+                        if !self.text_only && leave_out_all_pictures(&mut self.messages) =>
+                    {
+                        self.text_only = true;
+                        on_event(Event::Retrying {
+                            after: std::time::Duration::ZERO,
+                            reason: TEXT_ONLY.to_string(),
+                        });
+                        continue;
+                    }
+                    // The model's reply never arrives, so it is told, as for arguments that are not
+                    // JSON (`BAD_JSON`), and asked again (#427); resending the same request fails
+                    // the same way.
+                    Err((StopKind::Error(msg), Some(500)))
+                        if unreadable < MAX_UNREADABLE_CALLS && msg.contains(UNREADABLE_CALL) =>
+                    {
+                        unreadable += 1;
+                        let said: String = msg.chars().take(400).collect();
+                        self.messages
                         .push(json!({"role": "user", "content": format!(
                             "[Your last reply did not arrive: the server could not read its tool \
                              call arguments as JSON ({said}). Send the call again with valid JSON.]"
                         )}));
-                    on_event(Event::Retrying {
-                        after: std::time::Duration::ZERO,
-                        reason: ASKED_AGAIN.to_string(),
-                    });
-                    continue;
-                }
-                Err((stop, _)) => return stop,
-            };
+                        on_event(Event::Retrying {
+                            after: std::time::Duration::ZERO,
+                            reason: ASKED_AGAIN.to_string(),
+                        });
+                        continue;
+                    }
+                    Err((stop, _)) => return stop,
+                };
             let generated = self.messages.len();
-            let mut reply = read_stream(reader, generated, cfg.request_timeout, cancel, on_event);
+            let mut reply =
+                read_stream(reader, generated, cfg.request_timeout, cancel, on_event).await;
             match reply.end {
                 // Ollama lost an error mid-stream (#429): the same "error parsing tool call" as
                 // the 500 above, raised after the reply's text had been sent. The text stays;
@@ -281,7 +282,7 @@ impl Conversation {
                             name: call.name.clone(),
                             input: call.input.clone(),
                         });
-                        tools.call(&call.name, &call.input)
+                        tools.call(&call.name, &call.input).await
                     }
                 };
                 on_event(Event::ToolDone {
@@ -561,17 +562,13 @@ fn is_swallowed_error(chunk: &Value) -> bool {
 
 /// Reads the SSE stream: `data:` lines carrying `chat.completion.chunk` objects, ended by
 /// `data: [DONE]` ([OAI-CREATE] `stream_options`, and its streaming example).
-fn read_stream(
-    reader: Box<dyn std::io::Read + Send>,
+async fn read_stream(
+    mut sse: Box<dyn Events + '_>,
     generated: usize,
     timeout: std::time::Duration,
     cancel: &AtomicBool,
     on_event: &mut dyn FnMut(Event),
 ) -> Reply {
-    let mut sse = SseReader::with_idle(
-        BufReader::new(Watchdog::new(reader, timeout, Some(cancel))),
-        timeout,
-    );
     // Reset by text, reasoning, tool-call pieces and the finish; not by keep-alive chunks with
     // an empty delta or a usage chunk alone (#580).
     let mut progress = Progress::new(timeout);
@@ -590,7 +587,7 @@ fn read_stream(
             reply.end = End::Cancelled;
             return reply;
         }
-        let ev = match sse.next_event() {
+        let ev = match sse.next_event().await {
             Ok(Some(ev)) => ev,
             Ok(None) => {
                 // A server that closes without `[DONE]` after the finish reason has still sent

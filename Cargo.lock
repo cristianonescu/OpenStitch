@@ -2825,9 +2825,14 @@ name = "openstitch-assistant"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "js-sys",
  "openstitch-testutil",
  "serde_json",
  "ureq",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
 ]
 
 [[package]]
