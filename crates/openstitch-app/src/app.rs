@@ -1555,10 +1555,10 @@ impl EditorApp {
         }
     }
 
-    /// File ▸ Background Image: a PNG, JPEG or BMP shown behind the design, fitted to the page.
+    /// File ▸ Background Image: a PNG, JPEG, BMP, GIF or WebP shown behind the design, fitted to the page.
     pub fn background_dialog(&mut self) {
         crate::files::pick_then(
-            crate::files::FileDialog::new().add_filter("Images", &["png", "jpg", "jpeg", "bmp"]),
+            crate::files::FileDialog::new().add_filter("Images", &openstitch_digitize::raster::PICTURE_EXTENSIONS),
             |app, p| app.background_from(&p),
         );
     }
@@ -2016,6 +2016,11 @@ impl EditorApp {
             crate::edit_ui::ungroup(self);
         } else if hit(A::Group) {
             crate::edit_ui::group(self);
+        }
+        if hit(A::BreakApart) {
+            crate::edit_ui::break_apart(self);
+        } else if hit(A::JoinLines) {
+            crate::edit_ui::join_lines(self);
         }
         if hit(A::Delete) && self.tools.is_busy() && crate::keyboard_ui::draws(self.tools.tool()) {
             // While drawing, Backspace / Delete take back the last point (#499).

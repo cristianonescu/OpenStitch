@@ -6,6 +6,7 @@ pub mod assistant;
 pub mod assistant_attach;
 pub mod assistant_chat;
 pub mod assistant_saved;
+pub mod assistant_sessions;
 pub mod background;
 pub mod browser_limits;
 pub mod clipboard;

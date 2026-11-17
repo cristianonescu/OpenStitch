@@ -30,7 +30,15 @@ history_undo. File paths must lie inside the server's configured roots.";
 /// How the server reaches a running editor: the loopback socket's [`openstitch_remote::Client`],
 /// or a channel to the editor's UI thread when the editor hosts the server itself (B17 A1).
 /// `request` is `{"command", "params"}`; the reply is `{"ok", "result" | "error"}`.
+#[cfg(not(target_arch = "wasm32"))]
 pub trait EditorLink: Send {
+    fn handle(&mut self, request: &Value) -> Value;
+}
+
+/// How the server reaches the editor in a browser page (#766): the page has one thread, so the
+/// link may hold the editor itself, which is not `Send`.
+#[cfg(target_arch = "wasm32")]
+pub trait EditorLink {
     fn handle(&mut self, request: &Value) -> Value;
 }
 
@@ -39,6 +47,7 @@ pub fn assistant_instructions() -> &'static str {
     assistant::INSTRUCTIONS
 }
 
+#[cfg(feature = "remote")]
 impl EditorLink for openstitch_remote::Client {
     fn handle(&mut self, request: &Value) -> Value {
         openstitch_remote::Client::handle(self, request)

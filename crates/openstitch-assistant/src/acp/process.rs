@@ -71,6 +71,8 @@ impl Writer {
 }
 
 /// Start the agent in a process group of its own (Unix) or without a console window (Windows).
+/// Elsewhere (the browser build, #766) there is nothing to set.
+#[cfg_attr(not(any(unix, windows)), allow(unused_variables))]
 fn detach_group(cmd: &mut Command) {
     #[cfg(unix)]
     {

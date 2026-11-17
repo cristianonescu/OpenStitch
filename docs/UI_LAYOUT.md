@@ -198,6 +198,8 @@ Behaviour follows the guide's pages
 | Edit | Size |  | `Action::Size` | `object.scale` | yes |
 | Edit | Group | `Ctrl+G` | `Action::Group` | `object.group` | yes |
 | Edit | Ungroup | `Ctrl+Shift+G` | `Action::Ungroup` | `object.ungroup` | yes |
+| Edit | Join Lines (beyond PE-DESIGN, #744) | `Ctrl+J` | `Action::JoinLines` | `shape.joinLines` | yes |
+| Edit | Break Apart (beyond PE-DESIGN, #744) | `Ctrl+Shift+K` | `Action::BreakApart` | `object.breakApart` | yes |
 | Edit | Fit Text ▾ (Fit Text to Outline…, Release Text from Outline) |  | `Action::FitTextToOutline` | `text.setPath` | yes |
 | Edit | Stamp/Emboss |  | `Action::StampEmboss` | `shape.emboss` | yes |
 | Edit | Modify Overlap |  | `Action::ModifyOverlap` | `shape.combine` | yes |

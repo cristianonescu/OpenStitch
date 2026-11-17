@@ -76,6 +76,8 @@ mod hoop_lists;
 mod imports;
 #[path = "job_sheets.rs"]
 mod job_sheets;
+#[path = "join_break.rs"]
+mod join_break;
 #[path = "knife.rs"]
 mod knife;
 #[path = "knockdown.rs"]

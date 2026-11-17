@@ -31,6 +31,8 @@ pub const DEFAULTS: &[(Action, &[&str])] = &[
     (Action::Duplicate, &["Ctrl+D"]),
     (Action::Group, &["Ctrl+G"]),
     (Action::Ungroup, &["Ctrl+Shift+G"]),
+    (Action::JoinLines, &["Ctrl+J"]),
+    (Action::BreakApart, &["Ctrl+Shift+K"]),
     (Action::Delete, &["Delete", "Backspace"]),
 ];
 

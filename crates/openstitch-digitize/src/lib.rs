@@ -18,6 +18,7 @@ pub mod outline;
 pub mod palette;
 pub mod perceptual;
 pub mod photo;
+pub mod pixelgrid;
 pub mod raster;
 pub mod regions;
 pub mod rows;

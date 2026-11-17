@@ -612,6 +612,29 @@ pub fn consequence_notice(command: &str, params: &Value, replaced: bool) -> Opti
     })
 }
 
+/// Why the Assistant may not run a command that drives its own panel (#1180), or None: sending
+/// itself a message, answering its own approval cards, or changing its panel, protocol or agent.
+/// Tests and scripts reach them through the automation socket, as the user.
+pub fn user_only(command: &str, params: &Value) -> Option<String> {
+    let setting = || params["name"].as_str().unwrap_or_default();
+    match command {
+        "ui.assistantSend" => Some("only the user sends messages in the Assistant panel".into()),
+        "ui.assistantAnswer" => Some("only the user answers the approval cards".into()),
+        "ui.set"
+            if matches!(
+                setting(),
+                "assistantPanel" | "assistantProtocol" | "assistantAgent"
+            ) =>
+        {
+            Some(format!(
+                "only the user changes {}; tell them where (the Assistant's settings, or View ▸ Show/Hide ▸ Assistant)",
+                setting()
+            ))
+        }
+        _ => None,
+    }
+}
+
 /// Commands that close, save or replace something (#1186): the chat names them when the
 /// assistant runs them, also inside a group of commands.
 pub fn consequential(command: &str, params: &Value) -> bool {
@@ -766,6 +789,11 @@ pub fn chart_question(command: &str, effect: Effect, params: &Value) -> Option<S
 /// The permission gate (plan section 4.4). Commands are judged by their declared effect, with
 /// files, machine transfer, quitting and undoing the user's own work behind a question.
 pub fn verdict(g: &GateInput) -> Verdict {
+    // #1180: what drives the panel is the user's (or a script's), never the Assistant's, in every
+    // mode.
+    if let Some(why) = user_only(g.command, g.params) {
+        return Verdict::Refuse(why);
+    }
     let changes = !matches!(g.effect, Effect::Read);
     if changes && g.edit_limit > 0 && g.edits >= g.edit_limit {
         return Verdict::Refuse(format!(
@@ -1352,6 +1380,47 @@ mod tests {
                 json!({ "chart": "My shelf" })
             ),
             Verdict::Run
+        );
+    }
+
+    /// #1180: the commands that drive the panel are the user's: the Assistant is refused them in
+    /// every mode, Allow everything included; reading the panel's state is fine.
+    #[test]
+    fn the_assistant_cannot_drive_its_own_panel() {
+        use PermissionMode::*;
+        for mode in [Ask, Edits, All] {
+            for (command, params) in [
+                ("ui.assistantSend", json!({ "text": "hi" })),
+                (
+                    "ui.assistantAnswer",
+                    json!({ "index": 0, "answer": "once" }),
+                ),
+                (
+                    "ui.set",
+                    json!({ "name": "assistantPanel", "value": false }),
+                ),
+                (
+                    "ui.set",
+                    json!({ "name": "assistantProtocol", "value": "openai" }),
+                ),
+                (
+                    "ui.set",
+                    json!({ "name": "assistantAgent", "value": "codex" }),
+                ),
+            ] {
+                assert!(
+                    matches!(gate(mode, command, Effect::Edit, params.clone()), Verdict::Refuse(w) if w.starts_with("only the user")),
+                    "{command} {params}"
+                );
+            }
+            assert_eq!(
+                gate(mode, "ui.assistantState", Effect::Read, json!({})),
+                Verdict::Run
+            );
+        }
+        assert_eq!(
+            user_only("ui.set", &json!({ "name": "grid", "value": true })),
+            None
         );
     }
 

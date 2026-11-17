@@ -132,6 +132,13 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   one satin). It sews thin features (ropes, whiskers) as running lines, but adds no colour stop
   for a short one: a thread's lines under 40 mm in all that would need a block of their own are
   left out.
+- Pixel art as cross stitch (beyond PE-DESIGN): `digitize.crossStitch {compatMode: "openStitch"}`
+  reports `pixelArt` (art pixels across and down, their size in mm) when the picture is pixel
+  art; add `pixelGrid: true` to lay one cross per art pixel on the art's own grid instead of a
+  `cellSize` grid (`pixelsPerCross` 2-8 for one cross per block of art pixels). PE-compatible
+  mode keeps its plain grid, as PE-DESIGN does.
+- Pictures for the image tools and the background: PNG, JPEG, BMP, GIF (its first frame) and
+  WebP.
 - Colours: a thread code as a string (`"205"`: the default chart's thread first, then
   Brother's chart, then the other built-in charts), brand and code (`"Brother 205"`,
   `"Madeira 1801"`), a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Prussian Blue"`,
@@ -379,6 +386,16 @@ then style them in the next.
 - Continue in place: `object.extendPath` `{id, end: start|end, points, curves?, widths?}` adds
   to an open line, path or satin skeleton, `object.extendColumn` `{id, end, lines}` to a Manual
   Punch column (points added at the start are listed outward from it).
+- Join and split: `shape.joinLines` `{ids, tolerance: 1}` makes open lines (or satin skeletons,
+  or Manual Punch columns) whose ends meet within `tolerance` mm one object, sewn as one path
+  with no trim between them (the first id keeps its attributes and place; a gap is bridged
+  straight; ends farther apart are refused with the distance). `object.breakApart` `{ids}`
+  splits text into one text per letter in place (`text` says `as: shapes` when a letter
+  cannot stand alone: text on a path, a Text Transform, an arc or a Name Drop box), a fill with
+  islands into one object per piece (holes stay with theirs), a line object into its outlines,
+  and groups (copies along a line, a monogram) into separate objects; every piece keeps the
+  whole's sewing attributes and thread and sews where the whole did. Each is one undo step;
+  Ctrl+J and Ctrl+Shift+K in the editor (`ui.run joinLines` / `ui.run breakApart`).
 - Clean up: `shape.simplify` `{ids, tolerance: 0.2}` removes nodes within a tolerance (mm; a
   Manual Punch column loses one direction line per call; `ui.run smoothShape` uses the
   `smoothTolerance` setting), and `stitches.smooth`
@@ -405,6 +422,10 @@ then style them in the next.
   Text, a running line along each letter's centre; `object.setLine` `runTimes: 3` for bean
   stitch, or `type: zigzag, width: 1.2` for a narrow satin). Retro or sampler text:
   `font: "openstitch-pixel"` with `pixelStyle` run, cross or block (one pixel = size / 7).
+- The Assistant panel's commands are the user's and their scripts', not yours: the gate
+  refuses `ui.assistantSend`, `ui.assistantAnswer` and the settings `assistantPanel`,
+  `assistantProtocol` and `assistantAgent` to you. `ui.assistantState` (the panel's state)
+  is readable.
 - Ink/Stitch fonts the user installed: their folder is the `inkStitchFolder` setting
   (`ui.settings`; `ui.set` changes it after the user agrees, as the editor asks);
   `fonts.scanFolder {path}` lists the font folders,

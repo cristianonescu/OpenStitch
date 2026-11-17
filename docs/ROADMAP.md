@@ -131,6 +131,10 @@ harness. The details per item are in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDI
 Development is paused after alpha.17 until the owner says to resume. No further alpha is
 planned. The open work below and the open issues stay in the Future milestone.
 
+alpha.18, the Assistant: commands that drive its panel for tests and scripts (#1180), and a
+coding agent that continues its own session when a project's chat is reopened on the same PC
+(#1170).
+
 ## Still to do
 
 Assets (owner's rule of 2026-10-30, [research/asset-audit.md](research/asset-audit.md)): the
@@ -391,6 +395,15 @@ Done 2026-11-08 (#447, PR #836): PE-compatible mode keeps as many threads as col
 Done 2026-11-13 (#469, PR #992): PE-compatible Cross Stitch lays PE-DESIGN's grid on pixel art,
 checked against PE-DESIGN's own captures. Left: PE-DESIGN's threads and its part-covered edge
 cells (#991) and, in OpenStitch mode, following a pixel-art image's own grid (#994).
+
+batch:mac-digitize-5 (2026-11-17, for alpha.18): OpenStitch-mode Cross Stitch finds pixel art
+and can lay one cross per art pixel on the art's own grid (`pixelGrid`, #994; off by default
+until the owner decides from the g07 measurements); Auto Punch's traced outlines never cross
+themselves (#1137: the storybook kit design is no longer "Fix this first"); the image tools and
+the background read GIF (first frame) and WebP, and every image picker offers exactly what
+decodes (#832). Measured and left open: PE-DESIGN's threads for the pixel strawberry (#991:
+265 of 401 shared cells take PE-DESIGN's thread; the outline's Amber Red needs PE-DESIGN's own
+median-cut boxes, in the census step Auto Punch's PE references share).
 
 batch:mac-wizard (2026-11-06): the image dialog previews Auto Punch's regions, lists them with
 the stitch each got and why, lets any row or a click on the picture change it, warns when
@@ -746,7 +759,8 @@ an issue or a comment above (#460, #462, #463, #464, #446, #447, #471, #291).
 
 From the competitor scan of 2026-11-07 ([research/competitive-features.md](research/competitive-features.md),
 Updates; openhoop and filum, concepts only): Join Lines and Break Apart (#744, editing, rank 7
-theme), an idea for Future, and find and filter in the Sewing Order list (#745, workflow, rank 12
+theme; **done** 2026-11-17, `batch:mac-editor-2`, for alpha.18: `shape.joinLines`,
+`object.breakApart`, Home ▸ Edit), and find and filter in the Sewing Order list (#745, workflow, rank 12
 theme; **done** 2026-11-13, PR #1026); radial, contour and guide-following colour blends added to #532, herringbone and
 ladder lines noted on #543.
 

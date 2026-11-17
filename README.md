@@ -178,7 +178,7 @@ OpenStitch (the image dialog's Method choice):
   Since B16.1 ([plan](docs/research/beyond/image-similarity-plan.md)) the threads are chosen
   for the image as a whole, Photo Stitch 1 dithers only where the image is tonal, a Fidelity
   choice (Standard / High) trades colours for likeness, Cross Stitch takes each cell's mean
-  colour, and Design Center finds its line threshold from the image (Otsu). Photo Stitch 1 samples
+  colour and can lay one cross per pixel on pixel art's own grid, and Design Center finds its line threshold from the image (Otsu). Photo Stitch 1 samples
   the image every 0.25 mm in rows that stay within 2.1 needle points per mm² (no 10 × 10 mm area
   above 3.0), with a Trims choice (fewer trims or the best likeness). Auto Punch sews the
   background and sews dark outlines as satin on top, in one covering layer; it can instead
@@ -313,6 +313,9 @@ feature is done and the rest is under [Planned](#planned).
   split along an outline, offset lines. Curves stay curves, and cut pieces keep their sewing
   angle and attributes ([#652]).
 - (+) **Knife:** one cut line splits every object it crosses, in one undo step ([#477]).
+- (+) **Join Lines and Break Apart:** open lines or satin columns whose ends meet become one object
+  sewn without a trim; text breaks into letters, a fill into its islands, a group into its copies
+  ([#744]).
 - (+) **More shape tools:** band frames, a radius per corner, spiral lines, Divide, the shape
   builder, and a turning gap in a closed line for in-the-hoop pieces ([#497]).
 - (+) **Smooth Shape and Smooth Stitches:** fewer points and fewer, cleaner curves within a
@@ -514,7 +517,9 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
   click-to-fix on the picture, colour order, fill angles and outline SVG export ([#489]).
 - (+) **Picture helpers on your computer:** one-click subject cut-out and line drawings from photos,
   with no model and nothing sent anywhere ([#490]).
-- **Background image** (PNG, JPEG, BMP or the clipboard): place, rotate, crop, adjust, save and
+- (+) **Cross Stitch on pixel art's own grid:** one cross per pixel of the art (or per block of
+  them), each in one of its own pixels' colours ([#994]).
+- **Background image** (PNG, JPEG, BMP, GIF, WebP or the clipboard): place, rotate, crop, adjust, save and
   trace over, (+) with handles on the canvas ([#518]).
 
 ### Wizards and production aids
@@ -648,7 +653,11 @@ circle, and the whole message is one undo step.*
   thinking, tool results and keys are never kept. "Save the chat with the project" (Assistant
   settings, on by default) turns it off, and a kept chat goes at the next save. Saves and
   opens the assistant runs are handled as File ▸ Save and Open are ([#1176], [#1178],
-  [#1187]).
+  [#1187]). On the same computer a coding agent such as Claude Code continues its own session
+  for the saved chat, with its earlier tool calls and pictures ([#1170]).
+- (+) **Scriptable:** tests and scripts drive the panel over the automation socket (open it,
+  pick the protocol and agent, send with attachments, read the chat, answer approval cards);
+  the assistant itself cannot use these commands ([#1180]).
 - (+) **Questions and suggested replies:** before a new design it asks 5 to 10 questions with
   answer chips, its recommended answer first and marked so, or a typed answer (or it uses its
   judgment and takes its recommendations); after every reply it offers a suggested message and
@@ -745,6 +754,7 @@ tests and the keychain round trip
 [#477]: https://github.com/cristianonescu/OpenStitch/issues/477
 [#478]: https://github.com/cristianonescu/OpenStitch/issues/478
 [#479]: https://github.com/cristianonescu/OpenStitch/issues/479
+[#744]: https://github.com/cristianonescu/OpenStitch/issues/744
 [#480]: https://github.com/cristianonescu/OpenStitch/issues/480
 [#481]: https://github.com/cristianonescu/OpenStitch/issues/481
 [#482]: https://github.com/cristianonescu/OpenStitch/issues/482
@@ -761,6 +771,8 @@ tests and the keychain round trip
 [#491]: https://github.com/cristianonescu/OpenStitch/issues/491
 [#1168]: https://github.com/cristianonescu/OpenStitch/issues/1168
 [#1169]: https://github.com/cristianonescu/OpenStitch/issues/1169
+[#1170]: https://github.com/cristianonescu/OpenStitch/issues/1170
+[#1180]: https://github.com/cristianonescu/OpenStitch/issues/1180
 [#1176]: https://github.com/cristianonescu/OpenStitch/issues/1176
 [#1178]: https://github.com/cristianonescu/OpenStitch/issues/1178
 [#1184]: https://github.com/cristianonescu/OpenStitch/issues/1184
@@ -831,6 +843,7 @@ tests and the keychain round trip
 [#549]: https://github.com/cristianonescu/OpenStitch/issues/549
 [#1036]: https://github.com/cristianonescu/OpenStitch/issues/1036
 [#1093]: https://github.com/cristianonescu/OpenStitch/issues/1093
+[#994]: https://github.com/cristianonescu/OpenStitch/issues/994
 [#550]: https://github.com/cristianonescu/OpenStitch/issues/550
 [#551]: https://github.com/cristianonescu/OpenStitch/issues/551
 [#552]: https://github.com/cristianonescu/OpenStitch/issues/552
