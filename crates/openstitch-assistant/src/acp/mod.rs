@@ -298,6 +298,19 @@ pub struct AcpConversation {
     exited: bool,
     /// The agent takes image blocks in `session/prompt` ([`protocol::takes_images`], #1168).
     images: bool,
+    /// What became of the earlier session [`start_resuming`](Self::start_resuming) was asked to
+    /// load; `None` when none was asked for.
+    resume: Option<Resume>,
+}
+
+/// What became of a request to continue an earlier session with `session/load` (#1170).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Resume {
+    /// The agent loaded it: it has its own earlier turns, tool calls and pictures.
+    Loaded,
+    /// It could not (no `loadSession` capability, or the agent refused the id); a new session was
+    /// opened instead. Why, in words for the chat.
+    Failed(String),
 }
 
 impl std::fmt::Debug for AcpConversation {
@@ -314,6 +327,18 @@ impl AcpConversation {
     /// user settings (`settingSources: []`, #390) and the system prompt. Blocks until the session
     /// is open (up to a minute per step).
     pub fn start(cfg: &AcpConfig) -> Result<AcpConversation, AcpError> {
+        AcpConversation::start_resuming(cfg, None)
+    }
+
+    /// [`start`](Self::start), but first tries to continue the earlier session `resume` with
+    /// `session/load` when the agent offers `loadSession` (#1170). The history the agent replays
+    /// before it answers is dropped (the panel shows the chat from the project file). When the
+    /// load is not possible a new session opens as in `start`, and [`resume`](Self::resume)
+    /// says why.
+    pub fn start_resuming(
+        cfg: &AcpConfig,
+        resume: Option<&str>,
+    ) -> Result<AcpConversation, AcpError> {
         let mut cmd = discover::command_for(&cfg.program, &cfg.extra_path);
         cmd.args(&cfg.args).current_dir(&cfg.cwd);
         let (tx, rx) = channel::<FromAgent>();
@@ -361,6 +386,7 @@ impl AcpConversation {
             cancelling,
             exited: false,
             images: false,
+            resume: None,
         };
         // On any error below, dropping `conv` stops the agent.
         let init = conv.call("initialize", protocol::initialize_params())?;
@@ -371,6 +397,34 @@ impl AcpConversation {
             )));
         }
         conv.images = protocol::takes_images(&init);
+        if let Some(id) = resume.filter(|id| !id.trim().is_empty()) {
+            let outcome = if !protocol::loads_sessions(&init) {
+                Resume::Failed("this agent cannot continue an earlier session".into())
+            } else {
+                let params =
+                    protocol::session_load_params(id, &cfg.cwd, &cfg.mcp, &cfg.system, &init);
+                match conv.call("session/load", params) {
+                    Ok(_) => {
+                        conv.session = id.to_string();
+                        Resume::Loaded
+                    }
+                    Err(AcpError::Protocol(m)) if m.starts_with(&format!("[{AUTH_REQUIRED}]")) => {
+                        return Err(AcpError::AuthRequired(protocol::auth_methods(&init)));
+                    }
+                    // A refusal, a timeout or anything else: a new session, so the restored chat
+                    // still goes as quoted text. An agent that ended fails `session/new` below.
+                    Err(e) => Resume::Failed(format!(
+                        "the agent could not load it ({})",
+                        e.to_string().chars().take(200).collect::<String>()
+                    )),
+                }
+            };
+            let loaded = outcome == Resume::Loaded;
+            conv.resume = Some(outcome);
+            if loaded {
+                return Ok(conv);
+            }
+        }
         let params = protocol::session_new_params(&cfg.cwd, &cfg.mcp, &cfg.system, &init);
         let session = match conv.call("session/new", params) {
             Err(AcpError::Protocol(m)) if m.starts_with(&format!("[{AUTH_REQUIRED}]")) => {
@@ -449,6 +503,17 @@ impl AcpConversation {
         on_event: &mut dyn FnMut(Event),
     ) -> StopKind {
         self.prompt_with_images(text, &[], cancel, on_event)
+    }
+
+    /// The agent's id for this session (a new one, or the loaded one): what
+    /// [`start_resuming`](Self::start_resuming) takes to continue it in a later run (#1170).
+    pub fn session_id(&self) -> &str {
+        &self.session
+    }
+
+    /// What became of the earlier session this conversation was asked to continue (#1170).
+    pub fn resume(&self) -> Option<&Resume> {
+        self.resume.as_ref()
     }
 
     /// Whether the agent advertised `promptCapabilities.image` at `initialize` (#1168).

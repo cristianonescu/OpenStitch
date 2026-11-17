@@ -405,6 +405,10 @@ then style them in the next.
   Text, a running line along each letter's centre; `object.setLine` `runTimes: 3` for bean
   stitch, or `type: zigzag, width: 1.2` for a narrow satin). Retro or sampler text:
   `font: "openstitch-pixel"` with `pixelStyle` run, cross or block (one pixel = size / 7).
+- The Assistant panel's commands are the user's and their scripts', not yours: the gate
+  refuses `ui.assistantSend`, `ui.assistantAnswer` and the settings `assistantPanel`,
+  `assistantProtocol` and `assistantAgent` to you. `ui.assistantState` (the panel's state)
+  is readable.
 - Ink/Stitch fonts the user installed: their folder is the `inkStitchFolder` setting
   (`ui.settings`; `ui.set` changes it after the user agrees, as the editor asks);
   `fonts.scanFolder {path}` lists the font folders,

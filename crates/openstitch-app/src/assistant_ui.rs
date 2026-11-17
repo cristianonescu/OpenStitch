@@ -156,6 +156,32 @@ fn bool_value(name: &str, v: &Value) -> Result<bool, String> {
         .ok_or_else(|| format!("{name} takes true or false"))
 }
 
+/// Whether `id` is a coding agent the Assistant knows (#1180).
+#[cfg(not(target_arch = "wasm32"))]
+fn known_agent(id: &str) -> bool {
+    openstitch_assistant::KNOWN_AGENTS.iter().any(|a| a.id == id)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn agent_ids() -> String {
+    openstitch_assistant::KNOWN_AGENTS
+        .iter()
+        .map(|a| a.id)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// The web editor has no coding agents (#693): any short id is kept as it is.
+#[cfg(target_arch = "wasm32")]
+fn known_agent(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 40 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
+#[cfg(target_arch = "wasm32")]
+fn agent_ids() -> String {
+    "a short id".into()
+}
+
 fn number_value(name: &str, v: &Value, lo: f64, hi: f64) -> Result<f64, String> {
     v.as_f64()
         .filter(|x| x.is_finite() && (lo..=hi).contains(x))
@@ -531,6 +557,17 @@ impl EditorApp {
                 // The ribbon's run takes no input from the context (as ui.run).
                 crate::start_ui::command(self, params, &eframe::egui::Context::default())
             }
+            // #1180: the panel for tests and scripts.
+            "ui.assistantSend" | "ui.assistantState" | "ui.assistantAnswer" => {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    crate::assistant_panel::script_command(self, id, params)
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    Err("the web editor has no Assistant panel".into())
+                }
+            }
             "ui.notesClear" => {
                 self.set_notes(Notes::default())?;
                 Ok(self.notes_json())
@@ -697,6 +734,9 @@ impl EditorApp {
                 "newObjectDefaults" => prefs.new_objects.to_json(),
                 "advancedAttributes" => json!(prefs.advanced_attributes),
                 "aiFeatures" => json!(prefs.ai.enabled),
+                "assistantPanel" => json!(self.assistant.panel.open),
+                "assistantProtocol" => json!(prefs.ai.protocol.key()),
+                "assistantAgent" => json!(prefs.ai.agent),
                 "assistantMemory" => json!(prefs.ai.memory),
                 "assistantSaveChat" => json!(prefs.ai.save_chat),
                 "checkUpdates" => json!(prefs.updates.check),
@@ -825,6 +865,31 @@ impl EditorApp {
             }
             "advancedAttributes" => self.ui.prefs.advanced_attributes = bool_value(name, v)?,
             "aiFeatures" => self.ui.prefs.ai.enabled = bool_value(name, v)?,
+            "assistantPanel" => {
+                let open = bool_value(name, v)?;
+                if open && !self.ui.prefs.ai.enabled {
+                    return Err("AI features are off: set aiFeatures to true first".into());
+                }
+                // It keeps the choice in ui.json itself (#422).
+                crate::assistant_panel::set_open(self, open);
+                save = false;
+            }
+            "assistantProtocol" => {
+                self.ui.prefs.ai.protocol = v
+                    .as_str()
+                    .and_then(openstitch_app::editor::assistant_chat::Protocol::from_key)
+                    .ok_or("assistantProtocol takes anthropic, openai or agent")?;
+            }
+            "assistantAgent" => {
+                let id = v.as_str().map(str::trim).unwrap_or_default();
+                if !known_agent(id) {
+                    return Err(format!(
+                        "assistantAgent takes a coding agent's id: {}",
+                        agent_ids()
+                    ));
+                }
+                self.ui.prefs.ai.agent = id.to_string();
+            }
             "assistantMemory" => self.ui.prefs.ai.memory = bool_value(name, v)?,
             "assistantSaveChat" => self.ui.prefs.ai.save_chat = bool_value(name, v)?,
             "checkUpdates" => self.ui.prefs.updates.check = bool_value(name, v)?,
