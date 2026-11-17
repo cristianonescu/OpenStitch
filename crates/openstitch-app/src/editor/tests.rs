@@ -1610,6 +1610,8 @@ fn the_thickness_profile_control_has_its_hint() {
 /// - a value just outside either end is refused by the command, or stored inside the range, so the
 ///   command cannot store what the field cannot show.
 ///
+/// Values go to the command as the field sends them, and are read back from the field.
+///
 /// Fields narrower than the command on purpose are named in `NARROWER`, with why. Two fields offer
 /// values inside their range that the command refuses, which a range cannot express: a satin's
 /// Split stitches over (0, or 2-12) and the odd-only pass counts of a line's look (1, 3, ... 9).
@@ -1702,14 +1704,12 @@ fn every_inspector_number_field_holds_its_settings_values() {
                 if value < lo - 1e-9 || value > hi + 1e-9 {
                     problems.push(format!("{kind} {param}: default {value} outside {lo}-{hi}"));
                 }
+                // Sent as the field sends it (`Control::params`): a zigzag net's Density field
+                // is in PE-DESIGN's lines per mm and sends the stored rungs per mm (#1163).
                 let send = |v: f64| {
                     let mut s = fresh();
-                    let mut p = json!({ "id": 1 });
-                    p[param] = if integer {
-                        json!(v.round() as i64)
-                    } else {
-                        json!(v)
-                    };
+                    let mut p = c.params(json!(v));
+                    p["id"] = json!(1);
                     s.execute(setter, Some(&p)).map(|_| {
                         controls(&s).into_iter().find_map(|c| match c {
                             Control::Number { key: k, value, .. } if k == key => Some(value),
