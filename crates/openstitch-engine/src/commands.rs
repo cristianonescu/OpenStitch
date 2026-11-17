@@ -1665,7 +1665,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "density",
                     "rows/mm",
-                    "Row density (fill and satin 0.1-14, radial 0.2-7, others 0.5-10)",
+                    "Row density (fill and satin 0.1-14, radial 0.2-7, others 0.5-10); zigzagNetFill: rungs per mm along each band, stored as given, half of PE-DESIGN's Density, which counts a rung and the diagonal back as two lines: 2.25 (the default) is PE-DESIGN's 4.5, the value the inspector's Density field and a PES version 11 file show",
                 ),
                 opt(
                     "stitchLength",
@@ -1772,7 +1772,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "travel",
                     "bool",
-                    "Travel between parts with running stitches (true) or jump (false)",
+                    "Travel between parts with running stitches (true) or jump (false); zigzagNetFill: true travels along the outline between its lines and bands, as PE-DESIGN does, false only along the net's own lines under the bands, jumping to a part they do not reach; netFill: false sews each line as its own run, the machine jumping between them",
                 ),
                 opt(
                     "pattern",

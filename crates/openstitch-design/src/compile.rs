@@ -1381,7 +1381,19 @@ fn elements(
                     } else {
                         25.0
                     };
-                    route::route_region(runs, &closed, region.entry, region.exit, pitch)
+                    let mut runs =
+                        route::route_region(runs, &closed, region.entry, region.exit, pitch);
+                    // The travel from a net's last needle point to the end point (or from the
+                    // start point to its first) may cut back across the rung beside it: the
+                    // needle point between is left out, as inside the net (#1043, the honeycomb
+                    // on a circle turned 50° to 85°).
+                    if matches!(
+                        region.kind,
+                        RegionType::ZigzagNetFill | RegionType::NetFill
+                    ) {
+                        regions::uncross(&mut runs);
+                    }
+                    runs
                 };
             }
             // PE-DESIGN's fill under sewing runs straight on into the top stitching.

@@ -1744,6 +1744,54 @@ fn every_inspector_number_field_holds_its_settings_values() {
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
+/// #1163: a zigzag net's Density field shows PE-DESIGN's lines per mm, 4.5 at the default, where
+/// the net stores 2.25 rungs per mm; a value typed in the field is stored as half of it, and the
+/// field of another type still shows the stored rows per mm.
+#[test]
+fn zigzag_net_density_field_shows_pe_designs_lines_per_mm() {
+    use super::inspector::{Control, region_controls};
+    let stored = |s: &Session| s.design().objects[0].region.as_ref().expect("region").density;
+    let field = |s: &Session| {
+        let c = region_controls(s.design().objects[0].region.as_ref().expect("region"))
+            .into_iter()
+            .find(|c| c.param() == "density")
+            .expect("density");
+        let Control::Number {
+            value,
+            range,
+            suffix,
+            ..
+        } = c
+        else {
+            panic!("a number field");
+        };
+        (c, value, range, suffix)
+    };
+    let mut s = Session::new(std::env::temp_dir());
+    s.execute(
+        "shape.rectangle",
+        Some(&json!({"x": 10, "y": 10, "width": 30, "height": 20, "fill": "Red"})),
+    )
+    .expect("rectangle");
+    let (_, value, _, suffix) = field(&s);
+    assert_eq!((value, suffix), (stored(&s), " rows/mm"), "a fill's rows");
+    s.execute(
+        "object.setRegion",
+        Some(&json!({"id": 1, "type": "zigzagNetFill"})),
+    )
+    .expect("zigzag net");
+    let (c, value, range, suffix) = field(&s);
+    assert_eq!(stored(&s), 2.25);
+    assert_eq!((value, suffix), (4.5, " lines/mm"));
+    assert_eq!(range, (1.0, 20.0));
+    // PE-DESIGN's 4.7 (zigzag-net-circle40-w3p0-density-4p7) is stored as 2.35 rungs per mm.
+    let mut p = c.params(json!(4.7));
+    p["id"] = json!(1);
+    s.execute("object.setRegion", Some(&p)).expect("4.7");
+    assert!((stored(&s) - 2.35).abs() < 1e-12, "{}", stored(&s));
+    assert!((field(&s).1 - 4.7).abs() < 1e-12);
+}
+
 /// #1124: a candlewick's Density is PE-DESIGN 11.50's drop-down (round 15): Dense, Medium and
 /// Light, knots of 32, 24 and 20 points, stored as densities 16, 12 and 10. The default shows
 /// Medium; each choice is accepted by the command and stored as its density; a density set by

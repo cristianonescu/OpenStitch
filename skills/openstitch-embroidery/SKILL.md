@@ -68,7 +68,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   `object.setReferencePoint` its lines run through that point instead. A `netFill`'s `spacing` is
   the line pitch, default 3.0 mm (pass 4 for the look before alpha 15); a `zigzagNetFill`'s is
   the gap between bands, default 5.0 mm, its lines `patternWidth` + `spacing` apart (before
-  alpha 15 it was the line pitch: pass the old pitch minus the width).
+  alpha 15 it was the line pitch: pass the old pitch minus the width). A `zigzagNetFill`'s
+  `density` is rungs per mm, half of PE-DESIGN's Density (which counts a rung and the diagonal
+  back as two lines): for PE-DESIGN's 4.5, the default, pass 2.25. The inspector's Density field
+  shows PE-DESIGN's number.
 - Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
   `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
   save PES version 6.

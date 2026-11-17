@@ -21,8 +21,8 @@ use openstitch_formats::pes11::{
 
 /// PE-DESIGN's lines per OpenStitch zigzag-net rung: a rung across and the diagonal back
 /// (#1122). PE-DESIGN's zigzag net Density is lines/mm, OpenStitch's rungs/mm; the factor is
-/// inferred from the 0.44 mm rung pitch PE-DESIGN sews at its Density 4.5.
-pub(crate) const NET_LINES_PER_RUNG: f64 = 2.0;
+/// measured on PE-DESIGN's bands at its Density 4.5 and 4.7 (#1163).
+pub(crate) const NET_LINES_PER_RUNG: f64 = RegionSewing::ZIGZAG_NET_LINES_PER_RUNG;
 
 /// The `#PES0110` objects of `design`'s visible objects, in design order.
 pub fn objects(design: &Design) -> Result<Objects, String> {
@@ -769,8 +769,8 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
         // Both are PE-DESIGN's own fields: the width and the gap between bands (#1109).
         s.zigzag_net = [r.pattern_size_mm().0 as f32, r.spacing_mm() as f32];
         // The net's Density is PE-DESIGN's +368 (#1122). OpenStitch counts rungs per mm,
-        // PE-DESIGN lines: a rung across and the diagonal back are two, inferred from the
-        // 0.44 mm rung pitch of its Density 4.5. +136 keeps PE-DESIGN's 4.5, as in its files.
+        // PE-DESIGN lines: a rung across and the diagonal back are two (measured, #1163).
+        // +136 keeps PE-DESIGN's 4.5, as in its files.
         s.net_density = (r.density * NET_LINES_PER_RUNG) as f32;
         s.density = Shape::with_defaults().density;
     }

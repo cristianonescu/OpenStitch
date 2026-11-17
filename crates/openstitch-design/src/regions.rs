@@ -654,7 +654,14 @@ pub fn generate(
                 .flat_map(|l| [l[0], l[l.len() - 1]])
                 .filter(|&p| on_outline(p))
                 .collect();
-            let rim = rim_with(&outline, &ends);
+            // With the travel off (`travel: false`, beyond PE-DESIGN's captures) the needle does
+            // not walk the outline: it travels under the bands only, along the net's own lines,
+            // and parts they do not connect start a new run, which the machine jumps to.
+            let rim = if region.travel {
+                rim_with(&outline, &ends)
+            } else {
+                Vec::new()
+            };
             // With under sewing PE-DESIGN sews the lines first, those along the Direction (on
             // the axes here: across the page, x) and then those across it, and then the bands
             // in the same order, travelling along the outline between them (round 13,
@@ -3475,12 +3482,14 @@ fn along_net(
 /// along the outline, or the travel joining two runs may cut back across the last stitch, so
 /// a step crosses the step after next (the triangle pattern on a circle turned 15°, the
 /// honeycomb at 50° to 80°): the needle point between is left out, as within a band (#1058).
-fn uncross(runs: &mut [Run]) {
+pub(crate) fn uncross(runs: &mut [Run]) {
     for run in runs {
         let mut i = 0;
         while i + 3 < run.len() {
             if crossing(run[i], run[i + 1], run[i + 2], run[i + 3]).is_some() {
                 run.remove(i + 1);
+                // The two steps before now have a new step after next: checked again.
+                i = i.saturating_sub(2);
             } else {
                 i += 1;
             }
