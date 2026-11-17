@@ -1311,7 +1311,7 @@ fn background_commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "background.set",
-            "Place a PNG, JPEG or BMP image behind the design as a tracing reference (not sewn)",
+            "Place a PNG, JPEG, BMP, GIF (first frame) or WebP image behind the design as a tracing reference (not sewn)",
             Effect::Edit,
             vec![
                 req(

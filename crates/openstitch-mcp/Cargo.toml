@@ -7,12 +7,23 @@ license.workspace = true
 rust-version.workspace = true
 autotests = false
 
+[features]
+default = ["remote"]
+# The editor's loopback socket (`--live`, the binary) and every engine command, the Design
+# Database's too. The browser editor's Assistant (#766) goes without: a page has neither.
+remote = ["dep:openstitch-remote", "openstitch-engine/default"]
+
+[[bin]]
+name = "openstitch-mcp"
+path = "src/main.rs"
+required-features = ["remote"]
+
 [dependencies]
 base64 = "0.23.1"
 openstitch-core.workspace = true
 openstitch-design = { path = "../openstitch-design" }
-openstitch-engine = { path = "../openstitch-engine" }
-openstitch-remote = { path = "../openstitch-remote" }
+openstitch-engine = { path = "../openstitch-engine", default-features = false, features = ["formats", "digitize"] }
+openstitch-remote = { path = "../openstitch-remote", optional = true }
 openstitch-render = { path = "../openstitch-render" }
 serde_json.workspace = true
 

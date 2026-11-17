@@ -463,7 +463,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
         }
         Some(FontAction::ChooseImage) => crate::files::pick_then(
-            crate::files::FileDialog::new().add_filter("Images", &["png", "jpg", "jpeg", "bmp"]),
+            crate::files::FileDialog::new().add_filter("Images", &openstitch_digitize::raster::PICTURE_EXTENSIONS),
             |app, p| {
                 app.lettering.fonts.image.path = Some(p);
                 app.lettering.fonts.image.found.clear();

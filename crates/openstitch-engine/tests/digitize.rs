@@ -1774,6 +1774,92 @@ fn auto_punch_plans_and_sews_a_thin_feature_as_a_line() {
     );
 }
 
+/// #994: through `digitize.crossStitch`, OpenStitch mode reports the pixel strawberry as pixel
+/// art (its own grid of about 22 × 23 art pixels) and, with `pixelGrid`, lays one cross per art
+/// pixel on that grid, or one per 2 × 2 with `pixelsPerCross: 2`; PE-compatible mode reports
+/// nothing and keeps its plain grid.
+#[test]
+fn open_stitch_cross_stitch_follows_pixel_arts_own_grid() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = temp_dir();
+    std::fs::copy(
+        root.join("examples/images/g07-pixel-strawberry.png"),
+        dir.join("g07.png"),
+    )
+    .expect("copy");
+    let mut s = Session::new(dir.path());
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let plain = run(
+        &mut s,
+        "digitize.crossStitch",
+        json!({"path": "g07.png", "width": 80, "compatMode": "openStitch"}),
+    );
+    let art = &plain["pixelArt"];
+    assert_eq!(art["followed"], false, "{art}");
+    let (cols, rows) = (
+        art["columns"].as_u64().expect("columns"),
+        art["rows"].as_u64().expect("rows"),
+    );
+    assert!(
+        (21..=23).contains(&cols) && (22..=24).contains(&rows),
+        "{art}"
+    );
+    // 80 mm over 768 pixels: an art pixel of about 34.7 × 33.2 pixels is 3.6 × 3.5 mm.
+    let size = art["pixelSize"].as_array().expect("size");
+    assert!((size[0].as_f64().expect("w") - 3.6).abs() < 0.15, "{art}");
+    assert!((size[1].as_f64().expect("h") - 3.46).abs() < 0.15, "{art}");
+    assert_eq!(
+        (plain["columns"].as_u64(), plain["rows"].as_u64()),
+        (Some(32), Some(32))
+    );
+    let one = run(
+        &mut s,
+        "digitize.crossStitch",
+        json!({"path": "g07.png", "width": 80, "compatMode": "openStitch", "pixelGrid": true}),
+    );
+    assert_eq!(one["pixelArt"]["followed"], true);
+    assert_eq!(one["columns"].as_u64(), Some(cols));
+    assert_eq!(one["rows"].as_u64(), Some(rows));
+    let two = run(
+        &mut s,
+        "digitize.crossStitch",
+        json!({"path": "g07.png", "width": 80, "compatMode": "openStitch", "pixelGrid": true,
+               "pixelsPerCross": 2}),
+    );
+    assert_eq!(two["columns"].as_u64(), Some(cols.div_ceil(2)));
+    assert_eq!(two["rows"].as_u64(), Some(rows.div_ceil(2)));
+    let sewn = |r: &serde_json::Value| -> u64 {
+        r["cells"]
+            .as_array()
+            .expect("cells")
+            .iter()
+            .map(|c| c.as_u64().expect("n"))
+            .sum()
+    };
+    // A 2 × 2 cross is sewn where at least three of its four art pixels are: fewer crosses, at
+    // least a quarter as many.
+    let (one_n, two_n) = (sewn(&one), sewn(&two));
+    assert!(two_n < one_n && 4 * two_n >= one_n, "{two_n} vs {one_n}");
+    let pe = run(
+        &mut s,
+        "digitize.crossStitch",
+        json!({"path": "g07.png", "width": 80, "compatMode": "peDesign", "pixelGrid": true}),
+    );
+    assert!(pe["pixelArt"].is_null());
+    assert_eq!(
+        (pe["columns"].as_u64(), pe["rows"].as_u64()),
+        (Some(32), Some(32))
+    );
+    let bad = s.execute(
+        "digitize.crossStitch",
+        Some(
+            &json!({"path": "g07.png", "width": 80, "compatMode": "openStitch",
+                     "pixelGrid": true, "pixelsPerCross": 9}),
+        ),
+    );
+    assert!(bad.is_err(), "pixelsPerCross is 1-8");
+}
+
 /// #469, capture round 11: PE-DESIGN 11.50's Cross Stitch of the pixel strawberry (80 mm,
 /// 2.5 mm crosses, BROTHER EMBROIDERY, 8 colours) lays its crosses on a plain grid at the cross
 /// size; it does not follow the art's own pixel grid (about 3.6 x 3.4 mm at 80 mm). The

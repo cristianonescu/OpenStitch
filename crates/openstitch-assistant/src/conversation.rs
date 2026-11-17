@@ -1,13 +1,12 @@
 //! The request body, the stream reader and the tool loop.
 
-use std::io::BufReader;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde_json::{Map, Value, json};
 
-use crate::idle::{Progress, Watchdog};
-use crate::sse::SseReader;
+use crate::fetch::{AsyncTools, Blocking, Events, Fetch, SyncTools, block_on};
+use crate::idle::Progress;
 use crate::{
     ANTHROPIC_VERSION, Config, Event, FALLBACK_BETA, HttpError, MAX_TOOL_CALLS_PER_MESSAGE,
     Protocol, StopKind, ToolResult, Tools, Transport, describe, key_safe_for, scheme_and_host,
@@ -78,6 +77,29 @@ impl Conversation {
         cancel: &AtomicBool,
         on_event: &mut dyn FnMut(Event),
     ) -> StopKind {
+        // Every step blocks and is ready at once: the same loop as the browser's (#766).
+        block_on(self.run_turn_async(
+            cfg,
+            &Blocking(transport),
+            &mut SyncTools(tools),
+            user_content,
+            cancel,
+            on_event,
+        ))
+    }
+
+    /// [`Conversation::run_turn`] where requests and tool calls may wait without blocking the
+    /// thread: a browser page's `fetch`, or a tool call waiting for the user's approval (#766).
+    /// The same loop, history and events as `run_turn`.
+    pub async fn run_turn_async(
+        &mut self,
+        cfg: &Config,
+        fetch: &dyn Fetch,
+        tools: &mut dyn AsyncTools,
+        user_content: Vec<Value>,
+        cancel: &AtomicBool,
+        on_event: &mut dyn FnMut(Event),
+    ) -> StopKind {
         if self.messages.is_empty() && self.pending.is_empty() {
             self.protocol = cfg.protocol;
         } else if self.protocol != cfg.protocol {
@@ -85,19 +107,21 @@ impl Conversation {
         }
         match cfg.protocol {
             Protocol::Anthropic => {
-                self.run_anthropic_turn(cfg, transport, tools, user_content, cancel, on_event)
+                self.run_anthropic_turn(cfg, fetch, tools, user_content, cancel, on_event)
+                    .await
             }
             Protocol::OpenAi => {
-                self.run_openai_turn(cfg, transport, tools, user_content, cancel, on_event)
+                self.run_openai_turn(cfg, fetch, tools, user_content, cancel, on_event)
+                    .await
             }
         }
     }
 
-    fn run_anthropic_turn(
+    async fn run_anthropic_turn(
         &mut self,
         cfg: &Config,
-        transport: &dyn Transport,
-        tools: &mut dyn Tools,
+        fetch: &dyn Fetch,
+        tools: &mut dyn AsyncTools,
         user_content: Vec<Value>,
         cancel: &AtomicBool,
         on_event: &mut dyn FnMut(Event),
@@ -125,11 +149,11 @@ impl Conversation {
             let url = messages_url(&cfg.base_url);
             let headers = request_headers(cfg);
             let reader =
-                match post_with_retry(cfg, transport, &url, &headers, &body, cancel, on_event) {
+                match post_with_retry(cfg, fetch, &url, &headers, &body, cancel, on_event).await {
                     Ok(r) => r,
                     Err(stop) => return stop,
                 };
-            let reply = read_stream(reader, cfg.request_timeout, cancel, on_event);
+            let reply = read_stream(reader, cfg.request_timeout, cancel, on_event).await;
             let blocks = match reply.end {
                 End::Error(msg) => return StopKind::Error(msg),
                 End::Cancelled => {
@@ -190,7 +214,7 @@ impl Conversation {
                             name: call.name.clone(),
                             input: call.input.clone(),
                         });
-                        tools.call(&call.name, &call.input)
+                        tools.call(&call.name, &call.input).await
                     }
                 };
                 on_event(Event::ToolDone {
@@ -385,31 +409,36 @@ pub(crate) fn retryable(e: &HttpError) -> bool {
 
 /// Sends the request; one automatic retry for 429 / 5xx / 529, after the server's
 /// `retry-after` (at most 20 s), unless the user stops it meanwhile.
-pub(crate) fn post_with_retry(
+pub(crate) async fn post_with_retry<'a>(
     cfg: &Config,
-    transport: &dyn Transport,
-    url: &str,
-    headers: &[(String, String)],
-    body: &[u8],
-    cancel: &AtomicBool,
+    fetch: &'a dyn Fetch,
+    url: &'a str,
+    headers: &'a [(String, String)],
+    body: &'a [u8],
+    cancel: &'a AtomicBool,
     on_event: &mut dyn FnMut(Event),
-) -> Result<Box<dyn std::io::Read + Send>, StopKind> {
-    post_with_retry_status(cfg, transport, url, headers, body, cancel, on_event).map_err(|e| e.0)
+) -> Result<Box<dyn Events + 'a>, StopKind> {
+    post_with_retry_status(cfg, fetch, url, headers, body, cancel, on_event)
+        .await
+        .map_err(|e| e.0)
 }
 
 /// [`post_with_retry`], with the HTTP status of a failed request.
-pub(crate) fn post_with_retry_status(
+pub(crate) async fn post_with_retry_status<'a>(
     cfg: &Config,
-    transport: &dyn Transport,
-    url: &str,
-    headers: &[(String, String)],
-    body: &[u8],
-    cancel: &AtomicBool,
+    fetch: &'a dyn Fetch,
+    url: &'a str,
+    headers: &'a [(String, String)],
+    body: &'a [u8],
+    cancel: &'a AtomicBool,
     on_event: &mut dyn FnMut(Event),
-) -> Result<Box<dyn std::io::Read + Send>, (StopKind, Option<u16>)> {
+) -> Result<Box<dyn Events + 'a>, (StopKind, Option<u16>)> {
     let mut retried = false;
     loop {
-        match transport.post(url, headers, body, cfg.request_timeout) {
+        match fetch
+            .post(url, headers, body, cfg.request_timeout, cancel)
+            .await
+        {
             Ok(r) => return Ok(r),
             Err(e) if !retried && retryable(&e) => {
                 retried = true;
@@ -421,16 +450,9 @@ pub(crate) fn post_with_retry_status(
                     after,
                     reason: describe(&e),
                 });
-                let until = Instant::now() + after;
-                loop {
-                    if cancel.load(Ordering::SeqCst) {
-                        return Err((StopKind::Cancelled, None));
-                    }
-                    let now = Instant::now();
-                    if now >= until {
-                        break;
-                    }
-                    std::thread::sleep((until - now).min(Duration::from_millis(50)));
+                fetch.sleep(after, cancel).await;
+                if cancel.load(Ordering::SeqCst) {
+                    return Err((StopKind::Cancelled, None));
                 }
             }
             Err(e) => return Err((StopKind::Error(describe(&e)), e.status)),
@@ -463,16 +485,12 @@ struct Reply {
     end: End,
 }
 
-fn read_stream(
-    reader: Box<dyn std::io::Read + Send>,
+async fn read_stream(
+    mut sse: Box<dyn Events + '_>,
     timeout: std::time::Duration,
     cancel: &AtomicBool,
     on_event: &mut dyn FnMut(Event),
 ) -> Reply {
-    let mut sse = SseReader::with_idle(
-        BufReader::new(Watchdog::new(reader, timeout, Some(cancel))),
-        timeout,
-    );
     let mut progress = Progress::new(timeout);
     let mut reply = Reply {
         blocks: Vec::new(),
@@ -488,7 +506,7 @@ fn read_stream(
             reply.end = End::Cancelled;
             return reply;
         }
-        let ev = match sse.next_event() {
+        let ev = match sse.next_event().await {
             Ok(Some(ev)) => ev,
             Ok(None) => return reply,
             Err(e) => {
