@@ -29,6 +29,7 @@ use openstitch_app::keys;
 use openstitch_assistant as claude;
 use openstitch_assistant::notes::{MAX_NOTES_BYTES, Notes};
 use openstitch_app::editor::assistant_saved::{self, PrivatePlaces};
+use openstitch_app::editor::assistant_sessions;
 use openstitch_design::saved_chat::{ChatRole, ChatRow, SavedChat};
 use openstitch_engine::Effect;
 use openstitch_mcp::EditorLink;
@@ -138,6 +139,9 @@ struct AgentPrompt {
     images: Vec<(String, String)>,
     /// How many of `images` are attached files (the view's picture is not one).
     pictures: usize,
+    /// The chat restored from the project as quoted file content (#1169), for the first message
+    /// to a new agent; left out when the agent continued its own session instead (#1170).
+    restored: String,
 }
 
 /// The chat notice when attached pictures are not sent (#1168).
@@ -150,6 +154,9 @@ enum FromWorker {
     End(claude::StopKind),
     /// A line for the chat from the worker (#1168).
     Notice(String),
+    /// A coding agent's session is open (#1170): its id, and what became of the earlier session
+    /// it was asked to continue.
+    Session(String, Option<claude::Resume>),
 }
 
 struct Worker {
@@ -222,6 +229,7 @@ impl Worker {
         config: claude::AcpConfig,
         listener: openstitch_remote::Server,
         wake: Waker,
+        resume: Option<String>,
     ) -> Worker {
         let (to, inbox) = channel::<ToWorker>();
         let (out, from) = channel();
@@ -235,8 +243,15 @@ impl Worker {
                 let _ = out.send(m);
                 wake();
             };
-            let mut agent = match claude::AcpConversation::start(&config) {
-                Ok(a) => a,
+            let mut agent = match claude::AcpConversation::start_resuming(&config, resume.as_deref())
+            {
+                Ok(a) => {
+                    send(FromWorker::Session(
+                        a.session_id().to_string(),
+                        a.resume().cloned(),
+                    ));
+                    a
+                }
                 Err(e) => {
                     // The first message is waiting for an answer.
                     if let Ok(ToWorker::Prompt(_)) = inbox.recv() {
@@ -252,7 +267,8 @@ impl Worker {
                 if images.is_empty() && p.pictures > 0 {
                     send(FromWorker::Notice(AGENT_NO_PICTURES.into()));
                 }
-                let end = agent.prompt_with_images(text, images, &stop, &mut |e| {
+                let text = with_restored(&p, text, agent.resume());
+                let end = agent.prompt_with_images(&text, images, &stop, &mut |e| {
                     send(FromWorker::Event(e))
                 });
                 send(FromWorker::End(end));
@@ -270,6 +286,63 @@ impl Worker {
     }
 }
 
+/// A scripted coding agent for the panel's tests (#1170): no process. It loads only the session
+/// it `keeps`, else opens `new_id`, and logs what it was asked to resume and each message text.
+#[cfg(test)]
+#[derive(Clone, Default)]
+pub(crate) struct FakeAgent {
+    keeps: Option<String>,
+    new_id: String,
+    log: Arc<std::sync::Mutex<Vec<String>>>,
+}
+
+#[cfg(test)]
+impl Worker {
+    fn fake_agent(fake: FakeAgent, resume: Option<String>, wake: Waker) -> Worker {
+        let (to, inbox) = channel::<ToWorker>();
+        let (out, from) = channel();
+        let (_job_tx, jobs) = channel();
+        std::thread::spawn(move || {
+            let send = |m| {
+                let _ = out.send(m);
+                wake();
+            };
+            let log = |l: String| fake.log.lock().expect("log").push(l);
+            log(format!("resume:{}", resume.as_deref().unwrap_or("-")));
+            let outcome = resume.as_ref().map(|id| {
+                if fake.keeps.as_ref() == Some(id) {
+                    claude::Resume::Loaded
+                } else {
+                    claude::Resume::Failed(
+                        "the agent could not load it ([-32002] session/load failed: Resource not found)"
+                            .into(),
+                    )
+                }
+            });
+            let session = match &outcome {
+                Some(claude::Resume::Loaded) => resume.clone().unwrap_or_default(),
+                _ => fake.new_id.clone(),
+            };
+            send(FromWorker::Session(session, outcome.clone()));
+            while let Ok(m) = inbox.recv() {
+                let ToWorker::Prompt(p) = m else { continue };
+                let (text, _) = agent_message(&p, false);
+                log(format!("prompt:{}", with_restored(&p, text, outcome.as_ref())));
+                send(FromWorker::Event(claude::Event::Text("OK.".into())));
+                send(FromWorker::End(claude::StopKind::EndTurn));
+            }
+        });
+        Worker {
+            to,
+            from,
+            jobs,
+            cancel: Arc::new(AtomicBool::new(false)),
+            kind: (Protocol::Agent, String::new()),
+            listener: None,
+        }
+    }
+}
+
 /// The text and pictures a coding agent gets (#1168): with the image capability the pictures go
 /// as image blocks and the text says they are shown above; without it no picture goes and the
 /// text names the tools to look with.
@@ -279,6 +352,29 @@ fn agent_message(p: &AgentPrompt, takes_images: bool) -> (&str, &[(String, Strin
     } else {
         (&p.by_tool, &[])
     }
+}
+
+/// The agent's message with the restored chat in front (#1169), unless the agent continued its
+/// own session, which already holds that conversation (#1170).
+fn with_restored(p: &AgentPrompt, text: &str, resume: Option<&claude::Resume>) -> String {
+    if resume == Some(&claude::Resume::Loaded) {
+        text.to_string()
+    } else {
+        format!("{}{text}", p.restored)
+    }
+}
+
+/// The chat notice for what became of the agent's earlier session (#1170); None when none was
+/// asked for.
+fn resume_notice(agent: &str, resume: Option<&claude::Resume>) -> Option<String> {
+    Some(match resume? {
+        claude::Resume::Loaded => format!(
+            "{agent} continues its own session for this chat, with its earlier tool calls and pictures."
+        ),
+        claude::Resume::Failed(why) => format!(
+            "{agent} could not continue its own session for this chat ({why}), so it gets the last part of the chat as quoted text from the project file instead."
+        ),
+    })
 }
 
 /// What the user is told when a coding agent cannot start.
@@ -439,6 +535,18 @@ pub struct Panel {
     /// A chat restored from the project file (#1169), sent as quoted file content in front of
     /// the next message to a new worker, until a turn ends without an error.
     restored: Option<SavedChat>,
+    /// The running coding agent's session (#1170): agent id, session id, and the fingerprint of
+    /// the chat the document's file had when it opened (`assistant_sessions::fingerprint`); a
+    /// save that changes the file's chat records the session for the project.
+    agent_session: Option<AgentSessionNow>,
+    /// What became of the earlier session the agent was asked to continue, for
+    /// `ui.assistantState` (#1170, #1180).
+    resumed: Option<claude::Resume>,
+    /// The repaint hook of the last frame, for `ui.assistantSend` (#1180).
+    waker: Option<Waker>,
+    /// Tests: a scripted coding agent instead of a real one (#1170).
+    #[cfg(test)]
+    fake_agent: Option<FakeAgent>,
     /// The kept rows as last seen (count and text size, [`kept_fingerprint`]): a change marks
     /// the document unsaved (#1169).
     kept: (usize, usize),
@@ -471,6 +579,71 @@ pub struct Panel {
     lookups: Shared,
     /// Whether the keychain holds a key for this address (asked once per address).
     key_stored: Option<(String, bool)>,
+}
+
+/// The running coding agent's session (#1170).
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct AgentSessionNow {
+    agent: String,
+    session: String,
+    /// The document's file and the fingerprint of its saved chat when the session opened, or
+    /// when the session was last recorded for it.
+    path: Option<std::path::PathBuf>,
+    chat: Option<String>,
+}
+
+/// `assistant-sessions.json` beside `ui.json` (#1170); None without a config folder (the tests,
+/// `--demo` without one).
+fn sessions_path(app: &EditorApp) -> Option<std::path::PathBuf> {
+    Some(
+        app.ui
+            .prefs_path
+            .as_ref()?
+            .parent()?
+            .join(assistant_sessions::FILE_NAME),
+    )
+}
+
+/// The agent session to continue for the restored chat (#1170): the one recorded when this
+/// project file was saved with exactly this chat, by this agent.
+fn session_to_resume(app: &EditorApp, agent: &str) -> Option<String> {
+    let chat = app.assistant.panel.restored.as_ref()?;
+    let path = app.path.as_ref()?;
+    let file = sessions_path(app)?;
+    assistant_sessions::Sessions::load(&file)
+        .find(path, agent, chat)
+        .map(str::to_string)
+}
+
+/// After a save changed the file's chat (or its name), the running agent session is recorded
+/// for the project in the user's config folder, never in the `.osd` (#1170). Only for the
+/// document the conversation belongs to, and only with "Save the chat with the project" on.
+fn record_agent_session(app: &mut EditorApp) {
+    if !app.ui.prefs.ai.save_chat || app.assistant.panel.owner != Some(app.chat_doc) {
+        return;
+    }
+    let Some(now) = app.assistant.panel.agent_session.clone() else {
+        return;
+    };
+    let (Some(path), Some(chat)) = (app.path.clone(), app.session.chat().cloned()) else {
+        return;
+    };
+    let print = assistant_sessions::fingerprint(&chat);
+    if now.chat.as_deref() == Some(print.as_str()) && now.path.as_ref() == Some(&path) {
+        return;
+    }
+    if let Some(file) = sessions_path(app) {
+        let mut store = assistant_sessions::Sessions::load(&file);
+        if store.record(&path, &now.agent, &now.session, &chat)
+            && let Err(e) = store.save(&file)
+        {
+            eprintln!("cannot write {}: {e}", file.display());
+        }
+    }
+    if let Some(s) = &mut app.assistant.panel.agent_session {
+        s.chat = Some(print);
+        s.path = Some(path);
+    }
 }
 
 /// Every key read, write and removal goes through here. The tests never reach the system
@@ -560,10 +733,13 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
             String::new()
         },
     );
-    // A chat restored from the project goes first, as quoted file content (#1169).
-    let model_text = format!("{}{text}", restored_context(app, &kind));
+    // A chat restored from the project goes first, as quoted file content (#1169); a coding agent
+    // gets it only when it cannot continue its own session (#1170), which its worker knows.
+    let restored = restored_context(app, &kind);
+    let model_text = format!("{restored}{text}");
     let (message, chips) = if prefs.protocol == Protocol::Agent {
-        let (prompt, chips) = agent_prompt(app, &model_text);
+        let (mut prompt, chips) = agent_prompt(app, &text);
+        prompt.restored = restored;
         (ToWorker::Prompt(prompt), chips)
     } else {
         let Some(config) = model_config(app, &prefs) else {
@@ -671,6 +847,7 @@ fn agent_prompt(app: &mut EditorApp, text: &str) -> (AgentPrompt, String) {
         by_tool: format!("{text}{}\n\n{context}", e.by_tool),
         images: e.images,
         pictures: e.pictures,
+        restored: String::new(),
     };
     (prompt, e.chips)
 }
@@ -843,6 +1020,13 @@ fn find_program(name: &str) -> Option<std::path::PathBuf> {
 
 /// Starts a coding agent with a private socket for its MCP bridge.
 fn start_agent(app: &mut EditorApp, id: &str, wake: Waker) -> Result<Worker, String> {
+    #[cfg(test)]
+    if let Some(fake) = app.assistant.panel.fake_agent.clone() {
+        let resume = session_to_resume(app, id);
+        let mut w = Worker::fake_agent(fake, resume, wake);
+        w.kind = (Protocol::Agent, id.to_string());
+        return Ok(w);
+    }
     let agent = claude::KNOWN_AGENTS
         .iter()
         .find(|a| a.id == id)
@@ -886,7 +1070,8 @@ fn start_agent(app: &mut EditorApp, id: &str, wake: Waker) -> Result<Worker, Str
         system: system_prompt(app),
         extra_path: claude::search_dirs(),
     };
-    let mut w = Worker::start_agent(config, listener, wake);
+    let resume = session_to_resume(app, id);
+    let mut w = Worker::start_agent(config, listener, wake, resume);
     w.kind = (Protocol::Agent, id.to_string());
     Ok(w)
 }
@@ -1007,6 +1192,148 @@ pub fn offer(app: &mut EditorApp, command: &str, params: Option<&Value>) -> Resu
     crate::assistant_offers::command(app, command, params)
 }
 
+/// `ui.assistantSend`, `ui.assistantState` and `ui.assistantAnswer` (#1180): the panel as the
+/// user drives it, for tests and scripts on the automation socket. The gate refuses them to the
+/// Assistant itself (`assistant_chat::user_only`).
+pub fn script_command(
+    app: &mut EditorApp,
+    command: &str,
+    params: Option<&Value>,
+) -> Result<Value, String> {
+    let empty = json!({});
+    let params = params.unwrap_or(&empty);
+    match command {
+        "ui.assistantState" => Ok(script_state(app)),
+        "ui.assistantSend" => script_send(app, params),
+        _ => script_answer(app, params),
+    }
+}
+
+/// What `ui.assistantState` reports (#1180).
+fn script_state(app: &EditorApp) -> Value {
+    let prefs = &app.ui.prefs.ai;
+    let panel = &app.assistant.panel;
+    let rows = chat_to_save(app).map_or(json!([]), |c| {
+        serde_json::to_value(&c.rows).unwrap_or_else(|_| json!([]))
+    });
+    json!({
+        "enabled": prefs.enabled,
+        "open": panel.open,
+        "busy": panel.busy(),
+        "queued": panel.queue.len(),
+        "protocol": prefs.protocol.key(),
+        "agent": prefs.agent,
+        "chat": panel.chat,
+        "rows": rows,
+        "attachments": panel.attachments.iter().map(|a| a.name.clone()).collect::<Vec<_>>(),
+        "approvals": panel.approvals.iter().enumerate().map(|(i, a)| json!({
+            "index": i, "command": a.command, "what": a.what,
+        })).collect::<Vec<_>>(),
+        "tokens": { "input": panel.tokens.0, "output": panel.tokens.1 },
+        // #1170: whether the coding agent continues its own session for a restored chat.
+        "agentSession": match &panel.resumed {
+            None => Value::Null,
+            Some(claude::Resume::Loaded) => json!({ "resumed": true }),
+            Some(claude::Resume::Failed(why)) => json!({ "resumed": false, "why": why }),
+        },
+    })
+}
+
+/// `ui.assistantSend` (#1180): attach, then send as the Send button does.
+fn script_send(app: &mut EditorApp, params: &Value) -> Result<Value, String> {
+    if !app.ui.prefs.ai.enabled {
+        return Err("AI features are off: set aiFeatures to true first".into());
+    }
+    let text = params["text"].as_str().map(str::trim).unwrap_or_default();
+    if text.is_empty() {
+        return Err("text is empty: type the message to send".into());
+    }
+    let mut paths = Vec::new();
+    for v in params["attach"].as_array().into_iter().flatten() {
+        let raw = v.as_str().ok_or("attach takes file paths")?;
+        // A socket client reads only under its own roots.
+        let path = match app.session.sandbox() {
+            Some(sandbox) => sandbox
+                .resolve(raw, openstitch_engine::Access::Read)
+                .map_err(|e| e.to_string())?,
+            None => std::path::PathBuf::from(raw),
+        };
+        if !path.is_file() {
+            return Err(format!("{raw} is not a file"));
+        }
+        paths.push(path);
+    }
+    let room = MAX_FILES.saturating_sub(app.assistant.panel.attachments.len());
+    if paths.len() > room {
+        return Err(format!(
+            "at most {MAX_FILES} files go with one message ({room} more now)"
+        ));
+    }
+    let before = app.assistant.panel.items.len();
+    if !paths.is_empty() {
+        attach_files(app, paths);
+    }
+    let panel = &mut app.assistant.panel;
+    if params["view"] == json!(true) {
+        panel.attach_view = true;
+    }
+    if params["selection"] == json!(true) {
+        panel.attach_selection = true;
+    }
+    let queued = panel.busy();
+    let wake = panel.waker.clone().unwrap_or_else(|| Arc::new(|| {}));
+    send(app, text.to_string(), wake);
+    let panel = &app.assistant.panel;
+    let notices: Vec<&str> = panel
+        .items
+        .iter()
+        .skip(before)
+        .filter_map(|i| match i {
+            Item::Notice(n) => Some(n.as_str()),
+            _ => None,
+        })
+        .collect();
+    Ok(json!({
+        "queued": queued,
+        "busy": panel.busy(),
+        "chat": panel.chat,
+        "notices": notices,
+    }))
+}
+
+/// `ui.assistantAnswer` (#1180): one approval card, as the user clicks it.
+fn script_answer(app: &mut EditorApp, params: &Value) -> Result<Value, String> {
+    let index = params["index"]
+        .as_u64()
+        .ok_or("index takes a whole number from 0")? as usize;
+    let a = match params["answer"].as_str() {
+        Some("once") => Answer::Once,
+        Some("always") => Answer::Always,
+        Some("deny") => Answer::Deny,
+        _ => return Err("answer takes once, always or deny".into()),
+    };
+    let waiting = app.assistant.panel.approvals.len();
+    let Some(card) = app.assistant.panel.approvals.get(index) else {
+        return Err(format!(
+            "no approval card {index}: {waiting} waiting (ui.assistantState lists them)"
+        ));
+    };
+    if a != Answer::Deny {
+        // The client allows only what it could run itself.
+        let caps = app.session.capabilities();
+        let allowed = effect_of(app, &card.command)
+            .is_some_and(|e| crate::assistant_ui::permitted(e, caps));
+        if !allowed {
+            return Err(format!(
+                "this client may not allow {}: it needs the capability that command needs",
+                card.command
+            ));
+        }
+    }
+    answer(app, index, a);
+    Ok(json!({ "waiting": app.assistant.panel.approvals.len() }))
+}
+
 /// New chat: a fresh conversation (the design and its undo history stay).
 /// It belongs to the active document, so that document's next save keeps no chat (#1169).
 pub fn new_chat(app: &mut EditorApp) {
@@ -1022,6 +1349,8 @@ pub fn new_chat(app: &mut EditorApp) {
     panel.chat += 1;
     panel.owner = Some(owner);
     panel.restored = None;
+    panel.agent_session = None;
+    panel.resumed = None;
 }
 
 /// A new document identity for the conversation's owner (#1169).
@@ -1516,6 +1845,7 @@ fn on_event(panel: &mut Panel, e: claude::Event) {
 
 /// Runs everything the worker sent; call once per frame (and in tests in a loop).
 pub fn serve(app: &mut EditorApp, wake: Waker) {
+    app.assistant.panel.waker = Some(wake.clone());
     let mut events = Vec::new();
     let mut jobs = Vec::new();
     if let Some(w) = &app.assistant.panel.worker {
@@ -1551,9 +1881,36 @@ pub fn serve(app: &mut EditorApp, wake: Waker) {
             FromWorker::Event(e) => on_event(&mut app.assistant.panel, e),
             FromWorker::End(end) => finish_turn(app, end, wake.clone()),
             FromWorker::Notice(n) => app.assistant.panel.items.push(Item::Notice(n)),
+            FromWorker::Session(session, resume) => agent_session_opened(app, session, resume),
         }
     }
     note_chat_changes(app);
+    record_agent_session(app);
+}
+
+/// A coding agent's session opened (#1170): remember it with the document's file and saved
+/// chat as they are now, and say whether it continues the earlier session.
+fn agent_session_opened(app: &mut EditorApp, session: String, resume: Option<claude::Resume>) {
+    let Some(agent) = app.assistant.panel.worker.as_ref().map(|w| w.kind.1.clone()) else {
+        return;
+    };
+    let name = claude::KNOWN_AGENTS
+        .iter()
+        .find(|a| a.id == agent)
+        .map_or_else(|| "The agent".to_string(), |a| a.name.to_string());
+    let chat = app.session.chat().map(assistant_sessions::fingerprint);
+    let path = app.path.clone();
+    let panel = &mut app.assistant.panel;
+    if let Some(n) = resume_notice(&name, resume.as_ref()) {
+        panel.items.push(Item::Notice(n));
+    }
+    panel.agent_session = Some(AgentSessionNow {
+        agent,
+        session,
+        path,
+        chat,
+    });
+    panel.resumed = resume;
 }
 
 /// What a save would keep of the chat, in brief: the kept rows (not thinking, not the restore
@@ -3243,6 +3600,171 @@ mod tests {
         assert!(result.to_string().contains("declined"), "{result}");
     }
 
+    /// #1232 (#1230's AI coverage review): `transfer.diskImage` writes a file, so it waits on
+    /// an approval card naming the image's full path; Deny writes nothing and the model is told.
+    #[test]
+    fn a_floppy_image_waits_for_approval_and_deny_writes_nothing() {
+        let dir = openstitch_testutil::TempDir::new("1232-floppy");
+        let image = dir.join("machine.img");
+        let path = image.display().to_string();
+        let extra = dir.join("notes.txt");
+        std::fs::write(&extra, b"hoop 100x100").expect("file");
+        let extra = extra.display().to_string();
+        let write = (
+            "transfer.diskImage",
+            json!({ "path": path, "addDesign": true, "format": "dst", "add": [extra] }),
+        );
+        let (mut app, transport) = app_with(vec![
+            reply(std::slice::from_ref(&write), "", "tool_use"),
+            reply(&[], "You declined.", "end_turn"),
+        ]);
+        send(&mut app, "put it on a floppy image".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let what = app.assistant.panel.approvals[0].what.clone();
+        assert!(
+            what.contains(&format!("write the floppy disk image {path}"))
+                && what.contains(&format!("copying {extra}")),
+            "the card names the image and the copied file: {what}"
+        );
+        assert!(!image.exists(), "nothing written while the card waits");
+        answer(&mut app, 0, Answer::Deny);
+        run(&mut app, idle);
+        assert!(!image.exists(), "Deny writes nothing");
+        let requests = transport.requests.lock().expect("lock");
+        let result = requests[1]["messages"]
+            .as_array()
+            .expect("m")
+            .last()
+            .cloned()
+            .expect("last");
+        assert!(result.to_string().contains("declined"), "{result}");
+    }
+
+    /// #1232: a relative image path is resolved beside the design's file before the card, which
+    /// shows the full path; an untitled design's relative path is refused, nothing asked.
+    #[test]
+    fn a_relative_floppy_image_is_beside_the_design_on_its_card() {
+        let dir = project_dir("1232-relative");
+        let write = (
+            "transfer.diskImage",
+            json!({ "path": "machine.img", "addDesign": true }),
+        );
+        let (mut app, _) = app_with(vec![
+            reply(std::slice::from_ref(&write), "", "tool_use"),
+            reply(&[], "ok", "end_turn"),
+        ]);
+        save_to(&mut app, &dir.join("design.osd"));
+        send(&mut app, "floppy".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let full = dir.join("machine.img").display().to_string();
+        let what = app.assistant.panel.approvals[0].what.clone();
+        assert!(what.contains(&full), "{what}");
+        answer(&mut app, 0, Answer::Deny);
+        run(&mut app, idle);
+        assert!(!dir.join("machine.img").exists());
+        // Untitled: refused before the gate, with no card.
+        let (mut untitled, _) = app_with(vec![
+            reply(std::slice::from_ref(&write), "", "tool_use"),
+            reply(&[], "ok", "end_turn"),
+        ]);
+        send(&mut untitled, "floppy".into(), no_wake());
+        run(&mut untitled, idle);
+        assert!(untitled.assistant.panel.approvals.is_empty());
+        assert!(!std::path::Path::new("machine.img").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1232: the cards of the other transfer commands are unchanged, and listing an image is
+    /// reading a file: no card in the scratch folder, "use <path>" outside it.
+    #[test]
+    fn transfer_cards_for_send_volumes_and_listing() {
+        let dir = openstitch_testutil::TempDir::new("1232-scratch");
+        let scratch = dir.path().to_path_buf();
+        let gate = |command: &str, effect: Effect, params: Value| {
+            assistant_chat::verdict(&assistant_chat::GateInput {
+                mode: PermissionMode::Ask,
+                command,
+                effect,
+                params: &params,
+                scratch: Some(scratch.as_path()),
+                always_allow: &[],
+                edits: 0,
+                edit_limit: 0,
+                undo_before_message: false,
+                existing_layout: false,
+                unsaved: false,
+                unsaved_chat_only: false,
+            })
+        };
+        let send = "send the design to the machine or a USB drive".to_string();
+        assert_eq!(
+            gate("transfer.send", Effect::File, json!({ "format": "pes" })),
+            Verdict::Ask(send.clone())
+        );
+        assert_eq!(
+            gate("transfer.volumes", Effect::Read, json!({})),
+            Verdict::Ask(send)
+        );
+        let inside = scratch.join("disk.img").display().to_string();
+        assert_eq!(
+            gate("transfer.diskImageList", Effect::Read, json!({ "path": inside })),
+            Verdict::Run
+        );
+        let outside = "/opt/designs/disk.img";
+        assert_eq!(
+            gate("transfer.diskImageList", Effect::Read, json!({ "path": outside })),
+            Verdict::Ask(format!("use {outside}"))
+        );
+    }
+
+    /// #1232: a coding agent's batch reaches the editor one step at a time through the bridge
+    /// (openstitch-mcp's run_batch), so a step holding transfer.diskImage gets the same card.
+    #[test]
+    fn a_batch_step_writing_a_floppy_image_shows_its_path() {
+        let mut app = EditorApp::new(Launch {
+            demo: true,
+            ..Launch::default()
+        });
+        let listener = openstitch_remote::Server::start(openstitch_remote::ServerConfig::default())
+            .expect("listener");
+        let endpoint = listener.endpoint().clone();
+        let config = claude::AcpConfig {
+            program: std::path::PathBuf::from("no-such-agent-program"),
+            args: Vec::new(),
+            cwd: std::env::temp_dir(),
+            mcp: claude::McpServer {
+                name: claude::BRIDGE_NAME.into(),
+                command: std::path::PathBuf::from("no-such-mcp"),
+                args: Vec::new(),
+                env: Vec::new(),
+            },
+            system: String::new(),
+            extra_path: Vec::new(),
+        };
+        app.assistant.panel.worker = Some(Worker::start_agent(config, listener, no_wake(), None));
+        let dir = openstitch_testutil::TempDir::new("1232-batch");
+        let image = dir.join("batch.img");
+        let path = image.display().to_string();
+        let sent = path.clone();
+        let client = std::thread::spawn(move || {
+            let mut c = openstitch_remote::Client::new(endpoint).expect("connect");
+            c.handle(&json!({ "command": "transfer.diskImage",
+                "params": { "path": sent, "addDesign": true } }))
+        });
+        let start = Instant::now();
+        while app.assistant.panel.approvals.is_empty() {
+            serve(&mut app, no_wake());
+            assert!(start.elapsed() < Duration::from_secs(30), "no approval asked");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let what = app.assistant.panel.approvals[0].what.clone();
+        assert!(what.contains(&path), "{what}");
+        answer(&mut app, 0, Answer::Deny);
+        let r = client.join().expect("client");
+        assert_eq!(r["ok"], json!(false), "{r}");
+        assert!(!image.exists());
+    }
+
     #[test]
     fn an_unanswered_question_is_declined_after_the_timeout() {
         let save = ("design.export", json!({ "path": "/nonexistent-dir/x.pes" }));
@@ -3296,7 +3818,7 @@ mod tests {
             system: String::new(),
             extra_path: Vec::new(),
         };
-        app.assistant.panel.worker = Some(Worker::start_agent(config, listener, no_wake()));
+        app.assistant.panel.worker = Some(Worker::start_agent(config, listener, no_wake(), None));
         let save = json!({ "command": "project.save", "params": { "path": "/nonexistent-dir/x.osd" } });
         let ask = |request: Value| {
             let file = endpoint_file.clone();
@@ -4273,7 +4795,7 @@ mod tests {
             system: String::new(),
             extra_path: Vec::new(),
         };
-        app.assistant.panel.worker = Some(Worker::start_agent(config, listener, no_wake()));
+        app.assistant.panel.worker = Some(Worker::start_agent(config, listener, no_wake(), None));
         app.assistant.panel.turn = Some(Turn {
             undo_start: app.undo_groups.len(),
             edits: 0,
@@ -4682,7 +5204,7 @@ mod tests {
             system: String::new(),
             extra_path: Vec::new(),
         };
-        app.assistant.panel.worker = Some(Worker::start_agent(config, listener, no_wake()));
+        app.assistant.panel.worker = Some(Worker::start_agent(config, listener, no_wake(), None));
         let before = app.session.design().objects.len();
         // The bridge's requests come from another thread, as from openstitch-mcp.
         let client = std::thread::spawn(move || {
@@ -6155,6 +6677,247 @@ Attached: rose.png".into())];
         reply
     }
 
+    // MARK: #1170 and #1180
+
+    /// A window whose config folder is `dir` (for assistant-sessions.json) and whose Assistant is
+    /// the scripted coding agent `fake`.
+    fn agent_app(dir: &std::path::Path, agent: &str, fake: FakeAgent) -> EditorApp {
+        let mut app = EditorApp::new(Launch {
+            demo: true,
+            ..Launch::default()
+        });
+        app.ui.prefs_path = Some(dir.join("ui.json"));
+        app.ui.prefs.ai.protocol = Protocol::Agent;
+        app.ui.prefs.ai.agent = agent.into();
+        app.assistant.panel.fake_agent = Some(fake);
+        app
+    }
+
+    fn fake(keeps: Option<&str>, new_id: &str) -> FakeAgent {
+        FakeAgent {
+            keeps: keeps.map(str::to_string),
+            new_id: new_id.into(),
+            log: Arc::default(),
+        }
+    }
+
+    fn log_of(f: &FakeAgent) -> Vec<String> {
+        f.log.lock().expect("log").clone()
+    }
+
+    fn notices(app: &EditorApp) -> Vec<String> {
+        app.assistant
+            .panel
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                Item::Notice(n) => Some(n.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// #1170: reopening a project whose chat a coding agent had continues the agent's own
+    /// session, without the quoted chat; when the agent no longer has it, or the agent changed,
+    /// the chat goes as quoted text (#1169), with a notice when a load was tried. The session id
+    /// is kept in the config folder, never in the .osd.
+    #[test]
+    fn a_reopened_chat_continues_the_agents_own_session() {
+        let dir = project_dir("1170");
+        let file = dir.join("badge.osd");
+        let first = fake(None, "session-one");
+        let mut app = agent_app(&dir, "claude", first.clone());
+        send(&mut app, "remember heron-417".into(), no_wake());
+        run(&mut app, idle);
+        let log = log_of(&first);
+        assert_eq!(log[0], "resume:-");
+        assert!(log[1].starts_with("prompt:remember heron-417"), "{log:?}");
+        save_to(&mut app, &file);
+        serve(&mut app, no_wake());
+        let raw = std::fs::read_to_string(&file).expect("osd");
+        assert!(!raw.contains("session-one"), "no session id in the .osd: {raw}");
+        let store = std::fs::read_to_string(dir.join(assistant_sessions::FILE_NAME))
+            .expect("assistant-sessions.json");
+        assert!(store.contains("session-one"), "{store}");
+
+        // Same agent, which still has the session: it continues it, without the quoted chat.
+        let second = fake(Some("session-one"), "session-two");
+        let mut again = agent_app(&dir, "claude", second.clone());
+        again.open_path(&file);
+        send(&mut again, "which code word?".into(), no_wake());
+        run(&mut again, idle);
+        let log = log_of(&second);
+        assert_eq!(log[0], "resume:session-one");
+        assert!(log[1].starts_with("prompt:which code word?"), "{log:?}");
+        assert!(!log[1].contains("Earlier conversation"), "{log:?}");
+        assert!(
+            notices(&again).iter().any(|n| n.contains("continues its own session")),
+            "{:?}",
+            notices(&again)
+        );
+        let state = again.ui_command("ui.assistantState", None).expect("state");
+        assert_eq!(state["agentSession"], json!({ "resumed": true }));
+
+        // The agent lost it: the quoted chat goes, with a notice.
+        let third = fake(None, "session-three");
+        let mut lost = agent_app(&dir, "claude", third.clone());
+        lost.open_path(&file);
+        send(&mut lost, "which code word?".into(), no_wake());
+        run(&mut lost, idle);
+        let log = log_of(&third);
+        assert_eq!(log[0], "resume:session-one");
+        assert!(log[1].starts_with("prompt:[Earlier conversation in this project"), "{log:?}");
+        assert!(
+            notices(&lost).iter().any(|n| n.contains("could not continue its own session")
+                && n.contains("Resource not found")),
+            "{:?}",
+            notices(&lost)
+        );
+        let state = lost.ui_command("ui.assistantState", None).expect("state");
+        assert_eq!(state["agentSession"]["resumed"], json!(false));
+        // Not saved since: the file's chat is unchanged, so the record still names session-one.
+        serve(&mut lost, no_wake());
+        let store = std::fs::read_to_string(dir.join(assistant_sessions::FILE_NAME))
+            .expect("store");
+        assert!(store.contains("session-one") && !store.contains("session-three"), "{store}");
+
+        // Another agent is not offered Claude Code's session.
+        let fourth = fake(Some("session-one"), "session-four");
+        let mut other = agent_app(&dir, "codex", fourth.clone());
+        other.open_path(&file);
+        send(&mut other, "which code word?".into(), no_wake());
+        run(&mut other, idle);
+        let log = log_of(&fourth);
+        assert_eq!(log[0], "resume:-");
+        assert!(log[1].contains("Earlier conversation"), "{log:?}");
+        assert!(!notices(&other).iter().any(|n| n.contains("own session")));
+        // Saving with the new agent records its session for the project instead.
+        save_to(&mut other, &file);
+        serve(&mut other, no_wake());
+        let store = std::fs::read_to_string(dir.join(assistant_sessions::FILE_NAME))
+            .expect("store");
+        assert!(store.contains("session-four") && !store.contains("session-one"), "{store}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1180: the #1169 check end to end through the commands alone, no clicks: open the panel,
+    /// attach a picture and send, wait, save, reopen in a new window, continue.
+    #[test]
+    fn the_panel_is_driven_by_commands_alone() {
+        let dir = project_dir("1180");
+        let picture = dir.join("disc.png");
+        disc_png(&picture);
+        let (mut app, transport) = app_with(vec![reply(&[], "A red disc.", "end_turn")]);
+        let ui = |app: &mut EditorApp, command: &str, params: Value| {
+            app.remote_request(&json!({ "command": command, "params": params }))
+        };
+        assert_eq!(ui(&mut app, "ui.set", json!({ "name": "assistantPanel", "value": false }))["ok"], json!(true));
+        assert_eq!(app.ui_command("ui.assistantState", None).expect("state")["open"], json!(false));
+        assert_eq!(ui(&mut app, "ui.set", json!({ "name": "assistantPanel", "value": true }))["ok"], json!(true));
+        let settings = app.ui_command("ui.settings", None).expect("settings");
+        assert_eq!(settings["assistantPanel"]["value"], json!(true));
+        assert_eq!(settings["assistantProtocol"]["value"], json!("anthropic"));
+        assert_eq!(settings["assistantAgent"]["value"], json!("claude"));
+        // Bad input is refused with what to send.
+        for (command, params, says) in [
+            ("ui.assistantSend", json!({ "text": "  " }), "text is empty"),
+            ("ui.assistantSend", json!({ "text": "hi", "attach": [dir.join("missing.png")] }), "is not a file"),
+            ("ui.assistantAnswer", json!({ "index": 0, "answer": "once" }), "no approval card 0"),
+            ("ui.assistantAnswer", json!({ "index": 0, "answer": "maybe" }), "once, always or deny"),
+            ("ui.set", json!({ "name": "assistantProtocol", "value": "smoke" }), "anthropic, openai or agent"),
+            ("ui.set", json!({ "name": "assistantAgent", "value": "nope" }), "claude"),
+        ] {
+            let r = ui(&mut app, command, params.clone());
+            assert!(r["error"].as_str().is_some_and(|e| e.contains(says)), "{command} {params}: {r}");
+        }
+        let sent = ui(
+            &mut app,
+            "ui.assistantSend",
+            json!({ "text": "What is this?", "attach": [picture] }),
+        );
+        assert_eq!(sent["ok"], json!(true), "{sent}");
+        assert_eq!(sent["result"]["queued"], json!(false));
+        assert_eq!(sent["result"]["busy"], json!(true));
+        run(&mut app, idle);
+        let state = app.ui_command("ui.assistantState", None).expect("state");
+        let rows = state["rows"].as_array().expect("rows");
+        assert_eq!(rows[0]["role"], "user");
+        assert!(rows[0]["text"].as_str().is_some_and(|t| t.starts_with("What is this?") && t.contains("disc.png")), "{state}");
+        assert_eq!(rows.last().expect("row")["text"], "A red disc.");
+        // The picture went as an image block.
+        let first = transport.requests.lock().expect("lock")[0].clone();
+        assert!(first.to_string().contains("\"type\":\"image\""), "{first}");
+        let file = dir.join("disc.osd");
+        let saved = ui(&mut app, "project.save", json!({ "path": file }));
+        assert_eq!(saved["ok"], json!(true), "{saved}");
+
+        // A new window: open, the chat is there, continue.
+        let (mut again, transport) = app_with(vec![reply(&[], "It was a red disc.", "end_turn")]);
+        assert_eq!(ui(&mut again, "project.open", json!({ "path": file }))["ok"], json!(true));
+        let state = again.ui_command("ui.assistantState", None).expect("state");
+        assert_eq!(state["rows"].as_array().map(Vec::len), Some(rows.len()), "{state}");
+        let sent = ui(&mut again, "ui.assistantSend", json!({ "text": "What did I show you?" }));
+        assert_eq!(sent["ok"], json!(true), "{sent}");
+        run(&mut again, idle);
+        let request = transport.requests.lock().expect("lock")[0].clone();
+        let text = message_text(&request["messages"][0]);
+        assert!(text.contains("Earlier conversation") && text.contains("What did I show you?"), "{text}");
+        assert!(text.contains("> Assistant: A red disc."), "{text}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1180: an approval card answered by command, as the user's click; a client that may not
+    /// run the waiting command cannot allow it; a message sent during a turn waits in the queue.
+    #[test]
+    fn approval_cards_are_answered_by_command() {
+        let save = ("project.save", json!({ "path": "/nonexistent-dir/x.osd" }));
+        let (mut app, transport) = app_with(vec![
+            reply(std::slice::from_ref(&save), "", "tool_use"),
+            reply(&[], "You declined.", "end_turn"),
+            reply(&[], "Queued one.", "end_turn"),
+        ]);
+        app.ui_command("ui.assistantSend", Some(&json!({ "text": "save it" }))).expect("send");
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let queued = app
+            .ui_command("ui.assistantSend", Some(&json!({ "text": "then this" })))
+            .expect("queue");
+        assert_eq!(queued["queued"], json!(true));
+        let state = app.ui_command("ui.assistantState", None).expect("state");
+        assert_eq!(state["busy"], json!(true));
+        assert_eq!(state["queued"], json!(1));
+        assert_eq!(state["approvals"][0]["index"], json!(0));
+        assert_eq!(state["approvals"][0]["command"], json!("project.save"));
+        assert!(state["approvals"][0]["what"].as_str().is_some_and(|w| w.contains("/nonexistent-dir/x.osd")), "{state}");
+        // A client without writeFiles cannot allow a save, but can deny it.
+        let caps = app.session.capabilities();
+        app.session.set_capabilities(openstitch_engine::Capabilities { write_files: false, ..caps });
+        let refused = app.ui_command("ui.assistantAnswer", Some(&json!({ "index": 0, "answer": "once" })));
+        assert!(refused.is_err_and(|e| e.contains("may not allow project.save")));
+        let denied = app
+            .ui_command("ui.assistantAnswer", Some(&json!({ "index": 0, "answer": "deny" })))
+            .expect("deny");
+        assert_eq!(denied["waiting"], json!(0));
+        app.session.set_capabilities(caps);
+        run(&mut app, |a| idle(a) && a.assistant.panel.queue.is_empty() && a.assistant.panel.items.contains(&Item::Assistant("Queued one.".into())));
+        let requests = transport.requests.lock().expect("lock");
+        assert!(requests[1].to_string().contains("declined"));
+        assert!(requests[2].to_string().contains("then this"));
+    }
+
+    /// #1180: with AI features off the panel neither opens nor sends.
+    #[test]
+    fn scripts_cannot_send_with_ai_features_off() {
+        let (mut app, _) = app_with(vec![]);
+        app.ui.prefs.ai.enabled = false;
+        assert!(app.ui_command("ui.assistantSend", Some(&json!({ "text": "hi" }))).is_err_and(|e| e.contains("AI features are off")));
+        assert!(app.ui_command("ui.set", Some(&json!({ "name": "assistantPanel", "value": true }))).is_err_and(|e| e.contains("aiFeatures")));
+        app.ui.prefs.ai.enabled = true;
+        app.ui_command("ui.set", Some(&json!({ "name": "assistantProtocol", "value": "agent" }))).expect("protocol");
+        app.ui_command("ui.set", Some(&json!({ "name": "assistantAgent", "value": "codex" }))).expect("agent");
+        assert_eq!(app.ui.prefs.ai.protocol, Protocol::Agent);
+        assert_eq!(app.ui.prefs.ai.agent, "codex");
+    }
+
     fn live_app() -> EditorApp {
         let mut app = EditorApp::new(Launch {
             demo: true,
@@ -6205,5 +6968,73 @@ Attached: rose.png".into())];
         );
         assert!(reply.contains("heron-417"), "{reply}");
         new_chat(&mut app);
+    }
+
+    /// #1170, live: the folder named by `OPENSTITCH_LIVE_1170` holds the project and the config
+    /// folder (assistant-sessions.json, ui.json); phase 1 and phase 2 run as separate processes,
+    /// so the second is a real restart:
+    /// `cargo test -p openstitch-app -- --ignored live_acp_1170_phase_1`, then `…_phase_2`.
+    fn live_1170() -> Option<(std::path::PathBuf, EditorApp)> {
+        let dir = std::path::PathBuf::from(std::env::var_os("OPENSTITCH_LIVE_1170")?);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let mut app = live_app();
+        app.ui.prefs_path = Some(dir.join("ui.json"));
+        Some((dir, app))
+    }
+
+    #[test]
+    #[ignore = "live: needs the installed, signed-in Claude Code agent"]
+    fn live_acp_1170_phase_1() {
+        let Some((dir, mut app)) = live_1170() else { return };
+        live_turn(
+            &mut app,
+            "Please remember for later in our conversation: the code word is kestrel-1170. Reply in one short sentence; do not change the design.",
+        );
+        let file = dir.join("live1170.osd");
+        save_to(&mut app, &file);
+        serve(&mut app, no_wake());
+        let store = std::fs::read_to_string(dir.join(assistant_sessions::FILE_NAME))
+            .expect("assistant-sessions.json");
+        eprintln!("STORE: {store}");
+        assert!(store.contains("\"agent\": \"claude\""), "{store}");
+        assert!(!std::fs::read_to_string(&file).expect("osd").contains("\"session\""));
+        new_chat(&mut app);
+    }
+
+    #[test]
+    #[ignore = "live: needs the installed, signed-in Claude Code agent"]
+    fn live_acp_1170_phase_2() {
+        let Some((dir, mut app)) = live_1170() else { return };
+        let file = dir.join("live1170.osd");
+        app.open_path(&file);
+        let reply = live_turn(
+            &mut app,
+            "What code word did I give you earlier? Answer from our conversation only, in one sentence.",
+        );
+        assert!(reply.contains("kestrel-1170"), "{reply}");
+        let state = app.ui_command("ui.assistantState", None).expect("state");
+        eprintln!("AGENT SESSION: {}", state["agentSession"]);
+        assert_eq!(state["agentSession"]["resumed"], json!(true), "{state}");
+        new_chat(&mut app);
+
+        // The agent no longer has the session (an id it never made): the chat goes as quoted
+        // text, with the notice, and the agent still knows the word.
+        let store_file = dir.join(assistant_sessions::FILE_NAME);
+        let mut store = assistant_sessions::Sessions::load(&store_file);
+        for r in &mut store.records {
+            r.session = "00000000-0000-0000-0000-000000000000".into();
+        }
+        store.save(&store_file).expect("store");
+        let mut again = live_1170().expect("dir").1;
+        again.open_path(&file);
+        let reply = live_turn(
+            &mut again,
+            "What code word did I give you earlier? Answer from our conversation only, in one sentence.",
+        );
+        assert!(reply.contains("kestrel-1170"), "{reply}");
+        let state = again.ui_command("ui.assistantState", None).expect("state");
+        eprintln!("AGENT SESSION: {}", state["agentSession"]);
+        assert_eq!(state["agentSession"]["resumed"], json!(false), "{state}");
+        new_chat(&mut again);
     }
 }

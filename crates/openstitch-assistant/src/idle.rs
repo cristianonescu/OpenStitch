@@ -15,7 +15,10 @@
 use std::io::{self, Read};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+// std's clock panics in a browser page (#766); on the desktop this is std's own `Instant`.
+use web_time::Instant;
 
 /// How often a waiting read looks at the Stop flag.
 const POLL: Duration = Duration::from_millis(100);

@@ -562,3 +562,187 @@ fn open_stitch_part_crosses_split_cells_along_a_diagonal() {
     let below = red.iter().any(|s| s.x > 100.0 + 1e-9 && !above(s.x, s.y));
     assert_eq!(whole.cells, vec![if below { 2 } else { 1 }]);
 }
+
+/// Pixel art for #994: a 10 × 8 art-pixel picture, each art pixel 12 image pixels, starting
+/// 5 pixels in (the art's grid is not the image's), with a soft one-pixel seam between art
+/// pixels as an upscaler leaves. The art is white with a red block (art pixels 2–5 × 2–4) and
+/// one blue art pixel (7, 2), plus a 2 × 2 patch of red, red, yellow, white at (2–3, 6–7).
+fn pixel_art() -> Raster {
+    const S: u32 = 12;
+    const O: u32 = 5;
+    let art = |i: i64, j: i64| -> [u8; 4] {
+        match (i, j) {
+            (2..=5, 2..=4) => RED,
+            (7, 2) => BLUE,
+            (2, 6) | (3, 6) | (2, 7) => RED,
+            (3, 7) => YELLOW,
+            _ => WHITE,
+        }
+    };
+    Raster::from_fn(10 * S + 2 * O, 8 * S + 2 * O, |x, y| {
+        let (i, j) = (
+            (i64::from(x) - i64::from(O)).div_euclid(i64::from(S)),
+            (i64::from(y) - i64::from(O)).div_euclid(i64::from(S)),
+        );
+        let c = art(i, j);
+        let seam = (i64::from(x) - i64::from(O)).rem_euclid(i64::from(S)) == 0
+            || (i64::from(y) - i64::from(O)).rem_euclid(i64::from(S)) == 0;
+        if seam {
+            // Blend with the art pixel up and left: neither colour.
+            let n = art(i - 1, j - 1);
+            [0, 1, 2, 3].map(|k| ((u16::from(c[k]) + u16::from(n[k])) / 2) as u8)
+        } else {
+            c
+        }
+    })
+    .expect("valid size")
+}
+
+/// #994: in OpenStitch mode Cross Stitch finds pixel art's own grid and, with `pixel_grid`,
+/// lays one cross per art pixel on it (cell side = the art pixel, whatever `cell_mm` says),
+/// with every cross centred on an art pixel's centre.
+#[test]
+fn open_stitch_follows_pixel_arts_own_grid() {
+    let img = pixel_art();
+    // 0.25 mm per image pixel: art pixels of 3 mm.
+    let frame = Frame::new(0.0, 0.0, img.width() as f64 * 0.25, img.width());
+    let plain = cross::convert(&img, &frame, &open_stitch(2.5, 4)).expect("converts");
+    let art = plain.pixel_art.clone().expect("pixel art found");
+    assert_eq!((art.columns, art.rows), (10, 8), "{art:?}");
+    assert!((art.pixel_mm[0] - 3.0).abs() < 0.05 && (art.pixel_mm[1] - 3.0).abs() < 0.05);
+    assert!(!art.followed);
+    let p = CrossStitch {
+        pixel_grid: true,
+        fill: false,
+        ..open_stitch(2.5, 4)
+    };
+    let out = cross::convert(&img, &frame, &p).expect("converts");
+    assert!(out.pixel_art.as_ref().expect("found").followed);
+    assert_eq!((out.columns, out.rows), (10, 8));
+    // Red: 12 block + 3 patch; blue 1; yellow 1. White is the background.
+    let mut cells = out.cells.clone();
+    cells.sort_unstable();
+    assert_eq!(cells, vec![1, 1, 15], "{:?}", out.threads);
+    // Every cross centre is an art pixel's centre: 5 + 12 k + 6 image pixels = (11 + 12 k) ×
+    // 2.5 design units.
+    for o in &out.objects {
+        let st = &o.stitch_block.as_ref().expect("block").stitches;
+        for s in unlocked(st) {
+            let u = (s.x / 2.5 - 5.0) / 6.0;
+            let v = (s.y / 2.5 - 5.0) / 6.0;
+            assert!(
+                (u - u.round()).abs() < 0.05 && (v - v.round()).abs() < 0.05,
+                "{s:?} is not on the art's half-pixel lattice"
+            );
+        }
+    }
+    // Deterministic.
+    assert_eq!(cross::convert(&img, &frame, &p).expect("again"), out);
+}
+
+/// #994: a cross over several art pixels takes the colour of one of them (the nearest their
+/// mean), never a blend none of them has: the red, red, red, yellow patch is red, not orange.
+#[test]
+fn open_stitch_art_grid_cells_take_one_of_their_own_colours() {
+    let img = pixel_art();
+    let frame = Frame::new(0.0, 0.0, img.width() as f64 * 0.25, img.width());
+    let p = CrossStitch {
+        pixel_grid: true,
+        pixels_per_cross: 2,
+        fill: false,
+        ..open_stitch(2.5, 6)
+    };
+    let out = cross::convert(&img, &frame, &p).expect("converts");
+    assert_eq!((out.columns, out.rows), (5, 4));
+    for t in &out.threads {
+        let [r, g, b] = [t.red, t.green, t.blue];
+        let orange = r > 200 && (90..=170).contains(&g) && b < 90;
+        assert!(!orange, "a blend: {t:?}");
+    }
+    // The 2 × 2 crosses are 6 mm: needle points on a 3 mm lattice from the art's corner.
+    for o in &out.objects {
+        for s in unlocked(&o.stitch_block.as_ref().expect("block").stitches) {
+            let u = (s.x / 2.5 - 5.0) / 12.0;
+            assert!((u - u.round()).abs() < 0.05, "{s:?}");
+        }
+    }
+}
+
+/// #994: PE-compatible mode never looks for the art's grid (PE-DESIGN keeps its plain grid on
+/// pixel art), so its output is the same with `pixel_grid` on; and a picture that is not pixel
+/// art keeps the plain grid in OpenStitch mode too.
+#[test]
+fn pixel_grid_leaves_pe_mode_and_other_pictures_alone() {
+    let img = pixel_art();
+    let frame = Frame::new(0.0, 0.0, img.width() as f64 * 0.25, img.width());
+    let pe = CrossStitch {
+        colors: 4,
+        ..Default::default()
+    };
+    let a = cross::convert(&img, &frame, &pe).expect("converts");
+    let b = cross::convert(
+        &img,
+        &frame,
+        &CrossStitch {
+            pixel_grid: true,
+            ..pe.clone()
+        },
+    )
+    .expect("converts");
+    assert_eq!(a, b);
+    assert_eq!(a.pixel_art, None);
+    let disc = Raster::from_fn(200, 200, |x, y| {
+        let (dx, dy) = (x as f64 - 100.0, y as f64 - 100.0);
+        if dx * dx + dy * dy < 70.0 * 70.0 {
+            RED
+        } else {
+            WHITE
+        }
+    })
+    .expect("valid size");
+    let frame = Frame::new(0.0, 0.0, 50.0, 200);
+    let p = CrossStitch {
+        pixel_grid: true,
+        ..open_stitch(2.5, 2)
+    };
+    let out = cross::convert(&disc, &frame, &p).expect("converts");
+    assert_eq!(out.pixel_art, None);
+    assert_eq!(
+        out,
+        cross::convert(&disc, &frame, &open_stitch(2.5, 2)).expect("plain")
+    );
+}
+
+/// #994: the repository's pixel strawberry (`examples/images/g07-pixel-strawberry.png`, an
+/// upscaled picture whose art pixels are about 34.7 × 33.2 image pixels) is found as pixel
+/// art; no photograph or drawing among the example images is.
+#[test]
+fn the_example_pixel_art_is_found_and_nothing_else() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/images");
+    let mut found = Vec::new();
+    let mut names: Vec<_> = std::fs::read_dir(&dir)
+        .expect("images")
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| matches!(p.extension().and_then(|e| e.to_str()), Some("png" | "jpg")))
+        .collect();
+    names.sort();
+    for path in names {
+        let img = Raster::decode(&std::fs::read(&path).expect("read")).expect("decode");
+        if let Some(g) = openstitch_digitize::pixelgrid::detect(&img.fit(1024)) {
+            found.push((
+                path.file_name()
+                    .expect("name")
+                    .to_string_lossy()
+                    .into_owned(),
+                g,
+            ));
+        }
+    }
+    assert_eq!(found.len(), 1, "{found:?}");
+    let (name, g) = &found[0];
+    assert_eq!(name, "g07-pixel-strawberry.png");
+    assert!(
+        (g.x.pitch - 34.7).abs() < 1.0 && (g.y.pitch - 33.2).abs() < 1.0,
+        "{g:?}"
+    );
+}

@@ -183,6 +183,86 @@ pub fn simplify_open(l: &[Vec2], tol: f64) -> Vec<usize> {
     (0..n).filter(|&i| keep[i]).collect()
 }
 
+/// Whether the closed polyline `p` (first point not repeated) crosses itself: two
+/// non-adjacent segments that properly intersect (#1137). Touching at a shared vertex and
+/// collinear overlaps are not counted, as the design checker counts them. Segments are swept
+/// in order of their left ends, so long outlines cost far less than every pair.
+pub fn crosses_itself(p: &[Vec2]) -> bool {
+    let n = p.len();
+    if n < 4 {
+        return false;
+    }
+    let seg = |i: usize| (p[i], p[(i + 1) % n]);
+    let mut order: Vec<usize> = (0..n).collect();
+    let left = |i: usize| {
+        let (a, b) = seg(i);
+        a.x.min(b.x)
+    };
+    order.sort_by(|&i, &j| left(i).total_cmp(&left(j)).then(i.cmp(&j)));
+    for (k, &i) in order.iter().enumerate() {
+        let (a, b) = seg(i);
+        let right = a.x.max(b.x);
+        let (lo, hi) = (a.y.min(b.y), a.y.max(b.y));
+        for &j in &order[k + 1..] {
+            let (q, r) = seg(j);
+            if q.x.min(r.x) > right {
+                break;
+            }
+            let adjacent = (i + 1) % n == j || (j + 1) % n == i;
+            if adjacent || q.y.max(r.y) < lo || q.y.min(r.y) > hi {
+                continue;
+            }
+            let d = (b.x - a.x) * (r.y - q.y) - (b.y - a.y) * (r.x - q.x);
+            if d.abs() < 1e-9 {
+                continue;
+            }
+            let t = ((q.x - a.x) * (r.y - q.y) - (q.y - a.y) * (r.x - q.x)) / d;
+            let u = ((q.x - a.x) * (b.y - a.y) - (q.y - a.y) * (b.x - a.x)) / d;
+            if t > 1e-6 && t < 1.0 - 1e-6 && u > 1e-6 && u < 1.0 - 1e-6 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// A closed design contour from the marching-squares loop `dense` that never crosses itself
+/// (#1137): Douglas–Peucker at `tol` and, with `curves`, fitted Béziers, as [`contour`] makes
+/// it. Neither guarantees a simple outline: a kept vertex can cut across a narrow neck, and a
+/// fitted curve can bulge across a neighbouring stretch. When the flattened outline crosses
+/// itself, the curves go first; if the straight outline still crosses, the tolerance halves
+/// until it does not. The dense loop itself never crosses (marching squares keeps diagonal
+/// neighbours apart), so this ends there at the latest.
+pub fn simple_contour(
+    dense: &[Vec2],
+    tol: f64,
+    curves: bool,
+    corner_degrees: f64,
+    frame: &Frame,
+) -> Contour {
+    let mut tol = tol;
+    let mut curves = curves;
+    loop {
+        let kept = simplify_closed(dense, tol);
+        let c = contour(dense, &kept, true, curves, tol, corner_degrees, frame);
+        let mut flat = c.path();
+        flat.pop();
+        if kept.len() == dense.len() && !curves || !crosses_itself(&flat) {
+            return c;
+        }
+        if curves {
+            curves = false;
+        } else {
+            tol /= 2.0;
+            if tol < 0.01 {
+                // Every vertex kept.
+                let all: Vec<usize> = (0..dense.len()).collect();
+                return contour(dense, &all, true, false, tol, corner_degrees, frame);
+            }
+        }
+    }
+}
+
 /// Builds a design contour from the dense pixel-space polyline `dense`, keeping vertices
 /// `kept` (indices into `dense`). With `curves`, each segment between two kept vertices
 /// becomes a cubic Bézier fitted by least squares to the dense points it replaces (tangents
@@ -354,4 +434,128 @@ fn fit_segment(
     // Truly straight runs stay straight; elsewhere the curve wins whenever it is within the
     // tolerance, since its tangents join smoothly with the neighbouring segments.
     (line_err > 0.25 && curve_err <= tol.max(1.0)).then_some((c1, c2))
+}
+
+#[cfg(test)]
+mod crossing_tests {
+    use super::*;
+    use openstitch_design::v2;
+
+    /// #1137: a hole of Auto Punch's fill of the kit's storybook (`p03-storybook.jpg` at
+    /// 199 mm, OpenStitch mode), as marching squares traced it in its mask's pixels. Douglas–
+    /// Peucker at the default 0.7 pixel keeps 16 vertices, and the Béziers fitted between them
+    /// cross; the design checker then called the storybook "Fix this first".
+    const STORYBOOK_HOLE: [(f64, f64); 60] = [
+        (41.0, 8.5),
+        (41.5, 9.0),
+        (42.0, 9.5),
+        (42.0, 10.5),
+        (41.5, 11.0),
+        (41.0, 11.5),
+        (41.0, 12.5),
+        (41.5, 13.0),
+        (42.0, 13.5),
+        (41.5, 14.0),
+        (41.0, 14.5),
+        (40.5, 15.0),
+        (40.0, 15.5),
+        (40.0, 16.5),
+        (40.0, 17.5),
+        (40.5, 18.0),
+        (41.0, 18.5),
+        (41.0, 19.5),
+        (41.0, 20.5),
+        (41.5, 21.0),
+        (42.5, 21.0),
+        (43.0, 21.5),
+        (43.5, 22.0),
+        (44.5, 22.0),
+        (45.5, 22.0),
+        (46.5, 22.0),
+        (47.0, 21.5),
+        (47.0, 20.5),
+        (47.0, 19.5),
+        (47.5, 19.0),
+        (48.5, 19.0),
+        (49.5, 19.0),
+        (50.0, 18.5),
+        (50.5, 18.0),
+        (51.0, 17.5),
+        (50.5, 17.0),
+        (50.0, 17.5),
+        (49.5, 18.0),
+        (49.0, 17.5),
+        (48.5, 17.0),
+        (47.5, 17.0),
+        (47.0, 16.5),
+        (47.0, 15.5),
+        (46.5, 15.0),
+        (46.0, 14.5),
+        (46.0, 13.5),
+        (45.5, 13.0),
+        (45.0, 12.5),
+        (45.0, 11.5),
+        (45.5, 11.0),
+        (46.5, 11.0),
+        (47.0, 10.5),
+        (47.0, 9.5),
+        (47.0, 8.5),
+        (46.5, 8.0),
+        (45.5, 8.0),
+        (44.5, 8.0),
+        (43.5, 8.0),
+        (42.5, 8.0),
+        (41.5, 8.0),
+    ];
+
+    #[test]
+    fn a_traced_contour_never_crosses_itself() {
+        let dense: Vec<Vec2> = STORYBOOK_HOLE.iter().map(|&(x, y)| v2(x, y)).collect();
+        assert!(!crosses_itself(&dense), "the traced loop itself is simple");
+        // The kit's placement: 199 mm over the 768-pixel image (design units per pixel). The
+        // curves cross at 2.25 units per pixel and above, once flattening resolves them.
+        let frame = Frame {
+            origin: v2(0.0, 0.0),
+            scale: 1990.0 / 768.0,
+        };
+        let kept = simplify_closed(&dense, 0.7);
+        let before = contour(&dense, &kept, true, true, 0.7, 55.0, &frame);
+        let mut flat = before.path();
+        flat.pop();
+        assert!(crosses_itself(&flat), "the case still reproduces");
+        let after = simple_contour(&dense, 0.7, true, 55.0, &frame);
+        let mut flat = after.path();
+        flat.pop();
+        assert!(!crosses_itself(&flat));
+        // Only the curves went: the same 16 vertices, now straight.
+        assert_eq!(after.points, before.points);
+        assert!(!after.has_curves());
+    }
+
+    #[test]
+    fn crossing_test_counts_proper_crossings_only() {
+        let bow: Vec<Vec2> = [(0.0, 0.0), (4.0, 4.0), (4.0, 0.0), (0.0, 4.0)]
+            .iter()
+            .map(|&(x, y)| v2(x, y))
+            .collect();
+        assert!(crosses_itself(&bow));
+        let square: Vec<Vec2> = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
+            .iter()
+            .map(|&(x, y)| v2(x, y))
+            .collect();
+        assert!(!crosses_itself(&square));
+        // A hole touching the outline at one vertex (a figure eight's waist) is not a crossing.
+        let eight: Vec<Vec2> = [
+            (0.0, 0.0),
+            (2.0, 2.0),
+            (4.0, 0.0),
+            (4.0, 4.0),
+            (2.0, 2.0),
+            (0.0, 4.0),
+        ]
+        .iter()
+        .map(|&(x, y)| v2(x, y))
+        .collect();
+        assert!(!crosses_itself(&eight));
+    }
 }

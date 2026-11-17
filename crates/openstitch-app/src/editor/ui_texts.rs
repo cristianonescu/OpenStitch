@@ -899,6 +899,15 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ),
     ("ui-part-crosses-on-edges", "Part crosses on edges"),
     (
+        "ui-follow-the-pixel-art-grid",
+        "Follow pixel art's own grid (+)",
+    ),
+    (
+        "ui-follow-the-pixel-art-grid-tip",
+        "When the picture is pixel art, one cross per art pixel (or per several of them), each in one of its own pixels' colours, instead of a grid at the cross size. Other pictures keep the grid.",
+    ),
+    ("ui-art-pixels-per-cross", "Art pixels per cross"),
+    (
         "ui-automatic-threshold-and-lines",
         "Automatic threshold and lines",
     ),
@@ -1584,6 +1593,11 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("ui-ready-to-sew", "Ready to sew"),
     ("ui-sewable-with-small-risks", "Sewable with small risks"),
     ("ui-fix-this-first", "Fix this first"),
+    ("ui-checking-design", "Checking the design…"),
+    (
+        "ui-checking-design-tip",
+        "Check Design is checking the latest change; the result shows when it is ready",
+    ),
     (
         "ui-check-design-open-the-list-of-tip",
         "Check Design: open the list of sewing problems",
@@ -1862,6 +1876,21 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("ui-window-stitch-table", "Stitch Table"),
     ("ui-window-test-swatches", "Test Swatches"),
     ("ui-window-send-to-usb-media", "Send to USB Media"),
+    ("ui-window-floppy-image", "Floppy Image"),
+    (
+        "ui-floppy-intro",
+        "A 1.44 MB floppy disk image for a machine that reads floppies. OpenStitch writes the image file only: copy it to the floppy or the USB floppy emulator yourself.",
+    ),
+    ("ui-floppy-new", "New Image…"),
+    ("ui-floppy-disk-image", "Floppy disk image"),
+    ("ui-floppy-open", "Open Image…"),
+    ("ui-floppy-empty", "The disk is empty."),
+    ("ui-floppy-free", "Free:"),
+    ("ui-floppy-add-design", "Add Design"),
+    ("ui-floppy-add-files", "Add Files…"),
+    ("ui-floppy-remove", "Remove Selected"),
+    ("ui-floppy-added", "Added:"),
+    ("ui-floppy-updated", "Floppy image updated"),
     ("ui-window-openstitch-update", "OpenStitch Update"),
     ("ui-window-modify-image", "Modify Image"),
     (

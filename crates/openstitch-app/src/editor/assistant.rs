@@ -113,7 +113,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.browserLimits",
-        summary: "What the browser version cannot do (#830): inBrowser, the notice shown now (shown) and each limit (assistant, print, transfer, updates, folders, clipboardImages) with what it is, what to do instead, the issue that tracks it and the message the browser shows when it is used",
+        summary: "What the browser version cannot do (#830): inBrowser, the notice shown now (shown), the keys the browser keeps for itself and never passes to the editor (browserKeys: Ctrl+N, Ctrl+T, Ctrl+W; use the menus there, #834) and each limit (limits: print, transfer, updates, folders, clipboardImages, systemFonts: lettering in the computer's own fonts, #833) with what it is, what to do instead, the issue that tracks it and the message the browser shows when it is used. The Assistant itself works in the browser (#766)",
         effect: Effect::Read,
         params: &[],
     },
@@ -570,6 +570,65 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         effect: Effect::Settings,
         params: &[],
     },
+    // #1180: the Assistant panel for tests and scripts, as the user drives it. The Assistant
+    // itself is refused them (the gate's `user_only`): it must not send itself messages or answer
+    // its own approval cards.
+    UiCommand {
+        id: "ui.assistantSend",
+        summary: "Send a message in the Assistant panel as if the user typed it and pressed Send (for tests and scripts; the Assistant itself cannot). It starts a turn with the protocol and agent in the settings, or waits in the queue while a turn runs. Attached files are copied into the Assistant's scratch folder; the message and the replies become chat rows, which a save writes into the .osd while assistantSaveChat is on. Needs AI features on. Returns queued and the chat number; poll ui.assistantState until busy is false",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "text",
+                "string",
+                true,
+                "The message, as typed into the composer",
+            ),
+            p(
+                "attach",
+                "[string]",
+                false,
+                "Files to attach, as dropped onto the panel (at most 8): each is copied into the scratch folder, nothing else is stored. A socket client's paths must be under its --listen-root or --listen-read-root folders",
+            ),
+            p(
+                "view",
+                "bool",
+                false,
+                "Send a picture of the view with it, as the View chip does (made for this message, not stored)",
+            ),
+            p(
+                "selection",
+                "bool",
+                false,
+                "Send the selected objects' ids with it, as the Selection chip does",
+            ),
+        ],
+    },
+    UiCommand {
+        id: "ui.assistantState",
+        summary: "The Assistant panel's state (#1180): enabled and open, busy (a turn runs) and queued messages, protocol and agent, the chat number, the rows as a save would keep them (role, text, failed), the approval cards waiting for an answer (index, command, what it asks), the tokens used, and agentSession: whether a coding agent continues its own earlier session for a restored chat (loaded, or failed with why; #1170). Changes nothing",
+        effect: Effect::Read,
+        params: &[],
+    },
+    UiCommand {
+        id: "ui.assistantAnswer",
+        summary: "Answer one of the Assistant's approval cards as the user would click it (#1180; the Assistant itself cannot). Allow once runs the command; Always allow also adds it to the always-allowed commands kept in ui.json (alwaysAllow), except commands that always ask; Deny tells the Assistant the user declined. The client needs the capability the waiting command needs (edit, or writeFiles for files). Returns the cards still waiting",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "index",
+                "int",
+                true,
+                "The card, from 0, as ui.assistantState lists approvals",
+            ),
+            p(
+                "answer",
+                "once|always|deny",
+                true,
+                "Allow once, Always allow, or Deny",
+            ),
+        ],
+    },
 ];
 
 /// Largest file `ui.scratchWrite` writes.
@@ -668,6 +727,23 @@ pub const SETTINGS: &[Setting] = &[
         "assistantMemory",
         "Let the Assistant remember things",
         "bool",
+    ),
+    // #1180: the panel and the Assistant's protocol and agent, for tests and scripts; the
+    // Assistant itself cannot change them.
+    s(
+        "assistantPanel",
+        "Assistant panel open (kept in ui.json as panelOpen; View ▸ Show/Hide ▸ Assistant)",
+        "bool",
+    ),
+    s(
+        "assistantProtocol",
+        "The Assistant's protocol, kept in ui.json: anthropic (Claude API), openai (OpenAI-compatible) or agent (a coding agent); a change starts a new conversation with the next message",
+        "anthropic|openai|agent",
+    ),
+    s(
+        "assistantAgent",
+        "The coding agent for the agent protocol, kept in ui.json (claude, codex, opencode, …: an id the Assistant's settings list); a change starts a new conversation with the next message",
+        "string",
     ),
     s(
         "assistantSaveChat",

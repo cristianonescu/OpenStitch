@@ -58,7 +58,7 @@ Its notes are in [docs/releases](docs/releases/).
 | macOS (Apple Silicon and Intel) | `OpenStitch-…-macos-universal.zip` |
 | Linux | `OpenStitch-…-linux-x86_64.AppImage` (`chmod +x` and run) or `….tar.gz` |
 | Command line (`stitchtool`, `openstitch-mcp`) | `openstitch-cli-…` for your system |
-| Browser | <https://cristianonescu.github.io/OpenStitch/>: nothing to install, nothing uploaded. No Assistant, printing or machine transfer yet. |
+| Browser | <https://cristianonescu.github.io/OpenStitch/>: nothing to install, nothing uploaded except what you send the Assistant (your messages, the design's details and the pictures it looks at), only to the model you choose. The Assistant works with the Claude API or a local Ollama, but it cannot yet see a picture you give it or import an SVG it draws ([#1224]). No printing or machine transfer yet. |
 
 The builds are not code-signed yet:
 - **macOS:** move `OpenStitch.app` to Applications, then right-click it and choose Open the first
@@ -178,7 +178,7 @@ OpenStitch (the image dialog's Method choice):
   Since B16.1 ([plan](docs/research/beyond/image-similarity-plan.md)) the threads are chosen
   for the image as a whole, Photo Stitch 1 dithers only where the image is tonal, a Fidelity
   choice (Standard / High) trades colours for likeness, Cross Stitch takes each cell's mean
-  colour, and Design Center finds its line threshold from the image (Otsu). Photo Stitch 1 samples
+  colour and can lay one cross per pixel on pixel art's own grid, and Design Center finds its line threshold from the image (Otsu). Photo Stitch 1 samples
   the image every 0.25 mm in rows that stay within 2.1 needle points per mm² (no 10 × 10 mm area
   above 3.0), with a Trims choice (fewer trims or the best likeness). Auto Punch sews the
   background and sews dark outlines as satin on top, in one covering layer; it can instead
@@ -313,6 +313,9 @@ feature is done and the rest is under [Planned](#planned).
   split along an outline, offset lines. Curves stay curves, and cut pieces keep their sewing
   angle and attributes ([#652]).
 - (+) **Knife:** one cut line splits every object it crosses, in one undo step ([#477]).
+- (+) **Join Lines and Break Apart:** open lines or satin columns whose ends meet become one object
+  sewn without a trim; text breaks into letters, a fill into its islands, a group into its copies
+  ([#744]).
 - (+) **More shape tools:** band frames, a radius per corner, spiral lines, Divide, the shape
   builder, and a turning gap in a closed line for in-the-hoop pieces ([#497]).
 - (+) **Smooth Shape and Smooth Stitches:** fewer points and fewer, cleaner curves within a
@@ -514,7 +517,9 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
   click-to-fix on the picture, colour order, fill angles and outline SVG export ([#489]).
 - (+) **Picture helpers on your computer:** one-click subject cut-out and line drawings from photos,
   with no model and nothing sent anywhere ([#490]).
-- **Background image** (PNG, JPEG, BMP or the clipboard): place, rotate, crop, adjust, save and
+- (+) **Cross Stitch on pixel art's own grid:** one cross per pixel of the art (or per block of
+  them), each in one of its own pixels' colours ([#994]).
+- **Background image** (PNG, JPEG, BMP, GIF, WebP or the clipboard): place, rotate, crop, adjust, save and
   trace over, (+) with handles on the canvas ([#518]).
 
 ### Wizards and production aids
@@ -610,6 +615,9 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - **USB stick or SD card:** the editor and the Design Database's Writing List find removable
   drives on every OS and write to them, asking before overwriting.
 - **PEC preview icons** and the 64-colour chart the machine shows.
+- (+) **Floppy disk images** for older machines that read floppies or a USB floppy emulator: a
+  1.44 MB image with the design and other files, made and edited in Sew Embroidery ▸ Floppy
+  Image… ([#876](https://github.com/cristianonescu/OpenStitch/issues/876)).
 - Wireless transfer and Link are not available; see [Not yet implemented](#not-yet-implemented).
 
 ### The AI Assistant and MCP
@@ -648,7 +656,11 @@ circle, and the whole message is one undo step.*
   thinking, tool results and keys are never kept. "Save the chat with the project" (Assistant
   settings, on by default) turns it off, and a kept chat goes at the next save. Saves and
   opens the assistant runs are handled as File ▸ Save and Open are ([#1176], [#1178],
-  [#1187]).
+  [#1187]). On the same computer a coding agent such as Claude Code continues its own session
+  for the saved chat, with its earlier tool calls and pictures ([#1170]).
+- (+) **Scriptable:** tests and scripts drive the panel over the automation socket (open it,
+  pick the protocol and agent, send with attachments, read the chat, answer approval cards);
+  the assistant itself cannot use these commands ([#1180]).
 - (+) **Questions and suggested replies:** before a new design it asks 5 to 10 questions with
   answer chips, its recommended answer first and marked so, or a typed answer (or it uses its
   judgment and takes its recommendations); after every reply it offers a suggested message and
@@ -670,7 +682,7 @@ Benchmark of alpha 12 (2026-11-05) on its 12 embroidery tasks: Claude Code 12/12
 gpt-oss:20b 8/12. It was tested on macOS and Windows (12/12 there too); on Linux, CI runs its
 tests and the keychain round trip
 ([#401](https://github.com/cristianonescu/OpenStitch/issues/401)). Details are in the
-[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md). The benchmark has since grown to 32 tasks
+[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md). The benchmark has since grown to 35 tasks
 (`stitchtool bench-assistant --list`).
 
 ### Scripting (Python package)
@@ -695,8 +707,10 @@ tests and the keychain round trip
 - **Desktop editor** for macOS, Windows and Linux, with its own icons generated for OpenStitch.
 - (+) **[Editor in a web browser](https://cristianonescu.github.io/OpenStitch/)** (*partial*): the
   desktop editor in the page, opening files through the browser's picker and saving and exporting
-  every machine format as downloads ([#556], [#693]). No Assistant and no MCP control in the
-  browser yet ([#766]).
+  every machine format as downloads ([#556], [#693]). The Assistant panel works there too, with the
+  Claude API or an OpenAI-compatible endpoint such as a local Ollama, and the key kept in the page
+  unless you choose to remember it ([#766]). It cannot yet see a picture you give it or import an
+  SVG it draws ([#1224]), and an outside AI client cannot drive the page ([#1223]).
 - (+) **macOS Finder thumbnails** through a Quick Look extension, for `.osd`, `.pes` and 16 more
   formats ([#557]); since alpha 17 the extension draws with the renderer linked into it, as
   macOS's sandbox lets it start no helper ([#1182](https://github.com/cristianonescu/OpenStitch/issues/1182)).
@@ -745,6 +759,7 @@ tests and the keychain round trip
 [#477]: https://github.com/cristianonescu/OpenStitch/issues/477
 [#478]: https://github.com/cristianonescu/OpenStitch/issues/478
 [#479]: https://github.com/cristianonescu/OpenStitch/issues/479
+[#744]: https://github.com/cristianonescu/OpenStitch/issues/744
 [#480]: https://github.com/cristianonescu/OpenStitch/issues/480
 [#481]: https://github.com/cristianonescu/OpenStitch/issues/481
 [#482]: https://github.com/cristianonescu/OpenStitch/issues/482
@@ -761,6 +776,8 @@ tests and the keychain round trip
 [#491]: https://github.com/cristianonescu/OpenStitch/issues/491
 [#1168]: https://github.com/cristianonescu/OpenStitch/issues/1168
 [#1169]: https://github.com/cristianonescu/OpenStitch/issues/1169
+[#1170]: https://github.com/cristianonescu/OpenStitch/issues/1170
+[#1180]: https://github.com/cristianonescu/OpenStitch/issues/1180
 [#1176]: https://github.com/cristianonescu/OpenStitch/issues/1176
 [#1178]: https://github.com/cristianonescu/OpenStitch/issues/1178
 [#1184]: https://github.com/cristianonescu/OpenStitch/issues/1184
@@ -831,6 +848,7 @@ tests and the keychain round trip
 [#549]: https://github.com/cristianonescu/OpenStitch/issues/549
 [#1036]: https://github.com/cristianonescu/OpenStitch/issues/1036
 [#1093]: https://github.com/cristianonescu/OpenStitch/issues/1093
+[#994]: https://github.com/cristianonescu/OpenStitch/issues/994
 [#550]: https://github.com/cristianonescu/OpenStitch/issues/550
 [#551]: https://github.com/cristianonescu/OpenStitch/issues/551
 [#552]: https://github.com/cristianonescu/OpenStitch/issues/552
@@ -844,6 +862,8 @@ tests and the keychain round trip
 [#556]: https://github.com/cristianonescu/OpenStitch/issues/556
 [#693]: https://github.com/cristianonescu/OpenStitch/issues/693
 [#766]: https://github.com/cristianonescu/OpenStitch/issues/766
+[#1223]: https://github.com/cristianonescu/OpenStitch/issues/1223
+[#1224]: https://github.com/cristianonescu/OpenStitch/issues/1224
 [#557]: https://github.com/cristianonescu/OpenStitch/issues/557
 [#558]: https://github.com/cristianonescu/OpenStitch/issues/558
 [#559]: https://github.com/cristianonescu/OpenStitch/issues/559
@@ -1084,8 +1104,10 @@ Linux packaging changes, and can be built locally from
 
 The [browser version](https://cristianonescu.github.io/OpenStitch/) is built from `main`. It
 opens designs and embroidery files from your disk and saves and exports them as downloads;
-nothing leaves the browser. It does less than the desktop app: no Assistant or MCP control,
-system clipboard, printing or folder choosing yet
+nothing leaves the browser except what you send the Assistant (your messages, the design's details
+and the pictures it looks at), which goes only to the model address you choose. It does less than the desktop app: its Assistant cannot see pictures you give it or import
+an SVG it draws ([#1224]), and there is no MCP control ([#1223]), system clipboard, printing or
+folder choosing yet
 ([docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#web-editor)).
 
 Details are in [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).

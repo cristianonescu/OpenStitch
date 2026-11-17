@@ -39,7 +39,9 @@ sound start; change them only for a reason.
   or thin fabric and stacked layers; raise it only for small areas on firm fabric.
 - An open fill is a look, not a fault: under about 1 line/mm the rows hide less than 40 % of
   the fabric (measured on sew-outs: 35-40 % at 1 row/mm, 96 % at 4.5), and Check Design adds
-  a `lowCoverage` note, which does not hold the design back.
+  a `lowCoverage` note, which does not hold the design back. A gradient's, blend's or tartan's
+  colour layers each sew only part of the rows, so they are judged together: their thread over
+  the shared outline.
 - Keep `underlay` on for fills and satin over about 2 mm wide; it stabilises the fabric and
   lifts the top stitching.
 - `pullCompensation` (0.2-0.4 mm) widens row ends so shapes do not shrink when sewn.

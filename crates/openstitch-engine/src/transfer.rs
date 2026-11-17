@@ -329,7 +329,217 @@ pub fn commands() -> Vec<CommandSpec> {
             ],
             send,
         ),
+        spec(
+            "transfer.diskImage",
+            "Create or edit a 1.44 MB FAT12 floppy disk image FILE for machines that read floppies (a USB floppy emulator takes the image): add files and the design, remove files, all in one step that leaves the image as it was if anything fails. It writes the image file only, never a drive or device: putting the image on a real floppy or an emulator stick is the user's step. An existing file at the path is edited only if it is a floppy image; anything else there is refused, never overwritten. 8.3 names (long names get a short one such as MYDESI~1.DST); a file whose 8.3 name is on the disk is refused unless overwrite. Returns the files and the free space",
+            Effect::File,
+            vec![
+                ParamDoc {
+                    name: "path",
+                    kind: "string",
+                    required: true,
+                    summary: "The image file (.img, .ima, .vfd or .flp); created formatted and empty if missing",
+                },
+                opt(
+                    "add",
+                    "[string]",
+                    "Files to copy onto the disk (any embroidery or other file)",
+                ),
+                opt(
+                    "addDesign",
+                    "bool",
+                    "Also write the open design as a machine file onto the disk (default false)",
+                ),
+                opt(
+                    "format",
+                    "dst|exp|u01|tap|...",
+                    "addDesign: machine format (default dst, what most floppy machines read)",
+                ),
+                opt(
+                    "name",
+                    "string",
+                    "addDesign: file name without extension (default the design name), made 8.3",
+                ),
+                opt(
+                    "remove",
+                    "[string]",
+                    "8.3 names to delete first (as transfer.diskImageList lists them)",
+                ),
+                opt(
+                    "overwrite",
+                    "bool",
+                    "Replace files of the same 8.3 name on the disk (default false: refused)",
+                ),
+                opt(
+                    "label",
+                    "string",
+                    "Volume label of a new image, up to 11 letters (default none)",
+                ),
+            ],
+            disk_image,
+        ),
+        spec(
+            "transfer.diskImageList",
+            "List the files on a 1.44 MB FAT12 floppy disk image file with their sizes, the free space and the volume label; a damaged image is reported, not read",
+            Effect::Read,
+            vec![ParamDoc {
+                name: "path",
+                kind: "string",
+                required: true,
+                summary: "The image file",
+            }],
+            disk_image_list,
+        ),
     ]
+}
+
+// MARK: floppy disk images (#876)
+
+/// File extensions an image may have: a path naming a drive or device has none of them.
+const IMAGE_EXTENSIONS: [&str; 4] = ["img", "ima", "vfd", "flp"];
+
+/// Refuses a path that names a device, a drive or a folder rather than an image file; and, in a
+/// browser, every image: a page cannot reach a machine's media (#830), as Send to USB Media.
+fn image_path(p: &Params, raw: &str) -> Result<(), CommandError> {
+    if cfg!(target_arch = "wasm32") {
+        return Err(p.failed(
+            "floppy disk images are made in the desktop editor; a browser cannot reach a machine's media",
+        ));
+    }
+    let lower = raw.trim().replace('\\', "/").to_ascii_lowercase();
+    let device = lower.starts_with("/dev/")
+        || lower.starts_with("//./")
+        || lower.starts_with("//?/")
+        || lower.starts_with("/volumes/") && lower.trim_end_matches('/').matches('/').count() == 2
+        || (lower.len() <= 3 && lower.as_bytes().get(1) == Some(&b':'))
+        || lower.ends_with('/');
+    if device {
+        return Err(p.invalid(
+            "path",
+            "must name an image file, never a drive or device: write the image, then copy it to the floppy or emulator yourself",
+        ));
+    }
+    let ext = Path::new(&lower)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    if !IMAGE_EXTENSIONS.contains(&ext) {
+        return Err(p.invalid(
+            "path",
+            "must be an image file ending in .img, .ima, .vfd or .flp",
+        ));
+    }
+    Ok(())
+}
+
+fn files_json(d: &openstitch_formats::fat12::FloppyImage) -> Value {
+    json!({
+        "files": d.entries().iter().map(|e| json!({
+            "name": e.name, "bytes": e.size, "folder": e.directory,
+        })).collect::<Vec<_>>(),
+        "free": d.free_bytes(),
+        "capacity": d.capacity(),
+        "label": d.label(),
+    })
+}
+
+fn disk_image_list(s: &mut EngineState, p: &Params) -> CommandResult {
+    let raw = p.string("path", None)?;
+    image_path(p, &raw)?;
+    let path = s.resolve(&raw, Access::Read, &p.command)?;
+    let bytes =
+        crate::fsio::read(&path).map_err(|e| p.failed(format!("{}: {e}", path.display())))?;
+    let d = openstitch_formats::fat12::FloppyImage::parse(&bytes)
+        .map_err(|e| p.failed(format!("{}: {e}", path.display())))?;
+    let mut out = files_json(&d);
+    out["path"] = json!(path.display().to_string());
+    Ok(out)
+}
+
+fn disk_image(s: &mut EngineState, p: &Params) -> CommandResult {
+    use openstitch_formats::fat12::{FatError, FloppyImage};
+    let raw = p.string("path", None)?;
+    image_path(p, &raw)?;
+    let path = s.resolve(&raw, Access::Write, &p.command)?;
+    if path.is_dir() {
+        return Err(p.invalid("path", "is a folder; name an image file"));
+    }
+    let overwrite = p.bool("overwrite", Some(false))?;
+    // Everything is read and checked before the image changes.
+    let mut inputs: Vec<(String, Vec<u8>)> = Vec::new();
+    if p.has("add") {
+        for v in p.array("add")? {
+            let f = v
+                .as_str()
+                .ok_or_else(|| p.invalid("add", "must be a list of file paths"))?;
+            let fp = s.resolve(f, Access::Read, &p.command)?;
+            let bytes =
+                crate::fsio::read(&fp).map_err(|e| p.failed(format!("{}: {e}", fp.display())))?;
+            let name = fp
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| f.to_string());
+            inputs.push((name, bytes));
+        }
+    }
+    if p.bool("addDesign", Some(false))? {
+        let format = p.string("format", Some("dst"))?;
+        let ty = FileType::from_extension(&format)
+            .filter(|t| t.can_write())
+            .ok_or_else(|| p.invalid("format", "not a writable machine format"))?;
+        let name = p.string("name", Some(&s.design.name))?;
+        let (_, bytes) = encode(&s.design, ty).map_err(|e| p.failed(e))?;
+        inputs.push((format!("{name}.{}", ty.extension()), bytes));
+    }
+    let removes: Vec<String> = if p.has("remove") {
+        p.array("remove")?
+            .iter()
+            .map(|v| {
+                v.as_str()
+                    .map(str::to_string)
+                    .ok_or_else(|| p.invalid("remove", "must be a list of 8.3 names"))
+            })
+            .collect::<Result<_, _>>()?
+    } else {
+        Vec::new()
+    };
+    let created = !path.exists();
+    let mut d = if created {
+        FloppyImage::blank(&p.string("label", Some(""))?)
+    } else {
+        let bytes =
+            crate::fsio::read(&path).map_err(|e| p.failed(format!("{}: {e}", path.display())))?;
+        FloppyImage::parse(&bytes).map_err(|e| {
+            p.failed(format!(
+                "{}: {e}; it is left as it is (choose another file to make a new image)",
+                path.display()
+            ))
+        })?
+    };
+    let fail = |e: FatError| {
+        match e {
+        FatError::Exists(n) => p.failed(format!(
+            "{n} is already on the disk; run again with overwrite: true to replace it, or another name"
+        )),
+        e => p.failed(e.to_string()),
+    }
+    };
+    for r in &removes {
+        d.remove(r).map_err(fail)?;
+    }
+    let mut added = Vec::new();
+    for (name, bytes) in &inputs {
+        let stored = d.add(name, bytes, overwrite).map_err(fail)?;
+        added.push(json!({ "from": name, "name": stored, "bytes": bytes.len() }));
+    }
+    crate::fsio::write(&path, d.bytes())
+        .map_err(|e| p.failed(format!("{}: {e}", path.display())))?;
+    let mut out = files_json(&d);
+    out["path"] = json!(path.display().to_string());
+    out["created"] = json!(created);
+    out["added"] = json!(added);
+    out["removed"] = json!(removes);
+    Ok(out)
 }
 
 fn refuse_without(s: &EngineState, p: &Params, access: Access) -> Result<(), CommandError> {

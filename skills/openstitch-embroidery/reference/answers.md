@@ -29,7 +29,8 @@ stays the default.
   the line), back stitch, scribble, chevron, cretan, feather, overlock, alternating
   triangles, double zigzag, lattice, stripes, ripple.
 - **Candlewick Density:** PE-DESIGN's Dense / Medium / Light are `density` 16 / 12 / 10
-  (knots of 32 / 24 / 20 points; Medium is the default).
+  (knots of 32 / 24 / 20 points; Medium is the default). A candlewick's `width` (PE-DESIGN's
+  Size) and `spacing` are kept in both directions with PE-DESIGN 11 PES files.
 - **Lettering:** TrueType/OpenType text with size, spacing and alignment, satin or fill;
   bundled Lato Bold, Pacifico, OpenStitch Line (small text) and OpenStitch Pixel, or the user's own fonts; Fit Text to Outline, 26 Text
   Transform presets, monograms, templates, Name Drop, own embroidery fonts (Font Creator).
@@ -61,7 +62,7 @@ stays the default.
 | Thread lists | CSV (colours in sewing order with stitches and thread length), INF (Bernina), EDR, COL, TXT: `design.exportThreads`, `design.applyThreads`, `threads.importList`, `threads.exportList`; `design.export {companionInf: true}` writes an EXP with its INF |
 | Other exports | Stitch list CSV or TXT and G-code (**experimental**, for DIY machines) through `design.export`; a PNG picture (`design.exportPicture`), a stitch-out video as an animated PNG (`design.exportVideo`), a ZIP of several exports (`design.exportBundle`), the design on a garment (`design.mockup`) |
 | Editable project | `.osd` (OpenStitch) |
-| Import | SVG (as editable shapes), WMF and EMF (`import.metafile`: the drawing as editable shapes, brush → fill region, pen → running line), PE-DESIGN 11 PES objects (`import.pes`: shapes, Manual Punch blocks, texts with Text Transform or fitted to an outline, stitch groups, hole pairs, programmable, decorative and motif patterns, stamps converted from an outline (engraved line, embossed or engraved region) on a region; the result lists `skipped` objects and `notes`), images PNG, JPEG, BMP |
+| Import | SVG (as editable shapes), WMF and EMF (`import.metafile`: the drawing as editable shapes, brush → fill region, pen → running line), PE-DESIGN 11 PES objects (`import.pes`: shapes, Manual Punch blocks, texts with Text Transform or fitted to an outline, stitch groups, hole pairs, programmable, decorative and motif patterns, stamps converted from an outline (engraved line, embossed or engraved region) on a region; the result lists `skipped` objects and `notes`; an attribute value outside the range its own command accepts, which only a damaged or hand-made file has, is stored as the nearest value in range and named in `notes`), images PNG, JPEG, BMP, GIF (first frame), WebP |
 | Thread charts | CSV in the layout PE-DESIGN's Import Chart reads (`threads.importCsv`, `threads.exportCsv`); GIMP / Inkscape `.gpl` palettes (`threads.importPalette`, `threads.exportPalette`) |
 
 `formats.list` gives the current list with read and write flags; check it before telling a user

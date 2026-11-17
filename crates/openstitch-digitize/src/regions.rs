@@ -216,7 +216,8 @@ impl Default for TraceOptions {
 }
 
 /// Closed design contours of a cropped mask whose top-left pixel is (`ox`, `oy`): outer
-/// boundaries and holes (even-odd), loops smaller than a quarter pixel dropped.
+/// boundaries and holes (even-odd), loops smaller than a quarter pixel dropped. No contour
+/// crosses itself ([`trace::simple_contour`], #1137).
 pub fn trace_mask(
     m: &[bool],
     mw: usize,
@@ -233,18 +234,7 @@ pub fn trace_mask(
     trace::marching_squares(m, mw, mh)
         .into_iter()
         .filter(|l| signed_area(l).abs() >= 0.25)
-        .map(|l| {
-            let kept = trace::simplify_closed(&l, o.simplify);
-            trace::contour(
-                &l,
-                &kept,
-                true,
-                o.curves,
-                o.simplify,
-                o.corner_degrees,
-                &shifted,
-            )
-        })
+        .map(|l| trace::simple_contour(&l, o.simplify, o.curves, o.corner_degrees, &shifted))
         .collect()
 }
 

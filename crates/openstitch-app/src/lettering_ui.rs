@@ -248,6 +248,17 @@ fn font_combo(
             }
         });
     crate::a11y::name(&r.response, name);
+    system_fonts_note(ui);
+}
+
+/// The browser version's line under a font list (#833): the computer's own fonts are not
+/// there, and what to do instead. Nothing on the desktop.
+fn system_fonts_note(ui: &mut egui::Ui) {
+    if openstitch_app::platform::in_browser() {
+        let limit = openstitch_app::editor::browser_limits::Limit::SystemFonts;
+        ui.label(egui::RichText::new(format!("{} is not available in the browser version.", limit.what())).weak().small())
+            .on_hover_text(limit.instead());
+    }
 }
 
 pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
@@ -452,7 +463,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
         }
         Some(FontAction::ChooseImage) => crate::files::pick_then(
-            crate::files::FileDialog::new().add_filter("Images", &["png", "jpg", "jpeg", "bmp"]),
+            crate::files::FileDialog::new().add_filter("Images", &openstitch_digitize::raster::PICTURE_EXTENSIONS),
             |app, p| {
                 app.lettering.fonts.image.path = Some(p);
                 app.lettering.fonts.image.found.clear();
@@ -749,6 +760,7 @@ pub fn font_browser(app: &mut EditorApp, ui: &mut egui::Ui, spec: &openstitch_de
                 }
             });
     });
+    system_fonts_note(ui);
     let over = list.response.contains_pointer();
     if over && let Some(cur) = current {
         let (up, down) = ui.input(|i| {

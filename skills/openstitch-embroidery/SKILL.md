@@ -132,6 +132,13 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   one satin). It sews thin features (ropes, whiskers) as running lines, but adds no colour stop
   for a short one: a thread's lines under 40 mm in all that would need a block of their own are
   left out.
+- Pixel art as cross stitch (beyond PE-DESIGN): `digitize.crossStitch {compatMode: "openStitch"}`
+  reports `pixelArt` (art pixels across and down, their size in mm) when the picture is pixel
+  art; add `pixelGrid: true` to lay one cross per art pixel on the art's own grid instead of a
+  `cellSize` grid (`pixelsPerCross` 2-8 for one cross per block of art pixels). PE-compatible
+  mode keeps its plain grid, as PE-DESIGN does.
+- Pictures for the image tools and the background: PNG, JPEG, BMP, GIF (its first frame) and
+  WebP.
 - Colours: a thread code as a string (`"205"`: the default chart's thread first, then
   Brother's chart, then the other built-in charts), brand and code (`"Brother 205"`,
   `"Madeira 1801"`), a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Prussian Blue"`,
@@ -314,7 +321,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    PE-DESIGN's own files sew; over 1,200 it is an error; no fix, and no sew-out evidence yet of
    what it does to the fabric: spread or thin the objects it names); `moreColoursThanNeedles`
    and `lowCoverage` (a plain fill hiding under 40 % of the fabric, about 1 line/mm: an open
-   look, fine when chosen) are notes, not problems).
+   look, fine when chosen; the colour layers of one gradient, blend or tartan are judged
+   together, all their thread over their shared outline, in one note naming every layer) are
+   notes, not problems).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
    (untrimmed jumps, long moves), `design.density` shows where thread piles up; it and
@@ -348,6 +357,14 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    user is asked first, as for any save). Right after your own save, `ui.state` has
    `unsavedDesign: false` and `unsavedConversationOnly: true` while your reply goes on: the
    design is saved, and the next save adds the rest of the conversation.
+   For an older machine that reads only floppy disks (often fitted with a USB floppy emulator),
+   `transfer.diskImage {path: "machine.img", addDesign: true, format: "dst"}` writes the design
+   onto a 1.44 MB FAT12 disk image file (made if missing; `add: [paths]` copies other files,
+   `remove: ["NAME.EXT"]` deletes, `overwrite: true` replaces a file of the same 8.3 name, which
+   is refused otherwise; long names get a short one such as `MYDESI~1.DST`), and
+   `transfer.diskImageList {path}` lists the files and free space. It writes the image file
+   only, never a drive: tell the user to copy the image to the floppy or emulator themselves.
+   In the editor: Sew Embroidery ▸ Floppy Image… (`ui.run floppyImage`).
    To show how it will look worn, `design.mockup {path: "name.png", garment: "tshirt" | "cap" |
    "tote", placement: "centre" | "leftChest" (T-shirt only), color: "#rrggbb"}` draws it at true
    size on the garment; when the result has `fits: false`, tell the user the design is larger
@@ -381,6 +398,16 @@ then style them in the next.
 - Continue in place: `object.extendPath` `{id, end: start|end, points, curves?, widths?}` adds
   to an open line, path or satin skeleton, `object.extendColumn` `{id, end, lines}` to a Manual
   Punch column (points added at the start are listed outward from it).
+- Join and split: `shape.joinLines` `{ids, tolerance: 1}` makes open lines (or satin skeletons,
+  or Manual Punch columns) whose ends meet within `tolerance` mm one object, sewn as one path
+  with no trim between them (the first id keeps its attributes and place; a gap is bridged
+  straight; ends farther apart are refused with the distance). `object.breakApart` `{ids}`
+  splits text into one text per letter in place (`text` says `as: shapes` when a letter
+  cannot stand alone: text on a path, a Text Transform, an arc or a Name Drop box), a fill with
+  islands into one object per piece (holes stay with theirs), a line object into its outlines,
+  and groups (copies along a line, a monogram) into separate objects; every piece keeps the
+  whole's sewing attributes and thread and sews where the whole did. Each is one undo step;
+  Ctrl+J and Ctrl+Shift+K in the editor (`ui.run joinLines` / `ui.run breakApart`).
 - Clean up: `shape.simplify` `{ids, tolerance: 0.2}` removes nodes within a tolerance (mm; a
   Manual Punch column loses one direction line per call; `ui.run smoothShape` uses the
   `smoothTolerance` setting), and `stitches.smooth`
@@ -407,6 +434,10 @@ then style them in the next.
   Text, a running line along each letter's centre; `object.setLine` `runTimes: 3` for bean
   stitch, or `type: zigzag, width: 1.2` for a narrow satin). Retro or sampler text:
   `font: "openstitch-pixel"` with `pixelStyle` run, cross or block (one pixel = size / 7).
+- The Assistant panel's commands are the user's and their scripts', not yours: the gate
+  refuses `ui.assistantSend`, `ui.assistantAnswer` and the settings `assistantPanel`,
+  `assistantProtocol` and `assistantAgent` to you. `ui.assistantState` (the panel's state)
+  is readable.
 - Ink/Stitch fonts the user installed: their folder is the `inkStitchFolder` setting
   (`ui.settings`; `ui.set` changes it after the user agrees, as the editor asks);
   `fonts.scanFolder {path}` lists the font folders,
@@ -584,18 +615,34 @@ editor's own undo history. The page adds its file commands, files as base64: `ui
 {name, base64}` (File ▸ Open; it opens on the next frames, so wait until `ui.state`'s `loading`
 is null), `ui.saveFile` (the `.osd` as `{name, base64}`) and `ui.exportFile {format}` (`{files:
 [{name, base64}]}`). A command that writes under `/web/save/` (for example `design.export
-{path: "/web/save/rose.pes"}`) hands the file to the user as a download. The browser editor has
-no Assistant panel and no MCP or automation-socket control (#766): `openstitch.run(...)` is callable
-only by code in the page, so an MCP client such as this one cannot reach it. If a user asks you
-to work on their browser editor, say so and offer the desktop editor or a design file they can
-open there. The system clipboard, printing, machine transfer and choosing folders (the Design
+{path: "/web/save/rose.pes"}`) hands the file to the user as a download. Since #766 the browser
+editor has the Assistant panel too: the Claude API, or an OpenAI-compatible endpoint that allows
+the page (a local Ollama with `OLLAMA_ORIGINS`), with the same tools, gate and `ui.*` commands as
+the desktop. In the browser there is no scratch folder and no attachments yet (#1224: you cannot see a picture the user gives you or write an SVG to import), and no question cards
+(`ask_user` asks in the reply text instead), and coding agents (ACP) are desktop-only. The page's
+own Assistant commands are for scripts in the page, not for the model: `ui.assistantSetup {kind,
+address, model, key?, remember?}` (stores the endpoint in the preferences; the key stays in the
+page's memory, or with `remember: true` in the site's storage on that device), `ui.assistantSend
+{text}`, `ui.assistantState` (with `sendsTo`, the notice of the host messages go to, and `limits`), `ui.assistantAnswer {allow}`, `ui.assistantStop` and `ui.assistantForgetKeys` (forgets every key
+remembered on that device). The model is refused all of them at the gate, in every mode: never
+try to set up, stop or answer your own panel. There is still
+no MCP or automation-socket control of the page: `openstitch.run(...)` is callable only by code in
+the page, so an MCP client such as this one cannot reach it. If a user asks you to work on their
+browser editor, say so and offer its own Assistant panel, the desktop editor, or a design file
+they can open there. The system clipboard, printing, machine transfer and choosing folders (the Design
 Database, Ink/Stitch font folders) are desktop-only too; say so instead of trying them in the
 browser. Pictures, thread charts, fonts and other files can be picked or dropped on the page.
-`ui.browserLimits` lists what the browser version cannot do (the Assistant, printing, USB
-transfer, updates, folders, clipboard pictures), each with what to do instead; tell the user that
-rather than trying it. Editor settings (`ui.set`), thread charts, My Threads and the other user
-settings last across visits there, as on the desktop (the page's storage; cleared site data starts
-afresh).
+`ui.browserLimits` lists what the browser version cannot do (printing, USB
+transfer, updates, folders, clipboard pictures, the computer's own fonts for lettering), each
+with what to do instead; tell the user that rather than trying it. Its `browserKeys` are the keys
+the browser keeps (Ctrl+N, Ctrl+T, Ctrl+W): they never reach the editor there, so point to the
+menus instead. Editor settings (`ui.set`), thread charts, My Threads and the other user settings
+last across visits there, as on the desktop (the page's storage; cleared site data starts
+afresh). Autosave works there too (#831): a design left unsaved in a closed or crashed tab is
+offered at the next visit, and `ui.recoveryList`, `ui.recoveryRestore` and `ui.recoveryDiscard`
+work as on the desktop (with the browser's storage refused, recovery is off and nothing is kept).
+`ui.gettingStarted {sample}` opens the ready-to-sew samples in the browser too (#833). On a phone
+or a window narrower than 640 points the panes float folded over the canvas (#834).
 
 ## Files
 

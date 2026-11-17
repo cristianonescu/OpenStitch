@@ -925,6 +925,9 @@ fn every_command_the_skill_names_exists() {
         "ui.documents",
         "ui.loading",
         "ui.guides",
+        "ui.assistantSend",
+        "ui.assistantState",
+        "ui.assistantAnswer",
     ];
     // The web editor's own (crates/openstitch-web, #556; SKILL.md "Web editor").
     let web_ui = openstitch_web::session::UI_COMMANDS;
@@ -934,6 +937,8 @@ fn every_command_the_skill_names_exists() {
     );
     ids.extend(all_ui);
     ids.extend(web_ui);
+    // The page's own commands for the browser Assistant panel (#766).
+    ids.extend(openstitch_web::session::ASSISTANT_PAGE_COMMANDS);
     for (name, body) in openstitch_mcp::skills::FILES {
         // `word.word` in backticks or as a "command" value: a command id.
         for quoted in body.split('`').skip(1).step_by(2).chain(

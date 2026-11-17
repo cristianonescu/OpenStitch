@@ -189,7 +189,8 @@ jobs:
           tar -xzf gitleaks.tar.gz gitleaks
           ./gitleaks git --log-opts="--all" --redact --no-banner --exit-code 1 .
       # gitleaks looks for keys; this fails on a local folder path or a personal detail in any
-      # tracked text file, with the allow list's harmless placeholders (#1057).
+      # tracked text file, or on a path embedded in a binary one (reference captures, fixtures,
+      # example designs, images; #1226), with the allow list's harmless placeholders (#1057).
       - name: private_scan
         run: |
           python3 -I tools/private_scan.py --self-test
@@ -276,13 +277,15 @@ jobs:
       # #693 phase B: the editor window's modules (the binary's, bin_modules.rs) build for
       # wasm32 too, inside the library; the whole package builds there (desktop unchanged).
       - run: cargo build -p openstitch-app --target wasm32-unknown-unknown --locked
-      - run: cargo build -p openstitch-web --target wasm32-unknown-unknown --release --locked
+      - run: cargo build -p openstitch-web --target wasm32-unknown-unknown --profile web-release --locked
       - name: wasm-bindgen (page and Node)
         run: |
-          wasm=target/wasm32-unknown-unknown/release/openstitch_web.wasm
+          wasm=target/wasm32-unknown-unknown/web-release/openstitch_web.wasm
           wasm-bindgen --target web --no-typescript --out-dir web/pkg "$wasm"
           wasm-bindgen --target nodejs --no-typescript --out-dir target/web-node "$wasm"
           du -h web/pkg/* | tee -a "$GITHUB_STEP_SUMMARY"
+          # What a browser downloads (#696): GitHub Pages sends it gzip-compressed.
+          echo "gzip: $(gzip -9 -c web/pkg/openstitch_web_bg.wasm | wc -c) bytes" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Smoke test (browser build against the native build)
         shell: bash
         run: |
@@ -326,6 +329,19 @@ jobs:
           # Firefox has WebGL only with a display: it runs headed on a virtual one (Xvfb, Mesa's
           # software GL); Chromium and WebKit stay headless.
           HEADED_FIREFOX=1 xvfb-run -a node page.mjs "${optional[@]}" .. ../../target/web-native ../../compat/reference/pes/pes-default-v6.pes ../../target/web-shots
+      # The browser editor's Assistant (#766): the page talks to a fake model endpoint on another
+      # loopback port (web/e2e/fake-model.mjs), with a test key; no network and no secret.
+      - name: Assistant page test (Chromium, Firefox, WebKit)
+        working-directory: web/e2e
+        timeout-minutes: 10
+        env:
+          MESA: ${{ steps.mesa.outcome }}
+        run: |
+          optional=(--optional webkit)
+          if [ "$MESA" != success ]; then
+            optional+=(--optional firefox)
+          fi
+          HEADED_FIREFOX=1 xvfb-run -a node assistant.mjs "${optional[@]}" .. ../../target/web-shots
       - uses: actions/upload-artifact@v4
         if: always()
         with:

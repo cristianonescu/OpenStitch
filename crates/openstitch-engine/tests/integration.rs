@@ -46,6 +46,8 @@ mod determinism;
 mod digitize;
 #[path = "direction.rs"]
 mod direction;
+#[path = "disk_image.rs"]
+mod disk_image;
 #[path = "drawing.rs"]
 mod drawing;
 #[path = "edit_tools.rs"]
@@ -76,6 +78,8 @@ mod hoop_lists;
 mod imports;
 #[path = "job_sheets.rs"]
 mod job_sheets;
+#[path = "join_break.rs"]
+mod join_break;
 #[path = "knife.rs"]
 mod knife;
 #[path = "knockdown.rs"]

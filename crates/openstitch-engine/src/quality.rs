@@ -407,18 +407,65 @@ fn is_feed(o: &DesignObject) -> bool {
 /// stroke reads as a wide square at the same density (a map's blur reads narrow shapes low).
 /// `None` for an empty or degenerate outline.
 fn fill_coverage(o: &DesignObject, st: &[openstitch_core::Stitch]) -> Option<f64> {
+    coverage_of(o, thread_mm(st))
+}
+
+/// Thread sewn by stitches `st`, mm (needle moves between two stitches; jumps and trims left out).
+fn thread_mm(st: &[openstitch_core::Stitch]) -> f64 {
+    st.windows(2)
+        .filter(|w| w[0].command == Command::Stitch && w[1].command == Command::Stitch)
+        .map(|w| (w[1].x - w[0].x).hypot(w[1].y - w[0].y))
+        .sum::<f64>()
+        / MM
+}
+
+/// The share of the fabric `thread` mm hides spread over `o`'s outline (see [`fill_coverage`]).
+fn coverage_of(o: &DesignObject, thread: f64) -> Option<f64> {
     let closed: Vec<Contour> = o.contours.iter().filter(|c| c.closed).cloned().collect();
     let area = openstitch_design::boolean::region_area(&closed) / (MM * MM);
     if area <= 1e-6 {
         return None;
     }
-    let thread: f64 = st
-        .windows(2)
-        .filter(|w| w[0].command == Command::Stitch && w[1].command == Command::Stitch)
-        .map(|w| (w[1].x - w[0].x).hypot(w[1].y - w[0].y))
-        .sum::<f64>()
-        / MM;
     (thread > 0.0).then(|| openstitch_design::calibration::coverage(thread / area))
+}
+
+/// A colour layer of a gradient, blend or tartan (#1120): one of the fills `shape.gradient`,
+/// `shape.blend` and `shape.tartan` make, which cover their shared outline together.
+fn colour_layer(o: &DesignObject) -> bool {
+    o.region
+        .as_ref()
+        .is_some_and(|g| g.gradient.is_some() || g.tartan.is_some())
+}
+
+/// The fills `lowCoverage` judges (#1036): a plain fill or programmable fill, not a gradation
+/// (open on purpose), and not text.
+fn plain_fill(o: &DesignObject) -> bool {
+    o.kind != ObjectKind::Text
+        && o.region.as_ref().is_some_and(|g| {
+            matches!(g.kind, RegionType::Fill | RegionType::ProgrammableFill)
+                && g.gradation.is_none()
+        })
+}
+
+/// The colour layers of the design in sets judged as one fill (#1120): layers of the same group
+/// over the same outline, in sewing order. A layer whose others were deleted or ungrouped is a
+/// set of one, judged alone.
+fn layer_sets(d: &Design) -> Vec<Vec<&DesignObject>> {
+    let mut sets: Vec<Vec<&DesignObject>> = Vec::new();
+    for o in d
+        .objects
+        .iter()
+        .filter(|o| colour_layer(o) && plain_fill(o))
+    {
+        let same = |first: &&DesignObject| {
+            o.group.is_some() && first.group == o.group && first.contours == o.contours
+        };
+        match sets.iter_mut().find(|s| s.first().is_some_and(same)) {
+            Some(s) => s.push(o),
+            None => sets.push(vec![o]),
+        }
+    }
+    sets
 }
 
 /// The most crowded spot of a stitch list (#1036, #1112's `centreCrowding` anywhere): over every
@@ -830,6 +877,47 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
         });
     }
 
+    // Colour layers (#1120): the fills of one gradient, blend or tartan cover their shared
+    // outline together, so all their thread over that one area is judged, once, naming every
+    // layer. The same limit as a plain fill: the layers together must still hide the fabric.
+    for set in layer_sets(d) {
+        let ids: Vec<u64> = set.iter().map(|o| o.id).collect();
+        let spans: Vec<&Range<usize>> = t
+            .spans
+            .iter()
+            .filter(|(id, _)| ids.contains(id))
+            .map(|(_, r)| r)
+            .collect();
+        let thread: f64 = spans.iter().map(|r| thread_mm(&st[(*r).clone()])).sum();
+        let Some(c) = coverage_of(set[0], thread) else {
+            continue;
+        };
+        if c >= LIMITS.min_coverage {
+            continue;
+        }
+        let what = if ids.len() > 1 {
+            format!("The {} colour layers together hide", ids.len())
+        } else {
+            "The fill hides".to_string()
+        };
+        out.push(Finding {
+            rule: "lowCoverage",
+            severity: Severity::Info,
+            ids,
+            bbox: bbox_of(spans.iter().flat_map(|r| drop_points(r))),
+            message: format!(
+                "{what} about {:.0} % of the fabric (under {:.0} %): the fabric shows between their rows; about {:.1} lines/mm in all hides {:.0} %",
+                c * 100.0,
+                LIMITS.min_coverage * 100.0,
+                openstitch_design::calibration::rows_for_coverage(LIMITS.min_coverage),
+                LIMITS.min_coverage * 100.0
+            ),
+            value: (c * 1000.0).round() / 10.0,
+            limit: LIMITS.min_coverage * 100.0,
+            fix: None,
+        });
+    }
+
     // Per object: long stitches, satin width, thin fills, small text, tiny objects, crossings.
     for (id, r) in &t.spans {
         let Some(o) = objects.get(id) else { continue };
@@ -950,12 +1038,10 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
         }
         // Fabric showing through (#1036): a plain fill (not a gradation, open on purpose; not
         // a decorative, motif or stippled fill, open by design) whose rows hide less of the
-        // fabric than the limit, on the coverage curve measured on the T1 sew-outs.
-        if !text
-            && o.region.as_ref().is_some_and(|g| {
-                matches!(g.kind, RegionType::Fill | RegionType::ProgrammableFill)
-                    && g.gradation.is_none()
-            })
+        // fabric than the limit, on the coverage curve measured on the T1 sew-outs. A colour
+        // layer of a gradient, blend or tartan is judged with its other layers below (#1120).
+        if plain_fill(o)
+            && !colour_layer(o)
             && let Some(c) = fill_coverage(o, &st[r.clone()])
             && c < LIMITS.min_coverage
         {
@@ -1780,7 +1866,7 @@ pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "design.check",
-            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, lowCoverage (a note: a plain fill, not a gradation, hiding under 40 % of the fabric on the coverage curve measured on sew-outs; no fix: raise its density if the open look is not wanted), textTooSmall (text below its own font's smallest good size, fonts.list sizeRange.minMm, else 4 mm; the fix switches to the Small Text font where the text is big enough for it, else sets that size), tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, crowdedNeedles (the most crowded spot: a warning over 600 pairs of needle points under 0.25 mm within 3 mm of one spot, beyond what PE-DESIGN's own files sew, and an error over 1,200; no sew-out evidence yet of what it does to the fabric; no fix; names the objects whose needle points are there), untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors; `level` is readyToSew (no errors or warnings), sewableWithSmallRisks (warnings only) or fixThisFirst (any error), notes never counting: a level, not a score. Run it before reporting a design done",
+            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, lowCoverage (a note: a plain fill, not a gradation, hiding under 40 % of the fabric on the coverage curve measured on sew-outs; the colour layers of one gradient, blend or tartan (one group, one outline) are judged together, all their thread over their shared area, in one finding naming every layer; no fix: raise its density if the open look is not wanted), textTooSmall (text below its own font's smallest good size, fonts.list sizeRange.minMm, else 4 mm; the fix switches to the Small Text font where the text is big enough for it, else sets that size), tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, crowdedNeedles (the most crowded spot: a warning over 600 pairs of needle points under 0.25 mm within 3 mm of one spot, beyond what PE-DESIGN's own files sew, and an error over 1,200; no sew-out evidence yet of what it does to the fabric; no fix; names the objects whose needle points are there), untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors; `level` is readyToSew (no errors or warnings), sewableWithSmallRisks (warnings only) or fixThisFirst (any error), notes never counting: a level, not a score. Run it before reporting a design done",
             Effect::Read,
             vec![
                 opt(

@@ -493,6 +493,13 @@ impl EditorApp {
         }
         if l.user_settings.is_none()
             && l.screenshot.is_none()
+            && let Some(store) = openstitch_app::platform::recovery_store()
+        {
+            // No folder beside ui.json: the browser page's snapshot store (#831).
+            self.recovery.start_store(store, l.script.is_empty());
+        }
+        if l.user_settings.is_none()
+            && l.screenshot.is_none()
             && let Some(v) = openstitch_app::platform::stored_prefs()
                 .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         {
@@ -598,6 +605,7 @@ impl EditorApp {
                     }
                 }
                 "usb" => crate::transfer_ui::open(self),
+                "floppy" => crate::floppy_ui::open(self),
                 "arrange" => self.edit.arrange_open = true,
                 // The Assistant panel with one attachment chip (a stand-in text file), when the AI
                 // features are on in ui.json; for checking the panel's icons in screenshots.
@@ -1555,10 +1563,10 @@ impl EditorApp {
         }
     }
 
-    /// File ▸ Background Image: a PNG, JPEG or BMP shown behind the design, fitted to the page.
+    /// File ▸ Background Image: a PNG, JPEG, BMP, GIF or WebP shown behind the design, fitted to the page.
     pub fn background_dialog(&mut self) {
         crate::files::pick_then(
-            crate::files::FileDialog::new().add_filter("Images", &["png", "jpg", "jpeg", "bmp"]),
+            crate::files::FileDialog::new().add_filter("Images", &openstitch_digitize::raster::PICTURE_EXTENSIONS),
             |app, p| app.background_from(&p),
         );
     }
@@ -2017,6 +2025,11 @@ impl EditorApp {
         } else if hit(A::Group) {
             crate::edit_ui::group(self);
         }
+        if hit(A::BreakApart) {
+            crate::edit_ui::break_apart(self);
+        } else if hit(A::JoinLines) {
+            crate::edit_ui::join_lines(self);
+        }
         if hit(A::Delete) && self.tools.is_busy() && crate::keyboard_ui::draws(self.tools.tool()) {
             // While drawing, Backspace / Delete take back the last point (#499).
             self.tools.remove_last_point();
@@ -2456,6 +2469,7 @@ impl eframe::App for EditorApp {
         crate::swatch_ui::window(self, &ctx);
         crate::jobsheet_ui::window(self, &ctx);
         crate::transfer_ui::window(self, &ctx);
+        crate::floppy_ui::window(self, &ctx);
         crate::edit_ui::windows(self, &ctx);
         crate::settings_ui::windows(self, &ctx);
         crate::colour_match_ui::windows(self, &ctx);
@@ -3031,6 +3045,9 @@ mod replace_design_tests;
 #[cfg(test)]
 #[path = "px_per_mm_tests.rs"]
 mod px_per_mm_tests;
+#[cfg(test)]
+#[path = "narrow_tests.rs"]
+mod narrow_tests;
 #[cfg(test)]
 #[path = "monkey_tests.rs"]
 mod monkey_tests;

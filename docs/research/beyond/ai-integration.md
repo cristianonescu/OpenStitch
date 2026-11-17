@@ -417,6 +417,48 @@ can come back, read it and go on from where it stopped.
   the file kept is removed on its next save. New chat clears the conversation, so the next save
   keeps none.
 
+### 4.12 A coding agent continues its own session (#1170)
+
+Since #1169 a reopened project sends its chat as quoted text, and a coding agent starts a new
+session without its own earlier tool calls, results and pictures. ACP's `session/load` continues
+the agent's session instead, where the agent offers it.
+
+- **Measured (claude-agent-acp 0.106.0, 2026-11-17).** `initialize` answers
+  `agentCapabilities.loadSession: true`. `session/load {sessionId, cwd, mcpServers}` answers in
+  about 0.3 s after replaying the session as `session/update`s (`user_message_chunk`,
+  `agent_message_chunk`); it also loads from another working folder, so the agent's folder can
+  stay the temporary one made for each run. An id the agent does not have answers -32002
+  "Resource not found".
+- **Where the id is kept.** `assistant-sessions.json` beside `ui.json`, never in the `.osd`
+  (an id means something only on this PC, for this account, while the agent keeps the session).
+  One record per project: a 128-bit digest (two FNV-1a passes) of the project file's path, so
+  the file names no project in the clear, the agent id, the agent's session id, a fingerprint (FNV-1a, 64 bits) of the chat the save wrote,
+  and the time. No chat text and no key. At most 200 records, the oldest dropped; written through
+  a temporary file, mode 0600 on Unix.
+- **When it is recorded.** After a save changes the file's chat (or its name), for the document
+  the conversation belongs to, with "Save the chat with the project" on. A session opened
+  without a later save records nothing, so the file's chat and the recorded session always
+  match.
+- **When it is used.** The first message after reopening, with the same agent and a file chat
+  whose fingerprint matches. The client sends `session/load` with the same setup as
+  `session/new` (the bridge, Claude Code's tools off, no user settings, the system prompt) and
+  drops the replayed updates while it waits, so nothing shows twice. Loaded: the quoted chat is
+  not sent, and a notice says the agent continues its own session.
+- **Fallback.** No `loadSession`, a refused id, another agent, a file changed elsewhere: a new
+  session opens and the quoted chat goes as in #1169. When a load was tried and failed, a notice
+  says why; the restored chat is never dropped.
+
+### 4.13 Driving the panel from tests and scripts (#1180)
+
+The `--listen` socket's clients drive the panel as the user does: `ui.assistantSend {text,
+attach?, view?, selection?}`, `ui.assistantState` (busy, queue, the rows a save keeps, waiting
+approval cards, `agentSession`), `ui.assistantAnswer {index, answer}`, and the `ui.set`
+settings `assistantPanel`, `assistantProtocol` and `assistantAgent`. A script waits by polling
+`ui.assistantState` until `busy` is false. Attached files come only from the client's own roots,
+and a card is allowed only when the client may run the waiting command itself. The gate refuses
+these commands to the Assistant in every permission mode (`assistant_chat::user_only`): it must
+not send itself messages, answer its own cards, or change its panel, protocol or agent.
+
 ## 5. Phased tasks
 
 Each phase is its own PR batch. Docs (README, FEATURE_MATRIX, ROADMAP and this file) are
@@ -1145,3 +1187,75 @@ What the runs found:
 
 `--judge` and local models were not run: no API key is used here, and no local models run on this PC.
 
+
+### The browser editor's Assistant (2026-11-17, #766)
+
+The browser editor (#693) runs the desktop's Assistant, with what a web page can do.
+
+**Turn loop**
+- A page has one thread, so a loop that blocks while it waits for the model cannot run there.
+- `Conversation::run_turn_async` is the same loop, `async` over three seams in
+  `openstitch-assistant/src/fetch.rs`:
+  - `Fetch` sends a request and waits;
+  - `Events` reads the reply's SSE;
+  - `AsyncTools` runs a tool call that may wait.
+- The desktop's `run_turn` runs that future through `block_on` over its blocking transport and
+  tools. Every step is ready when it is first polled, so its behaviour is unchanged; the existing
+  tests pass with no edits.
+- `async_turns` checks that a loop whose every step waits gives the same history and events.
+
+**Model connection** (`openstitch-assistant/src/browser.rs`)
+- The page's own `fetch`, straight to the address the user chose.
+- The Claude API allows that with `anthropic-dangerous-direct-browser-access: true`.
+- An OpenAI-compatible server must allow the page's origin. A local Ollama does so for the origins
+  in `OLLAMA_ORIGINS`. The panel says so, because a page cannot tell a CORS refusal from a server
+  that is down.
+- No cookies go with a request.
+- Stop and the request timeout abort it, checked every 100 ms as on the desktop (#580).
+
+**The key**
+- Typed in the panel and kept in its memory for the session.
+- **Remember on this device** stores it in the site's `localStorage`, one entry per address. The
+  panel warns that it is unencrypted there and readable by anyone using that browser profile.
+  Unticking removes it.
+- It goes only to the address it was entered for: changing the address loads that address's own
+  key, or none.
+- No preference, file, URL or log holds it.
+
+**Threat notes**
+- The page's own scripts are trusted: they already run the editor.
+- A model reply is untrusted input, as on the desktop. Its tool calls pass the same gate
+  (`assistant_chat::verdict`).
+- The panel's own page commands (`ui.assistantSetup`, `Send`, `Answer`, `Stop`, `ForgetKeys`)
+  are refused to the model in every mode, Always allow and `run_batch` included. The refusal
+  comes first, before the command is even looked up. This matters most for Setup: a model that
+  could set the address could send the next message, the design and the key to a host of its
+  choosing. Tests: `always_allow_never_lets_the_assistant_set_up_its_endpoint`, and the page
+  test's injected `execute ui.assistantSetup` and `run_batch` of panel commands.
+- Because a tool call cannot pause halfway on a page, the panel asks before the call: every
+  command it will send that the gate would ask about goes on one card, and the call runs only
+  after Allow, with exactly those requests approved. A request inside the call that still needs
+  approval, and was not on the card, is refused.
+
+**Tools**
+- The `openstitch-mcp` assistant server, built without its `remote` feature (no socket, no Design
+  Database), on the page's editor.
+- The model gets the same meta tools and `ui.*` commands. A message's changes fold into one undo
+  step.
+
+**Not in the browser yet**
+- Coding agents (ACP need a local process).
+- Attachments and a scratch folder, so it cannot see a picture the user gives it or import an SVG
+  it draws (the scratch folder needs the page's in-memory files, #1224).
+- Question cards: `ask_user` tells the model to ask in its reply.
+
+**Outside AI clients**
+- An MCP client still cannot drive the page: a page cannot listen on a port.
+- The design for an opt-in local bridge is #1223:
+  - a relay started by the user, with MCP on stdio and a loopback WebSocket with a one-time
+    token;
+  - an explicit, per-visit opt-in in the page;
+  - origin checks on both sides;
+  - the same gate and capabilities model as `--listen`.
+- Until then `openstitch.run` is callable only from code in the page. Its `ui.assistant*`
+  commands let a page script drive the panel; the page test uses them.

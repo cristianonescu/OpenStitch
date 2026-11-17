@@ -8,8 +8,8 @@ rust-version.workspace = true
 autotests = false
 
 [dependencies]
-# Decoding only, PNG / JPEG / BMP; every decode is bounded (see raster.rs).
-image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "bmp"] }
+# Decoding only, PNG / JPEG / BMP / GIF (first frame) / WebP; every decode is bounded (see raster.rs).
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "bmp", "gif", "webp"] }
 openstitch-core.workspace = true
 openstitch-design = { path = "../openstitch-design" }
 

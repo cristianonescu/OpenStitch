@@ -23,7 +23,7 @@ use serde_json::{Value, json};
 const IMAGE: ParamDoc = req(
     "path",
     "string",
-    "Image file: PNG, JPEG or BMP (relative to the session directory)",
+    "Image file: PNG, JPEG, BMP, GIF (first frame) or WebP (relative to the session directory)",
 );
 
 fn placement_docs(mut v: Vec<ParamDoc>) -> Vec<ParamDoc> {
@@ -1069,6 +1069,16 @@ pub fn commands() -> Vec<CommandSpec> {
                     "bool",
                     "OpenStitch mode: a cell whose halves along a diagonal are clearly different colours becomes two part-crosses, three-quarter and quarter (default false)",
                 ),
+                opt(
+                    "pixelGrid",
+                    "bool",
+                    "OpenStitch mode: when the picture is pixel art (a regular grid of flat-colour squares; the result's pixelArt says whether it is), lay the crosses on the art's own pixel grid instead of a plain grid at cellSize: one cross per art pixel, or per pixelsPerCross of them each way, each taking the colour of one of its own art pixels; ignored in peDesign mode and on other pictures (default false)",
+                ),
+                opt(
+                    "pixelsPerCross",
+                    "int 1-8",
+                    "With pixelGrid: art pixels per cross each way (default 1)",
+                ),
             ]),
             |s, p| {
                 let (image, frame) = load(s, p)?;
@@ -1084,6 +1094,8 @@ pub fn commands() -> Vec<CommandSpec> {
                     mode: compat_mode(p)?,
                     fill: p.bool("fill", Some(true))?,
                     part_crosses: p.bool("partCrosses", Some(false))?,
+                    pixel_grid: p.bool("pixelGrid", Some(false))?,
+                    pixels_per_cross: count(p, "pixelsPerCross", 1, 1, 8)?,
                 };
                 let out = cross::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 Ok(json!({
@@ -1093,6 +1105,12 @@ pub fn commands() -> Vec<CommandSpec> {
                     "columns": out.columns,
                     "rows": out.rows,
                     "background": out.background.as_ref().map(Thread::hex),
+                    "pixelArt": out.pixel_art.as_ref().map(|a| json!({
+                        "columns": a.columns,
+                        "rows": a.rows,
+                        "pixelSize": [round(a.pixel_mm[0]), round(a.pixel_mm[1])],
+                        "followed": a.followed,
+                    })),
                     "ids": add_all(s, out.objects),
                 }))
             },

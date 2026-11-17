@@ -21,6 +21,7 @@ pub mod dsb;
 pub mod dst;
 pub mod dsz;
 pub mod exp;
+pub mod fat12;
 pub mod gcode;
 pub mod hus;
 pub mod jef;

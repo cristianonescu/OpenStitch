@@ -37,9 +37,21 @@ pub fn start(app: &mut EditorApp, s: Start, ctx: &egui::Context) {
 /// changes, as Open does).
 pub fn open_sample(app: &mut EditorApp, key: &str) -> Result<(), String> {
     let exe = std::env::current_exe().ok();
-    let kit =
-        gs::kit(exe.as_deref()).ok_or("the ready-to-sew kit is not installed with this copy")?;
-    let path = gs::sample_path(&kit, key).ok_or_else(|| format!("no sample '{key}'"))?;
+    let path = match gs::kit(exe.as_deref()) {
+        Some(kit) => gs::sample_path(&kit, key).ok_or_else(|| format!("no sample '{key}'"))?,
+        None => {
+            // The browser version has no kit beside it: its built-in copy (#833), put in the
+            // page's memory and opened from there.
+            if !SAMPLES.iter().any(|s| s.0 == key) {
+                return Err(format!("no sample '{key}'"));
+            }
+            let (name, bytes) = gs::embedded_sample(key)
+                .ok_or("the ready-to-sew kit is not installed with this copy")?;
+            let path = std::path::Path::new("/web/samples").join(name);
+            openstitch_app::platform::write_file(&path, bytes)?;
+            path
+        }
+    };
     app.guarded(Pending::Open(Some(path)));
     Ok(())
 }

@@ -161,6 +161,8 @@ actions! {
     StampEmboss => "stampEmboss", "Stamp/Emboss", "Emboss or engrave a shape, or place stamps in it.", None, Some("shape.emboss"), true;
     ModifyOverlap => "modifyOverlap", "Modify Overlap", "Merge, remove overlap or combine outlines.", None, Some("shape.combine"), true;
     DecorativeFrame => "decorativeFrame", "Decorative Frame", "Add a frame around the selection.", None, Some("shape.decorative"), true;
+    JoinLines => "joinLines", "Join Lines", "Make two or more open lines, satin skeletons or Manual Punch columns whose ends meet (within 1 mm) one object, sewn as one path with no trim between them; the first-sewn one keeps its attributes and place.", Some("Ctrl+J"), Some("shape.joinLines"), true;
+    BreakApart => "breakApart", "Break Apart", "Split the selection into pieces: text into one text per letter in place, a fill with islands into one object per piece (holes stay with theirs), a line object into its outlines, and groups such as copies along a line into separate objects.", Some("Ctrl+Shift+K"), Some("object.breakApart"), true;
     FitTextToOutline => "fitText", "Fit Text", "Fit Text to Outline: select a text and a shape, and the text follows the shape's outline. Release Text from Outline takes it off again.", None, Some("text.setPath"), true;
     // Home ▸ Wizards.
     BackgroundFill => "backgroundFill", "Background fill", "Fill around the selection with a background stitch.", None, Some("wizard.backgroundFill"), true;
@@ -169,6 +171,7 @@ actions! {
     Cutwork => "cutwork", "Cutwork Wizard", "Cut lines and the stitching around them.", None, Some("wizard.cutwork"), true;
     // Home ▸ Sew.
     SendEmbroidery => "send", "Sew Embroidery", "Write the design to USB media, or each hooping as its own file.", None, Some("transfer.send"), true;
+    FloppyImage => "floppyImage", "Floppy Image", "Make or edit a 1.44 MB floppy disk image for machines that read floppies (a USB floppy emulator takes it): add the design in the machine's format or other files, remove files, see the free space. Writes the image file only; copy it to the floppy or emulator yourself (beyond PE-DESIGN).", None, Some("transfer.diskImage"), true;
     TestSwatches => "testSwatches", "Test Swatches", "Write a test to sew first: the selection alone, one object with a setting stepped, or a fabric calibration card (beyond PE-DESIGN).", None, Some("design.testSwatches"), true;
     // The Check Design window: the status bar's Ready to sew indicator and the Sewing Order
     // pane's Review button (beyond PE-DESIGN, #503-#505, #599).
@@ -176,7 +179,7 @@ actions! {
     DensityMap => "densityMap", "Density Map", "Show where thread layers pile up and step through the hotspots (Check Design, Density map).", None, Some("design.density"), true;
     ReviewSewingOrder => "reviewSewingOrder", "Review Sewing Order", "Step through every move between objects, with trims, jumps and warnings (Check Design, Sewing order).", None, Some("design.route"), true;
     // Image tab.
-    OpenImage => "openImage", "Open Image", "Show an image behind the design (PNG, JPEG, BMP).", None, Some("background.set"), true;
+    OpenImage => "openImage", "Open Image", "Show an image behind the design (PNG, JPEG, BMP, GIF, WebP).", None, Some("background.set"), true;
     PasteImage => "pasteImage", "Paste Image", "Use the image on the clipboard as the background.", None, Some("background.set"), true;
     SaveImage => "saveImage", "Save Image", "Save the background image as shown to a file, or copy it to the clipboard.", None, Some("background.save"), true;
     ModifyImage => "modifyImage", "Modify Image", "Move, scale, crop or adjust the colours of the background image.", None, Some("background.modify"), true;
@@ -565,6 +568,7 @@ const HOME: &[Group] = &[
         items: &[
             Small(&[A::Arrange, A::RotateFlip, A::Size]),
             Small(&[A::Group, A::Ungroup, A::FitTextToOutline]),
+            Small(&[A::JoinLines, A::BreakApart]),
             Small(&[A::StampEmboss, A::ModifyOverlap, A::DecorativeFrame]),
             Small(&[A::Align]),
         ],
@@ -793,7 +797,7 @@ pub const APPLICATION_MENU: [Action; 12] = [
 
 /// Commands inside the Application menu's Print and Sew Embroidery lists (beyond PE-DESIGN,
 /// #452, #507, #513).
-pub const SUBMENU_ACTIONS: [Action; 2] = [A::JobSheet, A::TestSwatches];
+pub const SUBMENU_ACTIONS: [Action; 3] = [A::JobSheet, A::TestSwatches, A::FloppyImage];
 
 /// The Option button: other applications and settings.
 pub const OPTION_MENU: [Action; 6] = [

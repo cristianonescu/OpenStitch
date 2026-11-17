@@ -460,7 +460,7 @@ Line references are relative to `crates/`.
   stem, candlewick and chain lines by their codes (spec `pes-0110-line-types`, reference
   pending; the 22 owner line-* files read and rewritten byte for byte outside the documented
   differences), a candlewick's Density choice at +110 (0 Dense, 1 Medium, 2 Light: densities
-  16, 12 and 10, read and written since #1142, round 15's line-candlewick-*-square40), their Start/End options at PE-DESIGN's defaults (open: the sewing end
+  16, 12 and 10, read and written since #1142, round 15's line-candlewick-*-square40) and its Size and Spacing at +112 and +114 (read and written since #1160, round 16's 1160-cw-* captures; until then the Size went to the zigzag width at +48 and the density to +50, the zigzag tool's fields, and a PE-DESIGN candlewick was read at the zigzag width, 2.0 mm for line-candlewick-default, sewn at 5.0), their Start/End options at PE-DESIGN's defaults (open: the sewing end
   PE-DESIGN stores for them, +84 and +86 on the line-*-startend-* files, and the field behind
   their sewn extent). Groups: the group's number is one more than its last
   member's archive number (a01, o-group-two-rects, group-partial); OpenStitch wrote the class's
@@ -866,6 +866,32 @@ Line references are relative to `crates/`.
     - #120: an edited design opened from a `#PES0110` file is exported as `#PES0110` by
       default, not as version 6. Only when version 11 cannot hold an object yet is it written
       as 6, with a warning that names the object (`a_changed_design_is_written_from_the_design_with_a_warning`).
+  - **Fixed (2026-11-17, `batch:win-formats`):**
+    - #1125: `import.pes` stored a shape's and a text's attribute fields as read, so a damaged
+      or hand-made file could set a line width of 6553.5 mm, a density of 6553.5 lines/mm or a
+      Direction of 65535. Each field is now kept to the range its own command accepts
+      (`object.setLine`, `object.setRegion`, `text.add`; the list is in FILE_FORMATS, Import):
+      a value outside it is stored as the nearest one in range and named in the result's
+      `notes`, a Direction of 360 or more as its remainder after whole turns, and a text whose
+      size, spacing or Text Transform level is not a number is skipped with the reason. No
+      PE-DESIGN file is read differently: none of the files in compat/reference and the pe11
+      fixtures holds a value outside the ranges, and an unchanged file is still written back
+      byte for byte (`import_pes_takes_the_objects_of_every_pe_design_file`,
+      `import_pes_keeps_out_of_range_attribute_fields_to_their_commands_ranges`,
+      `pattern_sizes_outside_the_commands_range_are_kept_to_it`,
+      `text_numbers_outside_the_commands_range_are_kept_or_refused`,
+      `an_unchanged_pe_design_file_is_written_back_byte_for_byte`).
+    - #1160: a candlewick line's Size and Spacing are the line body's +112 and +114; +48 and
+      +50 are the zigzag tool's width and density, which PE-DESIGN keeps in every line body
+      (round 16: one 40 mm square saved with Size 6.0, with Spacing 2.0, and after a zigzag
+      set to 4.0 and 1.0 and switched back; each moved only its own fields). `import.pes`
+      reads a candlewick's size from +112 (it read the zigzag width: 2.0 mm for
+      line-candlewick-default, which PE-DESIGN sews at 5.0) and its spacing from +114 (it was
+      not read), and a PES 0110 written from the design holds both there, the sewn box half
+      the Size beyond the outline, and the zigzag tool's defaults 2.0 and 4.5 at +48 and +50
+      (it wrote the Size and the knot's density, 120 for Medium, there, and left +112 and
+      +114 at 5.0 and 1.0) (`a_candlewick_size_and_spacing_come_back_from_pe_design`,
+      formats `a_candlewick_lines_size_and_spacing_read_and_write_back`).
   - **Still lost when a PE-DESIGN file is edited** (documented difference): the other region
     types' own settings, a motif fill's arrangement beyond one motif (motif sizes and spacing are
     read since #608), per-letter colours and sew types (the first
@@ -1846,6 +1872,14 @@ Line references are relative to `crates/`.
     top just right of the middle); no single walking rule fits those and the rectangle's 75.4°.
     The new specs `concentric-circle30` and `concentric-ellipse40x30` compare counts, bounds and
     stitch lengths, not the seam.
+- **Web editor, batch:mac-wasm-3 (2026-11-17; #831, #833, #834, #696):** beyond PE-DESIGN, no
+  output changed. Browser autosave keeps its snapshots in IndexedDB (never the design's file, as
+  on the desktop); the built-in samples are the kit's PES files byte for byte
+  (`every_sample_is_in_the_kit_and_cards_hide_once_something_is_added`); a window narrower than
+  640 points floats its panes, and a wide desktop window renders pixel-identical to before
+  (`--demo --screenshot` at 1440 × 900 and at the 900-point minimum, compared byte for byte
+  against main 94c8ec94); the `web-release` build changes no export (the page test's PES and DST
+  downloads stay byte-identical to the native build).
 - **Web editor, batch:mac-wasm (2026-11-06; #556):** the browser build is beyond PE-DESIGN
   (PE-DESIGN 11 runs on Windows only) and changes no output: it runs the engine's own
   `project.open`, `stitches.import`, `design.export` and `project.save`, whose file access now
@@ -4481,3 +4515,101 @@ Shapes-gallery outlines are PE-DESIGN library geometry: `pe11/o-gallery-heart`,
 capture drawn with the outline tools. The four isosceles-triangle references stay (three
 corners fitted to the dragged box). The formats test now also fails on a `CEmbSpecialShape`
 outside those four files.
+
+### Auto Punch outlines never cross themselves, 2026-11-17 (#1137)
+
+`L-autopunch-storybook-openstitch` (`p03-storybook.jpg` through `digitize.autoPunch` at 199 mm,
+OpenStitch mode) had one fill whose outline crossed itself, so Check Design rated the kit's
+storybook "Fix this first". The tracer's loops are simple (marching squares keeps diagonal
+neighbours apart); the crossing came from the Béziers fitted between the 16 vertices Douglas–
+Peucker kept on one hole: flattened at the design's size (from about 2.25 design units per
+pixel up), two of them crossed. `trace::simple_contour` now checks every traced contour
+(`trace::crosses_itself`, a sweep over the flattened outline) and, when it crosses, drops the
+curves, then halves the simplification tolerance until it does not, ending at the dense loop at
+the latest. Every image tool that traces a mask (`regions::trace_mask`: Auto Punch, Design
+Center, coverage, font images) gets it. On the storybook exactly one contour was repaired (the
+curves dropped, the same 16 vertices kept); Check Design now reports 0 errors and "Sewable with
+small risks". The kit: `image-tools/L-autopunch-storybook-openstitch.pes` 95,055 → 95,058
+stitches, 1082 trims and 199 × 150.1 mm as before, crowding count 227 as before; no other kit
+file and no golden hash moved, and PE-compatible output is unchanged. Tests
+`a_traced_contour_never_crosses_itself` (the storybook's own traced hole) and
+`crossing_test_counts_proper_crossings_only`.
+
+### GIF and WebP pictures, 2026-11-17 (#832)
+
+`Raster::decode` reads GIF (its first frame) and WebP besides PNG, JPEG and BMP, under the same
+limits (32 MiB file, 8192 pixels a side, 16 Mi pixels, checked from the header before any pixel
+memory). The image crate's `gif` and `webp` features add the pure-Rust `gif`, `color_quant` and
+`image-webp` crates (MIT, MIT or Apache-2.0; THIRD_PARTY_NOTICES.md regenerated). Every image
+picker (the image wizards, File ▸ Background Image, the Stitch Design Factory's and the
+Creator's templates, the Font Creator's image) filters on `raster::PICTURE_EXTENSIONS`, so it
+offers exactly what decodes: the Stitch Design Factory's picker no longer lists TIFF, which never
+decoded. Dropping a GIF or WebP on the browser page sets it as the background as other pictures
+do. Test `decodes_gif_first_frame_and_webp`. The Assistant's attachments are not image tools and
+keep PNG, JPEG and BMP.
+
+### Cross Stitch on pixel art's own grid (OpenStitch mode), 2026-11-17 (#994)
+
+PE-DESIGN keeps its plain grid at the cross size on pixel art (capture round 11, #469), so this
+is OpenStitch mode only, and PE-compatible output is byte-identical (`pixelGrid` is never read
+there; `pixel_grid_leaves_pe_mode_and_other_pictures_alone`). `pixelgrid::detect` finds a
+regular grid of flat-colour squares from where the picture's colour edges lie; among the 30
+example images only the pixel strawberry is found (art pixels about 34.7 × 33.2 image pixels,
+22 × 23 of them). With `pixelGrid: true` each cross covers one art pixel (or `pixelsPerCross`
+of them each way) and takes the colour of one of its own art pixels. On g07 at 80 mm
+(`tools/image_similarity.py --no-dists`, calibrated render; plain grid → art grid): mean
+CIEDE2000 14.19 → 12.71, MS-SSIM 0.757 → 0.825, 9601 → 10563 stitches, 192 → 105 trims, no
+stitch under 1 mm (a 0.075 mm margin keeps needle points that fall between the 0.1 mm steps of
+a design file from rounding below it). With two art pixels per cross: 18.72 and 0.559. Off by
+default: whether it is on in OpenStitch mode is the owner's call.
+
+### Join Lines and Break Apart, 2026-11-17 (#744)
+
+Beyond PE-DESIGN, so no reference capture applies; internal tier. `shape.joinLines` chains open
+lines, satin skeletons or Manual Punch columns at their nearest ends (tolerance 1 mm by default);
+two running lines 0.5 mm apart, joined, compile to exactly the stitches of the same four-point
+line drawn in one go (`joining_two_lines_sews_one_path_without_a_trim`): one tie-in, one tie-off,
+fewer trims than the two lines apart. A joined satin skeleton's outline is the one its joined
+centre line makes, so both rails run on through the seam. `object.breakApart` sets each letter of
+plain text as its own text object and checks it lands within 0.05 mm of where the letter was;
+text on a path, in a Text Transform, arched or in a Name Drop box breaks into letter shapes
+instead. Both are one undo step and round-trip through `.osd`. A design of two running lines and
+two satin skeletons, each pair joined through `stitchtool exec` and exported to PES 6, passes
+`tools/sew_check.py` (100×100 hoop): 509 stitches, two colours, one trim per colour, read back
+within 0.07 mm.
+
+### Floppy disk images, 2026-11-17 (#876)
+
+Beyond PE-DESIGN, internal tier; no reference applies (PE-DESIGN 11 writes no disk images). A
+1.44 MB image written by `transfer.diskImage` with the design (DST), a long-named text file and
+a zero-byte EXP reads back through an independent FAT reader written for the test from the FAT
+specification (every size taken from the boot sector, both FAT copies compared): the design's
+file has the same stitch records as `design.export` writes, the short names are `ROSEGA~1.DST`
+and `NOTESF~1.TXT`, and the free space is 2,847 clusters less those used. On macOS an image written
+through `stitchtool exec` mounts read-only (`hdiutil attach -readonly`) and lists the same three
+files, sizes and contents (a 1,424 KB disk), and `fsck_msdos -n` checks it with no errors: 3
+files, 2,839 clusters (1,419 KiB) free. Full
+disks, the 224-entry root, replacing a name, and damaged images (loops, chains off the disk or
+into a free or bad cluster, a size that does not match, shared clusters, a truncated image,
+impossible boot-sector sizes, random bytes) are refused with the image left as it was. No
+image from a machine maker's software is in the repository: every test image is built by the
+test. Not checked here: a real floppy machine or emulator reading the image (left to the user).
+
+### Low coverage judged over a gradient's, blend's or tartan's colour layers, 2026-11-17 (#1120)
+
+Check Design only; no stitch changes, so every kit file, golden and PE-DESIGN reference sews as
+before. `shape.gradient`, `shape.blend` and `shape.tartan` make one fill per colour, grouped, over
+one outline, each sewing part of one set of rows; `lowCoverage` judged each alone, so each layer
+of an even fill got the note. The rule now: the layers of one group over one outline are one
+fill, judged on all their thread over that shared area against the same 40 % limit, in one
+note naming every layer; a layer left alone (its others deleted or ungrouped) is judged on its
+own, and a plain fill is judged as before. The limit is not tuned to the kit. Evidence, the kit's
+own scripts run through `stitchtool exec` and `design.check`: `fills/gradients.pes` (objects 3
+and 12 at 32.9 % and 23.3 % before) and `fills/tartan.pes` (object 4 at 12.0 % before) get no
+note; `calibration/t1-swatches.pes` object 7, a ramp swatch sparse on purpose, keeps its note at
+35.8 %. test `a_blends_colour_layers_are_judged_together_for_coverage`: a two-colour blend
+at 1.6 lines/mm in all gets no note, one of its layers left alone gets one, and a blend at 0.8
+lines/mm in all gets one note naming both layers, with the same fields as a plain fill's. The
+docs' Check Design screenshot (`examples/check-design.json`: 2 errors, 5 warnings, no gradient,
+blend or tartan) is unchanged.
+

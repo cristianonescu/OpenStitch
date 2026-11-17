@@ -203,3 +203,6 @@ job_sheet	2B2F36 2E9D58	a clipboard holding a sheet of paper with two short line
 gradient	2B2F36 2A7AD8 A0A6AE 2E9D58	a square made of four vertical stripes stepping from bold blue on the left through lighter grey to white on the right, with a bold green arrow pointing right across the stripes
 fill_angle	2B2F36 2A7AD8 A0A6AE 2E9D58	a blue square filled with parallel diagonal stitch lines, and a bold green curved arrow around its corner showing rotation
 angle_line	2B2F36 2A7AD8 A0A6AE 2E9D58	a blue curved banner shape bending around a corner, filled with stitch lines that fan around the bend, with two short bold green lines drawn across it
+join_lines	2B2F36 2A7AD8 2E9D58	two thick blue curved lines meeting end to end and joined into one continuous line, a bold green round dot covering the joint where they meet
+break_apart	2B2F36 2A7AD8 E0A21B	a blue rounded square tile split into four separate square pieces pulled apart diagonally from its centre, wide white gaps between the pieces, one piece golden
+floppy_image	2B2F36 E0A21B A0A6AE FFFFFF 2A7AD8	a golden yellow 3.5 inch floppy disk with a light grey metal shutter and a white label, a bold blue arrow pointing down into it from above

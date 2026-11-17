@@ -1052,6 +1052,65 @@ pub const TASKS: &[Task] = &[
             sews_clean(d)
         },
     },
+    // #1232: a floppy disk image for an older machine (#876), scored on the call: the image is
+    // a file in the scratch folder, and the design must go onto it as DST.
+    Task {
+        id: "floppy-image",
+        setup: &[("shape.rectangle", RECT)],
+        prompt: "My old embroidery machine reads only floppy disks through a USB floppy emulator. Put this design on a floppy disk image file named machine.img, as a DST file.",
+        check: |d| {
+            let onto = called_steps(d).into_iter().any(|s| {
+                let p = &s["params"];
+                s["command"] == "transfer.diskImage"
+                    && p["addDesign"] == json!(true)
+                    && p["format"]
+                        .as_str()
+                        .is_none_or(|f| f.eq_ignore_ascii_case("dst"))
+                    && p["path"]
+                        .as_str()
+                        .is_some_and(|f| f.to_ascii_lowercase().ends_with(".img"))
+            });
+            need(
+                onto,
+                "the design written onto an image file as DST (transfer.diskImage addDesign)",
+            )
+        },
+    },
+    // #1229: Join Lines and Break Apart (#744) through the Assistant.
+    Task {
+        id: "join-lines",
+        setup: &[
+            (
+                "shape.polygon",
+                r##"{"points": [[20, 50], [50, 50]], "closed": false, "outline": "#203040"}"##,
+            ),
+            (
+                "shape.polygon",
+                r##"{"points": [[50, 50], [80, 30]], "closed": false, "outline": "#203040"}"##,
+            ),
+        ],
+        prompt: "The two lines meet at one end. Make them one line, sewn without a trim between them.",
+        check: |d| {
+            need(d.objects.len() == 1, "one object (shape.joinLines)")?;
+            need(widest(d) >= 55.0, "both lines kept, about 60 mm")
+        },
+    },
+    Task {
+        id: "break-apart",
+        setup: &[(
+            "text.add",
+            r##"{"text": "ABC", "size": 15, "x": 50, "y": 50, "fill": "#1f3a93"}"##,
+        )],
+        prompt: "Break the lettering apart so each letter is its own object, in the same place.",
+        check: |d| {
+            need(
+                d.objects.len() == 3,
+                "three objects, one per letter (object.breakApart)",
+            )?;
+            need(widest(d) >= 20.0, "the letters where they were")?;
+            need(d.stitches() > 0, "stitches")
+        },
+    },
 ];
 
 /// An object's bounds as [x0, y0, x1, y1] mm, from `object.list`.
@@ -1818,7 +1877,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 32);
+        assert_eq!(TASKS.len(), 35);
     }
 
     #[test]
@@ -2013,6 +2072,90 @@ mod tests {
         let swirl = (task.check)(&design(json!("swirl"))).expect_err("swirl");
         assert!(swirl.contains("radial"), "{swirl}");
         assert!((task.check)(&design(json!("radial"))).is_ok());
+    }
+
+    /// #1232: the floppy-image task passes on a transfer.diskImage call that puts the design onto
+    /// an image file as DST, and fails on another format, no design, a non-image path or no call.
+    #[test]
+    fn the_floppy_image_task_needs_the_design_on_an_image_as_dst() {
+        let task = TASKS.iter().find(|t| t.id == "floppy-image").expect("task");
+        let with = |params: Value| Design {
+            calls: vec![format!(
+                "execute {}",
+                json!({"command": "transfer.diskImage", "params": params})
+            )],
+            ..Design::default()
+        };
+        assert_eq!(
+            (task.check)(&with(
+                json!({"path": "machine.img", "addDesign": true, "format": "dst"})
+            )),
+            Ok(())
+        );
+        // DST is the command's default format.
+        assert_eq!(
+            (task.check)(&with(
+                json!({"path": "/tmp/x/MACHINE.IMG", "addDesign": true})
+            )),
+            Ok(())
+        );
+        for wrong in [
+            json!({"path": "machine.img", "addDesign": true, "format": "pes"}),
+            json!({"path": "machine.img"}),
+            json!({"path": "machine.dst", "addDesign": true}),
+        ] {
+            assert!((task.check)(&with(wrong.clone())).is_err(), "{wrong}");
+        }
+        assert!((task.check)(&Design::default()).is_err(), "only talked");
+        // The scored call works on the engine.
+        let dir = std::env::temp_dir().join(format!("bench-floppy-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let mut s = Session::new(&dir);
+        for (c, p) in task.setup {
+            let p: Value = serde_json::from_str(p).expect("json");
+            s.execute(c, Some(&p)).expect("setup");
+        }
+        let r = s
+            .execute(
+                "transfer.diskImage",
+                Some(&json!({"path": "machine.img", "addDesign": true, "format": "dst"})),
+            )
+            .expect("image");
+        assert_eq!(r["files"].as_array().map(Vec::len), Some(1));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1229: the join-lines and break-apart tasks fail as set up and pass after their command.
+    #[test]
+    fn the_join_and_break_apart_tasks_need_their_commands() {
+        let design = |s: &mut Session| {
+            let objects: Vec<Value> = s
+                .execute("object.list", None)
+                .ok()
+                .and_then(|v| v.as_array().cloned())
+                .unwrap_or_default();
+            Design {
+                objects,
+                info: s.execute("design.info", None).unwrap_or_default(),
+                ..Design::default()
+            }
+        };
+        for (id, command, params) in [
+            ("join-lines", "shape.joinLines", json!({"ids": [1, 2]})),
+            ("break-apart", "object.breakApart", json!({"ids": [1]})),
+        ] {
+            let task = TASKS.iter().find(|t| t.id == id).expect("task");
+            let mut s = Session::new(std::env::temp_dir());
+            for (c, p) in task.setup {
+                let p: Value = serde_json::from_str(p).expect("json");
+                s.execute(c, Some(&p)).expect("setup");
+            }
+            // As set up the task is not done; after the command it is.
+            assert!((task.check)(&design(&mut s)).is_err(), "{id}: set up");
+            s.execute(command, Some(&params)).expect(command);
+            let d = design(&mut s);
+            assert_eq!((task.check)(&d), Ok(()), "{id}: done");
+        }
     }
 
     /// #1006: the branch-columns task passes on the design `object.deriveSkeleton {branches:
