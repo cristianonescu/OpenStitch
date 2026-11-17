@@ -308,7 +308,9 @@ Before part 2 all three passed on macOS (2026-11-07, `node web/e2e/page.mjs WEB_
 INPUT`). CI job `web` runs it on
 Linux: Chromium always counts; Firefox counts when Mesa (for WebGL on the GPU-less runner)
 installs within 8 minutes, else it is a CI warning; WebKit needs GTK 4 and GStreamer, which the
-runner lacks, so there it is a warning too. The screenshots are kept as the
+runner lacks, so there it is a warning too. **WebKit is therefore not covered by CI at all**:
+there is no macOS CI job, and WebKit is checked only by running the page test locally on a Mac
+(last on 2026-11-17 at `batch:mac-wasm-3`'s head, every check passed). The screenshots are kept as the
 `openstitch-web-screenshots` artifact. Safari itself (macOS, iPadOS) is not run; WebKit is its
 engine.
 
