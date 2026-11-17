@@ -125,6 +125,8 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
                 };
                 let editor = Rc::new(RefCell::new(EditorApp::new(launch)));
                 EDITOR.with(|e| *e.borrow_mut() = Some(editor.clone()));
+                // The Assistant's turns run between frames with this editor (#766).
+                openstitch_app::set_assistant_editor(&editor);
                 Ok(Box::new(Page { editor }))
             }),
         )
@@ -277,7 +279,8 @@ fn write_user(bytes: &[u8]) {
 
 /// The automation API: one JSON request in, one JSON reply out. Once the editor has started
 /// it takes the desktop socket's requests (engine commands and `ui.*`, on the editor's own
-/// history) plus the page's file commands ([`page_command`]); before that,
+/// history) plus the page's file commands ([`page_command`]) and the Assistant panel's
+/// (`ui.assistant*`, #766); before that,
 /// [`WebSession::handle`]. The page exposes it as `openstitch.run`.
 #[wasm_bindgen]
 pub fn run(request_json: &str) -> String {
@@ -287,7 +290,13 @@ pub fn run(request_json: &str) -> String {
                 Ok(mut e) => {
                     let command = request["command"].as_str().unwrap_or_default();
                     let params = request.get("params").cloned().unwrap_or(Value::Null);
-                    match page_command(&mut e, command, &params) {
+                    // The Assistant's own page commands (#766), then the file commands.
+                    let assistant = CTX.with(|c| {
+                        c.borrow().clone().and_then(|ctx| {
+                            openstitch_app::assistant_page_command(&mut e, command, &params, &ctx)
+                        })
+                    });
+                    match assistant.or_else(|| page_command(&mut e, command, &params)) {
                         Some(r) => reply_of(&request, r),
                         None => e.web_request(&request),
                     }
