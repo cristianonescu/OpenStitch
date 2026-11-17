@@ -138,6 +138,43 @@ async function touchDrag(page, type, from, to) {
 // #834 and #831 in their own browser contexts: high-DPI, phone width with touch, crash
 // recovery across tabs, and storage refused.
 async function extraChecks(browser, type, label) {
+  // #834: the editor's own shortcuts that are also the browser's (Ctrl+S Save Page, Ctrl+P
+  // Print, Ctrl+O Open File) reach the editor, which keeps the browser from acting on them.
+  // Ctrl+N, Ctrl+T and Ctrl+W are the browser's alone (a page never sees them in a real
+  // browser), so the editor names them as taken. In its own context: Save asks the page where
+  // to save, which must not hold up the other checks.
+  console.log(`${label}: Ctrl+S and Ctrl+P reach the editor`);
+  {
+    const context = await browser.newContext({ viewport: { width: 1000, height: 700 } });
+    try {
+      const { page, errors } = await editorPage(context);
+      await page.evaluate(() => {
+        // Captured before the editor's handler; whether it prevented the browser's action is
+        // read once the event has been dispatched.
+        window.__events = [];
+        window.addEventListener("keydown", (e) => { if (e.ctrlKey) window.__events.push(e); }, true);
+        document.getElementById("openstitch").focus();
+      });
+      for (const key of ["s", "p"]) {
+        await page.keyboard.press(`Control+${key.toUpperCase()}`);
+        await page.waitForTimeout(200);
+      }
+      const keys = await page.evaluate(() => window.__events.map((e) => [e.key.toLowerCase(), e.defaultPrevented]));
+      for (const key of ["s", "p"]) {
+        if (!keys.some(([k, prevented]) => k === key && prevented)) {
+          throw new Error(`Ctrl+${key.toUpperCase()} was left to the browser: ${JSON.stringify(keys)}`);
+        }
+      }
+      const taken = (await run(page, { command: "ui.browserLimits" })).result?.browserKeys ?? [];
+      for (const chord of ["Ctrl+N", "Ctrl+T", "Ctrl+W"]) {
+        if (!taken.includes(chord)) throw new Error(`${chord} is not named as the browser's: ${JSON.stringify(taken)}`);
+      }
+      noErrors("keys", errors);
+    } finally {
+      await context.close();
+    }
+  }
+
   // High-DPI: 2 device pixels per CSS pixel; the canvas draws at full resolution (egui's
   // points times 2) and Ctrl+O still reaches the editor. Playwright's deviceScaleFactor
   // emulation leaves Chromium's and Firefox's devicePixelContentBoxSize at CSS pixels, which no
@@ -335,8 +372,10 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
     }
     continue;
   }
+  let shown = null;
   try {
     const page = await browser.newPage({ viewport: { width: 1100, height: 750 }, deviceScaleFactor: 1, acceptDownloads: true });
+    shown = page;
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));
     // A Rust panic is reported on the console, and leaves the editor stopped.
@@ -369,34 +408,8 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
       throw new Error(`ui.browserLimits has no systemFonts note: ${JSON.stringify(limits).slice(0, 200)}`);
     }
     await run(page, { command: "ui.run", params: { action: "new" } });
-
-    // #834: the editor's own shortcuts that are also the browser's (Ctrl+S Save Page, Ctrl+P
-    // Print, Ctrl+O Open File) reach the editor, which keeps the browser from acting on them.
-    // Ctrl+N, Ctrl+T and Ctrl+W are the browser's alone (a page never sees them in a real
-    // browser), so the editor's Keyboard Shortcuts names them as taken.
-    await page.evaluate(() => {
-      // Captured before the editor's handler; whether it prevented the browser's action is
-      // read once the event has been dispatched.
-      window.__events = [];
-      window.addEventListener("keydown", (e) => { if (e.ctrlKey) window.__events.push(e); }, true);
-      document.getElementById("openstitch").focus();
-    });
-    for (const key of ["s", "p"]) {
-      await page.keyboard.press(`Control+${key.toUpperCase()}`);
-      await page.waitForTimeout(200);
-    }
-    // Save on the empty new design asks the page where to save: Escape closes that dialog.
-    await page.keyboard.press("Escape");
-    const keys = await page.evaluate(() => window.__events.map((e) => [e.key.toLowerCase(), e.defaultPrevented]));
-    for (const key of ["s", "p"]) {
-      if (!keys.some(([k, prevented]) => k === key && prevented)) {
-        throw new Error(`Ctrl+${key.toUpperCase()} was left to the browser: ${JSON.stringify(keys)}`);
-      }
-    }
-    const taken = (await run(page, { command: "ui.browserLimits" })).result?.browserKeys ?? [];
-    for (const chord of ["Ctrl+N", "Ctrl+T", "Ctrl+W"]) {
-      if (!taken.includes(chord)) throw new Error(`${chord} is not named as the browser's: ${JSON.stringify(taken)}`);
-    }
+    // A few frames for the new design before File ▸ Open's shortcut.
+    await page.waitForTimeout(500);
 
     console.log(`${label}: opening ${name} through the file picker (Ctrl+O)`);
     // File ▸ Open's shortcut on the focused canvas; the editor asks the page for the picker.
@@ -490,6 +503,11 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
   } catch (e) {
     console.error(`FAIL ${label}: ${e.message}`);
     failures += 1;
+    // What the page showed when it failed, beside the other screenshots.
+    if (outDir && shown) {
+      mkdirSync(outDir, { recursive: true });
+      await shown.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-failed.png`) }).catch(() => {});
+    }
   } finally {
     await browser.close().catch(() => {});
   }
