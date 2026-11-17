@@ -364,6 +364,13 @@ The Assistant (#766, 2026-11-17): `web/assistant_panel.rs` is now the browser's 
   unencrypted there.
   - It is sent only to the address it was entered for.
   - It is never in the preferences, a file, a URL or a log.
+  - Changing the address clears the field, or shows the key remembered for the new address.
+    Unticking Remember removes the current address's key. **Forget all remembered keys**
+    (`ui.assistantForgetKeys`) removes every address's key.
+- **The model cannot drive the panel:** the gate refuses `ui.assistantSetup`, `Send`, `Answer`,
+  `Stop` and `ForgetKeys` to the model in every mode, `run_batch` included
+  (`assistant_chat::user_only`, checked first). A prompt-injected model therefore cannot move
+  the endpoint and send the key elsewhere.
 - **Narrow windows:** on a phone or a window narrower than 640 points (#834) the panel starts
   closed, so the canvas shows; the ribbon opens it.
 - **Not in the browser yet:** the Assistant cannot see a picture the user gives it or import an

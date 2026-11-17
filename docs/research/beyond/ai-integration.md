@@ -1226,6 +1226,12 @@ The browser editor (#693) runs the desktop's Assistant, with what a web page can
 - The page's own scripts are trusted: they already run the editor.
 - A model reply is untrusted input, as on the desktop. Its tool calls pass the same gate
   (`assistant_chat::verdict`).
+- The panel's own page commands (`ui.assistantSetup`, `Send`, `Answer`, `Stop`, `ForgetKeys`)
+  are refused to the model in every mode, Always allow and `run_batch` included. The refusal
+  comes first, before the command is even looked up. This matters most for Setup: a model that
+  could set the address could send the next message, the design and the key to a host of its
+  choosing. Tests: `always_allow_never_lets_the_assistant_set_up_its_endpoint`, and the page
+  test's injected `execute ui.assistantSetup` and `run_batch` of panel commands.
 - Because a tool call cannot pause halfway on a page, the panel asks before the call: every
   command it will send that the gate would ask about goes on one card, and the call runs only
   after Allow, with exactly those requests approved. A request inside the call that still needs

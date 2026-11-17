@@ -28,13 +28,14 @@ pub const UI_COMMANDS: [&str; 5] = [
 
 /// The page's commands for the browser editor's Assistant panel (#766), answered once the editor
 /// runs (`web.rs` routes them to `openstitch_app`'s panel): for scripts in the page, not for the
-/// model. SKILL.md ("Web editor") names them; openstitch-mcp's skill check reads this list.
-pub const ASSISTANT_PAGE_COMMANDS: [&str; 5] = [
+/// model, whose gate refuses them (`assistant_chat::user_only`). SKILL.md ("Web editor") names them; openstitch-mcp's skill check reads this list.
+pub const ASSISTANT_PAGE_COMMANDS: [&str; 6] = [
     "ui.assistantSetup",
     "ui.assistantSend",
     "ui.assistantState",
     "ui.assistantAnswer",
     "ui.assistantStop",
+    "ui.assistantForgetKeys",
 ];
 
 /// The largest file the editor opens: the engine's own limit for embroidery files.

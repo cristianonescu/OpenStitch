@@ -37,3 +37,29 @@ pub fn forget(base_url: &str) {
         let _ = s.remove_item(&entry(base_url));
     }
 }
+
+/// The storage entries of remembered keys, for every address.
+fn entries(s: &web_sys::Storage) -> Vec<String> {
+    let n = s.length().unwrap_or(0);
+    (0..n)
+        .filter_map(|i| s.key(i).ok().flatten())
+        .filter(|k| k.starts_with("openstitch.ai.key "))
+        .collect()
+}
+
+/// How many addresses have a remembered key.
+pub fn count() -> usize {
+    storage().map_or(0, |s| entries(&s).len())
+}
+
+/// Forgets the keys remembered for every address; returns how many there were.
+pub fn forget_all() -> usize {
+    let Some(s) = storage() else {
+        return 0;
+    };
+    let all = entries(&s);
+    for k in &all {
+        let _ = s.remove_item(k);
+    }
+    all.len()
+}

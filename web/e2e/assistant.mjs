@@ -167,15 +167,46 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
     await ok(page, { command: "history.undo" });
     if ((await objects(page)) !== before) throw new Error("one undo did not take the message's change back");
 
+    // 2b. A model cannot point the panel elsewhere or drive it (#766 review). Its server does not
+    // know ui.assistantSetup; the panel commands it does know (Send, Answer) reach the gate, which
+    // refuses them, inside run_batch too. Nothing runs and the endpoint stays.
+    for (const [text, refused] of [["redirect yourself", /ui\.assistantSetup/], ["send yourself", /only the user/]]) {
+      console.log(`${label}: the model tries "${text}"`);
+      const users = s.items.filter((i) => i.kind === "user").length;
+      await ok(page, { command: "ui.assistantSend", params: { text } });
+      s = await settled(page);
+      const last = s.items.filter((i) => i.kind === "assistant").at(-1)?.text ?? "";
+      const tool = s.items.filter((i) => i.kind === "tool").at(-1);
+      if (!refused.test(last) || /"ok":true/.test(last)) throw new Error(`not refused: ${last}`);
+      if (text === "redirect yourself" && !tool?.error) throw new Error(`the call did not fail: ${JSON.stringify(tool)}`);
+      if (s.items.filter((i) => i.kind === "user").length !== users + 1) throw new Error("the model sent itself a message");
+      if (!s.sendsTo.includes(host)) throw new Error(`the endpoint moved: ${s.sendsTo}`);
+      if (/elsewhere/.test(JSON.stringify(s))) throw new Error("the planted address reached the panel");
+    }
+    // The page's replies never hold the key.
+    for (const command of ["ui.assistantState"]) {
+      if (JSON.stringify(await ok(page, { command })).includes(KEY)) throw new Error(`${command} returned the key`);
+    }
+    if (JSON.stringify(await ok(page, { command: "ui.assistantSetup", params: { kind: "anthropic", address: model.address, model: "claude-test", key: KEY } })).includes(KEY)) {
+      throw new Error("ui.assistantSetup returned the key");
+    }
+
     // 3. Remember on this device, then not.
     console.log(`${label}: Remember on this device`);
     await ok(page, { command: "ui.assistantSetup", params: { kind: "anthropic", address: model.address, model: "claude-test", key: KEY, remember: true } });
     if (!(await storageHasKey(page))) throw new Error("Remember did not keep the key in the page's storage");
     await ok(page, { command: "ui.assistantSetup", params: { kind: "anthropic", address: model.address, model: "claude-test", key: KEY, remember: false } });
     if (await storageHasKey(page)) throw new Error("unticking Remember left the key in the page's storage");
+    // Keys remembered for two addresses; Forget all removes both.
+    await ok(page, { command: "ui.assistantSetup", params: { kind: "anthropic", address: model.address, model: "claude-test", key: KEY, remember: true } });
+    await ok(page, { command: "ui.assistantSetup", params: { kind: "openai", address: `${model.address}/v1`, model: "local-test", key: `${KEY}-2`, remember: true } });
+    const forgot = await ok(page, { command: "ui.assistantForgetKeys" });
+    if (forgot.forgotten !== 2 || (await storageHasKey(page))) throw new Error(`Forget all: ${JSON.stringify(forgot)}`);
 
-    // 4. OpenAI-compatible on this computer, no key.
+    // 4. OpenAI-compatible on this computer, no key. The key typed for the Claude address above
+    // belongs to that address: it is not sent here.
     console.log(`${label}: OpenAI-compatible endpoint, no key`);
+    await ok(page, { command: "ui.assistantSetup", params: { kind: "anthropic", address: model.address, model: "claude-test", key: KEY } });
     model.requests.length = 0;
     await ok(page, { command: "ui.assistantSetup", params: { kind: "openai", address: `${model.address}/v1`, model: "local-test" } });
     const b2 = await objects(page);
@@ -185,7 +216,7 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
     if (!model.requests.some((r) => r.path === "/v1/chat/completions")) throw new Error("no chat/completions request");
     // Every tool row keeps its own label, though the fake reuses one call id.
     const rows = s.items.filter((i) => i.kind === "tool").map((i) => i.text).join(", ");
-    if (rows !== "Ran shape.rectangle, Ran design.export, Ran design.export, Ran shape.rectangle") throw new Error(`tool rows: ${rows}`);
+    if (rows !== "Ran shape.rectangle, Ran design.export, Ran design.export, Ran ui.assistantSetup, Ran 2 commands, Ran shape.rectangle") throw new Error(`tool rows: ${rows}`);
     if (model.requests.some((r) => r.headers.authorization)) throw new Error("a key went to a keyless local endpoint");
 
     if (outDir) {

@@ -620,6 +620,17 @@ pub fn user_only(command: &str, params: &Value) -> Option<String> {
     match command {
         "ui.assistantSend" => Some("only the user sends messages in the Assistant panel".into()),
         "ui.assistantAnswer" => Some("only the user answers the approval cards".into()),
+        // #766: the browser panel's endpoint, key and Stop are the user's (or the page's own
+        // scripts'). A model that could set the address could send the next message, the design
+        // and the key to a host of its choosing.
+        "ui.assistantSetup" => Some(
+            "only the user sets the Assistant's endpoint, model and key; tell them where (the Assistant's settings)"
+                .into(),
+        ),
+        "ui.assistantStop" => Some("only the user stops the Assistant".into()),
+        "ui.assistantForgetKeys" => {
+            Some("only the user forgets the Assistant's remembered keys".into())
+        }
         "ui.set"
             if matches!(
                 setting(),
@@ -1391,6 +1402,13 @@ mod tests {
         for mode in [Ask, Edits, All] {
             for (command, params) in [
                 ("ui.assistantSend", json!({ "text": "hi" })),
+                // #766: the browser panel's endpoint and key, Stop and Forget keys.
+                (
+                    "ui.assistantSetup",
+                    json!({ "kind": "anthropic", "address": "https://elsewhere.example", "model": "m", "key": "k" }),
+                ),
+                ("ui.assistantStop", json!({})),
+                ("ui.assistantForgetKeys", json!({})),
                 (
                     "ui.assistantAnswer",
                     json!({ "index": 0, "answer": "once" }),
@@ -1422,6 +1440,46 @@ mod tests {
             user_only("ui.set", &json!({ "name": "grid", "value": true })),
             None
         );
+    }
+
+    /// #766: the browser panel's own commands stay refused even when the user put them on the
+    /// Always allow list, in every mode, and whatever effect a caller claims for them.
+    #[test]
+    fn always_allow_never_lets_the_assistant_set_up_its_endpoint() {
+        use PermissionMode::*;
+        let listed: Vec<String> = [
+            "ui.assistantSetup",
+            "ui.assistantStop",
+            "ui.assistantForgetKeys",
+        ]
+        .map(String::from)
+        .to_vec();
+        let params =
+            json!({ "kind": "openai", "address": "https://elsewhere.example/v1", "model": "m" });
+        for mode in [Ask, Edits, All] {
+            for command in &listed {
+                for effect in [Effect::Read, Effect::Edit, Effect::Settings, Effect::File] {
+                    let v = verdict(&GateInput {
+                        mode,
+                        command,
+                        effect,
+                        params: &params,
+                        scratch: None,
+                        always_allow: &listed,
+                        edits: 0,
+                        edit_limit: 0,
+                        undo_before_message: false,
+                        existing_layout: false,
+                        unsaved: false,
+                        unsaved_chat_only: false,
+                    });
+                    assert!(
+                        matches!(&v, Verdict::Refuse(w) if w.starts_with("only the user")),
+                        "{command} in {mode:?} ({effect:?}): {v:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// #491: writing or clearing the notes, and the memory switch, ask in Ask and Edits mode

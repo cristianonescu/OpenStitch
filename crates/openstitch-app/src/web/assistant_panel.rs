@@ -656,6 +656,13 @@ const APPROVED_NOTE: &str = "the user approved this step on the approval card";
 fn handle(app: &mut EditorApp, mut request: Value) -> Value {
     let err = |e: String| json!({ "ok": false, "error": e });
     let command = request["command"].as_str().unwrap_or_default().to_string();
+    let empty = json!({});
+    // First of all, whatever the command is or claims (#766): the panel's own commands (its
+    // endpoint and key, Send, Answer, Stop) are never the model's, in any mode, inside a batch
+    // too, since every step comes through here.
+    if let Some(why) = assistant_chat::user_only(&command, request.get("params").unwrap_or(&empty)) {
+        return err(why);
+    }
     let Some(effect) = effect_of(app, &command) else {
         return app.remote_request(&request); // the engine's own "unknown command" error
     };
@@ -849,7 +856,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
         let r = ui.add(
             egui::TextEdit::singleline(&mut panel.key)
                 .password(true)
-                .hint_text("kept for this session only"),
+                .hint_text("for this address only"),
         );
         if r.changed() && panel.remember {
             assistant_key::store(&base_url, panel.key.trim());
@@ -868,14 +875,34 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
         RichText::new(if panel.remember {
             "The key is kept in this site's browser storage on this device, unencrypted: anyone \
              using this browser profile, and any script this site serves, can read it. Untick to \
-             remove it."
+             remove it for this address. Keys remembered for other addresses stay until you \
+             forget them below."
         } else {
-            "The key stays in this page's memory and is gone when the tab closes. It is sent \
-             only to the address above."
+            "The key stays in this page's memory and is gone when the tab closes."
         })
         .small()
         .weak(),
     );
+    ui.label(
+        RichText::new(
+            "A key belongs to the address above and is sent only there. Changing the address \
+             clears the field (or shows the key remembered for the new address); enter the key \
+             again for a new address.",
+        )
+        .small()
+        .weak(),
+    );
+    let remembered = assistant_key::count();
+    if ui
+        .add_enabled(
+            remembered > 0,
+            egui::Button::new(format!("Forget all remembered keys ({remembered})")),
+        )
+        .on_hover_text("Removes every Assistant key this browser keeps for this site, for every address")
+        .clicked()
+    {
+        forget_all_keys(app);
+    }
     ui.label(
         RichText::new(
             "The page talks to the address directly, so it must allow this page (CORS). A local \
@@ -1007,6 +1034,10 @@ fn transcript(app: &mut EditorApp, ui: &mut egui::Ui) {
 ///   cannot do yet in the browser, and `approval` the waiting card's lines or null.
 /// - `ui.assistantAnswer {allow}`: answers the waiting approval card.
 /// - `ui.assistantStop`: Stop.
+/// - `ui.assistantForgetKeys`: forgets every key remembered on this device, for every address,
+///   and the one typed this session; returns how many were remembered.
+///
+/// The model is refused all of them at the gate (`assistant_chat::user_only`), whatever the mode.
 pub fn page_command(
     app: &mut EditorApp,
     command: &str,
@@ -1043,8 +1074,18 @@ pub fn page_command(
             stop(app);
             Ok(json!({ "stopping": app.assistant.panel.busy() }))
         }
+        "ui.assistantForgetKeys" => Ok(json!({ "forgotten": forget_all_keys(app) })),
         _ => return None,
     })
+}
+
+/// Forgets every remembered key, and the one typed this session; returns how many were kept.
+fn forget_all_keys(app: &mut EditorApp) -> usize {
+    let n = assistant_key::forget_all();
+    let panel = &mut app.assistant.panel;
+    panel.key.clear();
+    panel.remember = false;
+    n
 }
 
 fn page_setup(app: &mut EditorApp, params: &Value) -> Result<Value, String> {
