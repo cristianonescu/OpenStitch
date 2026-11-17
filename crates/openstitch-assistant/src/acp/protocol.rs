@@ -122,6 +122,34 @@ pub fn session_new_params(cwd: &Path, bridge: &McpServer, system: &str, init: &V
     params
 }
 
+/// Whether the agent can open an earlier session again: `agentCapabilities.loadSession` in its
+/// `initialize` result (<https://agentclientprotocol.com/protocol/session-setup#loading-sessions>;
+/// an omitted capability is unsupported). claude-agent-acp 0.106.0 says `true` (#1170).
+pub fn loads_sessions(init: &Value) -> bool {
+    init.pointer("/agentCapabilities/loadSession")
+        .and_then(Value::as_bool)
+        == Some(true)
+}
+
+/// `session/load` params: [`session_new_params`] plus the `sessionId` to load (same page:
+/// `sessionId`, `cwd`, `mcpServers`). The agent replays the session as `session/update`s before
+/// it answers; the client drops them, because the panel shows the chat from the project file.
+/// claude-agent-acp 0.106.0 finds the session by its id from any working folder (measured
+/// 2026-11-17, #1170).
+pub fn session_load_params(
+    session: &str,
+    cwd: &Path,
+    bridge: &McpServer,
+    system: &str,
+    init: &Value,
+) -> Value {
+    let mut params = session_new_params(cwd, bridge, system, init);
+    if let Some(p) = params.as_object_mut() {
+        p.insert("sessionId".into(), json!(session));
+    }
+    params
+}
+
 /// Whether the agent takes pictures in `session/prompt`: `agentCapabilities.promptCapabilities
 /// .image` in its `initialize` result (<https://agentclientprotocol.com/protocol/initialization>;
 /// an omitted capability is unsupported). claude-agent-acp 0.100.0 says `true` (#1168).
@@ -268,6 +296,34 @@ pub fn tool_output(u: &Value) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1170: only an explicit `loadSession: true` counts, and a load carries the same session
+    /// setup as a new session plus the id.
+    #[test]
+    fn session_load_needs_the_capability_and_repeats_the_setup() {
+        assert!(loads_sessions(
+            &json!({"agentCapabilities": {"loadSession": true}})
+        ));
+        assert!(!loads_sessions(
+            &json!({"agentCapabilities": {"loadSession": false}})
+        ));
+        assert!(!loads_sessions(&json!({"agentCapabilities": {}})));
+        assert!(!loads_sessions(
+            &json!({"agentCapabilities": {"loadSession": "yes"}})
+        ));
+        let bridge = McpServer {
+            name: "openstitch-app".into(),
+            command: "/bin/openstitch".into(),
+            args: vec!["--assistant-mcp".into()],
+            env: Vec::new(),
+        };
+        let init = json!({});
+        let cwd = Path::new("/tmp/work");
+        let load = session_load_params("abc", cwd, &bridge, "sys", &init);
+        let mut new = session_new_params(cwd, &bridge, "sys", &init);
+        new["sessionId"] = json!("abc");
+        assert_eq!(load, new);
+    }
 
     #[test]
     fn bridge_tools_are_recognised_strictly() {

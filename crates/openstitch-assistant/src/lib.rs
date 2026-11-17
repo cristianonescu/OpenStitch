@@ -40,7 +40,7 @@ use serde_json::{Value, json};
 
 pub use acp::{
     AcpConfig, AcpConversation, AcpError, AgentState, AuthMethod, BRIDGE_NAME, Discovered,
-    KNOWN_AGENTS, KnownAgent, McpServer, claude_disallowed_tools, discover, discover_in,
+    KNOWN_AGENTS, KnownAgent, McpServer, Resume, claude_disallowed_tools, discover, discover_in,
     discover_in_within, find_program, search_dirs,
 };
 pub use conversation::Conversation;
