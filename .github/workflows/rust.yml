@@ -189,7 +189,8 @@ jobs:
           tar -xzf gitleaks.tar.gz gitleaks
           ./gitleaks git --log-opts="--all" --redact --no-banner --exit-code 1 .
       # gitleaks looks for keys; this fails on a local folder path or a personal detail in any
-      # tracked text file, with the allow list's harmless placeholders (#1057).
+      # tracked text file, or on a path embedded in a binary one (reference captures, fixtures,
+      # example designs, images; #1226), with the allow list's harmless placeholders (#1057).
       - name: private_scan
         run: |
           python3 -I tools/private_scan.py --self-test
