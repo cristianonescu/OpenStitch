@@ -1656,3 +1656,47 @@ paraphrased (openhoop, filum and myembro are GPL-3.0; lb2002/openstitch is AGPL-
 No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
 New "Planned (beyond PE-DESIGN)" row in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
 PE-DESIGN): converting a satin between its centre-line form and its two-sides form (#1145).
+
+### 2026-11-17 scan
+
+Period checked: 2026-11-15 to 2026-11-17.
+
+**Commercial products.** No material release or feature announcement in the period.
+Checked: Wilcom blog (newest post still the staff appointment of 2026-11-11) and Hatch blog (one
+new post, 2026-11-15, a Redwork article for hobbyists: not a release); BERNINA, mySewnet,
+Embrilliance, Janome Artistic Digitizer, Floriani Total Control U and SewWhat-Pro (one search,
+no dated release found); Tajima DG by Pulse (DG17.5, 17.5.1.8445, unchanged); Embird (the "what
+is new" page still headlines Embird 2026 without a date); Ink/Stitch (newest post still v3.3.0
+of 2026-07-31); PE-DESIGN 11 one-click update history (11.50 of September 2026 still the newest).
+Sources: https://wilcom.com/resources/blog, https://hatchembroidery.com/resources/blog,
+https://inkstitch.org/news, https://www.embird.net/what-is-new/,
+https://cloud.pulsemicro.com/Download,
+https://support.brother.com/g/s/hf/ped_info/ped11/one_click_update/en/ped11update_info.html.
+
+#### Open-source projects
+
+Ideas only, read from release notes and commit titles; no code may be copied, ported or
+paraphrased (Morale, openhoop, filum and myembro are GPL-3.0; lb2002/openstitch is
+AGPL-3.0-or-later).
+
+- **vomitselfie/Morale**, **alexandra03/threadspool**, **bastanja/stitch_generator**,
+  **benkl/filum** (still 0.2.2 of 2026-11-14), **lb2002/openstitch** (the other project that
+  shares OpenStitch's name) and **linker2k/myembro** (still v0.4.0-beta.11): no commits or
+  releases since 2026-11-15. **lork-fork/Roidery**: pull request activity on 2026-11-17, no new
+  commit on its main branch.
+- **EvenDog/openhoop** (GPL-3.0; release 0.14.0 on 2026-11-17, four commits the same day).
+  - Monograms are made and changed on the design itself. Its monogram dialog is gone: a new
+    monogram is placed in the hoop with the last settings, and its initials, height, font,
+    layout, ornaments and border are changed in the properties panel, each change shown on the
+    design at once. The layout, ornament and border choices are small pictures drawn with the
+    user's own initials and font. OpenStitch has monograms that are rebuilt in place
+    (`monogram.edit`, keeping position, order and threads), but its Monogram window lists the
+    styles and frames by name, shows nothing until Add or Apply is pressed, and is not filled
+    from the selected monogram: new idea, issue draft sent to the coordinator (new row).
+  - Not material: its preview dialogs keep the last picture while the next one is worked out,
+    instead of going blank.
+  https://github.com/EvenDog/openhoop/releases/tag/v0.14.0 (single source)
+
+No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
+New "Planned (beyond PE-DESIGN)" row in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
+PE-DESIGN): a monogram edited live on the design, with picture choices for its style and frame.

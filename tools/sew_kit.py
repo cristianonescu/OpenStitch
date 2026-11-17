@@ -811,6 +811,17 @@ def kit():
                             f"{HOOPS[hoop]['label']} hoop. Sew both modes of the same image to compare them "
                             "on fabric.",
                             digitize(command, image, hoop, mode, **extra), image))
+    # #994: OpenStitch mode only (PE-DESIGN keeps its plain grid on pixel art): the crosses on
+    # the strawberry's own pixel grid, one per art pixel.
+    designs.append(("image-tools/S-cross-stitch-strawberry-pixel-grid.pes", "S",
+                    "Cross Stitch, strawberry, on the art's own pixel grid",
+                    "`g07-pixel-strawberry.png` through Cross Stitch in OpenStitch mode with "
+                    "`pixelGrid` on: one cross per pixel of the art, on the art's own grid instead "
+                    "of a 2.5 mm grid, fitted to the 100 × 100 mm hoop. Compare it with the "
+                    "OpenStitch-mode strawberry above.",
+                    digitize("digitize.crossStitch", "g07-pixel-strawberry.png", "S", "openStitch",
+                             pixelGrid=True),
+                    "g07-pixel-strawberry.png"))
     return designs
 
 

@@ -36,10 +36,21 @@
 //! - **Part-crosses** (`part_crosses`, off by default): a cell whose two halves along a
 //!   diagonal are clearly different colours is sewn as two halves, a three-quarter and a
 //!   quarter cross.
+//! - **The art's own grid** (`pixel_grid`, off by default; #994): on pixel art (a regular grid
+//!   of flat-colour squares, found by [`pixelgrid::detect`]) the crosses are laid on the art's
+//!   own grid instead of a plain grid at `cell_mm`: one cross per `pixels_per_cross` ×
+//!   `pixels_per_cross` art pixels, as wide and tall as those pixels are (a cross is a little
+//!   oblong when the art's pixels are). Each art pixel's colour is the mean of its inner 60 %
+//!   (away from anti-aliased edges), and a cross covering several art pixels takes the colour
+//!   of the one nearest their mean, never a blend none of them has. Part-crosses are not used
+//!   on the art's grid. PE-DESIGN keeps its plain grid on pixel art (capture round 11, #469),
+//!   so PE-compatible mode never follows the art's grid. The detection is reported either way
+//!   ([`Converted::pixel_art`]), so a caller can offer it.
 
 use crate::autopunch::border_majority;
 use crate::palette::{self, Palette};
 use crate::perceptual::{self, Lab};
+use crate::pixelgrid::{self, PixelGrid};
 use crate::raster::{Frame, Raster};
 use crate::regions::NONE;
 use crate::{DigitizeError, Mode};
@@ -75,6 +86,12 @@ pub struct CrossStitch {
     /// changes the look more than the likeness (+0.9 points on seven test images). Ignored in
     /// PE-DESIGN mode.
     pub part_crosses: bool,
+    /// OpenStitch mode: on pixel art, lay the crosses on the art's own pixel grid instead of a
+    /// plain grid at `cell_mm` (#994; off by default). Ignored in PE-DESIGN mode and on an
+    /// image that is not pixel art.
+    pub pixel_grid: bool,
+    /// With `pixel_grid`: art pixels per cross each way, 1–8 (default 1).
+    pub pixels_per_cross: usize,
 }
 
 /// OpenStitch mode's filled crosses: distance between neighbouring parallel lines, mm. Lines
@@ -135,6 +152,8 @@ impl Default for CrossStitch {
             mode: Mode::PeDesign,
             fill: true,
             part_crosses: false,
+            pixel_grid: false,
+            pixels_per_cross: 1,
         }
     }
 }
@@ -152,21 +171,126 @@ pub struct Converted {
     pub columns: usize,
     pub rows: usize,
     pub background: Option<Thread>,
+    /// OpenStitch mode: the image's own pixel grid when it is pixel art (whether or not the
+    /// crosses follow it); `None` in PE-DESIGN mode.
+    pub pixel_art: Option<PixelArt>,
+}
+
+/// Pixel art found in the image (OpenStitch mode, #994).
+#[derive(Clone, Debug, PartialEq)]
+pub struct PixelArt {
+    /// The art's pixels across and down.
+    pub columns: usize,
+    pub rows: usize,
+    /// One art pixel's width and height, mm, as placed.
+    pub pixel_mm: [f64; 2],
+    /// The crosses follow the art's grid (`pixel_grid` was on).
+    pub followed: bool,
+}
+
+/// Largest side the pixel-art detector reads; a larger image is area-averaged down first.
+const DETECT_SIDE: u32 = 1024;
+
+/// The image's pixel grid in its own pixels, or `None` when it is not pixel art.
+fn detect_grid(image: &Raster) -> Option<PixelGrid> {
+    let small = image.fit(DETECT_SIDE);
+    let mut g = pixelgrid::detect(&small)?;
+    if small.width() != image.width() {
+        let (sx, sy) = (
+            f64::from(image.width()) / f64::from(small.width()),
+            f64::from(image.height()) / f64::from(small.height()),
+        );
+        g.x.pitch *= sx;
+        g.x.phase *= sx;
+        g.y.pitch *= sy;
+        g.y.phase *= sy;
+    }
+    Some(g)
+}
+
+/// A grid cell's width and height, design units.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Cell {
+    w: f64,
+    h: f64,
+    /// OpenStitch mode's shortest stitch, design units: [`MIN_STITCH_MM`], plus a margin on
+    /// the art's grid, whose needle points fall between the 0.1 mm steps a design file stores
+    /// and so can move up to 0.07 mm closer when written.
+    min: f64,
+}
+
+/// The margin [`Cell::min`] adds on the art's grid, design units.
+const ROUNDING_MARGIN: f64 = 0.75;
+
+/// The grid the crosses are laid on: `columns × rows` cells of `cell` design units across,
+/// from `origin`, each `y_scale` times as tall as it is wide.
+struct Grid {
+    frame: Frame,
+    cell: f64,
+    y_scale: f64,
+    cols: usize,
+    rows: usize,
 }
 
 /// `frame` places the source image; its width in mm fixes the grid.
 pub fn convert(image: &Raster, frame: &Frame, p: &CrossStitch) -> Result<Converted, DigitizeError> {
-    let cell = p.cell_mm.clamp(1.0, 10.0) * 10.0;
-    let width = f64::from(image.width()) * frame.scale;
-    let height = f64::from(image.height()) * frame.scale;
-    let cols = (width / cell).round().max(1.0);
-    let rows = (height / cell).round().max(1.0);
-    if cols * rows > MAX_CELLS as f64 {
+    let art = (p.mode == Mode::OpenStitch)
+        .then(|| detect_grid(image))
+        .flatten();
+    let follow = art.filter(|_| p.pixel_grid);
+    let n = p.pixels_per_cross.clamp(1, 8);
+    let grid = match follow {
+        Some(g) => {
+            let (x0, _) = g.x.cells(image.width());
+            let (y0, _) = g.y.cells(image.height());
+            Grid {
+                frame: Frame {
+                    origin: frame.point(g.x.line(x0), g.y.line(y0)),
+                    scale: frame.scale,
+                },
+                cell: n as f64 * g.x.pitch * frame.scale,
+                y_scale: g.y.pitch / g.x.pitch,
+                cols: g.columns.div_ceil(n),
+                rows: g.rows.div_ceil(n),
+            }
+        }
+        None => {
+            let cell = p.cell_mm.clamp(1.0, 10.0) * 10.0;
+            let width = f64::from(image.width()) * frame.scale;
+            let height = f64::from(image.height()) * frame.scale;
+            let cols = (width / cell).round().max(1.0);
+            let rows = (height / cell).round().max(1.0);
+            if cols * rows > MAX_CELLS as f64 {
+                return Err(DigitizeError::TooLarge(format!(
+                    "{cols}×{rows} cells (limit {MAX_CELLS}); use larger cells or a smaller width"
+                )));
+            }
+            Grid {
+                frame: *frame,
+                cell,
+                y_scale: 1.0,
+                cols: cols as usize,
+                rows: rows as usize,
+            }
+        }
+    };
+    let (cols, rows) = (grid.cols, grid.rows);
+    // A cell's width and height in design units: square unless the art's pixels are oblong.
+    let cell = Cell {
+        w: grid.cell,
+        h: grid.cell * grid.y_scale,
+        min: MIN_STITCH_MM * 10.0
+            + if follow.is_some() {
+                ROUNDING_MARGIN
+            } else {
+                0.0
+            },
+    };
+    if cols * rows > MAX_CELLS {
         return Err(DigitizeError::TooLarge(format!(
-            "{cols}×{rows} cells (limit {MAX_CELLS}); use larger cells or a smaller width"
+            "{cols}×{rows} cells (limit {MAX_CELLS}); use more art pixels per cross"
         )));
     }
-    let (cols, rows) = (cols as usize, rows as usize);
     // Classify a working copy (about 8 pixels per cell side) against the reduced palette.
     let side = (cols.max(rows) * 8).clamp(64, 1024) as u32;
     let work = image.fit_mode(side);
@@ -185,14 +309,20 @@ pub fn convert(image: &Raster, frame: &Frame, p: &CrossStitch) -> Result<Convert
             let (palette, labels) = modal_cells(&work, &census, colors, cols, rows);
             (palette, labels, Vec::new())
         }
-        Mode::OpenStitch => mean_cells(
-            &image.fit(side),
-            &census,
-            colors,
-            cols,
-            rows,
-            p.part_crosses,
-        ),
+        Mode::OpenStitch => match follow {
+            Some(g) => {
+                let (palette, labels) = art_cells(image, &g, n, &census, colors);
+                (palette, labels, Vec::new())
+            }
+            None => mean_cells(
+                &image.fit(side),
+                &census,
+                colors,
+                cols,
+                rows,
+                p.part_crosses,
+            ),
+        },
     };
     let split_at = |i: usize| splits.get(i).copied().flatten();
     let background = if p.skip_background {
@@ -238,7 +368,16 @@ pub fn convert(image: &Raster, frame: &Frame, p: &CrossStitch) -> Result<Convert
                                     above,
                                     diagonal,
                                 };
-                                sew_part(&mut stitches, frame, cell, y, x, part, p.fill, density);
+                                sew_part(
+                                    &mut stitches,
+                                    &grid.frame,
+                                    cell,
+                                    y,
+                                    x,
+                                    part,
+                                    p.fill,
+                                    density,
+                                );
                             }
                         }
                         x += 1;
@@ -256,9 +395,27 @@ pub fn convert(image: &Raster, frame: &Frame, p: &CrossStitch) -> Result<Convert
                         x += 1;
                     }
                     if p.mode == Mode::OpenStitch && p.fill {
-                        sew_filled_run(&mut stitches, frame, cell, y, start, x, p.kind, density);
+                        sew_filled_run(
+                            &mut stitches,
+                            &grid.frame,
+                            cell,
+                            y,
+                            start,
+                            x,
+                            p.kind,
+                            density,
+                        );
                     } else {
-                        sew_run(&mut stitches, frame, cell, y, start, x, p.kind, p.triple);
+                        sew_run(
+                            &mut stitches,
+                            &grid.frame,
+                            cell,
+                            y,
+                            start,
+                            x,
+                            p.kind,
+                            p.triple,
+                        );
                     }
                 }
             }
@@ -266,7 +423,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &CrossStitch) -> Result<Convert
             // Every run the compiler trims ties in and locks, as PE-DESIGN's Cross Stitch does.
             // OpenStitch mode keeps every stitch at least MIN_STITCH_MM: its lock steps that far.
             let step = if p.mode == Mode::OpenStitch {
-                MIN_STITCH_MM * 10.0
+                cell.min
             } else {
                 3.0
             };
@@ -285,7 +442,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &CrossStitch) -> Result<Convert
     };
     // OpenStitch mode's filled crosses: the highest run budget whose design stays within the
     // design-wide density; the others sew as before.
-    let area = (cols * rows) as f64 * (cell / 10.0) * (cell / 10.0);
+    let area = (cols * rows) as f64 * (cell.w / 10.0) * (cell.h / 10.0);
     let points = |objects: &[DesignObject]| -> usize {
         objects
             .iter()
@@ -312,7 +469,95 @@ pub fn convert(image: &Raster, frame: &Frame, p: &CrossStitch) -> Result<Convert
         columns: cols,
         rows,
         background: background.map(|b| palette.threads[b as usize].clone()),
+        pixel_art: art.map(|g| PixelArt {
+            columns: g.columns,
+            rows: g.rows,
+            pixel_mm: [
+                g.x.pitch * frame.scale / 10.0,
+                g.y.pitch * frame.scale / 10.0,
+            ],
+            followed: follow.is_some(),
+        }),
     })
+}
+
+/// OpenStitch mode on the art's grid (#994): each art pixel's colour is the mean CIELAB of its
+/// inner 60 % (each way) of opaque source pixels, `None` when most of that box is transparent
+/// or off the image. A cross over `n × n` art pixels is empty when at most half of them have a
+/// colour; otherwise it takes the colour of its art pixel nearest (CIEDE2000) the mean of
+/// theirs, so an edge cell gets one of its own pixels' colours, never a blend; ties go to the
+/// first in scan order. The thread is that colour's in the census's perceptual palette, as
+/// [`mean_cells`] picks it.
+fn art_cells(
+    image: &Raster,
+    g: &PixelGrid,
+    n: usize,
+    census: &palette::Census,
+    colors: usize,
+) -> (Palette, Vec<u16>) {
+    let palette = Palette::from_census_perceptual(census, colors);
+    let (x0, cols) = g.x.cells(image.width());
+    let (y0, rows) = g.y.cells(image.height());
+    let (w, h) = (f64::from(image.width()), f64::from(image.height()));
+    let inner = |axis: &pixelgrid::Axis, k: i64, side: f64| -> (u32, u32) {
+        let a = axis.line(k);
+        let lo = (a + 0.2 * axis.pitch).round().clamp(0.0, side);
+        let hi = (a + 0.8 * axis.pitch).round().clamp(0.0, side);
+        (lo as u32, (hi as u32).max(lo as u32 + 1).min(side as u32))
+    };
+    let mut colour: Vec<Option<Lab>> = Vec::with_capacity(cols * rows);
+    for j in 0..rows {
+        let (ya, yb) = inner(&g.y, y0 + j as i64, h);
+        for i in 0..cols {
+            let (xa, xb) = inner(&g.x, x0 + i as i64, w);
+            let (mut sum, mut opaque, mut all) = ([0.0; 3], 0usize, 0usize);
+            for y in ya..yb {
+                for x in xa..xb {
+                    all += 1;
+                    let [r, gr, b, a] = image.pixel(x, y);
+                    if a >= 128 {
+                        let l = perceptual::lab([r, gr, b]);
+                        sum.iter_mut().zip(l).for_each(|(s, v)| *s += v);
+                        opaque += 1;
+                    }
+                }
+            }
+            colour.push((2 * opaque > all).then(|| sum.map(|v| v / opaque as f64)));
+        }
+    }
+    let (ccols, crows) = (cols.div_ceil(n), rows.div_ceil(n));
+    let mut labels = Vec::with_capacity(ccols * crows);
+    for cy in 0..crows {
+        for cx in 0..ccols {
+            let mut own: Vec<Lab> = Vec::with_capacity(n * n);
+            for j in cy * n..(cy * n + n) {
+                for i in cx * n..(cx * n + n) {
+                    if let Some(Some(c)) = (i < cols && j < rows).then(|| colour[j * cols + i]) {
+                        own.push(c);
+                    }
+                }
+            }
+            if 2 * own.len() <= n * n {
+                labels.push(NONE);
+                continue;
+            }
+            let mut mean = [0.0; 3];
+            for c in &own {
+                mean.iter_mut()
+                    .zip(c)
+                    .for_each(|(m, v)| *m += v / own.len() as f64);
+            }
+            let nearest = own
+                .iter()
+                .copied()
+                .min_by(|a, b| {
+                    perceptual::de2000(*a, mean).total_cmp(&perceptual::de2000(*b, mean))
+                })
+                .unwrap_or(mean);
+            labels.push(palette.classify(perceptual::rgb(nearest)) as u16);
+        }
+    }
+    (palette, labels)
 }
 
 /// The `x0..x1 × y0..y1` working pixels of cell (`x`, `y`) on a `cols × rows` grid over a
@@ -513,14 +758,14 @@ fn mean_cells(
 fn sew_run(
     out: &mut Vec<Stitch>,
     frame: &Frame,
-    cell: f64,
+    cell: Cell,
     row: usize,
     a: usize,
     b: usize,
     kind: CrossType,
     triple: bool,
 ) {
-    let at = |col: f64, r: f64| (frame.origin.x + col * cell, frame.origin.y + r * cell);
+    let at = |col: f64, r: f64| (frame.origin.x + col * cell.w, frame.origin.y + r * cell.h);
     let put = |out: &mut Vec<Stitch>, (x, y): (f64, f64), command| {
         out.push(Stitch::new(x, y, command));
     };
@@ -579,16 +824,16 @@ pub fn fill_lines(cell_mm: f64) -> (usize, usize) {
 fn sew_filled_run(
     out: &mut Vec<Stitch>,
     frame: &Frame,
-    cell: f64,
+    cell: Cell,
     row: usize,
     a: usize,
     b: usize,
     kind: CrossType,
     density: f64,
 ) {
-    let cell_mm = cell / 10.0;
+    let cell_mm = cell.w / 10.0;
     let (wanted, split) = fill_lines(cell_mm);
-    let budget = density * (b - a) as f64 * cell_mm * cell_mm;
+    let budget = density * (b - a) as f64 * cell_mm * cell.h / 10.0;
     let mut k = wanted;
     loop {
         let run = filled_run(frame, cell, row, a, b, kind, k, split);
@@ -613,7 +858,7 @@ fn sew_filled_run(
 #[allow(clippy::too_many_arguments)]
 fn filled_run(
     frame: &Frame,
-    cell: f64,
+    cell: Cell,
     row: usize,
     a: usize,
     b: usize,
@@ -674,11 +919,11 @@ fn filled_run(
 /// jump to the first point: a line whose horizontal extent is a whole cell is split into `split`
 /// equal stitches, a shorter one into as many as its share needs, and a needle point nearer
 /// than [`MIN_STITCH_MM`] to the previous one is left out.
-fn emit(lines: &[Vec<(f64, f64)>], frame: &Frame, cell: f64, split: usize) -> Vec<Stitch> {
+fn emit(lines: &[Vec<(f64, f64)>], frame: &Frame, cell: Cell, split: usize) -> Vec<Stitch> {
     let mut stitches = Vec::new();
     let out = &mut stitches;
-    let at = |(col, r): (f64, f64)| (frame.origin.x + col * cell, frame.origin.y + r * cell);
-    let min = MIN_STITCH_MM * 10.0;
+    let at = |(col, r): (f64, f64)| (frame.origin.x + col * cell.w, frame.origin.y + r * cell.h);
+    let min = cell.min;
     let mut last: Option<(f64, f64)> = None;
     let mut put = |out: &mut Vec<Stitch>, p: (f64, f64)| match last {
         None => {
@@ -698,7 +943,7 @@ fn emit(lines: &[Vec<(f64, f64)>], frame: &Frame, cell: f64, split: usize) -> Ve
             if let Some(q) = prev {
                 // A whole diagonal is split into `split` equal stitches; a clipped one into as
                 // many as its share of the diagonal needs.
-                let pieces = ((p.0 - q.0).abs() / cell * split as f64).ceil().max(1.0) as usize;
+                let pieces = ((p.0 - q.0).abs() / cell.w * split as f64).ceil().max(1.0) as usize;
                 for s in 1..pieces {
                     let f = s as f64 / pieces as f64;
                     put(out, (q.0 + (p.0 - q.0) * f, q.1 + (p.1 - q.1) * f));
@@ -731,7 +976,7 @@ struct Part {
 fn sew_part(
     out: &mut Vec<Stitch>,
     frame: &Frame,
-    cell: f64,
+    cell: Cell,
     row: usize,
     col: usize,
     part: Part,
@@ -755,9 +1000,9 @@ fn sew_part(
         out.extend(emit(&[line], frame, cell, 1));
         return;
     }
-    let cell_mm = cell / 10.0;
+    let cell_mm = cell.w / 10.0;
     let (wanted, split) = fill_lines(cell_mm);
-    let budget = density * cell_mm * cell_mm / 2.0;
+    let budget = density * cell_mm * cell.h / 10.0 / 2.0;
     let mut k = wanted;
     loop {
         // Line j of k: the diagonal moved j / k of the way to the corner.

@@ -178,7 +178,7 @@ OpenStitch (the image dialog's Method choice):
   Since B16.1 ([plan](docs/research/beyond/image-similarity-plan.md)) the threads are chosen
   for the image as a whole, Photo Stitch 1 dithers only where the image is tonal, a Fidelity
   choice (Standard / High) trades colours for likeness, Cross Stitch takes each cell's mean
-  colour, and Design Center finds its line threshold from the image (Otsu). Photo Stitch 1 samples
+  colour and can lay one cross per pixel on pixel art's own grid, and Design Center finds its line threshold from the image (Otsu). Photo Stitch 1 samples
   the image every 0.25 mm in rows that stay within 2.1 needle points per mm² (no 10 × 10 mm area
   above 3.0), with a Trims choice (fewer trims or the best likeness). Auto Punch sews the
   background and sews dark outlines as satin on top, in one covering layer; it can instead
@@ -514,7 +514,9 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
   click-to-fix on the picture, colour order, fill angles and outline SVG export ([#489]).
 - (+) **Picture helpers on your computer:** one-click subject cut-out and line drawings from photos,
   with no model and nothing sent anywhere ([#490]).
-- **Background image** (PNG, JPEG, BMP or the clipboard): place, rotate, crop, adjust, save and
+- (+) **Cross Stitch on pixel art's own grid:** one cross per pixel of the art (or per block of
+  them), each in one of its own pixels' colours ([#994]).
+- **Background image** (PNG, JPEG, BMP, GIF, WebP or the clipboard): place, rotate, crop, adjust, save and
   trace over, (+) with handles on the canvas ([#518]).
 
 ### Wizards and production aids
@@ -831,6 +833,7 @@ tests and the keychain round trip
 [#549]: https://github.com/cristianonescu/OpenStitch/issues/549
 [#1036]: https://github.com/cristianonescu/OpenStitch/issues/1036
 [#1093]: https://github.com/cristianonescu/OpenStitch/issues/1093
+[#994]: https://github.com/cristianonescu/OpenStitch/issues/994
 [#550]: https://github.com/cristianonescu/OpenStitch/issues/550
 [#551]: https://github.com/cristianonescu/OpenStitch/issues/551
 [#552]: https://github.com/cristianonescu/OpenStitch/issues/552

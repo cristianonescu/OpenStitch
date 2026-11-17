@@ -132,6 +132,13 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   one satin). It sews thin features (ropes, whiskers) as running lines, but adds no colour stop
   for a short one: a thread's lines under 40 mm in all that would need a block of their own are
   left out.
+- Pixel art as cross stitch (beyond PE-DESIGN): `digitize.crossStitch {compatMode: "openStitch"}`
+  reports `pixelArt` (art pixels across and down, their size in mm) when the picture is pixel
+  art; add `pixelGrid: true` to lay one cross per art pixel on the art's own grid instead of a
+  `cellSize` grid (`pixelsPerCross` 2-8 for one cross per block of art pixels). PE-compatible
+  mode keeps its plain grid, as PE-DESIGN does.
+- Pictures for the image tools and the background: PNG, JPEG, BMP, GIF (its first frame) and
+  WebP.
 - Colours: a thread code as a string (`"205"`: the default chart's thread first, then
   Brother's chart, then the other built-in charts), brand and code (`"Brother 205"`,
   `"Madeira 1801"`), a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Prussian Blue"`,

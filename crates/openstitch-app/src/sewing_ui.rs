@@ -263,10 +263,8 @@ impl Host<FactoryAction> for EditorApp {
             OpenTemplate => {
                 let ctx = ctx.clone();
                 crate::files::pick_then(
-                    crate::files::FileDialog::new().add_filter(
-                        "Image",
-                        &["png", "jpg", "jpeg", "bmp", "gif", "tif", "tiff"],
-                    ),
+                    crate::files::FileDialog::new()
+                        .add_filter("Image", &openstitch_digitize::raster::PICTURE_EXTENSIONS),
                     move |app, path| {
                         let st = &mut app.sewing;
                         st.message = match open_template(st, &path, &ctx) {
