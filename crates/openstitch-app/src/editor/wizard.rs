@@ -192,6 +192,11 @@ pub struct ImageWizard {
     /// Cross Stitch, OpenStitch mode: three-quarter and quarter crosses where a cell is split by
     /// an edge (`partCrosses`, default off, the owner's choice).
     pub part_crosses: bool,
+    /// Cross Stitch, OpenStitch mode: on pixel art, crosses on the art's own grid
+    /// (`pixelGrid`, #994; off by default, the owner's call).
+    pub pixel_grid: bool,
+    /// With `pixel_grid`: art pixels per cross each way (`pixelsPerCross`, 1-8).
+    pub pixels_per_cross: u32,
     /// Photo Stitch 1, OpenStitch mode: sew every jump with a trim for the best likeness
     /// (`travel: allTrims`) instead of short travel stitches (`fewerTrims`); `None` follows the
     /// fidelity (Standard fewer trims, High all).
@@ -260,6 +265,8 @@ impl Default for ImageWizard {
             fixing: false,
             cross_fill: true,
             part_crosses: false,
+            pixel_grid: false,
+            pixels_per_cross: 1,
             all_trims: None,
             auto_lines: true,
             min_area: 1.0,
@@ -457,6 +464,12 @@ impl ImageWizard {
                 }
                 if self.open_stitch && self.part_crosses {
                     p.insert("partCrosses".into(), json!(true));
+                }
+                if self.open_stitch && self.pixel_grid {
+                    p.insert("pixelGrid".into(), json!(true));
+                    if self.pixels_per_cross > 1 {
+                        p.insert("pixelsPerCross".into(), json!(self.pixels_per_cross.min(8)));
+                    }
                 }
                 p.insert("skipBackground".into(), json!(self.skip_background));
                 p.insert("cellSize".into(), json!(self.cell));
@@ -1073,6 +1086,27 @@ mod tests {
         assert!(
             r.params.get("partCrosses").is_none(),
             "part crosses are off by default"
+        );
+        assert!(
+            r.params.get("pixelGrid").is_none() && r.params.get("pixelsPerCross").is_none(),
+            "the art's grid is off by default (#994)"
+        );
+        let art = ImageWizard {
+            pixel_grid: true,
+            pixels_per_cross: 2,
+            ..cs.clone()
+        };
+        let r = art.request().expect("request");
+        assert_eq!(r.params["pixelGrid"], true);
+        assert_eq!(r.params["pixelsPerCross"], 2);
+        let pe_art = ImageWizard {
+            open_stitch: false,
+            ..art
+        };
+        let r = pe_art.request().expect("request");
+        assert!(
+            r.params.get("pixelGrid").is_none(),
+            "PE-compatible mode never sends it"
         );
         let plain = ImageWizard {
             cross_fill: false,

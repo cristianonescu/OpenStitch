@@ -1555,10 +1555,10 @@ impl EditorApp {
         }
     }
 
-    /// File ▸ Background Image: a PNG, JPEG or BMP shown behind the design, fitted to the page.
+    /// File ▸ Background Image: a PNG, JPEG, BMP, GIF or WebP shown behind the design, fitted to the page.
     pub fn background_dialog(&mut self) {
         crate::files::pick_then(
-            crate::files::FileDialog::new().add_filter("Images", &["png", "jpg", "jpeg", "bmp"]),
+            crate::files::FileDialog::new().add_filter("Images", &openstitch_digitize::raster::PICTURE_EXTENSIONS),
             |app, p| app.background_from(&p),
         );
     }

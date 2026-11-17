@@ -342,12 +342,12 @@ fn open_file_from(st: &mut CreatorState, path: &std::path::Path) {
     }
 }
 
-/// Open Template: a PNG, JPEG or BMP of the user's own behind the Design Page (it replaces
+/// Open Template: a PNG, JPEG, BMP, GIF or WebP of the user's own behind the Design Page (it replaces
 /// the one shown; it is not part of the pattern).
 fn open_template(_st: &mut CreatorState, ctx: &egui::Context) {
     let ctx = ctx.clone();
     crate::files::pick_then(
-        crate::files::FileDialog::new().add_filter("Image", &["png", "jpg", "jpeg", "bmp"]),
+        crate::files::FileDialog::new().add_filter("Image", &openstitch_digitize::raster::PICTURE_EXTENSIONS),
         move |app, path| open_template_from(&mut app.creator, &path, &ctx),
     );
 }
