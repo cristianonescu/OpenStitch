@@ -353,6 +353,14 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    user is asked first, as for any save). Right after your own save, `ui.state` has
    `unsavedDesign: false` and `unsavedConversationOnly: true` while your reply goes on: the
    design is saved, and the next save adds the rest of the conversation.
+   For an older machine that reads only floppy disks (often fitted with a USB floppy emulator),
+   `transfer.diskImage {path: "machine.img", addDesign: true, format: "dst"}` writes the design
+   onto a 1.44 MB FAT12 disk image file (made if missing; `add: [paths]` copies other files,
+   `remove: ["NAME.EXT"]` deletes, `overwrite: true` replaces a file of the same 8.3 name, which
+   is refused otherwise; long names get a short one such as `MYDESI~1.DST`), and
+   `transfer.diskImageList {path}` lists the files and free space. It writes the image file
+   only, never a drive: tell the user to copy the image to the floppy or emulator themselves.
+   In the editor: Sew Embroidery ▸ Floppy Image… (`ui.run floppyImage`).
    To show how it will look worn, `design.mockup {path: "name.png", garment: "tshirt" | "cap" |
    "tote", placement: "centre" | "leftChest" (T-shirt only), color: "#rrggbb"}` draws it at true
    size on the garment; when the result has `fits: false`, tell the user the design is larger

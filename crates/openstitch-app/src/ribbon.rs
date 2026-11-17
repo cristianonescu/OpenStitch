@@ -539,6 +539,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         New => app.guarded(Pending::New),
         Open => app.guarded(Pending::Open(None)),
         TestSwatches => app.ui.open_swatches = true,
+        FloppyImage => crate::floppy_ui::open(app),
         JobSheet => app.ui.open_job_sheet = true,
         CheckDesign => crate::quality_ui::open(app, crate::quality_ui::Tab::Check),
         DensityMap => crate::quality_ui::open(app, crate::quality_ui::Tab::Density),
@@ -884,6 +885,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             if ui.button(t("menu-send-to-usb-media")).clicked() {
                 crate::transfer_ui::open(app);
             }
+            menu_item(app, ui, FloppyImage);
             menu_item(app, ui, TestSwatches);
             menu_item(app, ui, ExportSections);
             ui.menu_button(t("menu-export"), |ui| export_menu(app, ui));

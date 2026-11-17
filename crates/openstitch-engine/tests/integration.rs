@@ -46,6 +46,8 @@ mod determinism;
 mod digitize;
 #[path = "direction.rs"]
 mod direction;
+#[path = "disk_image.rs"]
+mod disk_image;
 #[path = "drawing.rs"]
 mod drawing;
 #[path = "edit_tools.rs"]

@@ -623,6 +623,17 @@ pub const FILE_PARAMS: &[(&str, &[(&str, FileParam)])] = {
         ("threads.exportCsv", &[("path", Writes)]),
         ("threads.exportList", &[("path", Writes)]),
         ("threads.exportPalette", &[("path", Writes)]),
+        (
+            "transfer.diskImage",
+            &[
+                ("path", Writes),
+                ("add", Reads),
+                ("name", NotAPath),
+                ("remove", NotAPath),
+                ("label", NotAPath),
+                ("format", NotAPath),
+            ],
+        ),
         ("transfer.send", &[("volume", NotAPath), ("name", NotAPath)]),
     ]
 };

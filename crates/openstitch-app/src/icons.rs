@@ -229,6 +229,7 @@ own!(
     "smooth_stitches",
     "knife",
     "join_lines",
+    "floppy_image",
     "break_apart",
     "gradient",
     "fill_angle",
@@ -483,6 +484,7 @@ fn glyph(a: Action) -> Glyph {
         AngleLineTool => G::Own("angle_line"),
         ShapeEffects => G::Own("shape_effects"),
         TestSwatches => G::Own("test_swatches"),
+        FloppyImage => G::Own("floppy_image"),
         JobSheet => G::Own("job_sheet"),
         // Check Design's actions (#599) reuse existing icons: no new graphic.
         CheckDesign => G::Info,
