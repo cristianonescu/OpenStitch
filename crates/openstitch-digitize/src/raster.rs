@@ -10,6 +10,16 @@ pub const MAX_SIDE: u32 = 8192;
 /// Largest accepted pixel count (64 MiB as RGBA).
 pub const MAX_PIXELS: u64 = 16 << 20;
 
+/// File extensions (lower case) of the pictures [`Raster::decode`] reads: PNG, JPEG, BMP, GIF
+/// (its first frame) and WebP (#832). Every image picker filters on this list, so a picker
+/// never offers a file that then fails to decode.
+pub const PICTURE_EXTENSIONS: [&str; 6] = ["png", "jpg", "jpeg", "bmp", "gif", "webp"];
+
+/// Whether `extension` (any case, without the dot) is one of [`PICTURE_EXTENSIONS`].
+pub fn is_picture_extension(extension: &str) -> bool {
+    PICTURE_EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str())
+}
+
 /// 8-bit RGBA pixels, row-major, straight (not premultiplied) alpha.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Raster {
@@ -64,8 +74,9 @@ impl Raster {
         Self::from_rgba(width, height, rgba)
     }
 
-    /// Decodes PNG, JPEG or BMP bytes. The header is checked against the size limits before
-    /// any pixel memory is allocated, and the decoder's own allocation limit is set too.
+    /// Decodes PNG, JPEG, BMP, GIF (the first frame of an animation) or WebP bytes. The header
+    /// is checked against the size limits before any pixel memory is allocated, and the
+    /// decoder's own allocation limit is set too.
     pub fn decode(bytes: &[u8]) -> Result<Self, DigitizeError> {
         use image::{ImageDecoder, ImageReader, Limits};
         if bytes.len() > MAX_FILE_BYTES {
@@ -495,6 +506,54 @@ mod tests {
             "BMP is lossless"
         );
         assert!(r.encode_as("gif").is_err());
+    }
+
+    /// #832: GIF (first frame) and WebP decode with the same size limits as the other formats.
+    #[test]
+    fn decodes_gif_first_frame_and_webp() {
+        use image::codecs::gif::GifEncoder;
+        use image::codecs::webp::WebPEncoder;
+        use image::{Delay, Frame as GifFrame, ImageEncoder, RgbaImage};
+        let first = RgbaImage::from_fn(6, 4, |x, _| image::Rgba([200, 30, (x * 40) as u8, 255]));
+        let second = RgbaImage::from_pixel(6, 4, image::Rgba([0, 0, 255, 255]));
+        let mut gif = Vec::new();
+        {
+            let mut e = GifEncoder::new(&mut gif);
+            for f in [first.clone(), second] {
+                e.encode_frame(GifFrame::from_parts(
+                    f,
+                    0,
+                    0,
+                    Delay::from_numer_denom_ms(100, 1),
+                ))
+                .expect("frame");
+            }
+        }
+        let r = Raster::decode(&gif).expect("gif");
+        assert_eq!((r.width(), r.height()), (6, 4));
+        let p = r.pixel(0, 0);
+        assert!(
+            p[0] > 150 && p[2] < 60,
+            "the first frame, not the blue second: {p:?}"
+        );
+        let mut webp = Vec::new();
+        WebPEncoder::new_lossless(&mut webp)
+            .write_image(first.as_raw(), 6, 4, image::ExtendedColorType::Rgba8)
+            .expect("webp");
+        let r = Raster::decode(&webp).expect("webp");
+        assert_eq!(
+            r,
+            Raster::from_rgba(6, 4, first.into_raw()).expect("raster"),
+            "lossless"
+        );
+        // A GIF header over the side limit is refused before its pixels are read.
+        let mut big = gif.clone();
+        big[6..8].copy_from_slice(&(MAX_SIDE as u16 + 1).to_le_bytes());
+        assert!(Raster::decode(&big).is_err());
+        for ext in ["GIF", "webp", "Png", "jpeg"] {
+            assert!(is_picture_extension(ext), "{ext}");
+        }
+        assert!(!is_picture_extension("tif"));
     }
 
     #[test]

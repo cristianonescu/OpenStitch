@@ -39,7 +39,7 @@ fn image_docs(mut v: Vec<ParamDoc>) -> Vec<ParamDoc> {
         opt(
             "path",
             "string",
-            "Image file: PNG, JPEG or BMP (default: the design's background image as shown)",
+            "Image file: PNG, JPEG, BMP, GIF (first frame) or WebP (default: the design's background image as shown)",
         ),
         opt(
             "mode",

@@ -180,7 +180,10 @@ some pictures the compatible mode still sews truer: try both and compare with `v
 
 Useful options: Auto Punch `colors` (0 = automatic; in OpenStitch mode that also keeps a small,
 distinct solid patch, such as a basket under a balloon, as its own thread), `skipBackground`; Photo Stitch
-`colors`, `mode: "mono"` with `thread`; Cross Stitch `cellSize` (mm); Design Center
+`colors`, `mode: "mono"` with `thread`; Cross Stitch `cellSize` (mm), and on pixel art in
+OpenStitch mode `pixelGrid: true` (one cross per art pixel on the art's own grid instead of a
+`cellSize` grid; `pixelsPerCross` 1-8 groups art pixels; the result's `pixelArt` says whether
+the picture is pixel art, so call once without it to see); Design Center
 `lineSew`, `regionSew`, `joinLines` (on by default: running and triple lines that meet are sewn
 as one path, walking back over lines already sewn instead of a trim after every piece; `false`
 keeps one piece per line). In OpenStitch mode `threads: "all"` chooses from every built-in chart.

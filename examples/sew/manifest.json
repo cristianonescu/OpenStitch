@@ -1553,7 +1553,7 @@
    199.0,
    150.1
   ],
-  "stitches": 95055,
+  "stitches": 95058,
   "trims": 1082,
   "threads": [
    "017 Light Blue",
@@ -1570,7 +1570,7 @@
   "sewingMinutes": 174.3,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "d61d5dc36c1e4d1d436c7d2069c0a0f07654be31eac4def2f43d6569e3f567c8",
+  "sha256": "028a1ceebf3ad252e9dff5a3444b74f3c7b83206a9c88ed64dc8e84a35adfdcf",
   "renderVersion": 3
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
@@ -1599,6 +1599,31 @@
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
   "sha256": "a12d6809cdb52f2eea64e49ffea31e228daea414ed5480ac6ad416752249383d",
+  "renderVersion": 3
+ },
+ "image-tools/S-cross-stitch-strawberry-pixel-grid.pes": {
+  "title": "Cross Stitch, strawberry, on the art's own pixel grid",
+  "about": "`g07-pixel-strawberry.png` through Cross Stitch in OpenStitch mode with `pixelGrid` on: one cross per pixel of the art, on the art's own grid instead of a 2.5 mm grid, fitted to the 100 × 100 mm hoop. Compare it with the OpenStitch-mode strawberry above.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   61.7,
+   77.4
+  ],
+  "stitches": 7160,
+  "trims": 105,
+  "threads": [
+   "206 Harvest Gold",
+   "079 Salmon Pink",
+   "509 Leaf Green",
+   "800 Red",
+   "515 Moss Green",
+   "107 Dark Fuchsia",
+   "507 Emerald Green"
+  ],
+  "sewingMinutes": 14.3,
+  "image": "../images/g07-pixel-strawberry.png",
+  "preview": "previews/S-cross-stitch-strawberry-pixel-grid.png",
+  "sha256": "e756d460b7c533e22dd7fac133ec35fd6dd1ca9afaa640b2a1c4c5a9e3966f45",
   "renderVersion": 3
  }
 }

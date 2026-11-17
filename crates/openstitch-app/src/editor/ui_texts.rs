@@ -899,6 +899,15 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ),
     ("ui-part-crosses-on-edges", "Part crosses on edges"),
     (
+        "ui-follow-the-pixel-art-grid",
+        "Follow pixel art's own grid (+)",
+    ),
+    (
+        "ui-follow-the-pixel-art-grid-tip",
+        "When the picture is pixel art, one cross per art pixel (or per several of them), each in one of its own pixels' colours, instead of a grid at the cross size. Other pictures keep the grid.",
+    ),
+    ("ui-art-pixels-per-cross", "Art pixels per cross"),
+    (
         "ui-automatic-threshold-and-lines",
         "Automatic threshold and lines",
     ),
