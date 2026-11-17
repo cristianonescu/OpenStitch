@@ -6100,17 +6100,6 @@
       "notes": "Black-box capture from the coordinator's round-10 notes (#915), re-saved on the larger hoop because the first save, made with the design a hair outside the 100 mm page, has no stitches in its PEC block. PE-DESIGN output of the project's own test image. Image path redacted 2026-11-17: the embedded relative path to the source image named a local folder; its folder part was rewritten at the same length (16 bytes differ), every other byte unchanged; SHA-256 as saved by PE-DESIGN 57e1c099af034f81cf47b36c3302945150df8424974f07259b6c805b8082ac5f."
     },
     {
-      "file": "image/298-photostitch1-p06-sunset-90mm.pes",
-      "reference": "pe-design",
-      "madeBy": "Cristian Onescu",
-      "peDesignVersion": "11.50",
-      "date": "2026-11-08",
-      "os": "Windows 11 Pro",
-      "settings": "Image > Open from File examples/images/p06-sunset.jpg (768 x 430 px) on a 100 x 100 mm page, resized to 90.00 x 50.40 mm and centred. Image > Photo Stitch 1 > Color, rectangle mask 89.9 x 50.3 mm, Fit to page not pressed. Defaults: Thread Chart BROTHER EMBROIDERY, Auto Select on, Max. Number of Colors 10, Detail slider at its default, Run Pitch 3.0 mm, Sew Page Color on, Add mask outline off. Threads in sewing order: 209, 348, 323, 607, 333, 030, 704, 707, 007, 900. Result: 10 stitch objects, 88.80 x 49.90 mm, 8683 stitches. Saved as Layout & Editing Ver 11.0.",
-      "sha256": "f257f76935971743450fb5588cbb923acee067f4f8744608036cc880ddda3f2b",
-      "notes": "Black-box capture from the coordinator's round-8 notes (#298), added 2026-11-17 for #960 and #298 (colour-map comparison); no spec reads it yet. PE-DESIGN output of the project's own test image. Image path redacted before it was added: the folder part of the embedded relative path to the source image was rewritten at the same length (16 bytes differ), every other byte unchanged; SHA-256 as saved by PE-DESIGN 9f0096d722a5e71489692f403336f332ea1c28b62eb13f06b1687f544cfc690c."
-    },
-    {
       "file": "stitches/stamp-plain-square-baseline.pes",
       "spec": "stamp-plain-square-baseline",
       "reference": "pe-design",
