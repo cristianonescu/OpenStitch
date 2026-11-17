@@ -32,6 +32,18 @@ pub use thread_code::{
 /// three are kept for files that name them but are not candidates (#119, #136).
 pub const PEC_BASIC_COLORS: usize = 61;
 
+/// Where the centre of the Design Page lies in PE-DESIGN 11.50's own coordinates, on both axes,
+/// 0.1 mm: 100 mm right of and below their origin, whatever the page's size. Two things count
+/// from that origin:
+/// - a Custom Size page's sections (`openstitch_formats::pes11::section_starts`; five
+///   custom-page files, #322);
+/// - the needle grid of a Fill sewn with a Frequency (`openstitch_design`, #1131): the sweep
+///   squares at 0, 30, 45, 90 and 135 degrees fit it within 0.04 mm, the 30 degree square at
+///   four page positions gives one grid constant (tatami-40-st1-dir30, -pos0-, -pos2- and
+///   sweep-fill-dir-30), and so does the stamp capture drawn on a 180 x 130 mm page
+///   (stamp-plain-square-baseline).
+pub const PE_PAGE_CENTRE: f64 = 1000.0;
+
 /// The Brother chart entries a colour may be matched to: `PEC_CHART[..=PEC_BASIC_COLORS]`
 /// (index 0 is unused). Use with [`nearest_index`] instead of the whole `PEC_CHART`.
 pub fn pec_basic_chart() -> &'static [Option<Thread>] {

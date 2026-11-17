@@ -705,6 +705,10 @@ fn layers_inner(
         Some(c) => (c, &[]),
         None => (closed, holes),
     };
+    // PE-DESIGN's page-wide needle grid is for the plain Fill with a Frequency only (#1131):
+    // the seeded random stagger, the textures and a pushed-in fill keep theirs with the shape.
+    let origin = origin
+        .filter(|_| pushed.is_none() && matches!(r.fill_stagger(), generate::Stagger::Regular(_)));
     // Already joined by its travel (the hidden fill picks among joined candidates).
     let mut joined = false;
     let mut runs = match r.kind {

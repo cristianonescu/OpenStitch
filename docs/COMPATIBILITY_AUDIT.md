@@ -1201,11 +1201,24 @@ Line references are relative to `crates/`.
       otherwise (fill-square-5mm-under-sewing);
     - the halves meet on the end point when it differs from the start point (machine-jumps,
       sew-order-six-objects);
-    - the needle grid starts at the origin of PE-DESIGN's page coordinates, 100 mm left of and
-      above the page's centre (five sweep angles within 0.04 mm; four positions at 30°), so the
-      needle points along a row depend on the shape's place on the page. PE-DESIGN does not
-      sew a moved object again (tatami-40-pos-center and -pos-right10 hold round 4's needle
-      points); OpenStitch sews from the model, so a moved fill takes the grid of its new place.
+    - the needle grid of a plain Fill with a regular Frequency starts at the origin of
+      PE-DESIGN's page coordinates, 100 mm left of and above the page's centre
+      (`openstitch_core::PE_PAGE_CENTRE`, the point `pes11::section_starts` counts a Custom
+      Size page's sections from). Captures: the sweep squares at 0, 30, 45, 90 and 135°
+      (residual 0.00 to 0.04 mm), the 30° square at four page positions (tatami-40-st1-dir30,
+      -pos0-, -pos2-, sweep-fill-dir-30: one grid constant, 2.81 to 2.90 mm), and the stamp
+      capture drawn on a 180 x 130 mm page (stamp-plain-square-baseline). The needle points
+      along a row therefore depend on the shape's place on the page; its rows do not.
+      Lettering, the random stagger, the textures, a pushed-in fill, Stitch Type 2 and every
+      other sew type keep their grids with the shape (#567).
+    - **Known difference: when a moved fill is sewn again.** PE-DESIGN keeps an object's
+      stitches when it is only moved and sews it again at the next attribute change:
+      tatami-40-pos-center and -pos-right10 (moved 5 mm apart, no attribute changed) hold round
+      4's needle points one for one, while -pos0- and -pos2- (Direction or Stitch Type set
+      after the move) hold the grid of their new place. OpenStitch sews from the model, so a
+      moved plain Fill takes the grid of its new place at once: its rows are the same and its
+      needle count can differ by a few from before the move (a 40 mm square at 0°: up to 18).
+      Align and distribute (#472) move objects the same way.
     Measured: sweep-fill-dir-30 2040 (PE-DESIGN 2041, was 2049), -dir-135 2059 (2060, was
     2062), tatami-40-st1-dir0 2005 (2006, was 2023), -st1-dir30 2031 (2032, was 2049),
     machine-jumps 525 (525, was 509), sew-order-six-objects 2589 (2585, was 2649), the lone
@@ -3047,7 +3060,9 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
   1e-9 of a whole number of stitches as that number, and the row chain breaks ties to the first
   row. Satin, fill, running line, programmable fill, piping, a 37° satin and text moved by 1,
   0.5, 0.37, 3.5, 12.25, 35, 0.05 and -7.13 mm one after another sew the same needle points
-  moved (`moving_a_shape_moves_its_stitches_and_nothing_else`). PE-DESIGN anchors its fill grid
+  moved (`moving_a_shape_moves_its_stitches_and_nothing_else`; since 2026-11-17 a plain Fill
+  with a Frequency is the exception, #1131 in item 15: rows moved, needle points on the page's
+  grid). PE-DESIGN anchors its fill grid
   to the region too (`grid_anchor`, from its references), so (a) of the issue holds without a
   PE-DESIGN reference pair. `DesignObject::apply` also left a line's exit point behind (fixed).
   Compat: 454 of 454 specs pass before and after. One measurement moves tier: the PES 0110 Text

@@ -1034,13 +1034,12 @@ impl Writer {
     }
 }
 
-/// Where the centre of the Design Page lies in PE-DESIGN 11.50's own coordinates, 0.1 mm:
-/// 100 mm right of and below their origin, whatever the page's size (a Custom Size page's
-/// sections count from the same point, `openstitch_formats::pes11::section_starts`). A Type 1
-/// Fill's needle grid starts at that origin (#1131).
+/// The centre of the Design Page seen from the origin of PE-DESIGN 11.50's own coordinates
+/// ([`openstitch_core::PE_PAGE_CENTRE`]), where the needle grid of a plain Fill with a
+/// Frequency starts (#1131).
 const PE_ORIGIN: Vec2 = Vec2 {
-    x: 1000.0,
-    y: 1000.0,
+    x: openstitch_core::PE_PAGE_CENTRE,
+    y: openstitch_core::PE_PAGE_CENTRE,
 };
 
 fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
@@ -1073,9 +1072,10 @@ fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
                 between,
                 breaks: &breaks,
             };
-            // Generated where the object's bounds start, then moved back (#567): rows follow the
-            // object, so moving it moves its rows and nothing else. A Type 1 Fill's needle
-            // points along its rows stay on PE-DESIGN's page-wide grid (#1131).
+            // Generated where the object's bounds start, then moved back (#567): rows and needle
+            // grids follow the object, so moving it moves its stitches and nothing else. The one
+            // exception is a plain Fill with a Frequency (Stitch Type 1): its rows move with it,
+            // and the needle points along them stay on PE-DESIGN's page-wide grid (#1131).
             let anchor = object
                 .bounds()
                 .map_or(v2(0.0, 0.0), |b| v2(b.min_x, b.min_y));
@@ -1325,7 +1325,10 @@ fn elements(
             if closed.is_empty() {
                 continue;
             }
-            let mut layers = region::layers_for(&closed, region, holes, user, text, Some(origin));
+            // Lettering keeps its grid with the letter: no PE-DESIGN capture shows a filled
+            // letter's needle grid.
+            let origin = (!text).then_some(origin);
+            let mut layers = region::layers_for(&closed, region, holes, user, text, origin);
             // PE-DESIGN 11.50 sews a TrueType letter in Satin and in Fill stroke by stroke, each
             // stroke a column, in its Convert to Blocks order (docs/research/stroke-lettering.md).
             // Fill text under a Text Transform too (#428): PE-DESIGN sews it by stroke as well
@@ -1363,7 +1366,7 @@ fn elements(
                 *top = runs;
             } else if let Some(top) = layers.last_mut() {
                 let rows = (!region.stamps.is_empty())
-                    .then(|| region::plain_fill_rows(&closed, region, holes, Some(origin)))
+                    .then(|| region::plain_fill_rows(&closed, region, holes, origin))
                     .flatten();
                 let runs = stamp::apply_on(std::mem::take(top), &region.stamps, rows.as_ref());
                 // PE-DESIGN 11.50 sews Concentric Circle and Spiral in the order the Start
