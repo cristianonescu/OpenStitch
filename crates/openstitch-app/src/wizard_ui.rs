@@ -40,7 +40,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-choose-image")).clicked() {
                     crate::files::pick_then(
                         crate::files::FileDialog::new()
-                            .add_filter("Images", &["png", "jpg", "jpeg", "bmp"]),
+                            .add_filter("Images", &openstitch_digitize::raster::PICTURE_EXTENSIONS),
                         |app, p| {
                             app.wizard.path = Some(p);
                             // Strokes belong to the image they were drawn on.
@@ -723,6 +723,15 @@ fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
                     "A cell split by an edge becomes a three-quarter and a quarter cross.",
                 );
             ui.end_row();
+            ui.label("");
+            ui.checkbox(&mut w.pixel_grid, t("ui-follow-the-pixel-art-grid"))
+                .on_hover_text(t("ui-follow-the-pixel-art-grid-tip"));
+            ui.end_row();
+            if w.pixel_grid {
+                ui.label(t("ui-art-pixels-per-cross"));
+                ui.add(egui::DragValue::new(&mut w.pixels_per_cross).range(1..=8));
+                ui.end_row();
+            }
         }
         Method::DesignCenter => {
             ui.label("");

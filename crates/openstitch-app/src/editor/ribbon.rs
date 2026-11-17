@@ -176,7 +176,7 @@ actions! {
     DensityMap => "densityMap", "Density Map", "Show where thread layers pile up and step through the hotspots (Check Design, Density map).", None, Some("design.density"), true;
     ReviewSewingOrder => "reviewSewingOrder", "Review Sewing Order", "Step through every move between objects, with trims, jumps and warnings (Check Design, Sewing order).", None, Some("design.route"), true;
     // Image tab.
-    OpenImage => "openImage", "Open Image", "Show an image behind the design (PNG, JPEG, BMP).", None, Some("background.set"), true;
+    OpenImage => "openImage", "Open Image", "Show an image behind the design (PNG, JPEG, BMP, GIF, WebP).", None, Some("background.set"), true;
     PasteImage => "pasteImage", "Paste Image", "Use the image on the clipboard as the background.", None, Some("background.set"), true;
     SaveImage => "saveImage", "Save Image", "Save the background image as shown to a file, or copy it to the clipboard.", None, Some("background.save"), true;
     ModifyImage => "modifyImage", "Modify Image", "Move, scale, crop or adjust the colours of the background image.", None, Some("background.modify"), true;

@@ -317,7 +317,8 @@ fn dropped(file: eframe::egui::DroppedFileHandle) {
         || openstitch_formats::FileType::from_extension(&ext).is_some()
     {
         Pick::Open
-    } else if ["png", "jpg", "jpeg", "bmp"].contains(&ext.as_str()) {
+    } else if ["png", "jpg", "jpeg", "bmp", "gif", "webp"].contains(&ext.as_str()) {
+        // openstitch_digitize::raster::PICTURE_EXTENSIONS: what the background image decodes.
         Pick::Background
     } else {
         web_sys::console::warn_1(&JsValue::from_str(&format!(
