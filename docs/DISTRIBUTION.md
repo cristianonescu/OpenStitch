@@ -364,6 +364,8 @@ The Assistant (#766, 2026-11-17): `web/assistant_panel.rs` is now the browser's 
   unencrypted there.
   - It is sent only to the address it was entered for.
   - It is never in the preferences, a file, a URL or a log.
+- **Narrow windows:** on a phone or a window narrower than 640 points (#834) the panel starts
+  closed, so the canvas shows; the ribbon opens it.
 - **Not in the browser yet:** the Assistant cannot see a picture the user gives it or import an
   SVG it draws (no attachments and no scratch folder, #1224); coding agents (ACP) and question
   cards are desktop-only.

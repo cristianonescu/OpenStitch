@@ -92,6 +92,8 @@ pub struct Panel {
     approved: Vec<(String, Option<Value>)>,
     tokens: (u64, u64),
     chat: u64,
+    /// The first frame has decided whether the panel starts open.
+    placed: bool,
 }
 
 impl Panel {
@@ -726,12 +728,19 @@ fn handle(app: &mut EditorApp, mut request: Value) -> Value {
 }
 
 pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
+    let width = ui.ctx().content_rect().width();
+    let narrow = openstitch_app::editor::workspace::narrow(width);
+    // A phone or narrow window (#834) starts with the canvas, not the panel: the panel would
+    // cover it. The user opens it from the ribbon; the remembered preference is kept.
+    if !std::mem::replace(&mut app.assistant.panel.placed, true) && narrow {
+        app.assistant.panel.open = false;
+    }
     if !(app.ui.prefs.ai.enabled && app.assistant.panel.open) {
         return;
     }
     let ctx = ui.ctx().clone();
     egui::Panel::right("assistant")
-        .default_size(380.0)
+        .default_size(if narrow { width * 0.9 } else { 380.0 })
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.heading(t("ui-assistant"));
