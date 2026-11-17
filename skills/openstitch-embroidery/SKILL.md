@@ -319,7 +319,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    PE-DESIGN's own files sew; over 1,200 it is an error; no fix, and no sew-out evidence yet of
    what it does to the fabric: spread or thin the objects it names); `moreColoursThanNeedles`
    and `lowCoverage` (a plain fill hiding under 40 % of the fabric, about 1 line/mm: an open
-   look, fine when chosen) are notes, not problems).
+   look, fine when chosen; the colour layers of one gradient, blend or tartan are judged
+   together, all their thread over their shared outline, in one note naming every layer) are
+   notes, not problems).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
    (untrimmed jumps, long moves), `design.density` shows where thread piles up; it and
