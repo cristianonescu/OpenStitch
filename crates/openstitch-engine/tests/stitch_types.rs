@@ -2931,3 +2931,31 @@ fn a_motif_line_cuts_the_corners_of_a_square() {
     assert!(near(700.0, 300.0), "a run keeps the top-right corner");
     assert!(near(300.0, 700.0), "a run keeps the bottom-left corner");
 }
+
+/// #1043: without under sewing a zigzag net travels along the outline between its bands, as
+/// PE-DESIGN 11.50 does (round 15, zigzag-net-40x20-dir90-no-under: 955 stitches, no needle point
+/// on a net line between bands), not along its own lines: on that 40 × 20 mm rectangle at
+/// Direction 90 within 5 % of PE-DESIGN's count (along the net lines it was 1,010).
+#[test]
+fn a_zigzag_net_without_under_sewing_travels_along_the_outline() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 30, "y": 40, "width": 40, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "zigzagNetFill", "spacing": 5.0, "density": 2.25,
+            "patternWidth": 3.0, "underlay": false, "angle": 90}),
+    );
+    let st = Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches;
+    let n = st.iter().filter(|q| q.command == Command::Stitch).count();
+    assert!(
+        (n as f64 - 955.0).abs() <= 955.0 * 0.05,
+        "{n} stitches against PE-DESIGN's 955"
+    );
+}
