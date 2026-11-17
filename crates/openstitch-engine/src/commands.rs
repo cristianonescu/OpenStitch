@@ -499,6 +499,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::palette::commands());
     v.extend(crate::punch::commands());
     v.extend(crate::satin_shaping::commands());
+    v.extend(crate::join_break::commands());
     v.extend(crate::order::commands());
     v.extend(crate::branching::commands());
     v.extend(crate::production::commands());

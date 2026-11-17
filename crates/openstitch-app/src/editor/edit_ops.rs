@@ -214,6 +214,68 @@ pub fn stamp_outlines(design: &Design, id: u64) -> Vec<(bool, Vec<Vec<Vec2>>)> {
         .collect()
 }
 
+/// Whether object `o` can be joined end to end (#744): one open line, a satin skeleton or a
+/// Manual Punch column (the engine checks the outline is still the one they make).
+fn joinable(o: &openstitch_design::DesignObject) -> bool {
+    if o.kind != openstitch_design::ObjectKind::Shape || o.contours.len() != 1 {
+        return false;
+    }
+    let column = o
+        .region
+        .as_ref()
+        .is_some_and(|r| r.skeleton.is_some() || r.direction_lines.len() >= 2);
+    column || !o.contours[0].closed
+}
+
+/// Join Lines is offered for two or more joinable objects.
+pub fn can_join_lines(design: &Design, ids: &BTreeSet<u64>) -> bool {
+    let picked: Vec<_> = design
+        .objects
+        .iter()
+        .filter(|o| ids.contains(&o.id))
+        .collect();
+    picked.len() >= 2 && picked.iter().all(|o| joinable(o))
+}
+
+/// Join Lines (#744): the selection in sewing order, so the first-sewn object keeps its
+/// attributes and place.
+pub fn join_lines(design: &Design, ids: &BTreeSet<u64>) -> CommandRequest {
+    CommandRequest::new(
+        "shape.joinLines",
+        json!({ "ids": in_sewing_order(design, ids) }),
+    )
+}
+
+/// Break Apart is offered for text of two or more letters, an object of several outlines that
+/// is not a satin skeleton or column, or a grouped object.
+pub fn can_break_apart(design: &Design, ids: &BTreeSet<u64>) -> bool {
+    design
+        .objects
+        .iter()
+        .filter(|o| ids.contains(&o.id))
+        .any(|o| {
+            use openstitch_design::ObjectKind;
+            o.group.is_some()
+                || match o.kind {
+                    ObjectKind::Text => o.stitch_block.is_none() && o.glyph_groups().len() >= 2,
+                    ObjectKind::Shape => {
+                        o.contours.len() >= 2
+                            && !o.region.as_ref().is_some_and(|r| {
+                                r.skeleton.is_some() || r.direction_lines.len() >= 2
+                            })
+                    }
+                    ObjectKind::Stitches => false,
+                }
+        })
+}
+
+pub fn break_apart(ids: &BTreeSet<u64>) -> CommandRequest {
+    CommandRequest::new(
+        "object.breakApart",
+        json!({ "ids": CommandRequest::ids(ids) }),
+    )
+}
+
 pub fn merge(ids: &BTreeSet<u64>) -> CommandRequest {
     CommandRequest::new("shape.merge", json!({ "ids": CommandRequest::ids(ids) }))
 }
@@ -836,6 +898,43 @@ mod tests {
             &split(2, json!([[-5, -5], [20, -5], [20, 10], [-5, 10]])),
         );
         assert_eq!(s.design().objects.len(), 2);
+    }
+
+    #[test]
+    fn join_lines_and_break_apart_run_through_their_requests() {
+        let mut s = Session::new(std::env::temp_dir());
+        for pts in [
+            json!([[30, 0], [20, 0]]),
+            json!([[0, 0], [10, 0]]),
+            json!([[10, 0], [20, 0]]),
+        ] {
+            s.execute(
+                "shape.polygon",
+                Some(&json!({"points": pts, "closed": false, "outline": "Black"})),
+            )
+            .expect("line");
+        }
+        let all = BTreeSet::from([1, 2, 3]);
+        assert!(can_join_lines(s.design(), &all));
+        assert!(!can_break_apart(s.design(), &all));
+        let r = join_lines(s.design(), &all);
+        assert_eq!(r.params["ids"], json!([1, 2, 3]));
+        run(&mut s, &r);
+        assert_eq!(s.design().objects.len(), 1);
+        assert_eq!(s.design().objects[0].id, 1, "the first-sewn line is kept");
+        // A rectangle is not a line; one object cannot be joined.
+        let mut s = session_with(2);
+        assert!(!can_join_lines(s.design(), &BTreeSet::from([1, 2])));
+        assert!(!can_join_lines(s.design(), &BTreeSet::from([1])));
+        // Two rectangles made one shape break back into two.
+        let union = combine(s.design(), &BTreeSet::from([1, 2]), "union");
+        run(&mut s, &union);
+        let one = BTreeSet::from([1]);
+        assert!(can_break_apart(s.design(), &one));
+        let r = run(&mut s, &break_apart(&one));
+        assert_eq!(r["ids"].as_array().map(Vec::len), Some(2));
+        assert_eq!(s.design().objects.len(), 2);
+        assert!(!can_break_apart(s.design(), &one));
     }
 
     #[test]

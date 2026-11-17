@@ -744,7 +744,8 @@ an issue or a comment above (#460, #462, #463, #464, #446, #447, #471, #291).
 
 From the competitor scan of 2026-11-07 ([research/competitive-features.md](research/competitive-features.md),
 Updates; openhoop and filum, concepts only): Join Lines and Break Apart (#744, editing, rank 7
-theme), an idea for Future, and find and filter in the Sewing Order list (#745, workflow, rank 12
+theme; **done** 2026-11-17, `batch:mac-editor-2`, for alpha.18: `shape.joinLines`,
+`object.breakApart`, Home ▸ Edit), and find and filter in the Sewing Order list (#745, workflow, rank 12
 theme; **done** 2026-11-13, PR #1026); radial, contour and guide-following colour blends added to #532, herringbone and
 ladder lines noted on #543.
 

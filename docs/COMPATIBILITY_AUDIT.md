@@ -4443,3 +4443,18 @@ Shapes-gallery outlines are PE-DESIGN library geometry: `pe11/o-gallery-heart`,
 capture drawn with the outline tools. The four isosceles-triangle references stay (three
 corners fitted to the dragged box). The formats test now also fails on a `CEmbSpecialShape`
 outside those four files.
+
+### Join Lines and Break Apart, 2026-11-17 (#744)
+
+Beyond PE-DESIGN, so no reference capture applies; internal tier. `shape.joinLines` chains open
+lines, satin skeletons or Manual Punch columns at their nearest ends (tolerance 1 mm by default);
+two running lines 0.5 mm apart, joined, compile to exactly the stitches of the same four-point
+line drawn in one go (`joining_two_lines_sews_one_path_without_a_trim`): one tie-in, one tie-off,
+fewer trims than the two lines apart. A joined satin skeleton's outline is the one its joined
+centre line makes, so both rails run on through the seam. `object.breakApart` sets each letter of
+plain text as its own text object and checks it lands within 0.05 mm of where the letter was;
+text on a path, in a Text Transform, arched or in a Name Drop box breaks into letter shapes
+instead. Both are one undo step and round-trip through `.osd`. A design of two running lines and
+two satin skeletons, each pair joined through `stitchtool exec` and exported to PES 6, passes
+`tools/sew_check.py` (100×100 hoop): 509 stitches, two colours, one trim per colour, read back
+within 0.07 mm.

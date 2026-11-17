@@ -45,8 +45,9 @@ when the colours do not overlap. Read `object.list` to confirm.
   so each area is sewn once; stacked fills sew thick and stiff.
 - Cutting a shape (`shape.removeOverlap`, `shape.combine`, `shape.split`, `shape.knife`,
   `shape.build`, `shape.effect`) keeps its sewing angle and other sewing attributes; a merge
-  (`shape.merge`, a `shape.build` drag) takes the topmost shape's (the one sewn last). Entry
-  and exit points stay where they are still on the new outline (#652).
+  (`shape.merge`, a `shape.build` drag) takes the topmost shape's (the one sewn last), and a
+  join (`shape.joinLines`) the first id's. `object.breakApart` gives every piece the whole's
+  attributes. Entry and exit points stay where they are still on the new outline (#652).
 - Give **neighbouring fills different angles**, at least 20° apart (for example 45° and 135°,
   or 30° and 90°), so they catch the light differently and the seam between them reads.
 - A detail on top of a fill (seeds on a berry) is small enough to sew over the fill: keep it,

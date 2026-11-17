@@ -313,6 +313,9 @@ feature is done and the rest is under [Planned](#planned).
   split along an outline, offset lines. Curves stay curves, and cut pieces keep their sewing
   angle and attributes ([#652]).
 - (+) **Knife:** one cut line splits every object it crosses, in one undo step ([#477]).
+- (+) **Join Lines and Break Apart:** open lines or satin columns whose ends meet become one object
+  sewn without a trim; text breaks into letters, a fill into its islands, a group into its copies
+  ([#744]).
 - (+) **More shape tools:** band frames, a radius per corner, spiral lines, Divide, the shape
   builder, and a turning gap in a closed line for in-the-hoop pieces ([#497]).
 - (+) **Smooth Shape and Smooth Stitches:** fewer points and fewer, cleaner curves within a
@@ -745,6 +748,7 @@ tests and the keychain round trip
 [#477]: https://github.com/cristianonescu/OpenStitch/issues/477
 [#478]: https://github.com/cristianonescu/OpenStitch/issues/478
 [#479]: https://github.com/cristianonescu/OpenStitch/issues/479
+[#744]: https://github.com/cristianonescu/OpenStitch/issues/744
 [#480]: https://github.com/cristianonescu/OpenStitch/issues/480
 [#481]: https://github.com/cristianonescu/OpenStitch/issues/481
 [#482]: https://github.com/cristianonescu/OpenStitch/issues/482

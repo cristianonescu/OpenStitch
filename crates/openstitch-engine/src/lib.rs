@@ -31,6 +31,7 @@ mod hoop_fit;
 pub mod imports;
 #[cfg(feature = "formats")]
 pub mod inkstitch_fonts;
+mod join_break;
 mod knife;
 pub mod layout;
 mod lettering;
