@@ -471,7 +471,9 @@ mod tests {
             (p.stitches.len(), h)
         };
         // (stored pitch, stored width, Direction) -> the print since #1043 (at 61c16a0f: 15806,
-        // 2221, 1307, 914, 16008, 2625, 1755 and 1058 stitches).
+        // 2221, 1307, 914, 16008, 2625, 1755 and 1058 stitches; the three turned nets at 3, 5
+        // and 8 mm lost 3, 1 and 1 needle points more when a net's joined runs were uncrossed
+        // too: 2545, 1705 and 988 before that).
         type Net = (f64, Option<f64>, f64);
         let before: [(Net, (usize, u64)); 8] = [
             ((0.5, None, 0.0), (15584, 10043033049100166782)),
@@ -479,9 +481,9 @@ mod tests {
             ((5.0, Some(10.0), 0.0), (1294, 13604225808390483077)),
             ((8.0, None, 0.0), (892, 15481124582009719177)),
             ((0.5, None, 30.0), (15659, 2497073250540327261)),
-            ((3.0, None, 30.0), (2545, 9637095564317341386)),
-            ((5.0, Some(10.0), 30.0), (1705, 1493625755387456275)),
-            ((8.0, None, 30.0), (988, 7522440042208234022)),
+            ((3.0, None, 30.0), (2542, 4977477134239543407)),
+            ((5.0, Some(10.0), 30.0), (1704, 244232269035765344)),
+            ((8.0, None, 30.0), (987, 13727653534549909633)),
         ];
         let mut changed = Vec::new();
         for ((pitch, width, angle), old) in before {

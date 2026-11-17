@@ -2299,7 +2299,10 @@ fn direction_turns_the_zigzag_net() {
 /// tie-in, as the page is a Hoop Size one): stitch count and hash. Main before #1043's second
 /// part sewed 972 stitches, hash 6_462_209_893_352_527_947; the one more is a needle point on
 /// the outline at the top-left corner, where the diagonal back from a cut rung is cut too.
-const ZIGZAG_NET_0: (usize, u64) = (973, 17_908_954_492_682_872_431);
+/// Before #1043's outline travel 973 stitches, hash 17_908_954_492_682_872_431: the net now
+/// starts at the region's start, sews the lines before the bands, travels along the outline
+/// and has no edge run.
+const ZIGZAG_NET_0: (usize, u64) = (994, 5_701_389_481_929_730_607);
 
 /// #1058 through the command path: a zigzag net set with `object.setRegion` on a circle (a
 /// 64-sided polygon, 30 mm across) turned every 5° from 0° to 85° sews no rung across the
