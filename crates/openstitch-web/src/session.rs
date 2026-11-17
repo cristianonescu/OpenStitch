@@ -26,12 +26,22 @@ pub const UI_COMMANDS: [&str; 5] = [
     "ui.exportFile",
 ];
 
+/// The page's commands for the browser editor's Assistant panel (#766), answered once the editor
+/// runs (`web.rs` routes them to `openstitch_app`'s panel): for scripts in the page, not for the
+/// model. SKILL.md ("Web editor") names them; openstitch-mcp's skill check reads this list.
+pub const ASSISTANT_PAGE_COMMANDS: [&str; 5] = [
+    "ui.assistantSetup",
+    "ui.assistantSend",
+    "ui.assistantState",
+    "ui.assistantAnswer",
+    "ui.assistantStop",
+];
+
 /// The largest file the editor opens: the engine's own limit for embroidery files.
 pub const MAX_FILE_BYTES: usize = 64 << 20;
 
 /// What the browser cannot do yet, shown in the editor and returned by `ui.state` (#556).
-pub const DESKTOP_ONLY: &str = "Desktop only: the Assistant (it keeps its key in the system keychain), \
-Quick Look, sending to a machine or USB stick, updates, the Design Database, image digitizing, \
+pub const DESKTOP_ONLY: &str = "Desktop only: Quick Look, sending to a machine or USB stick, updates, the Design Database, image digitizing, \
 lettering and drawing tools. Install the desktop app for these.";
 
 /// One drawn piece of the stitch-out, in 0.1 mm page units.
