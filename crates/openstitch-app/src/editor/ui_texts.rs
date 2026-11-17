@@ -1593,6 +1593,11 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("ui-ready-to-sew", "Ready to sew"),
     ("ui-sewable-with-small-risks", "Sewable with small risks"),
     ("ui-fix-this-first", "Fix this first"),
+    ("ui-checking-design", "Checking the design…"),
+    (
+        "ui-checking-design-tip",
+        "Check Design is checking the latest change; the result shows when it is ready",
+    ),
     (
         "ui-check-design-open-the-list-of-tip",
         "Check Design: open the list of sewing problems",

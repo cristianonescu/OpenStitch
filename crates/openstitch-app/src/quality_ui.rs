@@ -61,7 +61,14 @@ pub fn open(app: &mut EditorApp, tab: Tab) {
 /// colours than needles, are not problems) and first reason, which tab is open
 /// (`closed` when none) and the Review Sewing Order step the window is on.
 pub fn state_json(app: &EditorApp) -> Value {
-    let c = &app.quality.check;
+    // While a worker checks (#1127), the answer for the design as it is now, never the older one.
+    let fresh;
+    let c = if is_current(app) {
+        &app.quality.check
+    } else {
+        fresh = check_now(app, &current_key(app));
+        &fresh
+    };
     let (errors, warnings) = (
         c["errors"].as_u64().unwrap_or(0),
         c["warnings"].as_u64().unwrap_or(0),
@@ -97,6 +104,12 @@ pub fn review_step(app: &mut EditorApp, n: usize) -> Result<(), String> {
     Ok(())
 }
 
+/// A check running on a worker: the state it is for and where its result arrives.
+struct PendingCheck {
+    key: CheckKey,
+    result: std::sync::mpsc::Receiver<Value>,
+}
+
 #[derive(Default)]
 pub struct QualityState {
     pub open: bool,
@@ -107,9 +120,13 @@ pub struct QualityState {
     pub fabric: Option<String>,
     /// The revision and fabric the results are for.
     /// The revision, fabric and the profile's needle count the check was run for.
-    key: Option<(u64, Option<String>, Option<usize>)>,
+    key: Option<CheckKey>,
     map_revision: Option<u64>,
     route_revision: Option<u64>,
+    /// The check running on a worker (#1127), if any.
+    pending: Option<PendingCheck>,
+    /// Stitch count from which the check runs on a worker (`None`: [`WORKER_FROM_STITCHES`]).
+    pub worker_from: Option<usize>,
     pub check: Value,
     map: Option<DensityMap>,
     pub density: Value,
@@ -133,28 +150,143 @@ fn limits(app: &EditorApp) -> (f64, f64) {
         .unwrap_or((1.5, 2.5))
 }
 
-/// Brings the results up to date: the check after every change (the status bar shows it), the
-/// density map and the route while they are shown. A new fabric judges the same stitches again.
-pub fn update(app: &mut EditorApp) {
+/// What a check result is for: the revision, the fabric and the profile's needle count.
+type CheckKey = (u64, Option<String>, Option<usize>);
+
+fn current_key(app: &EditorApp) -> CheckKey {
     let needles = app
         .session
         .user_settings()
         .machine_profile
         .as_ref()
         .and_then(|m| m.needles);
-    let key = Some((app.revision, app.quality.fabric.clone(), needles));
-    if app.quality.key != key {
-        app.quality.check = quality::check_json(
-            app.session.design(),
-            &traced(app),
-            limits(app),
-            needles,
-            None,
-            None,
-        );
-        app.quality.key = key;
-        app.quality.map_revision = None;
+    (app.revision, app.quality.fabric.clone(), needles)
+}
+
+/// Whether the check's result is for the design as it is now.
+pub fn is_current(app: &EditorApp) -> bool {
+    app.quality.key.as_ref() == Some(&current_key(app))
+}
+
+/// Designs from this many stitches check on a worker (#1127); smaller ones check at once, which
+/// takes a few milliseconds and never shows the pending state.
+pub const WORKER_FROM_STITCHES: usize = 20_000;
+
+/// Runs the check for `key` on the design as it is now, on this thread.
+fn check_now(app: &EditorApp, key: &CheckKey) -> Value {
+    quality::check_json(
+        app.session.design(),
+        &traced(app),
+        limits(app),
+        key.2,
+        None,
+        None,
+    )
+}
+
+/// Keeps `check` as the result for `key`.
+fn store(app: &mut EditorApp, key: CheckKey, check: Value) {
+    app.quality.check = check;
+    app.quality.key = Some(key);
+    app.quality.map_revision = None;
+    app.quality.pending = None;
+}
+
+/// Brings the results up to date at once, on this thread: the check after every change, the
+/// density map and the route while they are shown. A new fabric judges the same stitches again.
+/// For the Assistant, the window's tests and `ui.render`, which need the current answer now; a
+/// worker already checking the same state is waited for rather than run twice.
+pub fn update(app: &mut EditorApp) {
+    let key = current_key(app);
+    if app.quality.key.as_ref() != Some(&key) {
+        let waited = match app.quality.pending.take() {
+            Some(p) if p.key == key => p.result.recv().ok(),
+            _ => None,
+        };
+        let check = waited.unwrap_or_else(|| check_now(app, &key));
+        store(app, key, check);
     }
+    update_views(app);
+}
+
+/// Brings the results up to date for the status bar and the window without stalling the frame
+/// (#1127): a large design checks on a worker, for the revision, fabric and needle count it was
+/// started for. Until that result arrives [`is_current`] is false and the indicator and the
+/// Problems tab show the check as pending; a result for an older state is dropped and the check
+/// starts again for the newest. Small designs, and the browser, check at once.
+pub fn refresh(app: &mut EditorApp, ctx: &egui::Context) {
+    let key = current_key(app);
+    if app.quality.key.as_ref() != Some(&key) {
+        refresh_check(app, ctx, key);
+    }
+    update_views(app);
+}
+
+fn refresh_check(app: &mut EditorApp, ctx: &egui::Context, key: CheckKey) {
+    use std::sync::mpsc::TryRecvError;
+    if let Some(p) = &app.quality.pending {
+        let answer = p.result.try_recv();
+        if p.key == key {
+            match answer {
+                Ok(check) => {
+                    store(app, key, check);
+                    ctx.request_repaint();
+                }
+                Err(TryRecvError::Empty) => {}
+                // The worker ended without an answer: check here instead.
+                Err(TryRecvError::Disconnected) => {
+                    let check = check_now(app, &key);
+                    store(app, key, check);
+                }
+            }
+            return;
+        }
+        // A worker for an older state: one worker at a time, so it finishes first; its result
+        // is dropped, never shown, and the check then starts for the newest state.
+        if matches!(answer, Err(TryRecvError::Empty)) {
+            return;
+        }
+    }
+    app.quality.pending = None;
+    let from = app.quality.worker_from.unwrap_or(WORKER_FROM_STITCHES);
+    if app.pattern.stitches.len() >= from
+        && let Some(p) = spawn_check(app, ctx, key.clone())
+    {
+        app.quality.pending = Some(p);
+        return;
+    }
+    let check = check_now(app, &key);
+    store(app, key, check);
+    // Whatever was drawn before this point this frame (the canvas's rings) follows next frame.
+    ctx.request_repaint();
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn spawn_check(app: &EditorApp, ctx: &egui::Context, key: CheckKey) -> Option<PendingCheck> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let design = app.session.design().clone();
+    let traced = traced(app);
+    let (fabric, needles) = (limits(app), key.2);
+    let ctx = ctx.clone();
+    std::thread::Builder::new()
+        .name("check-design".into())
+        .spawn(move || {
+            let check = quality::check_json(&design, &traced, fabric, needles, None, None);
+            if tx.send(check).is_ok() {
+                ctx.request_repaint();
+            }
+        })
+        .ok()?;
+    Some(PendingCheck { key, result: rx })
+}
+
+#[cfg(target_arch = "wasm32")]
+fn spawn_check(_: &EditorApp, _: &egui::Context, _: CheckKey) -> Option<PendingCheck> {
+    None
+}
+
+/// The density map and the route, while they are shown.
+fn update_views(app: &mut EditorApp) {
     let q = &app.quality;
     if (q.open && q.tab == Tab::Density || q.density_overlay)
         && q.map_revision != Some(app.revision)
@@ -177,7 +309,12 @@ pub fn update(app: &mut EditorApp) {
     }
 }
 
+/// The current check's findings; none while the check is pending, so a result for an older
+/// state is never drawn or listed as the design's.
 fn findings(app: &EditorApp) -> Vec<Value> {
+    if !is_current(app) {
+        return Vec::new();
+    }
     app.quality.check["findings"]
         .as_array()
         .cloned()
@@ -224,7 +361,20 @@ pub fn run_fix(app: &mut EditorApp, fix: &Value) -> bool {
 /// The status bar's indicator (#1036): the readiness level (Ready to sew, Sewable with small
 /// risks, Fix this first) with the error and warning counts, the first reason on hover.
 pub fn indicator(app: &mut EditorApp, ui: &mut egui::Ui) {
-    update(app);
+    let ctx = ui.ctx().clone();
+    refresh(app, &ctx);
+    if !is_current(app) {
+        // #1127: a large design's check is still running; never the older state's result.
+        let pending = RichText::new(t("ui-checking-design")).weak();
+        if ui
+            .button(pending)
+            .on_hover_text(t("ui-checking-design-tip"))
+            .clicked()
+        {
+            open(app, Tab::Check);
+        }
+        return;
+    }
     let c = &app.quality.check;
     let (errors, warnings) = (
         c["errors"].as_u64().unwrap_or(0),
@@ -263,7 +413,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     if !app.quality.open {
         return;
     }
-    update(app);
+    refresh(app, ctx);
     let mut open = true;
     egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-check-design")).id(egui::Id::unique("window-check-design"))
         .open(&mut open)
@@ -296,7 +446,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     });
             });
             ui.separator();
-            update(app);
+            refresh(app, ctx);
             match app.quality.tab {
                 Tab::Check => check_tab(app, ui),
                 Tab::Density => density_tab(app, ui),
@@ -307,6 +457,11 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
 }
 
 fn check_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
+    if !is_current(app) {
+        ui.label(RichText::new(t("ui-checking-design")).weak())
+            .on_hover_text(t("ui-checking-design-tip"));
+        return;
+    }
     let list = findings(app);
     if list.is_empty() {
         ui.label(RichText::new(t("ui-ready-to-sew-no-problems-found")).color(READY));
@@ -907,5 +1062,183 @@ mod tests {
         go_to_step(&mut app, 1);
         assert_eq!(app.simulate, Some(app.stats.stitches));
         assert_eq!(steps(&app)[0]["move"]["kind"], json!("colorChange"));
+    }
+
+    /// One frame of the status bar's indicator.
+    fn indicator_frame(ctx: &egui::Context, app: &mut EditorApp) {
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| indicator(app, ui));
+        out.textures_delta.clear();
+    }
+
+    /// Frames of the indicator until the check is current (a worker answers within seconds).
+    fn until_current(ctx: &egui::Context, app: &mut EditorApp, each: impl Fn(&EditorApp)) {
+        let start = std::time::Instant::now();
+        while !is_current(app) {
+            assert!(start.elapsed().as_secs() < 30, "the worker never answered");
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            indicator_frame(ctx, app);
+            each(app);
+        }
+    }
+
+    fn engine_check(app: &mut EditorApp) -> Value {
+        app.session
+            .execute("design.check", Some(&json!({})))
+            .expect("value")
+    }
+
+    /// #1127: two edits in quick succession on a design checked by a worker. After the second
+    /// the indicator is pending, never the first edit's findings, and then shows the second's
+    /// result, the same as design.check's.
+    #[test]
+    fn a_second_edit_never_shows_the_first_edits_result() {
+        let mut app =
+            app_with(&[json!({"x": 10, "y": 10, "width": 20, "height": 20, "fill": "Red"})]);
+        app.quality.worker_from = Some(0);
+        app.quality.open = true;
+        let ctx = egui::Context::default();
+        indicator_frame(&ctx, &mut app);
+        until_current(&ctx, &mut app, |_| {});
+        assert!(findings(&app).is_empty());
+
+        // The first edit: a fill too thin to sew (a warning).
+        app.execute(&CommandRequest::new(
+            "shape.rectangle",
+            json!({"x": 40, "y": 20, "width": 2, "height": 1, "fill": "Red"}),
+        ))
+        .expect("shape");
+        indicator_frame(&ctx, &mut app);
+        assert!(!is_current(&app), "the check is pending on a worker");
+        assert!(findings(&app).is_empty(), "the older result is not shown either");
+        let first = engine_check(&mut app);
+        assert_eq!(first["warnings"], json!(1), "{first}");
+
+        // The second, before the first's result is taken: the thin fill goes again.
+        app.undo();
+        let second = engine_check(&mut app);
+        assert_ne!(first, second);
+        indicator_frame(&ctx, &mut app);
+        until_current(&ctx, &mut app, |app| {
+            if !is_current(app) {
+                assert!(findings(app).is_empty(), "pending shows no findings");
+            }
+        });
+        assert_eq!(app.quality.key.as_ref().map(|k| k.0), Some(app.revision));
+        assert_eq!(app.quality.check, second, "the second edit's result");
+        assert_eq!(state_json(&app)["warnings"], json!(0));
+    }
+
+    /// #1127: while a worker checks, `ui.state` and the synchronous update (the Assistant, a
+    /// rendered picture) answer for the design as it is now, the same as design.check.
+    #[test]
+    fn synchronous_readers_get_the_current_answer_while_a_worker_checks() {
+        let mut app =
+            app_with(&[json!({"x": 10, "y": 10, "width": 20, "height": 20, "fill": "Red"})]);
+        app.quality.worker_from = Some(0);
+        let ctx = egui::Context::default();
+        app.execute(&CommandRequest::new(
+            "shape.rectangle",
+            json!({"x": 40, "y": 20, "width": 2, "height": 1, "fill": "Red"}),
+        ))
+        .expect("shape");
+        indicator_frame(&ctx, &mut app);
+        let engine = engine_check(&mut app);
+        assert_eq!(state_json(&app)["warnings"], engine["warnings"]);
+        assert_eq!(state_json(&app)["summary"], engine["summary"]);
+        update(&mut app);
+        assert!(is_current(&app));
+        assert_eq!(app.quality.check, engine);
+        assert_eq!(findings(&app).len(), 1);
+    }
+
+    /// #1127: a design under the worker's threshold checks within the frame, as before.
+    #[test]
+    fn a_small_design_checks_within_the_frame() {
+        let mut app =
+            app_with(&[json!({"x": 10, "y": 10, "width": 20, "height": 20, "fill": "Red"})]);
+        let ctx = egui::Context::default();
+        app.execute(&CommandRequest::new(
+            "shape.rectangle",
+            json!({"x": 40, "y": 20, "width": 2, "height": 1, "fill": "Red"}),
+        ))
+        .expect("shape");
+        assert!(app.pattern.stitches.len() < WORKER_FROM_STITCHES);
+        indicator_frame(&ctx, &mut app);
+        assert!(is_current(&app));
+        let engine = engine_check(&mut app);
+        assert_eq!(app.quality.check, engine);
+    }
+
+    /// #1127: a new fabric is a new state too: the result for the old fabric is not shown.
+    #[test]
+    fn a_new_fabric_is_checked_again() {
+        let mut app =
+            app_with(&[json!({"x": 10, "y": 10, "width": 20, "height": 20, "fill": "Red"})]);
+        app.quality.worker_from = Some(0);
+        let ctx = egui::Context::default();
+        indicator_frame(&ctx, &mut app);
+        until_current(&ctx, &mut app, |_| {});
+        app.quality.fabric = Some("knit".into());
+        assert!(!is_current(&app));
+        indicator_frame(&ctx, &mut app);
+        until_current(&ctx, &mut app, |_| {});
+        assert_eq!(app.quality.key.as_ref().and_then(|k| k.1.clone()), Some("knit".into()));
+    }
+
+    /// #1127's measurement: the UI thread's time for an edit with the status bar's Check Design
+    /// indicator showing, on the large Auto Punch examples (release build, on this machine).
+    /// Ignored by default; run with
+    /// `cargo test --release -p openstitch-app --bin openstitch check_design_edit_bench -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "benchmark: run by hand with --ignored --nocapture"]
+    fn check_design_edit_bench() {
+        use std::time::{Duration, Instant};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/sew/image-tools");
+        for name in [
+            "L-autopunch-storybook-pe-compatible.pes",
+            "L-autopunch-storybook-openstitch.pes",
+            "S-autopunch-balloon-openstitch.pes",
+        ] {
+            let mut app = EditorApp::new(Launch::default());
+            app.open_path(&dir.join(name));
+            let id = app.session.design().objects[0].id;
+            let ctx = egui::Context::default();
+            let frame = |app: &mut EditorApp| {
+                let t = Instant::now();
+                let mut out = ctx.run_ui(egui::RawInput::default(), |ui| indicator(app, ui));
+                out.textures_delta.clear();
+                t.elapsed()
+            };
+            frame(&mut app);
+            let (mut edits, mut frames, mut slowest) = (Vec::new(), Vec::new(), Vec::new());
+            for k in 0..7 {
+                let t = Instant::now();
+                app.execute(&CommandRequest::new(
+                    "object.move",
+                    json!({ "ids": [id], "dx": if k % 2 == 0 { 0.1 } else { -0.1 }, "dy": 0.0 }),
+                ))
+                .expect("move");
+                edits.push(t.elapsed());
+                // The frame right after the edit, then frames until the indicator is current.
+                let first = frame(&mut app);
+                let mut most = first;
+                let start = Instant::now();
+                while !is_current(&app) && start.elapsed() < Duration::from_secs(10) {
+                    std::thread::sleep(Duration::from_millis(1));
+                    most = most.max(frame(&mut app));
+                }
+                frames.push(first);
+                slowest.push(most);
+            }
+            let min = |v: &[Duration]| v.iter().min().copied().unwrap_or_default().as_secs_f64() * 1e3;
+            println!(
+                "#1127 {name}: {} stitches; the edit {:.1} ms; the frame after it {:.2} ms; \
+                 the slowest frame until the indicator is current {:.2} ms (minimum of 7)",
+                app.stats.stitches,
+                min(&edits),
+                min(&frames),
+                min(&slowest),
+            );
+        }
     }
 }
