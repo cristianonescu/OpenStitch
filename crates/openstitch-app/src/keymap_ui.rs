@@ -286,6 +286,14 @@ fn fixed_keys(ui: &mut egui::Ui) {
                 ui.label(RichText::new(keys).monospace());
                 ui.end_row();
             }
+            // #834: keys the browser keeps; New is in the File menu there.
+            if openstitch_app::platform::in_browser() {
+                for (key, what) in openstitch_app::editor::keymap::BROWSER_KEYS {
+                    ui.label(format!("Kept by the browser: {what} (use the menus instead)"));
+                    ui.label(RichText::new(*key).monospace());
+                    ui.end_row();
+                }
+            }
         });
     });
 }

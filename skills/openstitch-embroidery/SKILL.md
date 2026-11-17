@@ -386,6 +386,16 @@ then style them in the next.
 - Continue in place: `object.extendPath` `{id, end: start|end, points, curves?, widths?}` adds
   to an open line, path or satin skeleton, `object.extendColumn` `{id, end, lines}` to a Manual
   Punch column (points added at the start are listed outward from it).
+- Join and split: `shape.joinLines` `{ids, tolerance: 1}` makes open lines (or satin skeletons,
+  or Manual Punch columns) whose ends meet within `tolerance` mm one object, sewn as one path
+  with no trim between them (the first id keeps its attributes and place; a gap is bridged
+  straight; ends farther apart are refused with the distance). `object.breakApart` `{ids}`
+  splits text into one text per letter in place (`text` says `as: shapes` when a letter
+  cannot stand alone: text on a path, a Text Transform, an arc or a Name Drop box), a fill with
+  islands into one object per piece (holes stay with theirs), a line object into its outlines,
+  and groups (copies along a line, a monogram) into separate objects; every piece keeps the
+  whole's sewing attributes and thread and sews where the whole did. Each is one undo step;
+  Ctrl+J and Ctrl+Shift+K in the editor (`ui.run joinLines` / `ui.run breakApart`).
 - Clean up: `shape.simplify` `{ids, tolerance: 0.2}` removes nodes within a tolerance (mm; a
   Manual Punch column loses one direction line per call; `ui.run smoothShape` uses the
   `smoothTolerance` setting), and `stitches.smooth`
@@ -608,11 +618,17 @@ browser editor, say so and offer its own Assistant panel, the desktop editor, or
 they can open there. The system clipboard, printing, machine transfer and choosing folders (the Design
 Database, Ink/Stitch font folders) are desktop-only too; say so instead of trying them in the
 browser. Pictures, thread charts, fonts and other files can be picked or dropped on the page.
-`ui.browserLimits` lists what the browser version cannot do (printing, USB transfer, updates,
-folders, clipboard pictures), each with what to do instead; tell the user that
-rather than trying it. Editor settings (`ui.set`), thread charts, My Threads and the other user
-settings last across visits there, as on the desktop (the page's storage; cleared site data starts
-afresh).
+`ui.browserLimits` lists what the browser version cannot do (printing, USB
+transfer, updates, folders, clipboard pictures, the computer's own fonts for lettering), each
+with what to do instead; tell the user that rather than trying it. Its `browserKeys` are the keys
+the browser keeps (Ctrl+N, Ctrl+T, Ctrl+W): they never reach the editor there, so point to the
+menus instead. Editor settings (`ui.set`), thread charts, My Threads and the other user settings
+last across visits there, as on the desktop (the page's storage; cleared site data starts
+afresh). Autosave works there too (#831): a design left unsaved in a closed or crashed tab is
+offered at the next visit, and `ui.recoveryList`, `ui.recoveryRestore` and `ui.recoveryDiscard`
+work as on the desktop (with the browser's storage refused, recovery is off and nothing is kept).
+`ui.gettingStarted {sample}` opens the ready-to-sew samples in the browser too (#833). On a phone
+or a window narrower than 640 points the panes float folded over the canvas (#834).
 
 ## Files
 

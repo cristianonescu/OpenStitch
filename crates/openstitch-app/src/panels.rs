@@ -440,7 +440,8 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                                                 .desired_width(140.0)
                                                 .char_limit(objects::MAX_NAME),
                                         );
-                                        edit.request_focus();
+                                        // Focus once (#1220): asking every frame took it back from the
+                                        // Enter or Esc that ends the rename.
                                         if edit.lost_focus() {
                                             let typed = name.clone();
                                             let escaped = ui.input(|i| i.key_pressed(egui::Key::Escape));
@@ -448,6 +449,8 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                                                 pending = Some(objects::set_name(row.id, &typed));
                                             }
                                             rename_done = true;
+                                        } else if !edit.has_focus() {
+                                            edit.request_focus();
                                         }
                                         return;
                                     }
@@ -474,9 +477,13 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                             handle: handle_rect,
                             label: label_rect,
                         });
-                        if let Some(from) = drop {
+                        // The drag carries the design index (#1221): with the Find filter on
+                        // the rows shown are fewer, so the object is looked up in the design's.
+                        if let Some(from) = drop
+                            && let Some(dragged) = all.get(*from)
+                        {
                             pending = Some(objects::reorder(
-                                rows[*from].id,
+                                dragged.id,
                                 objects::drop_index(*from, row.index),
                             ));
                         }
@@ -2384,6 +2391,66 @@ mod order_rows_tests {
         let held = list.drag(&mut app, first.handle.center(), edge, 30);
         assert!(in_view(&held)[0].id != first.id, "the list scrolled while the row was held at the edge");
         assert!(ids(&app)[0] != first.id, "and the row was dropped further down");
+    }
+
+    /// #1221: with the Find filter on, dragging a shown row onto another moves the object
+    /// dragged. The drag carries the design index, which once indexed the filtered rows: the
+    /// wrong object moved, or the editor stopped on an index past the rows shown.
+    #[test]
+    fn a_drag_in_a_filtered_list_moves_the_row_dragged() {
+        let mut app = app_with(12);
+        let all = ids(&app);
+        let (a, b) = (all[5], all[9]);
+        for id in [a, b] {
+            app.execute(&objects::set_name(id, "leaf")).expect("name");
+        }
+        app.edit.order_filter = "leaf".into();
+        let list = List::new();
+        let layout = list.settle(&mut app);
+        assert_eq!(in_view(&layout).iter().map(|r| r.id).collect::<Vec<_>>(), vec![a, b]);
+        // The lower row onto the upper: object 10 of 12 to where object 6 is.
+        list.drag(&mut app, row(&layout, b).handle.center(), row(&layout, a).rect.center(), 0);
+        let after = ids(&app);
+        assert_eq!(after.iter().position(|id| *id == b), Some(objects::drop_index(9, 5)));
+        assert_eq!(after.len(), all.len());
+        let mut sorted = after.clone();
+        sorted.sort();
+        assert_eq!(sorted, all, "the same objects, reordered");
+    }
+
+    /// #1220: a rename is confirmed with Enter and cancelled with Esc.
+    #[test]
+    fn a_rename_is_confirmed_with_enter_and_cancelled_with_esc() {
+        let mut app = app_with(20);
+        let list = List::new();
+        let key = |k| egui::Event::Key {
+            key: k,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let id = ids(&app)[3];
+        let name = |app: &EditorApp| {
+            let d = app.session.design();
+            d.objects[d.index_of(id).expect("object")].name.clone()
+        };
+        for (typed, end, expected) in [("Leaf", egui::Key::Enter, Some("Leaf")), ("Stem", egui::Key::Escape, Some("Leaf"))] {
+            app.edit.renaming = Some((id, name(&app).unwrap_or_default()));
+            list.settle(&mut app);
+            list.frame(&mut app, vec![egui::Event::Key {
+                key: egui::Key::A,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::COMMAND,
+            }]);
+            list.frame(&mut app, vec![egui::Event::Text(typed.into())]);
+            list.frame(&mut app, vec![key(end)]);
+            list.settle(&mut app);
+            assert!(app.edit.renaming.is_none(), "{end:?} ends the rename");
+            assert_eq!(name(&app).as_deref(), expected, "after {typed} and {end:?}");
+        }
     }
 
     /// A still frame with 1,000 objects builds a few dozen rows; 10,000 objects scroll from top

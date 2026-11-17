@@ -14,16 +14,18 @@ pub enum Limit {
     Updates,
     Folders,
     ClipboardImages,
+    SystemFonts,
 }
 
 impl Limit {
-    pub const ALL: [Limit; 6] = [
+    pub const ALL: [Limit; 7] = [
         Limit::Assistant,
         Limit::Print,
         Limit::Transfer,
         Limit::Updates,
         Limit::Folders,
         Limit::ClipboardImages,
+        Limit::SystemFonts,
     ];
 
     /// Its key in `ui.browserLimits`.
@@ -35,6 +37,7 @@ impl Limit {
             Limit::Updates => "updates",
             Limit::Folders => "folders",
             Limit::ClipboardImages => "clipboardImages",
+            Limit::SystemFonts => "systemFonts",
         }
     }
 
@@ -47,6 +50,7 @@ impl Limit {
             Limit::Updates => "Checking for updates",
             Limit::Folders => "Choosing a folder",
             Limit::ClipboardImages => "Pictures on the system clipboard",
+            Limit::SystemFonts => "Lettering in the computer's own fonts",
         }
     }
 
@@ -69,6 +73,9 @@ impl Limit {
             Limit::ClipboardImages => {
                 "Copy and paste stay inside the editor here. Open the picture as a file (Image ▸ Open Image)."
             }
+            Limit::SystemFonts => {
+                "A web page cannot read the fonts installed on the computer. The built-in fonts are here, and Load TrueType Font adds a font file."
+            }
         }
     }
 
@@ -76,6 +83,7 @@ impl Limit {
     pub fn issue(self) -> u32 {
         match self {
             Limit::Assistant => 766,
+            Limit::SystemFonts => 833,
             _ => 830,
         }
     }

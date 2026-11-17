@@ -493,6 +493,13 @@ impl EditorApp {
         }
         if l.user_settings.is_none()
             && l.screenshot.is_none()
+            && let Some(store) = openstitch_app::platform::recovery_store()
+        {
+            // No folder beside ui.json: the browser page's snapshot store (#831).
+            self.recovery.start_store(store, l.script.is_empty());
+        }
+        if l.user_settings.is_none()
+            && l.screenshot.is_none()
             && let Some(v) = openstitch_app::platform::stored_prefs()
                 .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         {
@@ -2017,6 +2024,11 @@ impl EditorApp {
         } else if hit(A::Group) {
             crate::edit_ui::group(self);
         }
+        if hit(A::BreakApart) {
+            crate::edit_ui::break_apart(self);
+        } else if hit(A::JoinLines) {
+            crate::edit_ui::join_lines(self);
+        }
         if hit(A::Delete) && self.tools.is_busy() && crate::keyboard_ui::draws(self.tools.tool()) {
             // While drawing, Backspace / Delete take back the last point (#499).
             self.tools.remove_last_point();
@@ -3031,6 +3043,9 @@ mod replace_design_tests;
 #[cfg(test)]
 #[path = "px_per_mm_tests.rs"]
 mod px_per_mm_tests;
+#[cfg(test)]
+#[path = "narrow_tests.rs"]
+mod narrow_tests;
 #[cfg(test)]
 #[path = "monkey_tests.rs"]
 mod monkey_tests;
