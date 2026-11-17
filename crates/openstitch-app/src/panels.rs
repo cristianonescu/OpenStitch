@@ -357,93 +357,144 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
     let mut select: Option<(u64, bool)> = None;
     let (mut rename, mut rename_done) = (None, false);
     let modifiers = ui.input(|i| i.modifiers);
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            for row in &rows {
-                let drop = ui
-                    .dnd_drop_zone::<usize, ()>(egui::Frame::NONE, |ui| {
-                        ui.horizontal(|ui| {
-                            let mut visible = row.visible;
-                            if ui
-                                .checkbox(&mut visible, "")
-                                .on_hover_text(t("ui-visible-hidden-objects-are-not-sewn-tip"))
-                                .changed()
-                            {
-                                pending = Some(objects::set_visible(row.id, visible));
-                            }
-                            let handle = ui.dnd_drag_source(
-                                ui.scope_id().with(("row", row.id)),
-                                row.index,
-                                |ui| {
-                                    // #653: the Higgsfield hand icon as the drag grip.
-                                    ui.add(crate::icons::ui_image(ui, "hand"));
-                                },
-                            );
-                            handle
-                                .response
-                                .on_hover_text(t("ui-drag-to-change-the-sewing-order-tip"));
-                            let d = app.session.design();
-                            if let Some(i) = d.index_of(row.id) {
-                                let compiled = crate::thumbs_ui::Compiled {
-                                    pattern: &app.pattern,
-                                    spans: &app.quality.spans,
-                                    revision: app.revision,
-                                };
-                                crate::thumbs_ui::thumbnail(
-                                    ui,
-                                    &mut app.thumbs,
-                                    &compiled,
-                                    &d.objects[i],
-                                    30.0,
-                                );
-                            }
-                            ui.vertical(|ui| {
-                                ui.spacing_mut().item_spacing.y = 1.0;
-                                for th in row.swatches.iter().take(3) {
-                                    thread_swatch(ui, th, 9.0, Caption::Beside);
-                                }
-                            });
-                            if let Some((id, name)) = &mut app.edit.renaming
-                                && *id == row.id
-                            {
-                                let edit = ui.add(
-                                    egui::TextEdit::singleline(name)
-                                        .desired_width(140.0)
-                                        .char_limit(objects::MAX_NAME),
-                                );
-                                edit.request_focus();
-                                if edit.lost_focus() {
-                                    let typed = name.clone();
-                                    let escaped = ui.input(|i| i.key_pressed(egui::Key::Escape));
-                                    if !escaped && Some(typed.trim()) != row.name.as_deref() {
-                                        pending = Some(objects::set_name(row.id, &typed));
+    // #1192: only the rows in view (and a few either side) are built. Rows differ in height by
+    // their thread swatches, so each swatch count's height is measured as rows are laid out and
+    // kept; the rows above the view take their place by those heights.
+    let heights_id = egui::Id::unique("sewing-order-row-heights");
+    let mut heights: [f32; 4] = ui
+        .data(|d| d.get_temp(heights_id))
+        .unwrap_or([ORDER_ROW_ESTIMATE; 4]);
+    let gap = ui.spacing().item_spacing.y;
+    let kind = |row: &objects::ObjectRow| row.swatches.len().min(3);
+    let mut tops = Vec::with_capacity(rows.len() + 1);
+    let mut y = 0.0;
+    for row in &rows {
+        tops.push(y);
+        y += heights[kind(row)] + gap;
+    }
+    tops.push(y);
+    let total = (y - gap).max(0.0);
+    let mut built = Vec::new();
+    let mut area = egui::ScrollArea::vertical().auto_shrink([false, false]);
+    if let Some(y) = ui.data_mut(|d| d.remove_temp::<f32>(order_scroll_to_id())) {
+        area = area.vertical_scroll_offset(y);
+    }
+    let scroll = area.show_viewport(ui, |ui, view| {
+            ui.set_height(total);
+            let (first, end) = order_rows_in_view(&tops[..rows.len()], view.min.y, view.max.y);
+            let area = ui.max_rect();
+            let rect = egui::Rect::from_x_y_ranges(area.x_range(), area.top() + tops[first]..=area.bottom());
+            ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                for row in &rows[first..end] {
+                    ui.push_id(("sewing-order-row", row.id), |ui| {
+                        let (mut handle_rect, mut label_rect) = (egui::Rect::NOTHING, egui::Rect::NOTHING);
+                        let (zone, drop) = ui
+                            .dnd_drop_zone::<usize, ()>(egui::Frame::NONE, |ui| {
+                                ui.horizontal(|ui| {
+                                    let mut visible = row.visible;
+                                    if ui
+                                        .checkbox(&mut visible, "")
+                                        .on_hover_text(t("ui-visible-hidden-objects-are-not-sewn-tip"))
+                                        .changed()
+                                    {
+                                        pending = Some(objects::set_visible(row.id, visible));
                                     }
-                                    rename_done = true;
-                                }
-                                return;
-                            }
-                            let lock = if row.locked { " (locked)" } else { "" };
-                            let text = format!("{}. {}{lock}", row.index + 1, row.label);
-                            let resp = ui
-                                .selectable_label(row.selected, text)
-                                .on_hover_text(format!("{} · double-click to rename", row.detail));
-                            if resp.double_clicked() {
-                                rename = Some((row.id, row.name.clone().unwrap_or_default()));
-                            } else if resp.clicked() {
-                                select = Some((row.id, modifiers.shift || modifiers.command));
-                            }
+                                    let handle = ui.dnd_drag_source(
+                                        ui.scope_id().with(("row", row.id)),
+                                        row.index,
+                                        |ui| {
+                                            // #653: the Higgsfield hand icon as the drag grip.
+                                            ui.add(crate::icons::ui_image(ui, "hand"));
+                                        },
+                                    );
+                                    handle_rect = handle.response.rect;
+                                    handle
+                                        .response
+                                        .on_hover_text(t("ui-drag-to-change-the-sewing-order-tip"));
+                                    let d = app.session.design();
+                                    if let Some(i) = d.index_of(row.id) {
+                                        let compiled = crate::thumbs_ui::Compiled {
+                                            pattern: &app.pattern,
+                                            spans: &app.quality.spans,
+                                            revision: app.revision,
+                                        };
+                                        crate::thumbs_ui::thumbnail(
+                                            ui,
+                                            &mut app.thumbs,
+                                            &compiled,
+                                            &d.objects[i],
+                                            30.0,
+                                        );
+                                    }
+                                    ui.vertical(|ui| {
+                                        ui.spacing_mut().item_spacing.y = 1.0;
+                                        for th in row.swatches.iter().take(3) {
+                                            thread_swatch(ui, th, 9.0, Caption::Beside);
+                                        }
+                                    });
+                                    if let Some((id, name)) = &mut app.edit.renaming
+                                        && *id == row.id
+                                    {
+                                        let edit = ui.add(
+                                            egui::TextEdit::singleline(name)
+                                                .desired_width(140.0)
+                                                .char_limit(objects::MAX_NAME),
+                                        );
+                                        edit.request_focus();
+                                        if edit.lost_focus() {
+                                            let typed = name.clone();
+                                            let escaped = ui.input(|i| i.key_pressed(egui::Key::Escape));
+                                            if !escaped && Some(typed.trim()) != row.name.as_deref() {
+                                                pending = Some(objects::set_name(row.id, &typed));
+                                            }
+                                            rename_done = true;
+                                        }
+                                        return;
+                                    }
+                                    let lock = if row.locked { " (locked)" } else { "" };
+                                    let text = format!("{}. {}{lock}", row.index + 1, row.label);
+                                    let resp = ui
+                                        .selectable_label(row.selected, text)
+                                        .on_hover_text(format!("{} · double-click to rename", row.detail));
+                                    label_rect = resp.rect;
+                                    if resp.double_clicked() {
+                                        rename = Some((row.id, row.name.clone().unwrap_or_default()));
+                                    } else if resp.clicked() {
+                                        select = Some((row.id, modifiers.shift || modifiers.command));
+                                    }
+                                });
+                            });
+                        let renaming = app.edit.renaming.as_ref().is_some_and(|(id, _)| *id == row.id);
+                        if !renaming {
+                            heights[kind(row)] = zone.response.rect.height();
+                        }
+                        built.push(OrderRowLayout {
+                            id: row.id,
+                            rect: zone.response.rect,
+                            handle: handle_rect,
+                            label: label_rect,
                         });
-                    })
-                    .1;
-                if let Some(from) = drop {
-                    pending = Some(objects::reorder(
-                        rows[*from].id,
-                        objects::drop_index(*from, row.index),
-                    ));
+                        if let Some(from) = drop {
+                            pending = Some(objects::reorder(
+                                rows[*from].id,
+                                objects::drop_index(*from, row.index),
+                            ));
+                        }
+                    });
                 }
-            }
+            });
+            order_drag_scroll(ui);
         });
+    ui.data_mut(|d| {
+        d.insert_temp(heights_id, heights);
+        d.insert_temp(
+            order_layout_id(),
+            OrderListLayout {
+                view: scroll.inner_rect,
+                rows: built,
+            },
+        );
+    });
     if rename_done {
         app.edit.renaming = None;
     }
@@ -462,6 +513,82 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
     if let Some(r) = pending {
         app.execute(&r);
     }
+}
+
+/// Where the Sewing Order list put the rows it built in its last frame (#1192), and its area:
+/// for tests, which drive the rows by their places.
+#[derive(Clone)]
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) struct OrderListLayout {
+    /// The list's area on screen.
+    pub view: egui::Rect,
+    pub rows: Vec<OrderRowLayout>,
+}
+
+impl Default for OrderListLayout {
+    fn default() -> Self {
+        Self { view: egui::Rect::NOTHING, rows: Vec::new() }
+    }
+}
+
+/// A row the Sewing Order list built: the object, the row, its drag handle and its label.
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) struct OrderRowLayout {
+    pub id: u64,
+    pub rect: egui::Rect,
+    pub handle: egui::Rect,
+    pub label: egui::Rect,
+}
+
+pub(crate) fn order_layout_id() -> egui::Id {
+    egui::Id::unique("sewing-order-layout")
+}
+
+/// A scroll position for the Sewing Order list's next frame, in points from its top.
+pub(crate) fn order_scroll_to_id() -> egui::Id {
+    egui::Id::unique("sewing-order-scroll-to")
+}
+
+/// The Sewing Order row height assumed until a row with as many swatches has been laid out.
+const ORDER_ROW_ESTIMATE: f32 = 30.0;
+/// Rows built beyond each edge of the view (#1192), so a row coming into view is ready.
+const ORDER_ROW_OVERSCAN: usize = 3;
+
+/// The rows to build (#1192) for the view from `top` to `bottom`, given each row's top: the
+/// first row reaching into the view to the last starting in it, with a few more either side.
+pub(crate) fn order_rows_in_view(tops: &[f32], top: f32, bottom: f32) -> (usize, usize) {
+    let first = tops
+        .partition_point(|&t| t <= top)
+        .saturating_sub(1)
+        .saturating_sub(ORDER_ROW_OVERSCAN);
+    let end = (tops.partition_point(|&t| t < bottom) + ORDER_ROW_OVERSCAN).min(tops.len());
+    (first, end.max(first))
+}
+
+/// While a row is dragged with the pointer near the list's top or bottom edge, the list scrolls
+/// that way, so a row can be dropped beyond what the list shows.
+fn order_drag_scroll(ui: &mut egui::Ui) {
+    if !egui::DragAndDrop::has_payload_of_type::<usize>(ui.ctx()) {
+        return;
+    }
+    let Some(p) = ui.ctx().pointer_latest_pos() else {
+        return;
+    };
+    let clip = ui.clip_rect();
+    if !clip.x_range().contains(p.x) {
+        return;
+    }
+    const EDGE: f32 = 24.0;
+    let dy = if p.y < clip.top() + EDGE && p.y > clip.top() - EDGE {
+        8.0
+    } else if p.y > clip.bottom() - EDGE && p.y < clip.bottom() + EDGE {
+        -8.0
+    } else {
+        return;
+    };
+    ui.scroll_with_delta(egui::vec2(0.0, dy));
+    ui.ctx().request_repaint();
 }
 
 /// The Sewing Order rows shown for the Find text `filter` (#745): only the list narrows, never
@@ -2008,5 +2135,278 @@ mod order_filter_tests {
         assert_eq!(*app.session.design(), design, "filtering never edits the design");
         assert_eq!(app.session.can_undo(), undo);
         assert_eq!(app.undo_groups.len(), undo_groups, "nor its undo history");
+    }
+}
+
+/// #1192: the Sewing Order list builds only the rows in view, and selection, renaming, the
+/// visibility checkbox and drag-and-drop work on any row as before, wherever the list is scrolled.
+#[cfg(test)]
+mod order_rows_tests {
+    use super::*;
+    use crate::app::Launch;
+    use openstitch_core::Thread;
+    use openstitch_design::{Contour, DesignObject, LineSewing, LineType, RegionSewing, RegionType};
+
+    /// `n` small squares: a fill, an outline or both in turn (one or two thread swatches, so
+    /// rows of two heights), every seventh locked.
+    fn app_with(n: usize) -> EditorApp {
+        let mut d = openstitch_design::Design::default();
+        for k in 0..n {
+            let (x, y) = ((k % 40) as f64 * 25.0, (k / 40) as f64 * 25.0);
+            let a = Thread::rgb(0x10_20_30 * (k as u32 % 7 + 1));
+            let b = Thread::rgb(0x30_20_10 * (k as u32 % 5 + 1));
+            let mut o = DesignObject::shape(
+                vec![Contour::rectangle(x, y, 20.0, 20.0)],
+                (k % 3 != 1).then(|| RegionSewing::new(RegionType::Fill, a)),
+                (k % 3 != 0).then(|| LineSewing::new(LineType::Running, b)),
+            );
+            o.locked = k % 7 == 3;
+            d.add(o);
+        }
+        let mut app = EditorApp::new(Launch::default());
+        app.session.adopt_design(d);
+        app.refresh();
+        app.thumbs.unlimited = true;
+        app
+    }
+
+    struct List {
+        ctx: egui::Context,
+        modifiers: egui::Modifiers,
+        time: std::cell::Cell<f64>,
+    }
+
+    impl List {
+        fn new() -> Self {
+            List { ctx: egui::Context::default(), modifiers: egui::Modifiers::NONE, time: Default::default() }
+        }
+
+        /// One frame of the list alone in a 320 x 600 point pane.
+        fn frame(&self, app: &mut EditorApp, events: Vec<egui::Event>) -> OrderListLayout {
+            self.time.set(self.time.get() + 1.0 / 60.0);
+            let raw = egui::RawInput {
+                time: Some(self.time.get()),
+                predicted_dt: 1.0 / 60.0,
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(320.0, 600.0))),
+                events: std::iter::once(egui::Event::ModifiersChanged(self.modifiers)).chain(events).collect(),
+                ..Default::default()
+            };
+            let mut out = self.ctx.run_ui(raw, |ui| object_list(app, ui));
+            out.textures_delta.clear();
+            self.ctx.data(|d| d.get_temp(order_layout_id())).unwrap_or_default()
+        }
+
+        /// Frames until the list stands still (a scroll past the end springs back).
+        fn settle(&self, app: &mut EditorApp) -> OrderListLayout {
+            let mut layout = self.frame(app, Vec::new());
+            for _ in 0..120 {
+                let next = self.frame(app, Vec::new());
+                let same = next.rows.len() == layout.rows.len()
+                    && next.rows.iter().zip(&layout.rows).all(|(a, b)| a.id == b.id && a.rect == b.rect);
+                layout = next;
+                if same {
+                    break;
+                }
+            }
+            layout
+        }
+
+        /// Scrolls the list so `y` points of its content are above the view.
+        fn scroll_to(&self, app: &mut EditorApp, y: f32) -> OrderListLayout {
+            self.ctx.data_mut(|d| d.insert_temp(order_scroll_to_id(), y));
+            self.settle(app)
+        }
+
+        fn button(&self, p: egui::Pos2, pressed: bool) -> egui::Event {
+            egui::Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed, modifiers: self.modifiers }
+        }
+
+        fn click(&self, app: &mut EditorApp, p: egui::Pos2) -> OrderListLayout {
+            self.frame(app, vec![egui::Event::PointerMoved(p)]);
+            self.frame(app, vec![self.button(p, true)]);
+            self.frame(app, vec![self.button(p, false)]);
+            self.settle(app)
+        }
+
+        /// Presses at `a`, moves to `b` in steps (`hold` more frames there) and lets go.
+        fn drag(&self, app: &mut EditorApp, a: egui::Pos2, b: egui::Pos2, hold: usize) -> OrderListLayout {
+            self.frame(app, vec![egui::Event::PointerMoved(a)]);
+            self.frame(app, vec![self.button(a, true)]);
+            for k in 1..=8 {
+                self.frame(app, vec![egui::Event::PointerMoved(a.lerp(b, k as f32 / 8.0))]);
+            }
+            for _ in 0..hold {
+                self.frame(app, vec![egui::Event::PointerMoved(b)]);
+            }
+            let held = self.frame(app, Vec::new());
+            self.frame(app, vec![self.button(b, false)]);
+            self.settle(app);
+            held
+        }
+    }
+
+    /// The rows wholly inside the list's area (the rows built either side are hidden).
+    fn in_view(layout: &OrderListLayout) -> Vec<OrderRowLayout> {
+        layout.rows.iter().copied().filter(|r| r.rect.top() >= layout.view.top() && r.rect.bottom() <= layout.view.bottom()).collect()
+    }
+
+    fn row(layout: &OrderListLayout, id: u64) -> OrderRowLayout {
+        *layout.rows.iter().find(|r| r.id == id).unwrap_or_else(|| panic!("row {id} not built"))
+    }
+
+    fn ids(app: &EditorApp) -> Vec<u64> {
+        app.session.design().objects.iter().map(|o| o.id).collect()
+    }
+
+    #[test]
+    fn the_rows_in_view_are_chosen_with_a_few_either_side() {
+        let tops: Vec<f32> = (0..100).map(|k| k as f32 * 10.0).collect();
+        assert_eq!(order_rows_in_view(&tops, 0.0, 95.0), (0, 13));
+        assert_eq!(order_rows_in_view(&tops, 505.0, 600.0), (47, 63));
+        assert_eq!(order_rows_in_view(&tops, 980.0, 1100.0), (95, 100));
+        assert_eq!(order_rows_in_view(&[], 0.0, 100.0), (0, 0));
+    }
+
+    /// Only the rows on screen and a few either side are built, laid out one under another as
+    /// a list of every row would be, at any scroll position, and the last row can be reached.
+    #[test]
+    fn only_the_rows_in_view_are_built_wherever_the_list_is_scrolled() {
+        let mut app = app_with(1000);
+        let list = List::new();
+        let gap = egui::Style::default().spacing.item_spacing.y;
+        for y in [0.0, 1234.5, 9000.0, 20000.0, 1.0e6] {
+            let layout = list.scroll_to(&mut app, y);
+            let built = &layout.rows;
+            assert!(built.len() > 10 && built.len() < 60, "{} rows built at {y}", built.len());
+            let order = ids(&app);
+            let first = order.iter().position(|id| *id == built[0].id).expect("row");
+            for (k, r) in built.iter().enumerate() {
+                assert_eq!(r.id, order[first + k], "consecutive rows in sewing order");
+                if k > 0 {
+                    let gap_seen = r.rect.top() - built[k - 1].rect.bottom();
+                    assert!((gap_seen - gap).abs() < 0.01, "row {k} at {y}: gap {gap_seen}");
+                }
+            }
+            // The rows overlap the pane's list area: the view is never empty.
+            assert!(built.iter().any(|r| r.rect.top() >= 0.0 && r.rect.bottom() <= 600.0));
+        }
+        let end = list.scroll_to(&mut app, 1.0e6);
+        let last = row(&end, *ids(&app).last().expect("id"));
+        assert!(last.rect.bottom() <= 600.5, "the last row shows in full: {:?}", last.rect);
+    }
+
+    /// Click, Ctrl/Cmd+click, Shift+click and double-click to rename on rows far down the list.
+    #[test]
+    fn rows_far_down_select_and_rename_as_before() {
+        let mut app = app_with(1000);
+        let mut list = List::new();
+        let layout = list.scroll_to(&mut app, 15000.0);
+        let order = ids(&app);
+        let shown = in_view(&layout);
+        let (a, b) = (shown[2].id, shown[5].id);
+        assert!(order.iter().position(|id| *id == a).expect("row") > 100);
+        // A selection adds the order buttons above the list, so each click finds its row anew.
+        let mut at = layout;
+        let mut click = |list: &List, app: &mut EditorApp, id| {
+            at = list.click(app, row(&at, id).label.center());
+        };
+        click(&list, &mut app, a);
+        assert_eq!(app.selection, BTreeSet::from([a]));
+        list.modifiers = egui::Modifiers::COMMAND;
+        click(&list, &mut app, b);
+        assert_eq!(app.selection, BTreeSet::from([a, b]));
+        click(&list, &mut app, a);
+        assert_eq!(app.selection, BTreeSet::from([b]), "a second Ctrl+click deselects");
+        list.modifiers = egui::Modifiers::SHIFT;
+        click(&list, &mut app, a);
+        assert_eq!(app.selection, BTreeSet::from([a, b]));
+        list.modifiers = egui::Modifiers::NONE;
+        app.selection = BTreeSet::from([b]);
+        // A second later, so the clicks above do not count towards a triple-click.
+        list.time.set(list.time.get() + 1.0);
+        let layout = list.settle(&mut app);
+
+        // Double-click opens the name field on that row, with the keyboard in it.
+        let p = row(&layout, b).label.center();
+        list.frame(&mut app, vec![egui::Event::PointerMoved(p)]);
+        for pressed in [true, false, true, false] {
+            list.frame(&mut app, vec![list.button(p, pressed)]);
+        }
+        list.settle(&mut app);
+        assert_eq!(app.edit.renaming.as_ref().map(|r| r.0), Some(b));
+        list.frame(&mut app, vec![egui::Event::Text("Leaf".into())]);
+        list.settle(&mut app);
+        assert_eq!(app.edit.renaming, Some((b, "Leaf".into())), "typing goes to the name field");
+    }
+
+    /// The visibility checkbox of a row far down hides that object; a locked row stays locked
+    /// and is labelled so.
+    #[test]
+    fn the_visibility_checkbox_and_lock_follow_their_row() {
+        let mut app = app_with(1000);
+        let list = List::new();
+        let layout = list.scroll_to(&mut app, 30000.0);
+        let r = in_view(&layout)[1];
+        let index = |app: &EditorApp, id| app.session.design().index_of(id).expect("object");
+        assert!(app.session.design().objects[index(&app, r.id)].visible);
+        list.click(&mut app, egui::pos2(r.rect.left() + 9.0, r.rect.center().y));
+        assert!(!app.session.design().objects[index(&app, r.id)].visible, "hidden");
+        let locked = ids(&app).into_iter().find(|id| {
+            app.session.design().objects[index(&app, *id)].locked && layout.rows.iter().any(|r| r.id == *id)
+        });
+        assert!(locked.is_some(), "a locked object is among the rows shown");
+        let locked_rows = objects::rows(app.session.design(), &app.selection);
+        assert!(locked_rows.iter().filter(|r| r.locked).all(|r| r.locked));
+    }
+
+    /// Dragging a row's handle onto another row reorders as before, here far down the list; and
+    /// holding a dragged row at the bottom edge scrolls the list so it can be dropped further down.
+    #[test]
+    fn drag_and_drop_reorders_and_scrolls_past_the_edge() {
+        let mut app = app_with(1000);
+        let list = List::new();
+        let layout = list.scroll_to(&mut app, 12000.0);
+        let shown = in_view(&layout);
+        let (moved, onto) = (shown[1].id, shown[7].id);
+        let before = ids(&app);
+        let to = before.iter().position(|id| *id == onto).expect("row");
+        list.drag(&mut app, row(&layout, moved).handle.center(), row(&layout, onto).rect.center(), 0);
+        let after = ids(&app);
+        assert!(after != before, "the order changed");
+        let from = before.iter().position(|id| *id == moved).expect("row");
+        let expected = objects::drop_index(from, to);
+        assert_eq!(after.iter().position(|id| *id == moved), Some(expected), "{from} onto {to}");
+
+        // Held at the bottom edge, the list scrolls down while the row is dragged.
+        let top = list.scroll_to(&mut app, 0.0);
+        let first = in_view(&top)[0];
+        let edge = egui::pos2(first.label.center().x, 590.0);
+        let held = list.drag(&mut app, first.handle.center(), edge, 30);
+        assert!(in_view(&held)[0].id != first.id, "the list scrolled while the row was held at the edge");
+        assert!(ids(&app)[0] != first.id, "and the row was dropped further down");
+    }
+
+    /// A still frame with 1,000 objects builds a few dozen rows; 10,000 objects scroll from top
+    /// to bottom building as few. Printed with `--nocapture` (release build).
+    #[test]
+    fn ten_thousand_objects_scroll_building_only_the_rows_in_view() {
+        let mut app = app_with(10_000);
+        // The window's own picture budget, as when the user scrolls.
+        app.thumbs.unlimited = false;
+        let list = List::new();
+        list.settle(&mut app);
+        let mut most = 0;
+        let mut times = Vec::new();
+        for k in 1..=40 {
+            list.ctx.data_mut(|d| d.insert_temp(order_scroll_to_id(), k as f32 * 7_919.0));
+            let start = std::time::Instant::now();
+            let layout = list.frame(&mut app, Vec::new());
+            times.push(start.elapsed());
+            most = most.max(layout.rows.len());
+        }
+        assert!(most < 60, "{most} rows built");
+        times.sort();
+        println!("#1192 10,000 objects: a frame jumping to a new place in the list {:.2} ms (median), {:.2} ms (most)",
+            times[times.len() / 2].as_secs_f64() * 1e3, times[times.len() - 1].as_secs_f64() * 1e3);
     }
 }
