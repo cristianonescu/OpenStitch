@@ -61,6 +61,11 @@ pub fn command(app: &EditorApp) -> Value {
     json!({
         "inBrowser": openstitch_app::platform::in_browser(),
         "shown": app.ui.limit_notice.map(Limit::key),
+        // Keys the browser keeps for itself, which never reach the editor there (#834).
+        "browserKeys": openstitch_app::editor::keymap::BROWSER_KEYS
+            .iter()
+            .map(|(k, _)| *k)
+            .collect::<Vec<_>>(),
         "limits": Limit::ALL.iter().map(|l| json!({
             "key": l.key(),
             "what": l.what(),
@@ -103,6 +108,9 @@ mod tests {
         assert_eq!(v["inBrowser"], json!(true));
         assert_eq!(v["shown"], json!("folders"));
         assert_eq!(v["limits"].as_array().map(Vec::len), Some(Limit::ALL.len()));
+        // #833 and #834: the system fonts note, and the keys the browser keeps.
+        assert!(v["limits"].as_array().is_some_and(|l| l.iter().any(|x| x["key"] == "systemFonts")));
+        assert_eq!(v["browserKeys"], json!(["Ctrl+N", "Ctrl+T", "Ctrl+W"]));
         assert!(v["limits"][0]["message"].as_str().unwrap_or_default().contains("#766"));
         openstitch_app::platform::pretend_browser(false);
     }

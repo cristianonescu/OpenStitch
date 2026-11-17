@@ -3,6 +3,15 @@
 //! the design, through `guides.set`). Model units are 0.1 mm.
 
 use super::viewport::{ScreenRect, Viewport};
+
+/// Below this window width (points) the layout is narrow (#834: a phone, a narrow window): the
+/// panes leave the canvas the whole width, floating folded, and the ribbon's tabs scroll.
+pub const NARROW_WIDTH: f32 = 640.0;
+
+/// Whether a window `width` points wide gets the narrow layout.
+pub fn narrow(width: f32) -> bool {
+    width < NARROW_WIDTH
+}
 use openstitch_design::{Guides, Rect, Vec2, v2};
 
 /// Grid drawn on the Design Page.

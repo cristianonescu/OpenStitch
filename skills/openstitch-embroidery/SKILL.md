@@ -590,10 +590,16 @@ open there. The system clipboard, printing, machine transfer and choosing folder
 Database, Ink/Stitch font folders) are desktop-only too; say so instead of trying them in the
 browser. Pictures, thread charts, fonts and other files can be picked or dropped on the page.
 `ui.browserLimits` lists what the browser version cannot do (the Assistant, printing, USB
-transfer, updates, folders, clipboard pictures), each with what to do instead; tell the user that
-rather than trying it. Editor settings (`ui.set`), thread charts, My Threads and the other user
-settings last across visits there, as on the desktop (the page's storage; cleared site data starts
-afresh).
+transfer, updates, folders, clipboard pictures, the computer's own fonts for lettering), each
+with what to do instead; tell the user that rather than trying it. Its `browserKeys` are the keys
+the browser keeps (Ctrl+N, Ctrl+T, Ctrl+W): they never reach the editor there, so point to the
+menus instead. Editor settings (`ui.set`), thread charts, My Threads and the other user settings
+last across visits there, as on the desktop (the page's storage; cleared site data starts
+afresh). Autosave works there too (#831): a design left unsaved in a closed or crashed tab is
+offered at the next visit, and `ui.recoveryList`, `ui.recoveryRestore` and `ui.recoveryDiscard`
+work as on the desktop (with the browser's storage refused, recovery is off and nothing is kept).
+`ui.gettingStarted {sample}` opens the ready-to-sew samples in the browser too (#833). On a phone
+or a window narrower than 640 points the panes float folded over the canvas (#834).
 
 ## Files
 
