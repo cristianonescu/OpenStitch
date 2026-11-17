@@ -928,3 +928,113 @@ fn candlewick_knots_have_pe_designs_points() {
         assert_eq!(needles(&ours) + off, needles(&pe), "density {density}");
     }
 }
+
+/// #1160: a candlewick line's Size and Spacing are the line body's +112 and +114; +48 and +50
+/// are the zigzag tool's width and density, which PE-DESIGN keeps in every line body (round 16:
+/// one 40 mm square saved with Size 6.0, with Spacing 2.0, and after a zigzag set to 4.0 and
+/// 1.0 and switched back; line-candlewick-default holds 2.0 and 14.0 there and is sewn at Size
+/// 5.0). `import.pes` reads Size and Spacing from their own fields, and a PES 0110 written from
+/// the design holds them there, PE-DESIGN's sewn box round the knots (half the Size beyond the
+/// outline) and the zigzag tool's defaults in +48 and +50.
+#[test]
+fn a_candlewick_size_and_spacing_come_back_from_pe_design() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let fixtures = "crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-17";
+    let dir = temp_dir("v11-candlewick-size");
+    let body = |bytes: &[u8]| {
+        let name = b"\x08\x00CEmbLine";
+        let at = bytes
+            .windows(name.len())
+            .position(|w| w == name)
+            .expect("CEmbLine")
+            + name.len();
+        bytes[at..at + 386].to_vec()
+    };
+    let u16_at = |b: &[u8], at: usize| u16::from_le_bytes([b[at], b[at + 1]]);
+    for (file, size, spacing, zigzag) in [
+        (
+            format!("{fixtures}/1160-cw-size-6p0.pes"),
+            6.0,
+            1.0,
+            (5.0, 3.0),
+        ),
+        (
+            format!("{fixtures}/1160-cw-spacing-2p0.pes"),
+            5.0,
+            2.0,
+            (5.0, 3.0),
+        ),
+        (
+            format!("{fixtures}/1160-cw-zigzag-w4p0-d1p0.pes"),
+            5.0,
+            1.0,
+            (4.0, 1.0),
+        ),
+        (
+            "compat/reference/stitches/line-candlewick-default.pes".to_string(),
+            5.0,
+            1.0,
+            (2.0, 14.0),
+        ),
+    ] {
+        let pe_bytes = std::fs::read(root.join(&file)).expect("capture");
+        let pe = pes::read_objects(&pe_bytes).expect("objects");
+        let shape = &pe.shapes[0];
+        assert_eq!(
+            (shape.candlewick_size, shape.candlewick_spacing),
+            (size, spacing),
+            "{file}"
+        );
+        assert_eq!((shape.zigzag_width, shape.zigzag_density), zigzag, "{file}");
+        std::fs::write(dir.join("in.pes"), &pe_bytes).expect("copy");
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        let r = run(&mut s, "import.pes", json!({"path": "in.pes"}));
+        assert_eq!(r["notes"], json!([]), "{file}");
+        let l = s.design().objects[0].line.clone().expect("line");
+        assert_eq!(l.kind, openstitch_design::LineType::Candlewick, "{file}");
+        assert_eq!(
+            (l.width, l.spacing_mm(), l.density),
+            (f64::from(size), f64::from(spacing), 12.0),
+            "{file}"
+        );
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": "out.pes", "pesVersion": "11"}),
+        );
+        let out = std::fs::read(dir.join("out.pes")).expect("out.pes");
+        let (ours, theirs) = (body(&out), body(&pe_bytes));
+        // Bounds and sewn box, the type, the Density choice, Size and Spacing: PE-DESIGN's.
+        for at in [0, 2, 4, 6, 8, 10, 12, 14, 44, 110, 112, 114] {
+            assert_eq!(u16_at(&ours, at), u16_at(&theirs, at), "{file}: +{at}");
+        }
+        // The zigzag tool's defaults, 2.0 mm and 4.5 lines/mm, not the Size and the density.
+        assert_eq!((u16_at(&ours, 48), u16_at(&ours, 50)), (20, 45), "{file}");
+    }
+}
+
+/// #1160 (the owner's rule of 2026-11-14): `object.setLine`'s `width` and `spacing` say where
+/// PES version 11 stores a candlewick's Size and Spacing.
+#[test]
+fn the_width_and_spacing_descriptions_say_where_pes_11_stores_a_candlewick() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setLine")
+        .expect("object.setLine");
+    for (param, words) in [
+        (
+            "width",
+            "PES version 11 stores a candlewick's Size at body +112",
+        ),
+        (
+            "spacing",
+            "PES version 11 stores a candlewick's Spacing at body +114",
+        ),
+    ] {
+        let p = spec.params.iter().find(|p| p.name == param).expect(param);
+        assert!(p.summary.contains(words), "{}", p.summary);
+    }
+}

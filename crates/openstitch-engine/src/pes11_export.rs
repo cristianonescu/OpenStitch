@@ -807,6 +807,11 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
         LineType::Stem => Shape::LINE_STEM,
         LineType::Candlewick => {
             s.candlewick_density = candlewick_choice(l.density);
+            // Its Size and Spacing are +112 and +114 (#1160). Until then the Size went to the
+            // zigzag width (+48) and the density, 12 for Medium, to the zigzag density (+50),
+            // and PE-DESIGN read its defaults 5.0 and 1.0 from the fields left alone.
+            s.candlewick_size = l.width as f32;
+            s.candlewick_spacing = l.spacing_mm() as f32;
             Shape::LINE_CANDLEWICK
         }
         LineType::Chain => Shape::LINE_CHAIN,
@@ -881,10 +886,14 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
         if l.kind == LineType::VStitch {
             s.ev_opening = (0.4 * spacing) as f32;
         }
-    } else {
+    } else if s.line_type != Shape::LINE_CANDLEWICK {
         s.zigzag_width = l.width as f32;
     }
-    s.zigzag_density = l.density as f32;
+    // A candlewick keeps the zigzag tool's defaults in +48 and +50, as PE-DESIGN keeps what
+    // the tool last held (#1160).
+    if s.line_type != Shape::LINE_CANDLEWICK {
+        s.zigzag_density = l.density as f32;
+    }
     // Sharp Corners and both buttons' Miter Limits (body +62, +64, +66, #373).
     s.sharp_corners = u16::from(l.sharp_corners.split());
     s.miter_limits = l
