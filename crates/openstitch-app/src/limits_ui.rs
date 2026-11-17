@@ -114,4 +114,24 @@ mod tests {
         assert!(v["limits"][0]["message"].as_str().unwrap_or_default().contains("#766"));
         openstitch_app::platform::pretend_browser(false);
     }
+
+    /// #1225: the Assistant's tool list names every limit and every field `ui.browserLimits`
+    /// answers with, so a model reading it learns of each one (a new limit or field must be
+    /// named there too).
+    #[test]
+    fn the_browser_limits_summary_names_every_limit_and_field() {
+        let summary = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.browserLimits")
+            .expect("ui.browserLimits is listed")
+            .summary;
+        for l in Limit::ALL {
+            assert!(summary.contains(l.key()), "the summary does not name {}", l.key());
+        }
+        let app = EditorApp::new(Launch::default());
+        let answer = command(&app);
+        for field in answer.as_object().expect("an object").keys() {
+            assert!(summary.contains(field.as_str()), "the summary does not name {field}");
+        }
+    }
 }
