@@ -59,6 +59,13 @@ openstitch-update = { path = "../openstitch-update" }
 # The browser build (#693): a clock that works there (std's `Instant::now` panics).
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-time = "1.1.0"
+# The browser's Assistant panel (#766): the same model client and tool loop, over the page's
+# fetch, and the assistant MCP tools without the loopback socket.
+openstitch-assistant = { path = "../openstitch-assistant" }
+openstitch-mcp = { path = "../openstitch-mcp", default-features = false }
+wasm-bindgen-futures = "0.4.79"
+# The key the user chose to remember on this device (localStorage).
+web-sys = { version = "0.3.106", features = ["Window", "Storage"] }
 
 # macOS: the event-loop builder's `with_default_menu(false)` (see main.rs). Same winit as eframe.
 [target.'cfg(target_os = "macos")'.dependencies]

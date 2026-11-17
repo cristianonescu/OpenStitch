@@ -582,15 +582,23 @@ editor's own undo history. The page adds its file commands, files as base64: `ui
 {name, base64}` (File ▸ Open; it opens on the next frames, so wait until `ui.state`'s `loading`
 is null), `ui.saveFile` (the `.osd` as `{name, base64}`) and `ui.exportFile {format}` (`{files:
 [{name, base64}]}`). A command that writes under `/web/save/` (for example `design.export
-{path: "/web/save/rose.pes"}`) hands the file to the user as a download. The browser editor has
-no Assistant panel and no MCP or automation-socket control (#766): `openstitch.run(...)` is callable
-only by code in the page, so an MCP client such as this one cannot reach it. If a user asks you
-to work on their browser editor, say so and offer the desktop editor or a design file they can
-open there. The system clipboard, printing, machine transfer and choosing folders (the Design
+{path: "/web/save/rose.pes"}`) hands the file to the user as a download. Since #766 the browser
+editor has the Assistant panel too: the Claude API, or an OpenAI-compatible endpoint that allows
+the page (a local Ollama with `OLLAMA_ORIGINS`), with the same tools, gate and `ui.*` commands as
+the desktop. In the browser there is no scratch folder, no attachments and no question cards
+(`ask_user` asks in the reply text instead), and coding agents (ACP) are desktop-only. The page's
+own Assistant commands are for scripts in the page, not for the model: `ui.assistantSetup {kind,
+address, model, key?, remember?}` (stores the endpoint in the preferences; the key stays in the
+page's memory, or with `remember: true` in the site's storage on that device), `ui.assistantSend
+{text}`, `ui.assistantState`, `ui.assistantAnswer {allow}` and `ui.assistantStop`. There is still
+no MCP or automation-socket control of the page: `openstitch.run(...)` is callable only by code in
+the page, so an MCP client such as this one cannot reach it. If a user asks you to work on their
+browser editor, say so and offer its own Assistant panel, the desktop editor, or a design file
+they can open there. The system clipboard, printing, machine transfer and choosing folders (the Design
 Database, Ink/Stitch font folders) are desktop-only too; say so instead of trying them in the
 browser. Pictures, thread charts, fonts and other files can be picked or dropped on the page.
-`ui.browserLimits` lists what the browser version cannot do (the Assistant, printing, USB
-transfer, updates, folders, clipboard pictures), each with what to do instead; tell the user that
+`ui.browserLimits` lists what the browser version cannot do (printing, USB transfer, updates,
+folders, clipboard pictures), each with what to do instead; tell the user that
 rather than trying it. Editor settings (`ui.set`), thread charts, My Threads and the other user
 settings last across visits there, as on the desktop (the page's storage; cleared site data starts
 afresh).
