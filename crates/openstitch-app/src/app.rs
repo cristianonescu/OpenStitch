@@ -598,6 +598,7 @@ impl EditorApp {
                     }
                 }
                 "usb" => crate::transfer_ui::open(self),
+                "floppy" => crate::floppy_ui::open(self),
                 "arrange" => self.edit.arrange_open = true,
                 // The Assistant panel with one attachment chip (a stand-in text file), when the AI
                 // features are on in ui.json; for checking the panel's icons in screenshots.
@@ -2461,6 +2462,7 @@ impl eframe::App for EditorApp {
         crate::swatch_ui::window(self, &ctx);
         crate::jobsheet_ui::window(self, &ctx);
         crate::transfer_ui::window(self, &ctx);
+        crate::floppy_ui::window(self, &ctx);
         crate::edit_ui::windows(self, &ctx);
         crate::settings_ui::windows(self, &ctx);
         crate::colour_match_ui::windows(self, &ctx);

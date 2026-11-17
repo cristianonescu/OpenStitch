@@ -783,7 +783,8 @@ chooser extras (#882), Design Database favourites, hoop filter and ZIP archives 
 as wave lines or a thread sketch (#873), a ready drawings picker (#871), stroke-centre-line
 Hangul and kana (#881), a free-design sites page (#872), the setting-effect and monkey tests
 (#880; **done** 2026-11-13 and 2026-11-14, PRs #1038, #1052 and #1086), floppy images for old
-commercial machines (#876), and one list of mobile app ideas
+commercial machines (#876; **done** 2026-11-17, `batch:mac-formats-2`, for alpha.18:
+`transfer.diskImage`, Sew Embroidery ▸ Floppy Image…; the network drop left for later), and one list of mobile app ideas
 (#884). Notes on #453, #486 and #555.
 
 From the competitor scan of 2026-11-12 (same document, Updates; openhoop, concepts only): routed

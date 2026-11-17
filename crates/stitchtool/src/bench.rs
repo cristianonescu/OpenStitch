@@ -1052,6 +1052,41 @@ pub const TASKS: &[Task] = &[
             sews_clean(d)
         },
     },
+    // #1229: Join Lines and Break Apart (#744) through the Assistant.
+    Task {
+        id: "join-lines",
+        setup: &[
+            (
+                "shape.polygon",
+                r##"{"points": [[20, 50], [50, 50]], "closed": false, "outline": "#203040"}"##,
+            ),
+            (
+                "shape.polygon",
+                r##"{"points": [[50, 50], [80, 30]], "closed": false, "outline": "#203040"}"##,
+            ),
+        ],
+        prompt: "The two lines meet at one end. Make them one line, sewn without a trim between them.",
+        check: |d| {
+            need(d.objects.len() == 1, "one object (shape.joinLines)")?;
+            need(widest(d) >= 55.0, "both lines kept, about 60 mm")
+        },
+    },
+    Task {
+        id: "break-apart",
+        setup: &[(
+            "text.add",
+            r##"{"text": "ABC", "size": 15, "x": 50, "y": 50, "fill": "#1f3a93"}"##,
+        )],
+        prompt: "Break the lettering apart so each letter is its own object, in the same place.",
+        check: |d| {
+            need(
+                d.objects.len() == 3,
+                "three objects, one per letter (object.breakApart)",
+            )?;
+            need(widest(d) >= 20.0, "the letters where they were")?;
+            need(d.stitches() > 0, "stitches")
+        },
+    },
 ];
 
 /// An object's bounds as [x0, y0, x1, y1] mm, from `object.list`.
@@ -1818,7 +1853,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 32);
+        assert_eq!(TASKS.len(), 34);
     }
 
     #[test]
@@ -2018,6 +2053,38 @@ mod tests {
     /// #1006: the branch-columns task passes on the design `object.deriveSkeleton {branches:
     /// true}` makes of its Y, read as the benchmark reads it, and fails on the Y left as a
     /// fill or sewn as one skeleton column.
+    #[test]
+    fn the_join_and_break_apart_tasks_need_their_commands() {
+        let design = |s: &mut Session| {
+            let objects: Vec<Value> = s
+                .execute("object.list", None)
+                .ok()
+                .and_then(|v| v.as_array().cloned())
+                .unwrap_or_default();
+            Design {
+                objects,
+                info: s.execute("design.info", None).unwrap_or_default(),
+                ..Design::default()
+            }
+        };
+        for (id, command, params) in [
+            ("join-lines", "shape.joinLines", json!({"ids": [1, 2]})),
+            ("break-apart", "object.breakApart", json!({"ids": [1]})),
+        ] {
+            let task = TASKS.iter().find(|t| t.id == id).expect("task");
+            let mut s = Session::new(std::env::temp_dir());
+            for (c, p) in task.setup {
+                let p: Value = serde_json::from_str(p).expect("json");
+                s.execute(c, Some(&p)).expect("setup");
+            }
+            // As set up the task is not done; after the command it is.
+            assert!((task.check)(&design(&mut s)).is_err(), "{id}: set up");
+            s.execute(command, Some(&params)).expect(command);
+            let d = design(&mut s);
+            assert_eq!((task.check)(&d), Ok(()), "{id}: done");
+        }
+    }
+
     #[test]
     fn the_branch_columns_task_counts_the_columns() {
         let task = TASKS

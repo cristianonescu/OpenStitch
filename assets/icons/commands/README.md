@@ -67,6 +67,9 @@ green by hand.
 tile whose small arrows pointed both in and out, so it read as joining as much as splitting). After
 `clean_icons.py`, `join_lines`'s joint dot, generated a bright mint, was set to the palette green
 by hand.
+`floppy_image` (Sew Embroidery ▸ Floppy Image…, #876) was added on 2026-11-17 the same way
+(2.5 credits, plus 2.5 for a first blue floppy not kept: it read as the Save icon `disk`); it
+needed no hand fixes after `clean_icons.py`.
 The job ids of the first set (2026-10-27) were recovered from the Higgsfield history on 2026-11-04:
 each job's output, cleaned with `clean_icons.py`, is byte-identical to its SVG. The `credits`
 column is empty where the cost was not recorded at the time.

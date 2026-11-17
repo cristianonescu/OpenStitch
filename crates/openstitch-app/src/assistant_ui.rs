@@ -2370,4 +2370,66 @@ mod tests {
             .is_err()
         );
     }
+
+    /// #1229 (#744's AI coverage review): the Assistant joins two lines and breaks a text apart
+    /// with `ui.select` and `ui.run`, as the ribbon does, and a disabled action says so.
+    #[test]
+    fn the_assistant_joins_lines_and_breaks_text_apart_through_ui_run() {
+        let mut app = EditorApp::new(Launch::default());
+        let run = |app: &mut EditorApp, command: &'static str, params: Value| {
+            app.execute(&openstitch_app::editor::CommandRequest::new(command, params))
+                .expect(command)
+        };
+        let a = run(
+            &mut app,
+            "shape.polygon",
+            json!({"points": [[10, 10], [40, 10]], "closed": false, "outline": "Black"}),
+        )["id"]
+            .as_u64()
+            .expect("id");
+        let b = run(
+            &mut app,
+            "shape.polygon",
+            json!({"points": [[40, 10], [40, 40]], "closed": false, "outline": "Black"}),
+        )["id"]
+            .as_u64()
+            .expect("id");
+        app.ui_command("ui.select", Some(&json!({ "ids": [a, b] })))
+            .expect("select");
+        app.ui_command("ui.run", Some(&json!({ "action": "joinLines" })))
+            .expect("join");
+        let d = app.session.design();
+        assert_eq!(d.objects.len(), 1, "one line");
+        assert_eq!(d.objects[0].contours[0].points.len(), 3);
+        assert_eq!(app.selection, std::collections::BTreeSet::from([a]));
+        // One line alone cannot be joined: the action is refused, nothing changes.
+        let e = app
+            .ui_command("ui.run", Some(&json!({ "action": "joinLines" })))
+            .expect_err("one line");
+        assert!(e.contains("cannot run now"), "{e}");
+        assert_eq!(app.session.design().objects.len(), 1);
+        let t = run(
+            &mut app,
+            "text.add",
+            json!({"text": "AB", "size": 10, "x": 50, "y": 60, "fill": "Red"}),
+        )["id"]
+            .as_u64()
+            .expect("id");
+        app.ui_command("ui.select", Some(&json!({ "ids": [t] })))
+            .expect("select");
+        app.ui_command("ui.run", Some(&json!({ "action": "breakApart" })))
+            .expect("break apart");
+        let letters: Vec<&str> = app
+            .session
+            .design()
+            .objects
+            .iter()
+            .filter_map(|o| o.text.as_ref().map(|s| s.text.as_str()))
+            .collect();
+        assert_eq!(letters, ["A", "B"]);
+        assert_eq!(app.selection.len(), 2, "both letters selected");
+        // One undo brings the word back.
+        app.undo();
+        assert_eq!(app.session.design().objects.len(), 2);
+    }
 }

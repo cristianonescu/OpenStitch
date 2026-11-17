@@ -67,6 +67,7 @@ mod swatch_ui;
 mod theme;
 mod thumbs_ui;
 mod transfer_ui;
+mod floppy_ui;
 mod units_ui;
 #[cfg(not(target_arch = "wasm32"))]
 mod update_ui;

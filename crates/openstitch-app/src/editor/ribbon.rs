@@ -171,6 +171,7 @@ actions! {
     Cutwork => "cutwork", "Cutwork Wizard", "Cut lines and the stitching around them.", None, Some("wizard.cutwork"), true;
     // Home ▸ Sew.
     SendEmbroidery => "send", "Sew Embroidery", "Write the design to USB media, or each hooping as its own file.", None, Some("transfer.send"), true;
+    FloppyImage => "floppyImage", "Floppy Image", "Make or edit a 1.44 MB floppy disk image for machines that read floppies (a USB floppy emulator takes it): add the design in the machine's format or other files, remove files, see the free space. Writes the image file only; copy it to the floppy or emulator yourself (beyond PE-DESIGN).", None, Some("transfer.diskImage"), true;
     TestSwatches => "testSwatches", "Test Swatches", "Write a test to sew first: the selection alone, one object with a setting stepped, or a fabric calibration card (beyond PE-DESIGN).", None, Some("design.testSwatches"), true;
     // The Check Design window: the status bar's Ready to sew indicator and the Sewing Order
     // pane's Review button (beyond PE-DESIGN, #503-#505, #599).
@@ -796,7 +797,7 @@ pub const APPLICATION_MENU: [Action; 12] = [
 
 /// Commands inside the Application menu's Print and Sew Embroidery lists (beyond PE-DESIGN,
 /// #452, #507, #513).
-pub const SUBMENU_ACTIONS: [Action; 2] = [A::JobSheet, A::TestSwatches];
+pub const SUBMENU_ACTIONS: [Action; 3] = [A::JobSheet, A::TestSwatches, A::FloppyImage];
 
 /// The Option button: other applications and settings.
 pub const OPTION_MENU: [Action; 6] = [
