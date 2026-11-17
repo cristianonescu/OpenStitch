@@ -774,7 +774,9 @@ for Future. Ranked by user benefit: 1. USB transfer pre-flight and a machine con
 (#867); 2. a fabric pull preview in Check Design with a measured one-bar calibration (#865);
 3. more Check Design rules and a readiness score (#866: untied thread ends, tiny sections, short
 stitches and more colours than needles **done** 2026-11-13, PR #1030; low coverage, small text per
-font and the score are #1036, **done** 2026-11-15 as a readiness level, PRs #1115, #1118 and #1140); 4. the machine list by model name
+font and the score are #1036, **done** 2026-11-15 as a readiness level, PRs #1115, #1118 and #1140;
+a gradient's, blend's or tartan's colour layers judged together for low coverage, #1120, **done**
+2026-11-17, `batch:mac-quality-2`, for alpha.18); 4. the machine list by model name
 (#868); 5. the Assistant with any chatbot by copy and paste (#870). Then: back up and restore
 (#869), smallest hoop and Fit to hoop (#879, the open part of B13; **done** 2026-11-13, PR #1012),
 3D puff over foam (#875, B7), cap mode (#874), crash report and Report a Problem (#878; **done**

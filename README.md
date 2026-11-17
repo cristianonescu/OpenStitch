@@ -682,7 +682,7 @@ Benchmark of alpha 12 (2026-11-05) on its 12 embroidery tasks: Claude Code 12/12
 gpt-oss:20b 8/12. It was tested on macOS and Windows (12/12 there too); on Linux, CI runs its
 tests and the keychain round trip
 ([#401](https://github.com/cristianonescu/OpenStitch/issues/401)). Details are in the
-[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md). The benchmark has since grown to 34 tasks
+[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md). The benchmark has since grown to 35 tasks
 (`stitchtool bench-assistant --list`).
 
 ### Scripting (Python package)

@@ -842,7 +842,26 @@ pub fn verdict(g: &GateInput) -> Verdict {
         };
     }
     let files = outside_files(g.params, g.scratch);
-    let sensitive = if g.command.starts_with("transfer.") {
+    let sensitive = if g.command == "transfer.diskImage" {
+        // #1232: a floppy image is a file; the card names it by its full path (resolved beside
+        // the design before the gate) and every file copied onto it.
+        let mut what = format!(
+            "write the floppy disk image {}",
+            g.params["path"].as_str().unwrap_or_default()
+        );
+        if g.params["addDesign"] == json!(true) {
+            what += ", with the design on it";
+        }
+        let add: Vec<&str> = g.params["add"]
+            .as_array()
+            .map(|a| a.iter().filter_map(Value::as_str).collect())
+            .unwrap_or_default();
+        if !add.is_empty() {
+            what += &format!(", copying {}", add.join(", "));
+        }
+        Some(what)
+    } else if g.command.starts_with("transfer.") && g.command != "transfer.diskImageList" {
+        // Listing an image is reading a file: the rules below.
         Some("send the design to the machine or a USB drive".to_string())
     } else if g.effect == Effect::File {
         Some(if files.is_empty() {

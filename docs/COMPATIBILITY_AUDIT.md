@@ -4531,3 +4531,21 @@ impossible boot-sector sizes, random bytes) are refused with the image left as i
 image from a machine maker's software is in the repository: every test image is built by the
 test. Not checked here: a real floppy machine or emulator reading the image (left to the user).
 
+### Low coverage judged over a gradient's, blend's or tartan's colour layers, 2026-11-17 (#1120)
+
+Check Design only; no stitch changes, so every kit file, golden and PE-DESIGN reference sews as
+before. `shape.gradient`, `shape.blend` and `shape.tartan` make one fill per colour, grouped, over
+one outline, each sewing part of one set of rows; `lowCoverage` judged each alone, so each layer
+of an even fill got the note. The rule now: the layers of one group over one outline are one
+fill, judged on all their thread over that shared area against the same 40 % limit, in one
+note naming every layer; a layer left alone (its others deleted or ungrouped) is judged on its
+own, and a plain fill is judged as before. The limit is not tuned to the kit. Evidence, the kit's
+own scripts run through `stitchtool exec` and `design.check`: `fills/gradients.pes` (objects 3
+and 12 at 32.9 % and 23.3 % before) and `fills/tartan.pes` (object 4 at 12.0 % before) get no
+note; `calibration/t1-swatches.pes` object 7, a ramp swatch sparse on purpose, keeps its note at
+35.8 %. test `a_blends_colour_layers_are_judged_together_for_coverage`: a two-colour blend
+at 1.6 lines/mm in all gets no note, one of its layers left alone gets one, and a blend at 0.8
+lines/mm in all gets one note naming both layers, with the same fields as a plain fill's. The
+docs' Check Design screenshot (`examples/check-design.json`: 2 errors, 5 warnings, no gradient,
+blend or tartan) is unchanged.
+

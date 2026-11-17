@@ -1052,6 +1052,30 @@ pub const TASKS: &[Task] = &[
             sews_clean(d)
         },
     },
+    // #1232: a floppy disk image for an older machine (#876), scored on the call: the image is
+    // a file in the scratch folder, and the design must go onto it as DST.
+    Task {
+        id: "floppy-image",
+        setup: &[("shape.rectangle", RECT)],
+        prompt: "My old embroidery machine reads only floppy disks through a USB floppy emulator. Put this design on a floppy disk image file named machine.img, as a DST file.",
+        check: |d| {
+            let onto = called_steps(d).into_iter().any(|s| {
+                let p = &s["params"];
+                s["command"] == "transfer.diskImage"
+                    && p["addDesign"] == json!(true)
+                    && p["format"]
+                        .as_str()
+                        .is_none_or(|f| f.eq_ignore_ascii_case("dst"))
+                    && p["path"]
+                        .as_str()
+                        .is_some_and(|f| f.to_ascii_lowercase().ends_with(".img"))
+            });
+            need(
+                onto,
+                "the design written onto an image file as DST (transfer.diskImage addDesign)",
+            )
+        },
+    },
     // #1229: Join Lines and Break Apart (#744) through the Assistant.
     Task {
         id: "join-lines",
@@ -1853,7 +1877,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 34);
+        assert_eq!(TASKS.len(), 35);
     }
 
     #[test]
@@ -2053,6 +2077,55 @@ mod tests {
     /// #1006: the branch-columns task passes on the design `object.deriveSkeleton {branches:
     /// true}` makes of its Y, read as the benchmark reads it, and fails on the Y left as a
     /// fill or sewn as one skeleton column.
+    #[test]
+    fn the_floppy_image_task_needs_the_design_on_an_image_as_dst() {
+        let task = TASKS.iter().find(|t| t.id == "floppy-image").expect("task");
+        let with = |params: Value| Design {
+            calls: vec![format!(
+                "execute {}",
+                json!({"command": "transfer.diskImage", "params": params})
+            )],
+            ..Design::default()
+        };
+        assert_eq!(
+            (task.check)(&with(
+                json!({"path": "machine.img", "addDesign": true, "format": "dst"})
+            )),
+            Ok(())
+        );
+        // DST is the command's default format.
+        assert_eq!(
+            (task.check)(&with(
+                json!({"path": "/tmp/x/MACHINE.IMG", "addDesign": true})
+            )),
+            Ok(())
+        );
+        for wrong in [
+            json!({"path": "machine.img", "addDesign": true, "format": "pes"}),
+            json!({"path": "machine.img"}),
+            json!({"path": "machine.dst", "addDesign": true}),
+        ] {
+            assert!((task.check)(&with(wrong.clone())).is_err(), "{wrong}");
+        }
+        assert!((task.check)(&Design::default()).is_err(), "only talked");
+        // The scored call works on the engine.
+        let dir = std::env::temp_dir().join(format!("bench-floppy-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let mut s = Session::new(&dir);
+        for (c, p) in task.setup {
+            let p: Value = serde_json::from_str(p).expect("json");
+            s.execute(c, Some(&p)).expect("setup");
+        }
+        let r = s
+            .execute(
+                "transfer.diskImage",
+                Some(&json!({"path": "machine.img", "addDesign": true, "format": "dst"})),
+            )
+            .expect("image");
+        assert_eq!(r["files"].as_array().map(Vec::len), Some(1));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn the_join_and_break_apart_tasks_need_their_commands() {
         let design = |s: &mut Session| {
