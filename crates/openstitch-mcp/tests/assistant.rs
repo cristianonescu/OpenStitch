@@ -937,6 +937,8 @@ fn every_command_the_skill_names_exists() {
     );
     ids.extend(all_ui);
     ids.extend(web_ui);
+    // The page's own commands for the browser Assistant panel (#766).
+    ids.extend(openstitch_web::session::ASSISTANT_PAGE_COMMANDS);
     for (name, body) in openstitch_mcp::skills::FILES {
         // `word.word` in backticks or as a "command" value: a command id.
         for quoted in body.split('`').skip(1).step_by(2).chain(

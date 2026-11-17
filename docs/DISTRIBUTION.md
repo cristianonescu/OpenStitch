@@ -328,8 +328,7 @@ the list, and on `wasm32` the library includes it too (`extern crate self as ope
 so `openstitch_app::EditorApp` exists for the web crate without moving any file. What a browser
 cannot do is behind small stand-ins, each identical to the desktop code on the desktop:
 `files.rs` (file dialogs: `rfd::FileDialog` on the desktop; in the browser the pickers returned
-nothing until part 2), `web/assistant_panel.rs` (no Assistant panel: it needs a model connection, the
-keychain and a local socket), `web/update_ui.rs` (no updater), `remote.rs` (no automation
+nothing until part 2), `web/assistant_panel.rs` (no Assistant panel then; since #766 the browser's own panel, below), `web/update_ui.rs` (no updater), `remote.rs` (no automation
 socket), the Assistant's notes compiled from `openstitch-assistant/src/notes.rs` without its
 network client, and no system trash. CI job `web` builds the whole package for `wasm32`.
 
@@ -347,10 +346,42 @@ through `files::pick_then(dialog, |app, path| …)`: on the desktop the dialog r
 action runs at the start of the next frame; in the browser the page shows its picker (with every
 filter, one file or several) and the action runs when the bytes are in memory. The engine reads
 those files through `fsio` (`fsio::metadata` and `fsio::read`, `std::fs` on the desktop).
-Dropped files arrive as egui's `dropped_files`, read with `bytes_async`. Still to come: an AI
-path (#766): the browser editor has no
-Assistant panel and no MCP or automation-socket control, only `openstitch.run` from code in the
-page.
+Dropped files arrive as egui's `dropped_files`, read with `bytes_async`.
+
+The Assistant (#766, 2026-11-17): `web/assistant_panel.rs` is now the browser's Assistant panel.
+- **The model:** the Claude API, or an OpenAI-compatible endpoint that allows the page's address.
+  For a local Ollama, start it with `OLLAMA_ORIGINS` set to the page's address.
+  - The page sends the requests itself with `fetch` (`openstitch_assistant::browser`), with the
+    Claude API's `anthropic-dangerous-direct-browser-access` header and no cookies.
+  - Stop and the request timeout abort them.
+- **The turn loop:** the desktop's own, run `async` between frames
+  (`Conversation::run_turn_async`).
+- **The tools:** the `openstitch-mcp` assistant tools (built without its `remote` feature) on the
+  page's editor, with the same gate. A tool call that needs approval waits for the card before
+  anything runs. A message's changes are one undo step.
+- **The key:** in the panel's memory for the session. **Remember on this device** keeps it in
+  the site's `localStorage` (`openstitch.ai.key <address>`), with a warning that it is
+  unencrypted there.
+  - It is sent only to the address it was entered for.
+  - It is never in the preferences, a file, a URL or a log.
+  - Changing the address clears the field, or shows the key remembered for the new address.
+    Unticking Remember removes the current address's key. **Forget all remembered keys**
+    (`ui.assistantForgetKeys`) removes every address's key.
+- **The model cannot drive the panel:** the gate refuses `ui.assistantSetup`, `Send`, `Answer`,
+  `Stop` and `ForgetKeys` to the model in every mode, `run_batch` included
+  (`assistant_chat::user_only`, checked first). A prompt-injected model therefore cannot move
+  the endpoint and send the key elsewhere.
+- **Narrow windows:** on a phone or a window narrower than 640 points (#834) the panel starts
+  closed, so the canvas shows; the ribbon opens it.
+- **Not in the browser yet:** the Assistant cannot see a picture the user gives it or import an
+  SVG it draws (no attachments and no scratch folder, #1224); coding agents (ACP) and question
+  cards are desktop-only.
+- **Page scripts:** they drive the panel through `openstitch.run`'s `ui.assistantSetup`,
+  `ui.assistantSend`, `ui.assistantState`, `ui.assistantAnswer` and `ui.assistantStop`
+  (`web/e2e/assistant.mjs` tests it against `web/e2e/fake-model.mjs` in Chromium, Firefox and
+  WebKit).
+- **Still to come:** MCP control of the page by an outside AI client (an opt-in local bridge,
+  #1223).
 
 **Build** (the CLI version must match `wasm-bindgen` in Cargo.lock):
 

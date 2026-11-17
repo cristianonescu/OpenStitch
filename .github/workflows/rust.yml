@@ -189,7 +189,8 @@ jobs:
           tar -xzf gitleaks.tar.gz gitleaks
           ./gitleaks git --log-opts="--all" --redact --no-banner --exit-code 1 .
       # gitleaks looks for keys; this fails on a local folder path or a personal detail in any
-      # tracked text file, with the allow list's harmless placeholders (#1057).
+      # tracked text file, or on a path embedded in a binary one (reference captures, fixtures,
+      # example designs, images; #1226), with the allow list's harmless placeholders (#1057).
       - name: private_scan
         run: |
           python3 -I tools/private_scan.py --self-test
@@ -328,6 +329,19 @@ jobs:
           # Firefox has WebGL only with a display: it runs headed on a virtual one (Xvfb, Mesa's
           # software GL); Chromium and WebKit stay headless.
           HEADED_FIREFOX=1 xvfb-run -a node page.mjs "${optional[@]}" .. ../../target/web-native ../../compat/reference/pes/pes-default-v6.pes ../../target/web-shots
+      # The browser editor's Assistant (#766): the page talks to a fake model endpoint on another
+      # loopback port (web/e2e/fake-model.mjs), with a test key; no network and no secret.
+      - name: Assistant page test (Chromium, Firefox, WebKit)
+        working-directory: web/e2e
+        timeout-minutes: 10
+        env:
+          MESA: ${{ steps.mesa.outcome }}
+        run: |
+          optional=(--optional webkit)
+          if [ "$MESA" != success ]; then
+            optional+=(--optional firefox)
+          fi
+          HEADED_FIREFOX=1 xvfb-run -a node assistant.mjs "${optional[@]}" .. ../../target/web-shots
       - uses: actions/upload-artifact@v4
         if: always()
         with:

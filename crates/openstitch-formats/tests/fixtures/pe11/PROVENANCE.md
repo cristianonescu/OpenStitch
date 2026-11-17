@@ -335,3 +335,23 @@ Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows on 2026-11-14 
 | `pe-preview-width-59p5.SHV` | 1333 | `e9e74cdf3a4308d1c59ae99b5c0c2a48bc2fa2d9cf234d248bcfd87a5ed235de` |
 | `preview-width-60p0.pes` | 2090 | `0534a75021d9e04206ce2568aebc34b1de6f6516c585236a033c3450f7b5f0b8` |
 | `pe-preview-width-60p0.SHV` | 1333 | `8351354d27966549b686d46d8e25d39c0c5914c77f9180c241ffdabbab1f1f42` |
+
+## Captures of 2026-11-17 (`captures-2026-11-17/`, coordinator, black-box GUI use only)
+
+Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows on 2026-11-17 (capture round 16), for issue #1160: which line body fields hold a candlewick line's Size and Spacing. One PE-DESIGN session and one object: the repository's own `compat/reference/stitches/line-candlewick-medium-square40.pes` (a 40 x 40 mm square at (30,30)-(70,70) mm on a 100 x 100 mm page, region Not Sewn, line Candlewicking, 800 EMBROIDERY RED, Size 5,0, Spacing 1,0, Density Medium, Start/End Type Feed) was opened and saved again with one setting changed per file, Save As "Layout & Editing Ver.11.0 File". The values were typed (the spinner arrows did not react).
+
+| file | changed from the session's control | PE-DESIGN's status bar |
+|---|---|---|
+| `1160-cw-size-6p0.pes` | Size 6,0 | 46,00 x 46,00 mm, 756 stitches |
+| `1160-cw-spacing-2p0.pes` | Spacing 2,0 | 45,00 x 45,00 mm, 659 stitches |
+| `1160-cw-zigzag-w4p0-d1p0.pes` | line type switched to Zigzag Stitch (its pane showed width 5,0 and density 3,0, the file's own leftover values), Zigzag width 4,0 and Density 1,0 set (the field turned a typed 6,0 into 14,0, then 6,5 into 4,5, then took 1,0), switched back to Candlewicking Stitch, whose pane still showed Size 5,0, Spacing 1,0, Medium, Feed | 45,00 x 45,00 mm, 766 stitches |
+
+Against the control (the reference re-saved unchanged in the same session: 45,00 x 45,00 mm, 766 stitches), before the PEC block: Size moves the line body's +112 (50 to 60) and the sewn box at +8 (775, 775, 1225, 1225 to 770, 770, 1230, 1230), Spacing moves +114 (10 to 20) and nothing else, the zigzag round trip moves +48 (50 to 40) and +50 (30 to 10) and nothing else.
+
+Each shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was rewritten to OpenStitch's placeholder rows at the same length with `tools/redact_pattern_blocks.py --write` before the files were committed; every other byte is as PE-DESIGN saved it. The files list no fill, motif or stamp pattern (`committed_pes_files_list_only_the_projects_own_patterns`).
+
+| file | bytes | SHA-256 as saved by PE-DESIGN | SHA-256 here | SHA-256 of every byte outside the block, first 16 hex digits (before = after) |
+|---|---|---|---|---|
+| `1160-cw-size-6p0.pes` | 7682 | `4394e14b60b9f6dbc92a29867a4b0c48f57940501075daed938f6e19b4bc9346` | `b445924963c81b8a9500325544c267d92976db88fb5ce2b5dd03817a6c06bb4e` | `1344828fa009c5de` |
+| `1160-cw-spacing-2p0.pes` | 7488 | `87e1f34eeb271913336cfec3a4e5251d036ca8428e6b410071814ed09635ce89` | `bc9f7dae8b3d1dd8d81d4f351e244420f64239dacbf72cb001f8481c51e95d29` | `3b45fdb6196bcaca` |
+| `1160-cw-zigzag-w4p0-d1p0.pes` | 7702 | `aac4dd54a77fd7d52563546a69f86fe6510721b33c37e6075eb20704a49b1d34` | `c7e105b61e8b89df9e05da1de8f29cebc6e5b9db038e486f37ae9c57b20b95f2` | `1be0903684e2829b` |

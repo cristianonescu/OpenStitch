@@ -2540,3 +2540,75 @@ fn committed_pes_files_list_only_the_projects_own_patterns() {
         "patterns that are not the project's own: {foreign:?}"
     );
 }
+
+#[test]
+fn a_candlewick_lines_size_and_spacing_read_and_write_back() {
+    // #1160, round 16 (fixtures/pe11/captures-2026-11-17, one 40 mm candlewick square): Size is
+    // the line body's +112 and drives the sewn box (half the Size beyond the bounds), Spacing is
+    // +114, and +48 / +50 stay the zigzag tool's width and density whatever the candlewick's.
+    let dir = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/pe11/captures-2026-11-17"
+    );
+    let body = |bytes: &[u8]| {
+        let name = b"\x08\x00CEmbLine";
+        let at = bytes
+            .windows(name.len())
+            .position(|w| w == name)
+            .expect("CEmbLine")
+            + name.len();
+        bytes[at..at + 386].to_vec()
+    };
+    for (name, size, spacing, zigzag, sewn) in [
+        (
+            "1160-cw-size-6p0",
+            6.0,
+            1.0,
+            (5.0, 3.0),
+            [770, 770, 1230, 1230],
+        ),
+        (
+            "1160-cw-spacing-2p0",
+            5.0,
+            2.0,
+            (5.0, 3.0),
+            [775, 775, 1225, 1225],
+        ),
+        (
+            "1160-cw-zigzag-w4p0-d1p0",
+            5.0,
+            1.0,
+            (4.0, 1.0),
+            [775, 775, 1225, 1225],
+        ),
+    ] {
+        let bytes = std::fs::read(format!("{dir}/{name}.pes")).expect("fixture");
+        let objects = objects_of(&bytes);
+        assert_eq!(objects.unparsed, None, "{name}");
+        let [shape] = objects.shapes.as_slice() else {
+            panic!("{name}: {} shapes", objects.shapes.len());
+        };
+        assert_eq!(shape.line_type, pes11::Shape::LINE_CANDLEWICK, "{name}");
+        assert_eq!(
+            (shape.candlewick_size, shape.candlewick_spacing),
+            (size, spacing),
+            "{name}"
+        );
+        assert_eq!(shape.candlewick_density, 1, "{name}");
+        assert_eq!((shape.zigzag_width, shape.zigzag_density), zigzag, "{name}");
+        let pattern = pes::read(&bytes).expect("pattern");
+        let written = pes11::write(&objects, &pattern).expect("write");
+        let (ours, theirs) = (body(&written), body(&bytes));
+        let i16_at = |b: &[u8], at: usize| i16::from_le_bytes([b[at], b[at + 1]]);
+        assert_eq!(
+            [8, 10, 12, 14].map(|at| i16_at(&theirs, at)),
+            sewn,
+            "{name}"
+        );
+        // The bounds and the sewn box, the line's type, colour, zigzag width and density and
+        // run pitch, the candlewick's Density choice, Size and Spacing.
+        for at in (0..16).chain(40..54).step_by(2).chain([110, 112, 114]) {
+            assert_eq!(i16_at(&ours, at), i16_at(&theirs, at), "{name}: +{at}");
+        }
+    }
+}
