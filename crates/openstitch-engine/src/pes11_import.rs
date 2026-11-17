@@ -78,8 +78,10 @@ pub fn objects(section: &ObjectSection) -> Imported {
     let mut index_of = std::collections::BTreeMap::new();
     let mut fill_pattern: Option<String> = None;
     for (&position, entry) in &list {
+        // What was read outside its command's range, kept to it (#1125).
+        let mut ranged: Vec<String> = Vec::new();
         let made = match entry {
-            Entry::Shape(s) => object(s, &section.threads).and_then(|mut o| {
+            Entry::Shape(s) => object(s, &section.threads, &mut ranged).and_then(|mut o| {
                 let motif_line = o.line.as_ref().is_some_and(|l| l.kind == LineType::Motif);
                 let motif_fill = o
                     .region
@@ -104,16 +106,23 @@ pub fn objects(section: &ObjectSection) -> Imported {
                         l.motif = id.clone();
                         // Width along the line, height across it, spacing (#608).
                         if let Some([w, h, gap]) = s.motif_line {
-                            l.width = f64::from(w);
-                            l.height = Some(f64::from(h));
-                            l.spacing = Some(f64::from(gap));
+                            let mut keep = |what: &str, v: f32, lo: f64, hi: f64| {
+                                kept(&mut out.notes, position, what, f64::from(v), lo, hi)
+                            };
+                            l.width = keep("motif width", w, LINE_WIDTH.0, LINE_WIDTH.1);
+                            l.height = Some(keep("motif height", h, 0.5, 20.0));
+                            l.spacing = Some(keep("motif spacing", gap, 0.0, 20.0));
                         }
                     }
                     if let Some(r) = o.region.as_mut().filter(|_| motif_fill) {
                         r.pattern = id;
                         if let Some(([w, h], arrangement)) = s.motif_fill {
-                            r.pattern_width = Some(f64::from(w));
-                            r.pattern_height = Some(f64::from(h));
+                            let mut keep = |what: &str, v: f32| {
+                                let (lo, hi) = PATTERN_SIZE;
+                                kept(&mut out.notes, position, what, f64::from(v), lo, hi)
+                            };
+                            r.pattern_width = Some(keep("motif width", w));
+                            r.pattern_height = Some(keep("motif height", h));
                             if arrangement != 0 {
                                 out.notes.push((
                                     position,
@@ -147,7 +156,7 @@ pub fn objects(section: &ObjectSection) -> Imported {
                                 id
                             }
                         };
-                        use_pattern(r, id, p);
+                        use_pattern(r, id, p, PATTERN_SIZE.1, position, &mut out.notes);
                     }
                     RegionType::DecorativeFill => {
                         let p = s
@@ -155,7 +164,7 @@ pub fn objects(section: &ObjectSection) -> Imported {
                             .as_ref()
                             .ok_or("a decorative fill without its pattern")?;
                         let id = add_pattern(&mut out.patterns, PatternKind::Decorative, p)?;
-                        use_pattern(r, id, p);
+                        use_pattern(r, id, p, DECORATIVE_SIZE, position, &mut out.notes);
                     }
                     _ => {}
                 }
@@ -166,6 +175,8 @@ pub fn objects(section: &ObjectSection) -> Imported {
         };
         match made {
             Ok(o) => {
+                out.notes
+                    .extend(ranged.into_iter().map(|note| (position, note)));
                 index_of.insert(position, out.objects.len());
                 if let Entry::Text(t) = entry
                     && let Some(f) = &t.fit
@@ -252,8 +263,64 @@ fn thread(table: &[Thread], index: u16) -> Thread {
         .unwrap_or_else(|| Thread::rgb(0))
 }
 
-/// One shape as a design object, its vertices placed by its transform.
-fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
+/// `object.setLine`'s `width` range, mm.
+const LINE_WIDTH: (f64, f64) = (0.5, 10.0);
+/// `object.setLine`'s `density` range, lines/mm.
+const LINE_DENSITY: (f64, f64) = (0.1, 14.0);
+/// `object.setLine`'s `pitch` range, mm.
+const LINE_PITCH: (f64, f64) = (1.0, 10.0);
+/// `object.setLine`'s and `object.setRegion`'s `spacing` range of the types read here, mm.
+const SPACING: (f64, f64) = (0.5, 20.0);
+/// `object.setRegion`'s `patternWidth` and `patternHeight` range, mm; a decorative fill's goes
+/// up to [`DECORATIVE_SIZE`].
+const PATTERN_SIZE: (f64, f64) = (0.5, 50.0);
+const DECORATIVE_SIZE: f64 = 500.0;
+/// `object.setRegion`'s `frequency` range, %.
+const FREQUENCY: (f64, f64) = (0.0, 50.0);
+/// `text.add`'s `size` range, mm.
+const TEXT_SIZE: (f64, f64) = (1.0, 300.0);
+/// `text.add`'s `letterSpacing` range, mm.
+const LETTER_SPACING: (f64, f64) = (-100.0, 100.0);
+/// `text.add`'s `lineSpacingPercent` range.
+const LINE_SPACING_PERCENT: (f64, f64) = (0.0, 500.0);
+
+/// `value` as read from the file, kept to `lo..=hi`, the range the attribute's command accepts
+/// (#1125). PE-DESIGN writes values inside its own dialog ranges, so only a damaged or hand-made
+/// file holds another one (a u16 field goes up to 6553.5); it is read as the nearest value the
+/// command takes, and the note says so.
+fn in_range(notes: &mut Vec<String>, what: &str, value: f64, lo: f64, hi: f64) -> f64 {
+    if (lo..=hi).contains(&value) {
+        return value;
+    }
+    let read = if value.is_nan() {
+        lo
+    } else {
+        value.clamp(lo, hi)
+    };
+    notes.push(format!(
+        "its {what} {value} is outside {lo} to {hi}: read as {read}"
+    ));
+    read
+}
+
+/// [`in_range`] with the note at the object's list position.
+fn kept(
+    notes: &mut Vec<(u16, String)>,
+    position: u16,
+    what: &str,
+    value: f64,
+    lo: f64,
+    hi: f64,
+) -> f64 {
+    let mut found = Vec::new();
+    let read = in_range(&mut found, what, value, lo, hi);
+    notes.extend(found.into_iter().map(|note| (position, note)));
+    read
+}
+
+/// One shape as a design object, its vertices placed by its transform. Attribute values outside
+/// their command's range are kept to it and listed in `notes`.
+fn object(s: &Shape, table: &[Thread], notes: &mut Vec<String>) -> Result<DesignObject, String> {
     if s.vertices.len() < 2 {
         return Err("fewer than two vertices".into());
     }
@@ -287,15 +354,23 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
             kind,
             RegionType::Fill | RegionType::Satin | RegionType::ProgrammableFill
         ) {
-            r.density = f64::from(s.density);
-            r.angle = f64::from(s.direction);
+            let (lo, hi) = kind.density_range();
+            r.density = in_range(notes, "density", f64::from(s.density), lo, hi);
+            // PE-DESIGN's Direction is 0 to 359 degrees; the field holds up to 65535.
+            r.angle = f64::from(s.direction % 360);
+            if s.direction >= 360 {
+                notes.push(format!(
+                    "its direction {} is outside 0 to 359: read as {}",
+                    s.direction, r.angle
+                ));
+            }
             r.underlay = s.under_sewing;
         }
         if kind == RegionType::CrossStitch {
             // PE-DESIGN's default 2.5 mm stays OpenStitch's default (no spacing set).
             let size = f64::from(s.cross_size);
             if size > 0.0 && (size - r.spacing_mm()).abs() > 0.01 {
-                r.spacing = Some(size);
+                r.spacing = Some(in_range(notes, "cross size", size, SPACING.0, SPACING.1));
             }
             r.times = CrossTimes::from_count(usize::from(s.cross_passes / 2));
         }
@@ -304,19 +379,24 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
             // (#1109); its defaults stay unset.
             let [width, gap] = s.zigzag_net.map(f64::from);
             if width > 0.0 && (width - r.pattern_size_mm().0).abs() > 0.01 {
-                r.pattern_width = Some(width);
+                let (lo, hi) = PATTERN_SIZE;
+                r.pattern_width = Some(in_range(notes, "zigzag net width", width, lo, hi));
             }
             if gap > 0.0 && (gap - r.spacing_mm()).abs() > 0.01 {
-                r.spacing = Some(gap);
+                let (lo, hi) = SPACING;
+                r.spacing = Some(in_range(notes, "zigzag net spacing", gap, lo, hi));
             }
             // The net's Density is +368, PE-DESIGN's lines, two a rung (#1122); 0 keeps the
             // default.
             if s.net_density > 0.0 {
-                r.density = f64::from(s.net_density) / crate::pes11_export::NET_LINES_PER_RUNG;
+                let (lo, hi) = kind.density_range();
+                let rungs = f64::from(s.net_density) / crate::pes11_export::NET_LINES_PER_RUNG;
+                r.density = in_range(notes, "zigzag net density (rungs per mm)", rungs, lo, hi);
             }
         }
         if kind == RegionType::Fill {
-            r.frequency = Some(f64::from(s.frequency));
+            let (lo, hi) = FREQUENCY;
+            r.frequency = Some(in_range(notes, "frequency", f64::from(s.frequency), lo, hi));
             r.running_stitch_path = Some(match s.running_path {
                 1 => RunningStitchPath::AlongOutline,
                 2 => RunningStitchPath::OnOutline,
@@ -346,25 +426,61 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
             (other, _) => return Err(format!("line type {other} is not mapped yet")),
         };
         let mut l = LineSewing::new(kind, thread(table, s.line_color));
-        l.width = f64::from(if matches!(kind, LineType::EStitch | LineType::VStitch) {
-            s.ev_width
-        } else {
-            s.zigzag_width
-        });
-        l.density = f64::from(s.zigzag_density);
-        // A candlewick's knot is its Density choice (+110), not +50, which PE-DESIGN leaves at
-        // 3.0 whatever the choice (a 6-point knot read as density): Dense, Medium and Light are
-        // knots of 32, 24 and 20 points, densities 16, 12 and 10 (#1142). A value other than 0-2
-        // has not been seen; it is read as Medium, PE-DESIGN's default.
+        // +48 and +50 are the zigzag tool's; a candlewick takes neither (below).
+        if kind != LineType::Candlewick {
+            let width = f64::from(if matches!(kind, LineType::EStitch | LineType::VStitch) {
+                s.ev_width
+            } else {
+                s.zigzag_width
+            });
+            l.width = in_range(notes, "line width", width, LINE_WIDTH.0, LINE_WIDTH.1);
+            l.density = in_range(
+                notes,
+                "line density",
+                f64::from(s.zigzag_density),
+                LINE_DENSITY.0,
+                LINE_DENSITY.1,
+            );
+        }
+        // A candlewick's knot is its Density choice (+110), not +50, the zigzag tool's density
+        // kept in the body (#1160): Dense, Medium and Light are knots of 32, 24 and 20 points,
+        // densities 16, 12 and 10 (#1142). A value other than 0-2 has not been seen; it is read
+        // as Medium, PE-DESIGN's default. Its Size is +112, not the zigzag width at +48 (2.0 in
+        // line-candlewick-default, sewn at Size 5.0), and its Spacing +114, kept unset at
+        // PE-DESIGN's default 1.0 (#1160). `object.setLine` takes a Size of 0.5-10 and a
+        // Spacing of 0-100.
         if kind == LineType::Candlewick {
             l.density = candlewick_density(s.candlewick_density);
+            l.width = in_range(
+                notes,
+                "candlewick size",
+                f64::from(s.candlewick_size),
+                LINE_WIDTH.0,
+                LINE_WIDTH.1,
+            );
+            let spacing = in_range(
+                notes,
+                "candlewick spacing",
+                f64::from(s.candlewick_spacing),
+                0.0,
+                100.0,
+            );
+            if (spacing - 1.0).abs() > 1e-6 {
+                l.spacing = Some(spacing);
+            }
         }
         // An E or V line's spacing (+88, #982): kept unset at PE-DESIGN's default 5.0.
         if matches!(kind, LineType::EStitch | LineType::VStitch)
             && s.ev_spacing > 0.0
             && (s.ev_spacing - 5.0).abs() > 1e-6
         {
-            l.spacing = Some(f64::from(s.ev_spacing));
+            l.spacing = Some(in_range(
+                notes,
+                "stroke spacing",
+                f64::from(s.ev_spacing),
+                SPACING.0,
+                SPACING.1,
+            ));
         }
         // Sharp Corners and both buttons' Miter Limits (body +62, +64, +66, #373).
         l.sharp_corners.button = if s.sharp_corners == 1 { 2 } else { 1 };
@@ -378,11 +494,12 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
         if kind == LineType::Motif && s.line_flag_84 == 1 {
             l.start_end = openstitch_design::model::StartEnd::Run;
         }
-        l.pitch = f64::from(if kind == LineType::Motif {
+        let pitch = f64::from(if kind == LineType::Motif {
             s.motif_pitch
         } else {
             s.run_pitch
         });
+        l.pitch = in_range(notes, "run pitch", pitch, LINE_PITCH.0, LINE_PITCH.1);
         l.underlay = s.line_under_sewing;
         Some(l)
     } else {
@@ -560,9 +677,18 @@ fn add_pattern(
     unreachable!("an unused pattern id")
 }
 
-/// Region `r` sews pattern `id` at the file's tile size (0.01 mm, square tiles).
-fn use_pattern(r: &mut RegionSewing, id: String, p: &PesPattern) {
+/// Region `r` sews pattern `id` at the file's tile size (0.01 mm, square tiles), kept to
+/// `patternWidth`'s range up to `max` mm.
+fn use_pattern(
+    r: &mut RegionSewing,
+    id: String,
+    p: &PesPattern,
+    max: f64,
+    position: u16,
+    notes: &mut Vec<(u16, String)>,
+) {
     let size = f64::from(p.size) / 100.0;
+    let size = kept(notes, position, "pattern size", size, PATTERN_SIZE.0, max);
     r.pattern = Some(id);
     r.pattern_width = Some(size);
     r.pattern_height = Some(size);
@@ -617,6 +743,13 @@ fn text_object(
     notes: &mut Vec<(u16, String)>,
 ) -> Result<DesignObject, String> {
     let first = t.letters.first().ok_or("a text without letters")?;
+    // The text's own numbers are f32: one that is not a number cannot be kept to a range.
+    let number = |what: &str, v: f32| {
+        v.is_finite()
+            .then(|| f64::from(v))
+            .ok_or_else(|| format!("its {what} is not a number"))
+    };
+    let mut ranged: Vec<String> = Vec::new();
     if !first.font.eq_ignore_ascii_case("Lato") {
         return Err(format!(
             "font {:?} (only Lato is mapped: OpenStitch lays text out in Lato Bold)",
@@ -636,7 +769,13 @@ fn text_object(
                 x: 0.0,
                 y: 0.0,
                 rotation: 0.0,
-                size: Some(f64::from(l.size)),
+                size: Some(in_range(
+                    &mut ranged,
+                    "letter size",
+                    number("letter size", l.size)?,
+                    TEXT_SIZE.0,
+                    TEXT_SIZE.1,
+                )),
             });
         }
         let differs = l.region != first.region
@@ -652,10 +791,29 @@ fn text_object(
             ));
         }
     }
-    let mut spec = TextSpec::new(chars, text::DEFAULT_FONT, f64::from(first.size));
+    let size = in_range(
+        &mut ranged,
+        "size",
+        number("size", first.size)?,
+        TEXT_SIZE.0,
+        TEXT_SIZE.1,
+    );
+    let mut spec = TextSpec::new(chars, text::DEFAULT_FONT, size);
     spec.characters = edits;
-    spec.letter_spacing = f64::from(t.char_spacing) / 10.0;
-    spec.line_spacing_percent = f64::from(t.line_spacing);
+    spec.letter_spacing = in_range(
+        &mut ranged,
+        "character spacing",
+        number("character spacing", t.char_spacing)? / 10.0,
+        LETTER_SPACING.0,
+        LETTER_SPACING.1,
+    );
+    spec.line_spacing_percent = in_range(
+        &mut ranged,
+        "line spacing",
+        number("line spacing", t.line_spacing)?,
+        LINE_SPACING_PERCENT.0,
+        LINE_SPACING_PERCENT.1,
+    );
     if t.vertical {
         spec.direction = TextDirection::Vertical;
     }
@@ -700,7 +858,14 @@ fn text_object(
                 .ok_or(format!("Text Transform code {}", e.code))?;
             spec.envelope = Some(k as u8 + 1);
             if e.strength != ENVELOPES[k].1 {
-                spec.envelope_level = Some(f64::from(e.strength));
+                let (lo, hi) = text::envelope_level_range(k as u8 + 1);
+                spec.envelope_level = Some(in_range(
+                    &mut ranged,
+                    "Text Transform level",
+                    number("Text Transform level", e.strength)?,
+                    lo,
+                    hi,
+                ));
             }
         }
     }
@@ -712,7 +877,8 @@ fn text_object(
     };
     let region = kind.map(|kind| {
         let mut r = RegionSewing::new(kind, thread(table, first.region_color));
-        r.density = f64::from(first.density);
+        let (lo, hi) = kind.density_range();
+        r.density = in_range(&mut ranged, "density", f64::from(first.density), lo, hi);
         // PE-DESIGN's text has under sewing off (the Text tool's default; the writer refuses it).
         r.underlay = false;
         r
@@ -728,9 +894,11 @@ fn text_object(
     } else {
         None
     };
-    DesignObject::text(spec, region, line)
+    let o = DesignObject::text(spec, region, line)
         .map(|(o, _)| o)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    notes.extend(ranged.into_iter().map(|note| (t.position, note)));
+    Ok(o)
 }
 
 /// A `CEmbOne` as a stitch pattern at its place: each run's points through the group's
@@ -778,7 +946,7 @@ pub fn commands() -> Vec<CommandSpec> {
             req(
                 "path",
                 "string",
-                "PES file (relative to the session directory)",
+                "PES file (relative to the session directory). Its attribute values are stored as read while they are inside the range the attribute's own command accepts (object.setLine: width 0.5-10, density 0.1-14, pitch 1-10, spacing 0.5-20, a motif's height 0.5-20 and spacing 0-20, a candlewick's spacing 0-100; object.setRegion: density 0.1-14 on fill and satin and 0.5-10 on the other types, frequency 0-50, spacing 0.5-20, patternWidth and patternHeight 0.5-50, a decorative fill's 0.5-500; text: size 1-300, letterSpacing -100...100, lineSpacingPercent 0-500, the Text Transform level in its preset's range). PE-DESIGN writes values inside its own dialog ranges, so only a damaged or hand-made file holds another one: it is stored as the nearest value in the range, a direction of 360 or more as its remainder after whole turns, and each is listed in the result's notes (\"its line width 6553.5 is outside 0.5 to 10: read as 10\"). A text whose size, spacing or level is not a number is skipped, with the reason in skipped",
             ),
             opt("group", "bool", "Keep the file's groups (default true)"),
         ],
@@ -1221,5 +1389,151 @@ mod tests {
                 "{density}: the same stitches"
             );
         }
+    }
+
+    /// #1125: a pattern's tile size outside `patternWidth`'s range (the header's u16 holds up
+    /// to 655.35 mm, a decorative fill's command takes 500, a programmable fill's 50) is read
+    /// as the nearest size in range, with a note; 0 as the smallest.
+    #[test]
+    fn pattern_sizes_outside_the_commands_range_are_kept_to_it() {
+        for (size, fill, decorative) in [(u16::MAX, 50.0, 500.0), (0, 0.5, 0.5)] {
+            let mut section = fixture("obj-progfill-owner-v");
+            section.fill_patterns[0].size = size;
+            let i = objects(&section);
+            assert!(i.skipped.is_empty(), "{:?}", i.skipped);
+            let r = i
+                .objects
+                .iter()
+                .filter_map(|o| o.region.as_ref())
+                .find(|r| r.kind == RegionType::ProgrammableFill)
+                .expect("programmable fill");
+            assert_eq!(
+                (r.pattern_width, r.pattern_height),
+                (Some(fill), Some(fill))
+            );
+            assert!(
+                i.notes.iter().any(|(_, n)| n.contains("pattern size")),
+                "{:?}",
+                i.notes
+            );
+            let mut section = reference("stitches/deco-fill-1line-100mm");
+            let s = section
+                .shapes
+                .iter_mut()
+                .find(|s| s.decorative.is_some())
+                .expect("decorative fill");
+            s.decorative.as_mut().expect("pattern").size = size;
+            let i = objects(&section);
+            let r = i.objects[0].region.as_ref().expect("region");
+            assert_eq!(r.pattern_width, Some(decorative));
+            assert!(
+                i.notes
+                    .iter()
+                    .any(|(_, n)| n.contains("is outside 0.5 to 500")),
+                "{:?}",
+                i.notes
+            );
+        }
+        // As PE-DESIGN wrote them: nothing noted.
+        for section in [
+            fixture("obj-progfill-owner-v"),
+            reference("stitches/deco-fill-1line-100mm"),
+        ] {
+            let i = objects(&section);
+            assert!(!i.notes.iter().any(|(_, n)| n.contains("is outside")));
+        }
+    }
+
+    /// #1125: a text's size, character spacing, line spacing and density are f32 or u16 fields
+    /// read as they are. Outside `text.add`'s ranges they are kept to them with a note; a value
+    /// that is not a number skips the text with the reason.
+    #[test]
+    fn text_numbers_outside_the_commands_range_are_kept_or_refused() {
+        let plain = fixture("r12-text-a");
+        assert!(
+            !objects(&plain)
+                .notes
+                .iter()
+                .any(|(_, n)| n.contains("is outside"))
+        );
+        for huge in [f32::MAX, 65535.0] {
+            let mut section = plain.clone();
+            let t = &mut section.texts[0];
+            for l in &mut t.letters {
+                l.size = huge;
+                l.density = 6553.5;
+            }
+            t.char_spacing = huge;
+            t.line_spacing = huge;
+            let i = objects(&section);
+            assert!(i.skipped.is_empty(), "{:?}", i.skipped);
+            let o = &i.objects[0];
+            let spec = o.text.as_ref().expect("text");
+            assert_eq!(spec.size, 300.0);
+            assert_eq!(spec.letter_spacing, 100.0);
+            assert_eq!(spec.line_spacing_percent, 500.0);
+            assert_eq!(o.region.as_ref().expect("region").density, 14.0);
+            assert_eq!(
+                i.notes
+                    .iter()
+                    .filter(|(_, n)| n.contains("is outside"))
+                    .count(),
+                4,
+                "{:?}",
+                i.notes
+            );
+        }
+        let mut section = plain.clone();
+        let t = &mut section.texts[0];
+        for l in &mut t.letters {
+            l.size = 0.0;
+            l.density = 0.0;
+        }
+        t.char_spacing = f32::MIN;
+        t.line_spacing = -1.0;
+        let i = objects(&section);
+        let o = &i.objects[0];
+        let spec = o.text.as_ref().expect("text");
+        assert_eq!(
+            (spec.size, spec.letter_spacing, spec.line_spacing_percent),
+            (1.0, -100.0, 0.0)
+        );
+        assert_eq!(o.region.as_ref().expect("region").density, 0.1);
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            for field in 0..3 {
+                let mut section = plain.clone();
+                let t = &mut section.texts[0];
+                match field {
+                    0 => t.letters[0].size = bad,
+                    1 => t.char_spacing = bad,
+                    _ => t.line_spacing = bad,
+                }
+                let i = objects(&section);
+                assert!(i.objects.is_empty(), "{bad} in field {field}");
+                assert!(
+                    i.skipped[0].1.contains("is not a number"),
+                    "{:?}",
+                    i.skipped
+                );
+            }
+        }
+        // A Text Transform level outside its preset's range, and one that is not a number.
+        let fitted = reference("text/text-transform-1");
+        let mut section = fitted.clone();
+        section.texts[0]
+            .envelope
+            .as_mut()
+            .expect("envelope")
+            .strength = 1.0e9;
+        let i = objects(&section);
+        let level = i.objects[0].text.as_ref().expect("text").envelope_level;
+        assert_eq!(level, Some(90.0));
+        let mut section = fitted;
+        section.texts[0]
+            .envelope
+            .as_mut()
+            .expect("envelope")
+            .strength = f32::NAN;
+        assert!(objects(&section).objects.is_empty());
     }
 }

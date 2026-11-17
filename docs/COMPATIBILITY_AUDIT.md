@@ -460,7 +460,7 @@ Line references are relative to `crates/`.
   stem, candlewick and chain lines by their codes (spec `pes-0110-line-types`, reference
   pending; the 22 owner line-* files read and rewritten byte for byte outside the documented
   differences), a candlewick's Density choice at +110 (0 Dense, 1 Medium, 2 Light: densities
-  16, 12 and 10, read and written since #1142, round 15's line-candlewick-*-square40), their Start/End options at PE-DESIGN's defaults (open: the sewing end
+  16, 12 and 10, read and written since #1142, round 15's line-candlewick-*-square40) and its Size and Spacing at +112 and +114 (read and written since #1160, round 16's 1160-cw-* captures; until then the Size went to the zigzag width at +48 and the density to +50, the zigzag tool's fields, and a PE-DESIGN candlewick was read at the zigzag width, 2.0 mm for line-candlewick-default, sewn at 5.0), their Start/End options at PE-DESIGN's defaults (open: the sewing end
   PE-DESIGN stores for them, +84 and +86 on the line-*-startend-* files, and the field behind
   their sewn extent). Groups: the group's number is one more than its last
   member's archive number (a01, o-group-two-rects, group-partial); OpenStitch wrote the class's
@@ -866,6 +866,32 @@ Line references are relative to `crates/`.
     - #120: an edited design opened from a `#PES0110` file is exported as `#PES0110` by
       default, not as version 6. Only when version 11 cannot hold an object yet is it written
       as 6, with a warning that names the object (`a_changed_design_is_written_from_the_design_with_a_warning`).
+  - **Fixed (2026-11-17, `batch:win-formats`):**
+    - #1125: `import.pes` stored a shape's and a text's attribute fields as read, so a damaged
+      or hand-made file could set a line width of 6553.5 mm, a density of 6553.5 lines/mm or a
+      Direction of 65535. Each field is now kept to the range its own command accepts
+      (`object.setLine`, `object.setRegion`, `text.add`; the list is in FILE_FORMATS, Import):
+      a value outside it is stored as the nearest one in range and named in the result's
+      `notes`, a Direction of 360 or more as its remainder after whole turns, and a text whose
+      size, spacing or Text Transform level is not a number is skipped with the reason. No
+      PE-DESIGN file is read differently: none of the files in compat/reference and the pe11
+      fixtures holds a value outside the ranges, and an unchanged file is still written back
+      byte for byte (`import_pes_takes_the_objects_of_every_pe_design_file`,
+      `import_pes_keeps_out_of_range_attribute_fields_to_their_commands_ranges`,
+      `pattern_sizes_outside_the_commands_range_are_kept_to_it`,
+      `text_numbers_outside_the_commands_range_are_kept_or_refused`,
+      `an_unchanged_pe_design_file_is_written_back_byte_for_byte`).
+    - #1160: a candlewick line's Size and Spacing are the line body's +112 and +114; +48 and
+      +50 are the zigzag tool's width and density, which PE-DESIGN keeps in every line body
+      (round 16: one 40 mm square saved with Size 6.0, with Spacing 2.0, and after a zigzag
+      set to 4.0 and 1.0 and switched back; each moved only its own fields). `import.pes`
+      reads a candlewick's size from +112 (it read the zigzag width: 2.0 mm for
+      line-candlewick-default, which PE-DESIGN sews at 5.0) and its spacing from +114 (it was
+      not read), and a PES 0110 written from the design holds both there, the sewn box half
+      the Size beyond the outline, and the zigzag tool's defaults 2.0 and 4.5 at +48 and +50
+      (it wrote the Size and the knot's density, 120 for Medium, there, and left +112 and
+      +114 at 5.0 and 1.0) (`a_candlewick_size_and_spacing_come_back_from_pe_design`,
+      formats `a_candlewick_lines_size_and_spacing_read_and_write_back`).
   - **Still lost when a PE-DESIGN file is edited** (documented difference): the other region
     types' own settings, a motif fill's arrangement beyond one motif (motif sizes and spacing are
     read since #608), per-letter colours and sew types (the first

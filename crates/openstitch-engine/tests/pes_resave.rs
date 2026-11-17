@@ -535,6 +535,10 @@ fn import_pes_takes_the_objects_of_every_pe_design_file() {
             .unwrap_or_else(|e| panic!("{}: {e}", file.display()));
         files += 1;
         assert_eq!(r["unparsed"], Value::Null, "{}", file.display());
+        // #1125: no attribute of a PE-DESIGN file is outside its command's range, so the
+        // import stores every one as the file has it (nothing is "read as" another value).
+        let notes = r["notes"].to_string();
+        assert!(!notes.contains("is outside"), "{}: {notes}", file.display());
         for k in r["skipped"].as_array().expect("skipped") {
             let why = k["reason"].as_str().unwrap_or_default().to_string();
             println!("{}: {why}", file.display());
@@ -588,5 +592,145 @@ fn opening_a_pe_design_11_file_takes_its_page_mode() {
                 pes::read_objects(&std::fs::read(dir.join("out.pes")).expect("out")).expect("read");
             assert_eq!(back.hoop_page, mode == "hoop", "{file} {command}");
         }
+    }
+}
+
+/// #1125: `import.pes` keeps a shape's attribute fields to the ranges their commands accept.
+/// PE-DESIGN's 40 mm candlewick square (line-candlewick-medium-square40), with its line body's
+/// numeric fields all set to 0xFFFF and then to 0 under each line and region sew type the
+/// fields belong to: the import does not panic, nothing is stored outside the command's range,
+/// each value moved is listed in the notes, and the design compiles to a bounded stitch count.
+#[test]
+fn import_pes_keeps_out_of_range_attribute_fields_to_their_commands_ranges() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let original =
+        std::fs::read(root.join("compat/reference/stitches/line-candlewick-medium-square40.pes"))
+            .expect("reference");
+    let name = b"\x08\x00CEmbLine";
+    let body = original
+        .windows(name.len())
+        .position(|w| w == name)
+        .expect("CEmbLine")
+        + name.len();
+    // Width and density (+48, +50), run pitch (+52), Miter Limits (+64, +66), a motif line's
+    // width, height and spacing (+70, +72, +80) and Run pitch (+82), E/V spacing, width and
+    // opening (+88, +90, +92), region density (+136), Direction (+168), frequency (+174), a
+    // motif fill's sizes (+218, +220), cross size and passes (+282, +284), a zigzag net's
+    // width, density and spacing (+366, +368, +370).
+    const FIELDS: [usize; 22] = [
+        48, 50, 52, 64, 66, 70, 72, 80, 82, 88, 90, 92, 136, 168, 174, 218, 220, 282, 284, 366,
+        368, 370,
+    ];
+    // Line sew types 0-8 (no cutting line: 7 is the Applique Wizard's) and the region sew
+    // types that need no pattern of the file's own.
+    let lines = [0_u16, 1, 2, 3, 4, 5, 6, 8];
+    let regions = [0_u16, 1, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14];
+    let dir = TempDir::canonical("import-ranges");
+    for value in [u16::MAX, 0] {
+        for k in 0..lines.len().max(regions.len()) {
+            let (line, region) = (lines[k % lines.len()], regions[k % regions.len()]);
+            let mut data = original.clone();
+            let mut put = |at: usize, v: u16| {
+                data[body + at..body + at + 2].copy_from_slice(&v.to_le_bytes());
+            };
+            for at in FIELDS {
+                put(at, value);
+            }
+            put(42, 1);
+            put(44, line);
+            put(132, 1);
+            put(134, region);
+            std::fs::write(dir.join("in.pes"), &data).expect("write");
+            let mut s = Session::new(dir.path());
+            run(
+                &mut s,
+                "design.new",
+                json!({"name": "t", "width": 100, "height": 100}),
+            );
+            let r = run(&mut s, "import.pes", json!({"path": "in.pes"}));
+            let what = format!("line {line}, region {region}, fields {value}");
+            assert_eq!(r["skipped"], json!([]), "{what}");
+            let notes = r["notes"].to_string();
+            if value == u16::MAX {
+                assert!(notes.contains("is outside"), "{what}: {notes}");
+            }
+            let o = &s.design().objects[0];
+            let within = |v: f64, lo: f64, hi: f64| (lo..=hi).contains(&v);
+            let l = o.line.as_ref().expect("line");
+            assert!(within(l.width, 0.5, 10.0), "{what}: width {}", l.width);
+            assert!(within(l.density, 0.1, 16.0), "{what}: {}", l.density);
+            assert!(within(l.pitch, 1.0, 10.0), "{what}: pitch {}", l.pitch);
+            assert!(
+                l.spacing.is_none_or(|v| within(v, 0.0, 20.0)),
+                "{what}: {:?}",
+                l.spacing
+            );
+            assert!(
+                l.height.is_none_or(|v| within(v, 0.5, 20.0)),
+                "{what}: {:?}",
+                l.height
+            );
+            assert!(
+                l.sharp_corners
+                    .miter_limit
+                    .iter()
+                    .all(|&v| within(v, 0.0, 50.0))
+            );
+            let g = o.region.as_ref().expect("region");
+            let (lo, hi) = g.kind.density_range();
+            assert!(within(g.density, lo, hi), "{what}: density {}", g.density);
+            assert!(within(g.angle, 0.0, 359.0), "{what}: angle {}", g.angle);
+            assert!(
+                g.frequency.is_none_or(|v| within(v, 0.0, 50.0)),
+                "{what}: {:?}",
+                g.frequency
+            );
+            assert!(
+                g.spacing.is_none_or(|v| within(v, 0.5, 20.0)),
+                "{what}: {:?}",
+                g.spacing
+            );
+            for size in [g.pattern_width, g.pattern_height] {
+                assert!(
+                    size.is_none_or(|v| within(v, 0.5, 50.0)),
+                    "{what}: {size:?}"
+                );
+            }
+            // Sewn: a 40 mm square at the densest values a command would take stays small.
+            let stitches = run(&mut s, "design.info", json!({}))["stitchStats"]["stitches"]
+                .as_u64()
+                .expect("stitches");
+            assert!(stitches < 200_000, "{what}: {stitches} stitches");
+        }
+    }
+}
+
+/// #1125 (the owner's rule of 2026-11-14): `import.pes` says in its `path` description that a
+/// value outside its command's range is stored as the nearest one in range and listed in the
+/// notes, and that a text number that is not a number skips the text.
+#[test]
+fn the_import_pes_description_says_out_of_range_values_are_kept_to_the_commands_range() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "import.pes")
+        .expect("import.pes");
+    let path = spec
+        .params
+        .iter()
+        .find(|p| p.name == "path")
+        .expect("path")
+        .summary
+        .to_string();
+    for words in [
+        "inside the range the attribute's own command accepts",
+        "width 0.5-10, density 0.1-14, pitch 1-10",
+        "stored as the nearest value in the range",
+        "a direction of 360 or more as its remainder after whole turns",
+        "listed in the result's notes",
+        "is not a number is skipped",
+    ] {
+        assert!(path.contains(words), "{words:?} in {path}");
     }
 }
