@@ -50,7 +50,7 @@ Decisions) in `openstitch-design`; the engine adds `usvg` and `roxmltree` (SVG i
   entry (also when its tests fail); pull requests restore it. The slowest job is Windows, and
   its warm build goes to compiling the test targets; see #357 and #403 for the measurements.
   Beside it: `secrets` (gitleaks over the whole history, and `tools/private_scan.py` for local
-  paths and personal details in tracked files, #1057), `icons` (asset and icon checks, file
+  paths and personal details in tracked files, #1057, also embedded in binary ones, #1226), `icons` (asset and icon checks, file
   associations, README status checks), `web` (the browser build, its smoke test against the
   native build and a page test in Chromium, Firefox and WebKit) and `kit` (the ready-to-sew kit
   matches a fresh build, every docs image has a generator, the Text Transform table is what

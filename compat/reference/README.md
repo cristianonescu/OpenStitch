@@ -84,6 +84,15 @@ input file by its repository path or its SHA-256.
    generated tier table.
 3. Commit the file, the manifest and the table together.
 
+Before the commit, run `python3 -I tools/private_scan.py <the file>` on every capture you add
+(CI's `secrets` job runs it over the whole tree, #1226). A PE-DESIGN file can hold a local path
+that no text search sees: for a design made from an image (Photo Stitch, Auto Punch, Cross Stitch,
+a background image) PE-DESIGN stores the image's path in the file, as ASCII near the start, with
+the folders it was opened from. The scan reads binary files for such paths, as ASCII and as
+UTF-16. On a finding, do not commit the file as it is: open the image from a folder whose name
+says nothing and save again, or rewrite the folder part at the same length and record both
+SHA-256 values in the manifest notes (#1213).
+
 This repository is public. Commit only simple test shapes you drew yourself. Keep any file
 that holds Brother content outside the repository, and run the harness with
 `--reference /path/to/your/folder` (the same layout plus its own `MANIFEST.json`).
