@@ -71,7 +71,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   alpha 15 it was the line pitch: pass the old pitch minus the width). A `zigzagNetFill`'s
   `density` is rungs per mm, half of PE-DESIGN's Density (which counts a rung and the diagonal
   back as two lines): for PE-DESIGN's 4.5, the default, pass 2.25. The inspector's Density field
-  shows PE-DESIGN's number.
+  shows PE-DESIGN's number. `travel: false` on a `zigzagNetFill` keeps the needle off the outline
+  (it travels under the bands only and jumps to a part the net's lines do not reach); on a
+  `netFill` each line is its own run, with a jump between lines.
 - Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
   `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
   save PES version 6.

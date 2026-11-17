@@ -1798,6 +1798,85 @@ fn zigzag_net_density_field_shows_pe_designs_lines_per_mm() {
     assert!((field(&s).1 - 4.7).abs() < 1e-12);
 }
 
+/// #1163: a Density typed in a zigzag net's field comes back the same from a PES version 11 file
+/// and from a project. The PES holds the typed number itself at body +368, as PE-DESIGN's
+/// lines per mm; opened again, the field shows it (to the file's 32-bit precision) and writes
+/// the same number back. A project keeps the stored value exactly.
+#[test]
+fn zigzag_net_density_typed_in_the_field_round_trips_through_pes_11_and_osd() {
+    use super::inspector::{Control, region_controls};
+    let dir = openstitch_testutil::TempDir::new("app-net-density");
+    let stored = |s: &Session| {
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("region")
+            .density
+    };
+    let field = |s: &Session| {
+        let c = region_controls(s.design().objects[0].region.as_ref().expect("region"))
+            .into_iter()
+            .find(|c| c.param() == "density")
+            .expect("density");
+        let Control::Number { value, .. } = c else {
+            panic!("a number field");
+        };
+        (c, value)
+    };
+    let at_368 = |name: &str| {
+        let bytes = std::fs::read(dir.join(name)).expect("read");
+        let section = openstitch_formats::pes::read_objects(&bytes).expect("objects");
+        section.shapes[0].net_density
+    };
+    let run = |s: &mut Session, id: &str, p: serde_json::Value| {
+        s.execute(id, Some(&p))
+            .unwrap_or_else(|e| panic!("{id}: {e}"))
+    };
+    for typed in [1.0, 4.5, 4.7, 6.3, 20.0] {
+        let mut s = Session::new(&dir);
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 10, "y": 10, "width": 30, "height": 20, "fill": "Red"}),
+        );
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "type": "zigzagNetFill"}),
+        );
+        let mut p = field(&s).0.params(json!(typed));
+        p["id"] = json!(1);
+        run(&mut s, "object.setRegion", p);
+        assert_eq!(field(&s).1, typed, "the field shows what was typed");
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": "net.pes", "pesVersion": "11"}),
+        );
+        assert_eq!(at_368("net.pes"), typed as f32, "{typed}: +368");
+        run(&mut s, "project.save", json!({"path": "net.osd"}));
+
+        let mut pes = Session::new(&dir);
+        run(&mut pes, "import.pes", json!({"path": "net.pes"}));
+        assert!(
+            (field(&pes).1 - typed).abs() < 1e-6,
+            "{typed}: from the PES the field shows {}",
+            field(&pes).1
+        );
+        run(
+            &mut pes,
+            "design.export",
+            json!({"path": "again.pes", "pesVersion": "11"}),
+        );
+        assert_eq!(at_368("again.pes"), typed as f32, "{typed}: written back");
+
+        let mut osd = Session::new(&dir);
+        run(&mut osd, "project.open", json!({"path": "net.osd"}));
+        assert_eq!(stored(&osd), stored(&s), "{typed}: the project's value");
+        assert_eq!(field(&osd).1, typed, "{typed}: the project's field");
+    }
+}
+
 /// #1124: a candlewick's Density is PE-DESIGN 11.50's drop-down (round 15): Dense, Medium and
 /// Light, knots of 32, 24 and 20 points, stored as densities 16, 12 and 10. The default shows
 /// Medium; each choice is accepted by the command and stored as its density; a density set by
