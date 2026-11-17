@@ -7,6 +7,9 @@
 //! - `auth`: `session/new` fails with -32000 (authentication required).
 //! - `cancel`: streams one chunk, then waits; on `session/cancel` ends the turn `cancelled`.
 //! - `hang`: streams one chunk, then ignores everything (also its end of input).
+//! - `resume`: offers `loadSession`; `session/load` of `session-1` replays one user and one agent
+//!   chunk and succeeds, any other id fails with -32002 (resource not found), as claude-agent-acp
+//!   0.106.0 does. A turn answers `session:<the prompt's sessionId>`.
 //! - `grandchild`: starts a helper process (`sleep 300`), reports both ids in a chunk, ends the
 //!   turn; then keeps running after end of input like a stubborn agent.
 
@@ -83,7 +86,9 @@ fn main() {
         match msg.get("method").and_then(Value::as_str) {
             Some("initialize") => agent.send(json!({"jsonrpc": "2.0", "id": id, "result": {
                 "protocolVersion": 1,
-                "agentCapabilities": if scenario == "images" {
+                "agentCapabilities": if scenario == "resume" {
+                    json!({"loadSession": true})
+                } else if scenario == "images" {
                     json!({"loadSession": false, "promptCapabilities": {"image": true}})
                 } else {
                     json!({"loadSession": false})
@@ -96,11 +101,34 @@ fn main() {
             }})),
             Some("session/new") if scenario == "auth" => agent.send(json!({"jsonrpc": "2.0", "id": id,
                 "error": {"code": -32000, "message": "Authentication required"}})),
+            Some("session/load") => {
+                let wanted = msg.pointer("/params/sessionId").and_then(Value::as_str);
+                if wanted == Some(session) {
+                    agent.chunk(session, "user_message_chunk", "Remember heron-417");
+                    agent.chunk(session, "agent_message_chunk", "OK, replayed");
+                    agent.send(json!({"jsonrpc": "2.0", "id": id, "result": {}}));
+                } else {
+                    agent.send(json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32002,
+                        "message": "Resource not found"}}));
+                }
+            }
+            Some("session/new") if scenario == "resume" => agent.send(
+                json!({"jsonrpc": "2.0", "id": id, "result": {"sessionId": "session-2"}}),
+            ),
             Some("session/new") => {
                 agent.send(json!({"jsonrpc": "2.0", "id": id, "result": {"sessionId": session}}))
             }
             Some("session/prompt") => match scenario.as_str() {
                 "normal" | "images" => normal_turn(&mut agent, session, id),
+                "resume" => {
+                    let asked = msg
+                        .pointer("/params/sessionId")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string();
+                    agent.chunk(&asked, "agent_message_chunk", &format!("session:{asked}"));
+                    agent.send(json!({"jsonrpc": "2.0", "id": id, "result": {"stopReason": "end_turn"}}));
+                }
                 "cancel" => {
                     agent.chunk(session, "agent_message_chunk", "Working");
                     while let Some(m) = agent.next() {

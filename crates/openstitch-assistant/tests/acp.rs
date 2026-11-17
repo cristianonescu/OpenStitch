@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use openstitch_assistant::{
     AcpConfig, AcpConversation, AcpError, AgentState, AuthMethod, BRIDGE_NAME, Event, McpServer,
-    StopKind, claude_disallowed_tools, discover_in_within,
+    Resume, StopKind, claude_disallowed_tools, discover_in_within,
 };
 use openstitch_testutil::TempDir;
 use serde_json::Value;
@@ -236,6 +236,99 @@ fn authentication_required_is_surfaced_with_the_methods() {
 }
 
 /// An agent that ends before answering `initialize` fails the start with its stderr tail.
+/// The methods the fake agent was sent, in order.
+fn methods(dir: &Path) -> Vec<String> {
+    received(dir)
+        .iter()
+        .filter_map(|m| m.get("method").and_then(Value::as_str).map(str::to_string))
+        .collect()
+}
+
+/// One turn's text.
+fn turn_text(conv: &mut AcpConversation) -> String {
+    let mut text = String::new();
+    let stop = conv.prompt("Go on", &AtomicBool::new(false), &mut |e| {
+        if let Event::Text(t) = e {
+            text.push_str(&t);
+        }
+    });
+    assert_eq!(stop, StopKind::EndTurn);
+    text
+}
+
+/// #1170: an agent offering `loadSession` continues the earlier session; the history it replays
+/// while loading is not passed on as the next turn's events, and no new session opens.
+#[test]
+fn an_earlier_session_is_loaded_and_its_replay_is_not_shown() {
+    let dir = temp_dir("resume");
+    let mut conv =
+        AcpConversation::start_resuming(&config("resume", &dir), Some("session-1")).expect("start");
+    assert_eq!(conv.resume(), Some(&Resume::Loaded));
+    assert_eq!(conv.session_id(), "session-1");
+    assert_eq!(turn_text(&mut conv), "session:session-1");
+    let sent = methods(&dir);
+    assert_eq!(
+        sent,
+        ["initialize", "session/load", "session/prompt"],
+        "{sent:?}"
+    );
+    let msgs = received(&dir);
+    let load = &method(&msgs, "session/load")["params"];
+    assert_eq!(load["sessionId"], "session-1");
+    // The same setup as a new session: the bridge and Claude Code's tools off.
+    assert_eq!(load["mcpServers"][0]["name"], BRIDGE_NAME);
+    assert_eq!(
+        load["_meta"]["claudeCode"]["options"]["settingSources"],
+        serde_json::json!([])
+    );
+    conv.stop();
+}
+
+/// #1170: an id the agent no longer has opens a new session, and says why.
+#[test]
+fn a_session_the_agent_lost_falls_back_to_a_new_one() {
+    let dir = temp_dir("resume-lost");
+    let mut conv =
+        AcpConversation::start_resuming(&config("resume", &dir), Some("gone")).expect("start");
+    match conv.resume() {
+        Some(Resume::Failed(why)) => assert!(why.contains("Resource not found"), "{why}"),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+    assert_eq!(conv.session_id(), "session-2");
+    assert_eq!(turn_text(&mut conv), "session:session-2");
+    assert_eq!(
+        methods(&dir),
+        [
+            "initialize",
+            "session/load",
+            "session/new",
+            "session/prompt"
+        ]
+    );
+    conv.stop();
+}
+
+/// #1170: an agent without `loadSession` is never sent `session/load`; plain `start` asks for
+/// nothing.
+#[test]
+fn an_agent_without_load_session_gets_a_new_session() {
+    let dir = temp_dir("resume-none");
+    let conv =
+        AcpConversation::start_resuming(&config("normal", &dir), Some("session-1")).expect("start");
+    match conv.resume() {
+        Some(Resume::Failed(why)) => assert!(why.contains("cannot continue"), "{why}"),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+    assert_eq!(conv.session_id(), "session-1");
+    assert_eq!(methods(&dir), ["initialize", "session/new"]);
+    drop(conv);
+    let dir = temp_dir("resume-plain");
+    let conv = AcpConversation::start(&config("resume", &dir)).expect("start");
+    assert_eq!(conv.resume(), None);
+    assert_eq!(conv.session_id(), "session-2");
+    assert_eq!(methods(&dir), ["initialize", "session/new"]);
+}
+
 #[test]
 fn an_agent_that_ends_at_once_fails_the_start() {
     let dir = temp_dir("ends");
