@@ -7,6 +7,10 @@
 //! renamed, so a crash during a write never leaves a broken one; the original file is never
 //! touched, and a restored design is untitled until saved.
 //!
+//! The browser has no such folder (#831): there the page registers a [`Store`] (IndexedDB),
+//! which keeps one snapshot per tab and offers those a closed or crashed tab left, with the same
+//! timer, Info and dialog.
+//!
 //! Nothing here depends on egui.
 
 use serde_json::{Value, json};
@@ -51,6 +55,74 @@ impl Info {
             time: v.get("time")?.as_u64()?,
             process: u32::try_from(v.get("process")?.as_u64()?).ok()?,
         })
+    }
+}
+
+/// Where snapshots live when there is no recovery folder (#831: the browser page's IndexedDB,
+/// registered with `platform::set_recovery_store`). Every function is the store's own and
+/// never fails: a store the browser refuses lists nothing, reads nothing and writes nothing.
+#[derive(Clone, Copy)]
+pub struct Store {
+    /// This window's (tab's) snapshot id: digits and a dash, as [`Slot`]'s.
+    pub own: fn() -> String,
+    /// The snapshots windows that ended left: id and [`Info`] as JSON.
+    pub list: fn() -> Vec<(String, String)>,
+    /// One of those snapshots' project bytes.
+    pub read: fn(&str) -> Option<Vec<u8>>,
+    /// Writes this window's snapshot: id, project bytes, [`Info`] as JSON.
+    pub write: fn(&str, &[u8], &str),
+    /// Removes a snapshot.
+    pub remove: fn(&str),
+}
+
+impl std::fmt::Debug for Store {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("recovery::Store")
+    }
+}
+
+impl Store {
+    /// The snapshots ended windows left, oldest first (never this window's own).
+    pub fn orphans(&self) -> Vec<Orphan> {
+        let own = (self.own)();
+        let mut out: Vec<Orphan> = (self.list)()
+            .into_iter()
+            .filter(|(id, _)| *id != own && check_id(id).is_ok())
+            .filter_map(|(id, text)| {
+                let info = serde_json::from_str::<Value>(&text)
+                    .ok()
+                    .and_then(|v| Info::from_json(&v))?;
+                Some(Orphan { id, info })
+            })
+            .collect();
+        out.sort_by_key(|o| o.info.time);
+        out
+    }
+
+    /// An orphan's project bytes.
+    pub fn read(&self, id: &str) -> std::io::Result<Vec<u8>> {
+        check_id(id)?;
+        (self.read)(id).ok_or_else(|| std::io::Error::other(format!("no recovery file '{id}'")))
+    }
+
+    /// Removes an orphan (Discard); this window's own snapshot is refused.
+    pub fn discard(&self, id: &str) -> std::io::Result<()> {
+        check_id(id)?;
+        if id == (self.own)() {
+            return Err(std::io::Error::other("that window is still open"));
+        }
+        (self.remove)(id);
+        Ok(())
+    }
+
+    /// Writes this window's snapshot.
+    pub fn write(&self, osd: &[u8], info: &Info) {
+        (self.write)(&(self.own)(), osd, &info.to_json().to_string());
+    }
+
+    /// Removes this window's snapshot (the design was saved, or autosave turned off).
+    pub fn clear(&self) {
+        (self.remove)(&(self.own)());
     }
 }
 
@@ -311,6 +383,58 @@ mod tests {
             "a normal close removes the snapshot"
         );
         assert!(!dir.join(format!("{}.tmp", b.id())).exists());
+    }
+
+    thread_local! {
+        static MEM: std::cell::RefCell<Vec<(String, String, Vec<u8>)>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// A store as the browser's: snapshots in memory, this window being `1000-0`.
+    fn memory_store() -> Store {
+        Store {
+            own: || "1000-0".into(),
+            list: || {
+                MEM.with(|m| {
+                    m.borrow()
+                        .iter()
+                        .map(|e| (e.0.clone(), e.1.clone()))
+                        .collect()
+                })
+            },
+            read: |id| MEM.with(|m| m.borrow().iter().find(|e| e.0 == id).map(|e| e.2.clone())),
+            write: |id, osd, info| {
+                MEM.with(|m| {
+                    let mut m = m.borrow_mut();
+                    m.retain(|e| e.0 != id);
+                    m.push((id.into(), info.into(), osd.to_vec()));
+                });
+            },
+            remove: |id| MEM.with(|m| m.borrow_mut().retain(|e| e.0 != id)),
+        }
+    }
+
+    /// #831: the browser's store offers what other tabs left, never this tab's own snapshot,
+    /// skips what is not a snapshot, and refuses ids that are not ids.
+    #[test]
+    fn a_store_offers_what_ended_tabs_left() {
+        let s = memory_store();
+        assert!(s.orphans().is_empty());
+        s.write(b"own", &info("Mine"));
+        (s.write)("2000-0", b"rose", &info("Rose").to_json().to_string());
+        (s.write)("3000-0", b"bad", "not json");
+        (s.write)("../x", b"bad", &info("Path").to_json().to_string());
+        let found = s.orphans();
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].id, "2000-0");
+        assert_eq!(found[0].name, "Rose");
+        assert_eq!(s.read("2000-0").expect("read"), b"rose");
+        assert!(s.read("../x").is_err() && s.read("4000-0").is_err());
+        assert!(s.discard("1000-0").is_err(), "this tab's own");
+        s.discard("2000-0").expect("discard");
+        assert!(s.orphans().is_empty());
+        s.clear();
+        assert!((s.read)("1000-0").is_none());
     }
 
     #[test]

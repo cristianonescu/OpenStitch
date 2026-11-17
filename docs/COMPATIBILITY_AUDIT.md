@@ -1810,6 +1810,14 @@ Line references are relative to `crates/`.
     top just right of the middle); no single walking rule fits those and the rectangle's 75.4°.
     The new specs `concentric-circle30` and `concentric-ellipse40x30` compare counts, bounds and
     stitch lengths, not the seam.
+- **Web editor, batch:mac-wasm-3 (2026-11-17; #831, #833, #834, #696):** beyond PE-DESIGN, no
+  output changed. Browser autosave keeps its snapshots in IndexedDB (never the design's file, as
+  on the desktop); the built-in samples are the kit's PES files byte for byte
+  (`every_sample_is_in_the_kit_and_cards_hide_once_something_is_added`); a window narrower than
+  640 points floats its panes, and a wide desktop window renders pixel-identical to before
+  (`--demo --screenshot` at 1440 × 900 and at the 900-point minimum, compared byte for byte
+  against main 94c8ec94); the `web-release` build changes no export (the page test's PES and DST
+  downloads stay byte-identical to the native build).
 - **Web editor, batch:mac-wasm (2026-11-06; #556):** the browser build is beyond PE-DESIGN
   (PE-DESIGN 11 runs on Windows only) and changes no output: it runs the engine's own
   `project.open`, `stitches.import`, `design.export` and `project.save`, whose file access now

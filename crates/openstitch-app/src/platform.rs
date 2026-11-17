@@ -12,6 +12,13 @@ pub use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
 pub use web_time::Instant;
 
+/// The wall clock (#831: autosave snapshots are stamped with it): std's on the desktop, the
+/// page's (`Date.now()`) in a browser, where std's panics.
+#[cfg(not(target_arch = "wasm32"))]
+pub use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(target_arch = "wasm32")]
+pub use web_time::{SystemTime, UNIX_EPOCH};
+
 /// Runs `job` off the window's thread: a new thread on the desktop. A browser page has one
 /// thread, so there the job runs at once; its result waits in its channel for the next frame.
 #[cfg(not(target_arch = "wasm32"))]
@@ -318,4 +325,20 @@ pub fn set_user_store(store: openstitch_engine::session::UserStore) {
 /// The registered user-settings store, if any.
 pub fn user_store() -> Option<openstitch_engine::session::UserStore> {
     USER_STORE.with(|s| s.get())
+}
+
+thread_local! {
+    static RECOVERY_STORE: std::cell::Cell<Option<crate::editor::recovery::Store>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// Registers where autosave snapshots live when the editor has no recovery folder (#831: the
+/// browser page's IndexedDB). The page registers it only when the browser gave it storage.
+pub fn set_recovery_store(store: crate::editor::recovery::Store) {
+    RECOVERY_STORE.with(|s| s.set(Some(store)));
+}
+
+/// The registered snapshot store, if any.
+pub fn recovery_store() -> Option<crate::editor::recovery::Store> {
+    RECOVERY_STORE.with(|s| s.get())
 }

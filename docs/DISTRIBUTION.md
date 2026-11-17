@@ -242,11 +242,65 @@ blocked site data) the defaults apply and nothing is kept. The user settings (th
 machine profile) are kept the same way under `openstitch.user` (#829): the page registers the store
 through `openstitch_app::platform::set_user_store`, the engine's `Session::with_user_store` reads it
 at start and writes every settings change back, and stored bytes that are not settings give a
-first run. The `.wasm` is about 17 MB
-(#696).
+first run.
+
+**Crash recovery (#831):** autosave (Options ▸ Autosave for crash recovery) keeps a copy of an
+unsaved design in the origin's IndexedDB (database `openstitch`, store `recovery`, one record per
+tab: `crates/openstitch-web/js/recovery.js`), written after 3 s without a change as on the
+desktop. Each tab holds a Web Lock named after its record while it is open, so a record whose
+lock nobody holds was left by a tab that was closed or crashed: the next visit shows the same
+Recover Designs window as the desktop, and `ui.recoveryList`, `ui.recoveryRestore` and
+`ui.recoveryDiscard` work there (`openstitch_app::editor::recovery::Store`, registered through
+`openstitch_app::platform::set_recovery_store`). A saved design, or autosave turned off, removes
+the tab's record. Every storage access is guarded: where the browser refuses IndexedDB (storage
+blocked, cleared site data) recovery is off and the editor works on as before; without Web Locks
+(an old browser) every other tab's record is offered.
+
+**Samples and fonts (#833):** the six File ▸ Open Sample designs are built into the page
+(`getting_started::embedded_sample`, about 190 KB of the `.wasm`), so they open there as on the
+desktop; Help ▸ Ready-to-Sew Designs opens the kit on GitHub. A page cannot read the fonts
+installed on the computer: the lettering font lists say so under them in the browser
+(`Limit::SystemFonts` in `ui.browserLimits`); the built-in fonts are there, and Load TrueType
+Font adds a font file.
+
+**Keys, screens and touch (#834):** Ctrl+S, Ctrl+P and Ctrl+O reach the editor (the browser's
+Save Page, Print and Open File do not open). Ctrl+N, Ctrl+T and Ctrl+W are the browser's own: a
+page never sees them, so in the browser they cannot be given to a command (Keyboard Shortcuts
+names them) and New is in the File menu; `ui.browserLimits` lists them as `browserKeys`. The
+editor draws at the screen's resolution (2 or 3 device pixels per CSS pixel). A window narrower
+than 640 points (a phone, a narrow browser window) docks no pane: the canvas keeps the whole
+width, the panes float folded above the status bar, and the ribbon's tabs scroll under a finger
+(`openstitch_app::editor::workspace::narrow`, `narrow_tests`); the desktop window is at least 900
+points wide, so it changes only with a large Text size. At 600 × 800 CSS pixels, before and
+after: [before](images/web-editor-narrow-before.png), [after](images/web-editor-narrow.png); at
+390 × 844 (a phone): [before](images/web-editor-phone-before.png),
+[after](images/web-editor-phone.png).
+
+**Download size (#696):** the page is built with the `web-release` profile (the release profile
+with fat LTO, one codegen unit and stripped symbols). Measured on `openstitch_web_bg.wasm`
+(wasm-bindgen output) at 94c8ec94, 2026-11-17:
+
+| Build | .wasm | gzip -9 (what Pages sends) | Brotli 11 | Speed (Auto Punch, PES export) |
+|---|---|---|---|---|
+| `--release` (before) | 33.2 MB | 10.4 MB | 6.9 MB | 1 × |
+| `web-release`: opt-level 3, fat LTO, 1 codegen unit, strip | 24.8 MB | 9.1 MB | 6.4 MB | 1 × |
+| the same with opt-level "s" | 22.5 MB | 7.9 MB | 5.7 MB | 1.4 × slower |
+| the same with opt-level "z" | 20.5 MB | 7.0 MB | 5.3 MB | 1.6 × slower |
+
+The size-optimised levels make Auto Punch and exports 40-60 % slower in the browser (Chromium,
+three Auto Punch runs and five PES exports in the page), so the page keeps opt-level 3; a
+per-crate opt-level 3 for the engine under "s" is lost to fat LTO (24.6 MB, as slow as "s"). The
+built-in samples (#833) add 0.19 MB: with them and the rest of this batch the `web-release` page
+is 25.0 MB (gzip 9.2 MB), against 33.4 MB (10.6 MB) the same code built `--release`. CI job `web`
+writes the `.wasm`'s gzip size to its summary.
+Not done: `wasm-opt`, and splitting digitizing into a second download.
 
 **Browsers:** `web/e2e/page.mjs` (Playwright, version pinned in `web/e2e/package-lock.json`;
-it also turns the start cards off and on with a reload after each, #797)
+it also turns the start cards off and on with a reload after each, #797; and since 2026-11-17
+opens a sample, presses Ctrl+S and Ctrl+P, runs at 2 device pixels per CSS pixel (Chromium and
+Firefox at a real scale of 2, since Playwright's emulation of it gives their canvases the wrong
+size), at phone width with a finger drawing and selecting, recovers a closed tab's design and
+runs with storage refused: #831, #833, #834)
 loads the page in Chromium, Firefox and WebKit (Safari's engine): the editor must start, File ▸
 Open (Ctrl+O) goes through the browser's real file picker, and PES and DST exports written to the
 editor's save folder arrive as real downloads that must be byte-identical to the native build.
@@ -254,7 +308,9 @@ Before part 2 all three passed on macOS (2026-11-07, `node web/e2e/page.mjs WEB_
 INPUT`). CI job `web` runs it on
 Linux: Chromium always counts; Firefox counts when Mesa (for WebGL on the GPU-less runner)
 installs within 8 minutes, else it is a CI warning; WebKit needs GTK 4 and GStreamer, which the
-runner lacks, so there it is a warning too. The screenshots are kept as the
+runner lacks, so there it is a warning too. **WebKit is therefore not covered by CI at all**:
+there is no macOS CI job (#1227 tracks one), and WebKit is checked only by running the page test
+locally on a Mac (last on 2026-11-17 at `batch:mac-wasm-3`'s head, every check passed). The screenshots are kept as the
 `openstitch-web-screenshots` artifact. Safari itself (macOS, iPadOS) is not run; WebKit is its
 engine.
 

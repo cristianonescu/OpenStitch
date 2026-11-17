@@ -493,6 +493,13 @@ impl EditorApp {
         }
         if l.user_settings.is_none()
             && l.screenshot.is_none()
+            && let Some(store) = openstitch_app::platform::recovery_store()
+        {
+            // No folder beside ui.json: the browser page's snapshot store (#831).
+            self.recovery.start_store(store, l.script.is_empty());
+        }
+        if l.user_settings.is_none()
+            && l.screenshot.is_none()
             && let Some(v) = openstitch_app::platform::stored_prefs()
                 .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         {
@@ -3036,6 +3043,9 @@ mod replace_design_tests;
 #[cfg(test)]
 #[path = "px_per_mm_tests.rs"]
 mod px_per_mm_tests;
+#[cfg(test)]
+#[path = "narrow_tests.rs"]
+mod narrow_tests;
 #[cfg(test)]
 #[path = "monkey_tests.rs"]
 mod monkey_tests;

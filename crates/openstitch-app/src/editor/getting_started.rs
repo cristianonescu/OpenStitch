@@ -114,6 +114,35 @@ pub fn sample_path(kit: &Path, key: &str) -> Option<PathBuf> {
     p.is_file().then_some(p)
 }
 
+/// The samples' files built into the browser version (#833), which has no kit beside it, in
+/// [`SAMPLES`]'s order (about 200 KB). The desktop reads the kit's own files; native tests
+/// check these are the same.
+#[cfg(any(target_arch = "wasm32", test))]
+const EMBEDDED: [&[u8]; 6] = [
+    include_bytes!("../../../../examples/sew/fills/fill-options.pes"),
+    include_bytes!("../../../../examples/sew/shapes/shape-tools.pes"),
+    include_bytes!("../../../../examples/sew/shapes/decorative-frames.pes"),
+    include_bytes!("../../../../examples/sew/lettering/fonts-and-text.pes"),
+    include_bytes!("../../../../examples/sew/lettering/monograms.pes"),
+    include_bytes!("../../../../examples/sew/wizards/applique.pes"),
+];
+
+/// Sample `key`'s file name and bytes as built into this copy (#833): the browser version's;
+/// `None` on the desktop, which opens them from the kit.
+pub fn embedded_sample(key: &str) -> Option<(&'static str, &'static [u8])> {
+    #[cfg(any(target_arch = "wasm32", test))]
+    {
+        let i = SAMPLES.iter().position(|s| s.0 == key)?;
+        let name = SAMPLES[i].2.rsplit('/').next().unwrap_or(SAMPLES[i].2);
+        Some((name, EMBEDDED[i]))
+    }
+    #[cfg(not(any(target_arch = "wasm32", test)))]
+    {
+        let _ = key;
+        None
+    }
+}
+
 /// Whether the start cards show: switched on, and the design is empty (anything added hides
 /// them).
 pub fn cards_shown(enabled: bool, objects: usize) -> bool {
@@ -145,6 +174,17 @@ mod tests {
             assert!(sample_path(&kit, key).is_some(), "{key}");
         }
         assert!(sample_path(&kit, "nope").is_none());
+        // #833: the browser's built-in copies are the kit's files, byte for byte.
+        for (key, _, file) in SAMPLES {
+            let (name, bytes) = embedded_sample(key).expect("embedded");
+            assert!(file.ends_with(name), "{key}");
+            assert_eq!(
+                bytes,
+                std::fs::read(kit.join(file)).expect("kit file"),
+                "{key}"
+            );
+        }
+        assert!(embedded_sample("nope").is_none());
         assert!(cards_shown(true, 0) && !cards_shown(true, 1) && !cards_shown(false, 0));
         let mut keys: Vec<_> = CARDS.iter().map(|c| c.key).collect();
         keys.dedup();

@@ -61,6 +61,11 @@ pub fn command(app: &EditorApp) -> Value {
     json!({
         "inBrowser": openstitch_app::platform::in_browser(),
         "shown": app.ui.limit_notice.map(Limit::key),
+        // Keys the browser keeps for itself, which never reach the editor there (#834).
+        "browserKeys": openstitch_app::editor::keymap::BROWSER_KEYS
+            .iter()
+            .map(|(k, _)| *k)
+            .collect::<Vec<_>>(),
         "limits": Limit::ALL.iter().map(|l| json!({
             "key": l.key(),
             "what": l.what(),
@@ -103,7 +108,30 @@ mod tests {
         assert_eq!(v["inBrowser"], json!(true));
         assert_eq!(v["shown"], json!("folders"));
         assert_eq!(v["limits"].as_array().map(Vec::len), Some(Limit::ALL.len()));
+        // #833 and #834: the system fonts note, and the keys the browser keeps.
+        assert!(v["limits"].as_array().is_some_and(|l| l.iter().any(|x| x["key"] == "systemFonts")));
+        assert_eq!(v["browserKeys"], json!(["Ctrl+N", "Ctrl+T", "Ctrl+W"]));
         assert!(v["limits"][0]["message"].as_str().unwrap_or_default().contains("#766"));
         openstitch_app::platform::pretend_browser(false);
+    }
+
+    /// #1225: the Assistant's tool list names every limit and every field `ui.browserLimits`
+    /// answers with, so a model reading it learns of each one (a new limit or field must be
+    /// named there too).
+    #[test]
+    fn the_browser_limits_summary_names_every_limit_and_field() {
+        let summary = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.browserLimits")
+            .expect("ui.browserLimits is listed")
+            .summary;
+        for l in Limit::ALL {
+            assert!(summary.contains(l.key()), "the summary does not name {}", l.key());
+        }
+        let app = EditorApp::new(Launch::default());
+        let answer = command(&app);
+        for field in answer.as_object().expect("an object").keys() {
+            assert!(summary.contains(field.as_str()), "the summary does not name {field}");
+        }
     }
 }
