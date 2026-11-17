@@ -315,8 +315,8 @@ fn stem_stitches_slant_across_the_line() {
 
 #[test]
 fn candlewick_knots_sit_on_the_line() {
-    // Knots at 0, 50, 100, 150, 200 (200 / (20 + 30) = 4 intervals), each a {24/11} star
-    // visiting all 24 points of its circle.
+    // Knots at 0, 50, 100, 150, 200 (200 / (20 + 30) = 4 intervals), each a {12/5} star
+    // visiting all 12 points of its circle: a Medium knot of 2 mm (#1236).
     let run = lines::candlewick(&hline(200.0), &[], 20.0, 24, 30.0, 25.0);
     assert!(longest(&run) <= 25.0 + 1e-9);
     assert!(run.iter().all(|p| p.y.abs() <= 10.0 + 1e-9));
@@ -328,7 +328,50 @@ fn candlewick_knots_sit_on_the_line() {
             .collect();
         on.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
         on.dedup_by(|a, b| a.distance(*b) < 1e-6);
-        assert_eq!(on.len(), 24, "knot at {x}");
+        assert_eq!(on.len(), 12, "knot at {x}");
+    }
+}
+
+/// #1236: the points of a knot at each Size, as PE-DESIGN 11.50 sewed the 40 mm square in the
+/// coordinator's captures of 2026-11-15 and 2026-11-17 (one knot's needle points less the
+/// repeated first one). `points` is the count at Size 5.0: Light 20, Medium 24, Dense 32.
+#[test]
+fn candlewick_knots_have_pe_designs_points_at_every_size() {
+    let captures: [(usize, &[(f64, usize)]); 3] = [
+        (20, &[(3.0, 12), (5.0, 20), (7.0, 24), (10.0, 32)]),
+        (
+            24,
+            &[
+                (3.0, 16),
+                (4.0, 20),
+                (5.0, 24),
+                (6.0, 28),
+                (7.0, 32),
+                (7.1, 32),
+                (7.8, 36),
+                (8.0, 36),
+                (10.0, 44),
+            ],
+        ),
+        (32, &[(3.0, 20), (5.0, 32), (7.0, 48), (10.0, 64)]),
+    ];
+    for (points, sizes) in captures {
+        for &(size, expected) in sizes {
+            assert_eq!(
+                lines::candlewick_points(points, size * 10.0),
+                expected,
+                "{points} points at Size {size}"
+            );
+        }
+    }
+    // Every count is a multiple of four, at least four, and never falls as the knot grows.
+    for points in 4..=48 {
+        let mut last = 0;
+        for tenths in 5..=200 {
+            let n = lines::candlewick_points(points, tenths as f64);
+            assert!(n >= 4 && n.is_multiple_of(4) && n >= last, "{points} at {tenths}");
+            last = n;
+        }
     }
 }
 

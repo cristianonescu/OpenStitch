@@ -2612,3 +2612,130 @@ fn a_candlewick_lines_size_and_spacing_read_and_write_back() {
         }
     }
 }
+
+/// #1237 (fixtures/pe11/captures-2026-11-17, PE-DESIGN's stem and chain rectangles saved with
+/// one value changed each): a stem line's Width, Spacing, Angle and Stitch Type are the line
+/// body's +100, +102, +104 and +106, a chain line's Stitch Type, Size, Time and Arrange +118,
+/// +120, +122 and +124, and +48 stays the zigzag tool's width. The sewn box lies half the Width
+/// or half the Size beyond the bounds. Each file is read, and written back with those fields
+/// and the box as PE-DESIGN wrote them.
+#[test]
+fn a_stem_and_a_chain_lines_own_fields_read_and_write_back() {
+    let dir = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/pe11/captures-2026-11-17"
+    );
+    let body = |bytes: &[u8]| {
+        let name = b"\x08\x00CEmbLine";
+        let at = bytes
+            .windows(name.len())
+            .position(|w| w == name)
+            .expect("CEmbLine")
+            + name.len();
+        bytes[at..at + 386].to_vec()
+    };
+    let tenths = |mm: f32| (mm * 10.0).round() as u16;
+    // (file, line type, +100 +102 +104 +106 +118 +120 +122 +124, +48, the sewn box's growth)
+    for (name, kind, own, zigzag, grow) in [
+        (
+            "1237-stem-width-3p0",
+            5,
+            [30, 15, 45, 1, 0, 40, 5, 0],
+            20,
+            15,
+        ),
+        (
+            "1237-stem-spacing-2p5",
+            5,
+            [20, 25, 45, 1, 0, 40, 5, 0],
+            20,
+            10,
+        ),
+        (
+            "1237-stem-angle-60",
+            5,
+            [20, 15, 60, 1, 0, 40, 5, 0],
+            20,
+            10,
+        ),
+        ("1237-stem-type-2", 5, [20, 15, 45, 0, 0, 40, 5, 0], 20, 10),
+        (
+            "1237-stem-zigzag-w4p0",
+            5,
+            [20, 15, 45, 1, 0, 40, 5, 0],
+            40,
+            10,
+        ),
+        (
+            "1237-chain-size-5p0",
+            8,
+            [20, 15, 45, 1, 0, 50, 5, 0],
+            20,
+            25,
+        ),
+        ("1237-chain-time-6", 8, [20, 15, 45, 1, 0, 40, 6, 0], 20, 20),
+        ("1237-chain-type-2", 8, [20, 15, 45, 1, 1, 40, 5, 0], 20, 20),
+        (
+            "1237-chain-arrange-2",
+            8,
+            [20, 15, 45, 1, 0, 40, 5, 1],
+            20,
+            20,
+        ),
+        (
+            "1237-chain-zigzag-w3p0",
+            8,
+            [20, 15, 45, 1, 0, 40, 5, 0],
+            30,
+            20,
+        ),
+    ] {
+        let bytes = std::fs::read(format!("{dir}/{name}.pes")).expect("fixture");
+        let objects = objects_of(&bytes);
+        assert_eq!(objects.unparsed, None, "{name}");
+        let [shape] = objects.shapes.as_slice() else {
+            panic!("{name}: {} shapes", objects.shapes.len());
+        };
+        assert_eq!(shape.line_type, kind, "{name}");
+        assert_eq!(
+            [
+                tenths(shape.stem_width),
+                tenths(shape.stem_spacing),
+                shape.stem_angle,
+                shape.stem_type,
+                shape.chain_type,
+                tenths(shape.chain_size),
+                shape.chain_times,
+                shape.chain_arrange,
+            ],
+            own,
+            "{name}"
+        );
+        assert_eq!(tenths(shape.zigzag_width), zigzag, "{name}");
+        let theirs = body(&bytes);
+        let i16_at = |b: &[u8], at: usize| i16::from_le_bytes([b[at], b[at + 1]]);
+        let bounds = [0, 2, 4, 6].map(|at| i16_at(&theirs, at));
+        assert_eq!(
+            [8, 10, 12, 14].map(|at| i16_at(&theirs, at)),
+            [
+                bounds[0] - grow,
+                bounds[1] - grow,
+                bounds[2] + grow,
+                bounds[3] + grow
+            ],
+            "{name}: the sewn box"
+        );
+        let pattern = pes::read(&bytes).expect("pattern");
+        let written = pes11::write(&objects, &pattern).expect("write");
+        let ours = body(&written);
+        // The bounds and the sewn box, the line's type, colour, zigzag width and density and
+        // run pitch, and the stem's and the chain's own fields.
+        for at in (0..16)
+            .chain(40..54)
+            .step_by(2)
+            .chain([100, 102, 104, 106, 118, 120, 122, 124])
+        {
+            assert_eq!(i16_at(&ours, at), i16_at(&theirs, at), "{name}: +{at}");
+        }
+    }
+}

@@ -1038,3 +1038,181 @@ fn the_width_and_spacing_descriptions_say_where_pes_11_stores_a_candlewick() {
         assert!(p.summary.contains(words), "{}", p.summary);
     }
 }
+
+/// #1237: a stem line's Width, Spacing, Angle and Stitch Type (line body +100 to +106) and a
+/// chain line's Stitch Type, Size, Time and Arrange (+118 to +124) come back from PE-DESIGN's
+/// captures through `import.pes` and are written there again by the PES 0110 export, with the
+/// sewn box PE-DESIGN wrote. The zigzag width at +48 is neither's width: the captures where
+/// only it moved import at PE-DESIGN's default Width 2.0 and Size 4.0, and the export leaves
+/// the zigzag tool's defaults there.
+#[test]
+fn a_stem_and_a_chain_lines_values_come_back_from_pe_design() {
+    use openstitch_design::LineType;
+    use openstitch_design::model::{Arrange, ChainShape};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let fixtures = "crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-17";
+    let dir = temp_dir("v11-stem-chain");
+    let body = |bytes: &[u8]| {
+        let name = b"\x08\x00CEmbLine";
+        let at = bytes
+            .windows(name.len())
+            .position(|w| w == name)
+            .expect("CEmbLine")
+            + name.len();
+        bytes[at..at + 386].to_vec()
+    };
+    let u16_at = |b: &[u8], at: usize| u16::from_le_bytes([b[at], b[at + 1]]);
+    // (file, width, stem spacing, stem angle, single, chain passes, diamond, mirrored)
+    for (name, width, spacing, angle, single, times, diamond, mirror) in [
+        (
+            "1237-stem-width-3p0",
+            3.0,
+            1.5,
+            45.0,
+            false,
+            0,
+            false,
+            false,
+        ),
+        (
+            "1237-stem-spacing-2p5",
+            2.0,
+            2.5,
+            45.0,
+            false,
+            0,
+            false,
+            false,
+        ),
+        ("1237-stem-angle-60", 2.0, 1.5, 60.0, false, 0, false, false),
+        ("1237-stem-type-2", 2.0, 1.5, 45.0, true, 0, false, false),
+        (
+            "1237-stem-zigzag-w4p0",
+            2.0,
+            1.5,
+            45.0,
+            false,
+            0,
+            false,
+            false,
+        ),
+        ("1237-chain-size-5p0", 5.0, 0.0, 0.0, false, 5, false, false),
+        ("1237-chain-time-6", 4.0, 0.0, 0.0, false, 6, false, false),
+        ("1237-chain-type-2", 4.0, 0.0, 0.0, false, 5, true, false),
+        ("1237-chain-arrange-2", 4.0, 0.0, 0.0, false, 5, false, true),
+        (
+            "1237-chain-zigzag-w3p0",
+            4.0,
+            0.0,
+            0.0,
+            false,
+            5,
+            false,
+            false,
+        ),
+    ] {
+        let pe_bytes = std::fs::read(root.join(format!("{fixtures}/{name}.pes"))).expect("capture");
+        std::fs::write(dir.join("in.pes"), &pe_bytes).expect("copy");
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        let r = run(&mut s, "import.pes", json!({"path": "in.pes"}));
+        assert_eq!(r["notes"], json!([]), "{name}");
+        let l = s.design().objects[0].line.clone().expect("line");
+        assert_eq!(l.width, width, "{name}");
+        if name.contains("stem") {
+            assert_eq!(l.kind, LineType::Stem, "{name}");
+            assert_eq!(
+                (l.spacing_mm(), l.angle.unwrap_or(45.0), l.single),
+                (spacing, angle, single),
+                "{name}"
+            );
+        } else {
+            assert_eq!(l.kind, LineType::Chain, "{name}");
+            assert_eq!(
+                (
+                    l.run_times,
+                    l.chain_shape == ChainShape::Diamond,
+                    l.arrange == Arrange::Mirror
+                ),
+                (times, diamond, mirror),
+                "{name}"
+            );
+        }
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": "out.pes", "pesVersion": "11"}),
+        );
+        let out = std::fs::read(dir.join("out.pes")).expect("out.pes");
+        let (ours, theirs) = (body(&out), body(&pe_bytes));
+        // Bounds and sewn box, the type and the two lines' own fields: PE-DESIGN's.
+        for at in [
+            0, 2, 4, 6, 8, 10, 12, 14, 44, 100, 102, 104, 106, 118, 120, 122, 124,
+        ] {
+            assert_eq!(u16_at(&ours, at), u16_at(&theirs, at), "{name}: +{at}");
+        }
+        // The zigzag tool's defaults, 2.0 mm and 4.5 lines/mm, not the width and a density.
+        assert_eq!((u16_at(&ours, 48), u16_at(&ours, 50)), (20, 45), "{name}");
+    }
+}
+
+/// #1237: a chain line with every other link flipped has no place in PES 0110 (PE-DESIGN's
+/// Arrange has two buttons), so the export refuses it instead of writing another arrangement.
+#[test]
+fn a_chain_with_alternating_links_is_refused_in_pes_11() {
+    let dir = temp_dir("v11-chain-alternate");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 30, "y": 30, "width": 40, "height": 20, "outline": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"ids": [1], "type": "none"}),
+    );
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"ids": [1], "type": "chain", "arrange": "alternate"}),
+    );
+    let refused = s
+        .execute(
+            "design.export",
+            Some(&json!({"path": "out.pes", "pesVersion": "11"})),
+        )
+        .expect_err("refused");
+    assert!(
+        refused.to_string().contains("every other link flipped"),
+        "{refused}"
+    );
+}
+
+/// #1237 (the owner's rule of 2026-11-14): `object.setLine`'s params say where PES version 11
+/// stores a stem's and a chain's values, and that a chain's `alternate` is refused there.
+#[test]
+fn the_set_line_descriptions_say_where_pes_11_stores_a_stem_and_a_chain() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setLine")
+        .expect("object.setLine");
+    for (param, words) in [
+        (
+            "width",
+            "a stem's Width at body +100 and a chain's Size at body +120",
+        ),
+        ("spacing", "a stem's Spacing at body +102"),
+        ("angle", "whole degrees at body +104"),
+        ("single", "stores it at body +106"),
+        ("runTimes", "a chain's Time at body +122"),
+        ("arrange", "a chain with alternate is refused there"),
+        ("chainShape", "stores it at body +118"),
+    ] {
+        let p = spec.params.iter().find(|p| p.name == param).expect(param);
+        assert!(p.summary.contains(words), "{}", p.summary);
+    }
+}

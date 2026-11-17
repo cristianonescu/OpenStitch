@@ -30,7 +30,12 @@ stays the default.
   triangles, double zigzag, lattice, stripes, ripple.
 - **Candlewick Density:** PE-DESIGN's Dense / Medium / Light are `density` 16 / 12 / 10
   (knots of 32 / 24 / 20 points; Medium is the default). A candlewick's `width` (PE-DESIGN's
-  Size) and `spacing` are kept in both directions with PE-DESIGN 11 PES files.
+  Size) and `spacing` are kept in both directions with PE-DESIGN 11 PES files. A larger knot
+  has more points, as in PE-DESIGN (Medium: 16 at Size 3, 24 at 5, 44 at 10).
+- **Stem and chain lines with PE-DESIGN 11 files:** a stem's `width`, `spacing`, `angle` and
+  `single`, and a chain's `width` (Size), `runTimes` (PE-DESIGN's Time, 1-6), `chainShape` and
+  `arrange` (normal or mirror) are kept in both directions; a chain with `arrange: alternate`
+  cannot be written as PE-DESIGN 11 PES (use version 6).
 - **Lettering:** TrueType/OpenType text with size, spacing and alignment, satin or fill;
   bundled Lato Bold, Pacifico, OpenStitch Line (small text) and OpenStitch Pixel, or the user's own fonts; Fit Text to Outline, 26 Text
   Transform presets, monograms, templates, Name Drop, own embroidery fonts (Font Creator).

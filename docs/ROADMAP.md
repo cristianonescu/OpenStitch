@@ -267,7 +267,10 @@ out as PE-DESIGN's and written as one column (#608). Several groups are read and
 2026-11-13 too (#608). Motif lines and fills are written with their sizes
 and spacing since 2026-11-13 too (#608). A candlewick line's Size and Spacing are read from and
 written to their own PES 0110 fields since 2026-11-17 (#1160), and `import.pes` keeps attribute
-values of a damaged or hand-made file to the ranges their commands accept (#1125).
+values of a damaged or hand-made file to the ranges their commands accept (#1125). A stem
+line's Width, Spacing, Angle and Stitch Type and a chain line's Stitch Type, Size, Time and Arrange
+are read from and written to their own fields too (#1237), and a candlewick knot has PE-DESIGN's
+number of points at every Size (#1236).
 
 Done 2026-11-05 (#460-#464): the stitch-engine follow-ups of the review. Narrow Auto satin no
 longer starts with a 39.5 mm stitch, Auto Punch sews regions whose satin would cross more than

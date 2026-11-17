@@ -804,7 +804,16 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
         LineType::Running => Shape::LINE_RUNNING,
         LineType::Triple => Shape::LINE_TRIPLE,
         LineType::EStitch | LineType::VStitch => Shape::LINE_E_OR_V,
-        LineType::Stem => Shape::LINE_STEM,
+        // A stem's Width, Spacing, Angle and Stitch Type are +100 to +106 (#1237): the first
+        // Stitch Type button (1) is the triple stitch, the second (0) the single one. Until
+        // then the Width went to the zigzag width (+48) and PE-DESIGN read its defaults.
+        LineType::Stem => {
+            s.stem_width = l.width as f32;
+            s.stem_spacing = l.spacing_mm() as f32;
+            s.stem_angle = l.angle.unwrap_or(45.0).round().clamp(0.0, 359.0) as u16;
+            s.stem_type = u16::from(!l.single);
+            Shape::LINE_STEM
+        }
         LineType::Candlewick => {
             s.candlewick_density = candlewick_choice(l.density);
             // Its Size and Spacing are +112 and +114 (#1160). Until then the Size went to the
@@ -814,7 +823,21 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
             s.candlewick_spacing = l.spacing_mm() as f32;
             Shape::LINE_CANDLEWICK
         }
-        LineType::Chain => Shape::LINE_CHAIN,
+        // A chain's Stitch Type, Size, Time and Arrange are +118 to +124 (#1237). PE-DESIGN's
+        // Arrange has two buttons, so links flipped in turn have no place in the file.
+        LineType::Chain => {
+            use openstitch_design::model::{Arrange, ChainShape};
+            if l.arrange == Arrange::Alternate {
+                return Err(format!(
+                    "object {id}: a chain line with every other link flipped is not mapped in PES 0110 (use version 6)"
+                ));
+            }
+            s.chain_type = u16::from(l.chain_shape == ChainShape::Diamond);
+            s.chain_size = l.width as f32;
+            s.chain_times = l.run_times.clamp(1, 6) as u16;
+            s.chain_arrange = u16::from(l.arrange == Arrange::Mirror);
+            Shape::LINE_CHAIN
+        }
         LineType::Cutting => Shape::LINE_CUTTING,
         // The motif's width along the line, height across it and the spacing between motifs
         // (+70, +72, +80: 608-motif-size-spacing, 608-motif-5x8, #608).
@@ -876,6 +899,10 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
     };
     s.line_color = thread_index(table, &l.thread);
     // E and V keep their width in a field of their own; the zigzag width stays PE's default.
+    let own_fields = matches!(
+        s.line_type,
+        Shape::LINE_CANDLEWICK | Shape::LINE_STEM | Shape::LINE_CHAIN
+    );
     if s.line_type == Shape::LINE_E_OR_V {
         s.ev_width = l.width as f32;
         // The spacing (+88) and a V's opening (+92), so PE-DESIGN re-sews the line as
@@ -886,12 +913,12 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
         if l.kind == LineType::VStitch {
             s.ev_opening = (0.4 * spacing) as f32;
         }
-    } else if s.line_type != Shape::LINE_CANDLEWICK {
+    } else if !own_fields {
         s.zigzag_width = l.width as f32;
     }
-    // A candlewick keeps the zigzag tool's defaults in +48 and +50, as PE-DESIGN keeps what
-    // the tool last held (#1160).
-    if s.line_type != Shape::LINE_CANDLEWICK {
+    // A candlewick, a stem and a chain keep the zigzag tool's defaults in +48 and +50, as
+    // PE-DESIGN keeps what the tool last held (#1160, #1237).
+    if !own_fields {
         s.zigzag_density = l.density as f32;
     }
     // Sharp Corners and both buttons' Miter Limits (body +62, +64, +66, #373).
