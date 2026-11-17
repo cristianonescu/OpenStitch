@@ -323,8 +323,10 @@ fn a_plain_fill_sews_the_same_at_the_same_distance_from_the_page_centre() {
     // PE-DESIGN's coordinates start 100 mm left of and above the page's centre whatever the
     // page's size (the stamp capture on a 180 x 130 mm page fits the grid the 100 mm pages
     // gave): the same shape at the same distance from the centre sews the same stitches.
-    let small = sewn(&plain_fill((100.0, 100.0), 30.7, 30.0));
-    let large = sewn(&plain_fill((180.0, 130.0), 70.7, 45.0));
+    // (The place is chosen so that no grid point lies exactly 0.3 mm from a row end, where
+    // the last digit of the shape's page coordinates would decide whether it is sewn.)
+    let small = sewn(&plain_fill((100.0, 100.0), 30.65, 30.0));
+    let large = sewn(&plain_fill((180.0, 130.0), 70.65, 45.0));
     assert_eq!(small.len(), large.len());
     for (k, ((p, c), (q, e))) in small.iter().zip(&large).enumerate() {
         let off = *q - (*p + v2(400.0, 150.0));
@@ -332,11 +334,11 @@ fn a_plain_fill_sews_the_same_at_the_same_distance_from_the_page_centre() {
     }
     // At the same page coordinates on a page 5 mm wider, the centre lies 2.5 mm further right:
     // the rows are the same and the needle points follow the new centre.
-    let wider = plain_fill((105.0, 100.0), 30.7, 30.0);
-    let (rows, _) = fill_rows(&plain_fill((100.0, 100.0), 30.7, 30.0));
+    let wider = plain_fill((105.0, 100.0), 30.65, 30.0);
+    let (rows, _) = fill_rows(&plain_fill((100.0, 100.0), 30.65, 30.0));
     let (same, _) = fill_rows(&wider);
     assert!(rows.iter().zip(&same).all(|(a, b)| (a - b).abs() < 1e-6));
-    assert_on_the_page_grid(&wider, 30.7, 52.5, "on the wider page");
+    assert_on_the_page_grid(&wider, 30.65, 52.5, "on the wider page");
     assert_ne!(sewn(&wider), small);
 }
 
