@@ -1750,7 +1750,13 @@ fn every_inspector_number_field_holds_its_settings_values() {
 #[test]
 fn zigzag_net_density_field_shows_pe_designs_lines_per_mm() {
     use super::inspector::{Control, region_controls};
-    let stored = |s: &Session| s.design().objects[0].region.as_ref().expect("region").density;
+    let stored = |s: &Session| {
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("region")
+            .density
+    };
     let field = |s: &Session| {
         let c = region_controls(s.design().objects[0].region.as_ref().expect("region"))
             .into_iter()

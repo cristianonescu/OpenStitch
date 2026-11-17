@@ -2825,7 +2825,13 @@ fn the_density_description_says_a_zigzag_net_stores_rungs_per_mm() {
         "object.setRegion",
         json!({"id": 1, "type": "zigzagNetFill"}),
     );
-    let density = |s: &Session| s.design().objects[0].region.as_ref().expect("region").density;
+    let density = |s: &Session| {
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("region")
+            .density
+    };
     assert_eq!(density(&s), 2.25);
     run(&mut s, "object.setRegion", json!({"id": 1, "density": 3.0}));
     assert_eq!(density(&s), 3.0);
@@ -3047,7 +3053,12 @@ fn a_zigzag_net_with_under_sewing_sews_its_lines_before_its_bands() {
             .collect()
     };
     let (up, sideways) = (rungs(true), rungs(false));
-    assert!(up.len() > 300 && sideways.len() > 150, "{} {}", up.len(), sideways.len());
+    assert!(
+        up.len() > 300 && sideways.len() > 150,
+        "{} {}",
+        up.len(),
+        sideways.len()
+    );
     assert_eq!(up[0], first_rung, "the bands along the Direction first");
     assert!(
         up[up.len() - 1] < sideways[0],
@@ -3058,20 +3069,31 @@ fn a_zigzag_net_with_under_sewing_sews_its_lines_before_its_bands() {
 }
 
 /// #1043: no edge run under a zigzag net (PE-DESIGN 11.50 sews none, round 13, zigzag-net-dir0):
-/// the net starts on its first line, 2.5 mm inside the bottom edge, where an edge run would walk
-/// the outline's 120 mm first; and before the first rung no step lies along the top edge's
-/// inset, where only an edge run goes (the travel between line ends is on the outline itself).
+/// from the start point at the bottom centre the needle goes along the bottom edge to the first
+/// line, 2.5 mm inside it, and sews it, where an edge run would walk the outline's 120 mm first;
+/// and before the first rung every needle point is on the outline itself (travel between line
+/// ends) or on a net line, none on an edge run's inset.
 #[test]
 fn a_zigzag_net_has_no_edge_run_under_it() {
     let pts = zigzag_net_40_by_20();
-    let inside = |p: &(f64, f64)| (p.0 - 300.0).min(700.0 - p.0).min(p.1 - 400.0).min(600.0 - p.1);
+    let inside = |p: &(f64, f64)| {
+        (p.0 - 300.0)
+            .min(700.0 - p.0)
+            .min(p.1 - 400.0)
+            .min(600.0 - p.1)
+    };
     assert!(
-        pts[..12].iter().any(|p| inside(p) > 20.0),
+        pts[..16].iter().any(|p| inside(p) > 20.0),
         "the first needle points stay on the outline: {:?}",
-        &pts[..12]
+        &pts[..16]
     );
     let first_rung = (0..pts.len() - 1)
-        .find(|&i| (pts[i + 1].0 - pts[i].0).abs().max((pts[i + 1].1 - pts[i].1).abs()) > 25.0)
+        .find(|&i| {
+            (pts[i + 1].0 - pts[i].0)
+                .abs()
+                .max((pts[i + 1].1 - pts[i].1).abs())
+                > 25.0
+        })
         .expect("a rung");
     // Before the bands every needle point is on the outline (travel) or on a net line.
     let on_line = |p: &(f64, f64)| {
@@ -3084,12 +3106,16 @@ fn a_zigzag_net_has_no_edge_run_under_it() {
         .iter()
         .filter(|p| inside(p) > 0.5 && !on_line(p))
         .collect();
-    assert!(off.is_empty(), "needle points off the lines and the outline: {off:?}");
+    assert!(
+        off.is_empty(),
+        "needle points off the lines and the outline: {off:?}"
+    );
 }
 
-/// #1043: `travel` still changes a zigzag net now that it travels along the outline: off, no
-/// needle point lies on the top edge between two bands (the needle goes under the bands only),
-/// and `object.setRegion`'s description says so for both nets.
+/// #1043: `travel` still changes a zigzag net now that it travels along the outline: off, from
+/// the first rung to the last no needle point lies on the bottom edge between two bands (the
+/// needle goes under the bands only; before and after, it walks from the start point and to the
+/// end point), and `object.setRegion`'s description says so for both nets.
 #[test]
 fn a_zigzag_net_with_travel_off_does_not_walk_the_outline() {
     let net = |travel: bool| -> Vec<(f64, f64)> {
@@ -3112,18 +3138,32 @@ fn a_zigzag_net_with_travel_off_does_not_walk_the_outline() {
             .map(|q| (q.x, q.y))
             .collect()
     };
-    // Needle points on the top edge (y 40 mm) outside every band across the Direction (lines at
-    // x = 31.5 + 8k mm, bands 3 mm wide): travel from one band's end to the next.
+    // Needle points on the bottom edge (y 60 mm; the lowest band along the Direction ends 1 mm
+    // above it) outside every band across the Direction (lines at x = 31.5 + 8k mm, bands 3 mm
+    // wide), between the first rung and the last: travel from one band's end to the next.
     let along_edge = |pts: &[(f64, f64)]| {
-        pts.iter()
+        let rungs: Vec<usize> = (0..pts.len() - 1)
+            .filter(|&i| {
+                (pts[i + 1].0 - pts[i].0)
+                    .abs()
+                    .max((pts[i + 1].1 - pts[i].1).abs())
+                    > 25.0
+            })
+            .collect();
+        pts[rungs[0]..=rungs[rungs.len() - 1]]
+            .iter()
             .filter(|p| {
-                (p.1 - 400.0).abs() < 0.05
+                (p.1 - 600.0).abs() < 0.05
                     && (0..5).all(|k| (p.0 - (315.0 + 80.0 * f64::from(k))).abs() > 16.0)
             })
             .count()
     };
     let (on, off) = (net(true), net(false));
-    assert!(along_edge(&on) >= 3, "on: {} needle points", along_edge(&on));
+    assert!(
+        along_edge(&on) >= 3,
+        "on: {} needle points",
+        along_edge(&on)
+    );
     assert_eq!(along_edge(&off), 0, "off");
     assert_ne!(on, off);
     let s = Session::new(".");

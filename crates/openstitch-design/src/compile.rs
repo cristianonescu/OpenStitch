@@ -1387,10 +1387,7 @@ fn elements(
                     // start point to its first) may cut back across the rung beside it: the
                     // needle point between is left out, as inside the net (#1043, the honeycomb
                     // on a circle turned 50° to 85°).
-                    if matches!(
-                        region.kind,
-                        RegionType::ZigzagNetFill | RegionType::NetFill
-                    ) {
+                    if matches!(region.kind, RegionType::ZigzagNetFill | RegionType::NetFill) {
                         regions::uncross(&mut runs);
                     }
                     runs
