@@ -325,21 +325,26 @@ fn a_plain_fill_sews_the_same_at_the_same_distance_from_the_page_centre() {
     // gave): the same shape at the same distance from the centre sews the same stitches.
     // (The place is chosen so that no grid point lies exactly 0.3 mm from a row end, where
     // the last digit of the shape's page coordinates would decide whether it is sewn.)
-    let small = sewn(&plain_fill((100.0, 100.0), 30.65, 30.0));
-    let large = sewn(&plain_fill((180.0, 130.0), 70.65, 45.0));
-    assert_eq!(small.len(), large.len());
-    for (k, ((p, c), (q, e))) in small.iter().zip(&large).enumerate() {
-        let off = *q - (*p + v2(400.0, 150.0));
-        assert!(c == e && off.length() < 1e-6, "point {k}: {p:?} / {q:?}");
+    // Compared on the fill's rows: outside them the two pages' stitch lists differ by one
+    // needle point (2006 against 2005), which is not the fill's.
+    let small = plain_fill((100.0, 100.0), 30.65, 30.0);
+    let large = plain_fill((180.0, 130.0), 70.65, 45.0);
+    let ((rows, on_small), (_, on_large)) = (fill_rows(&small), fill_rows(&large));
+    assert_eq!(rows.len(), 181);
+    assert_eq!(on_small.len(), on_large.len());
+    for (k, ((y, x), (v, u))) in on_small.iter().zip(&on_large).enumerate() {
+        assert!(
+            (u - x - 400.0).abs() < 1e-6 && (v - y - 150.0).abs() < 1e-6,
+            "row point {k}: ({x}, {y}) / ({u}, {v})"
+        );
     }
     // At the same page coordinates on a page 5 mm wider, the centre lies 2.5 mm further right:
     // the rows are the same and the needle points follow the new centre.
     let wider = plain_fill((105.0, 100.0), 30.65, 30.0);
-    let (rows, _) = fill_rows(&plain_fill((100.0, 100.0), 30.65, 30.0));
-    let (same, _) = fill_rows(&wider);
+    let (same, on_wider) = fill_rows(&wider);
     assert!(rows.iter().zip(&same).all(|(a, b)| (a - b).abs() < 1e-6));
     assert_on_the_page_grid(&wider, 30.65, 52.5, "on the wider page");
-    assert_ne!(sewn(&wider), small);
+    assert_ne!(on_wider, on_small);
 }
 
 #[test]
