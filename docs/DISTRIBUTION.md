@@ -308,14 +308,15 @@ The Assistant (#766, 2026-11-17): `web/assistant_panel.rs` is now the browser's 
   unencrypted there.
   - It is sent only to the address it was entered for.
   - It is never in the preferences, a file, a URL or a log.
-- **Not in the browser yet:** coding agents (ACP), attachments, a scratch folder and question
-  cards.
+- **Not in the browser yet:** the Assistant cannot see a picture the user gives it or import an
+  SVG it draws (no attachments and no scratch folder, #1224); coding agents (ACP) and question
+  cards are desktop-only.
 - **Page scripts:** they drive the panel through `openstitch.run`'s `ui.assistantSetup`,
   `ui.assistantSend`, `ui.assistantState`, `ui.assistantAnswer` and `ui.assistantStop`
   (`web/e2e/assistant.mjs` tests it against `web/e2e/fake-model.mjs` in Chromium, Firefox and
   WebKit).
-- **Still to come:** MCP control of the page by an outside AI client (a local bridge; the design
-  note is the follow-up of #766).
+- **Still to come:** MCP control of the page by an outside AI client (an opt-in local bridge,
+  #1223).
 
 **Build** (the CLI version must match `wasm-bindgen` in Cargo.lock):
 

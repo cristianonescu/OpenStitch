@@ -101,10 +101,13 @@ impl Panel {
 }
 
 pub fn attach_files(app: &mut EditorApp, _paths: Vec<std::path::PathBuf>) {
-    app.assistant.panel.items.push(Item::Notice(
-        "Attaching files to a message is not available in the browser yet.".into(),
-    ));
+    app.assistant.panel.items.push(Item::Notice(BROWSER_LIMITS.into()));
 }
+
+/// What the browser's Assistant cannot do yet, shown in the panel at all times (#766).
+pub const BROWSER_LIMITS: &str = "In the browser the Assistant cannot yet see a picture you give \
+it or import an SVG it draws (#1224), and outside AI clients cannot control this page (#1223). \
+The desktop editor does both.";
 
 pub fn set_open(app: &mut EditorApp, open: bool) {
     if open && !app.ui.prefs.ai.enabled {
@@ -917,6 +920,7 @@ fn input_row(app: &mut EditorApp, ui: &mut egui::Ui, ctx: &egui::Context) {
             .small()
             .weak(),
     );
+    ui.label(RichText::new(BROWSER_LIMITS).small().weak());
     let busy = app.assistant.panel.busy();
     let r = ui.add(
         egui::TextEdit::multiline(&mut app.assistant.panel.input)
@@ -988,9 +992,9 @@ fn transcript(app: &mut EditorApp, ui: &mut egui::Ui) {
 ///   `remember: true` in this site's browser storage on this device. The reply never holds a key.
 /// - `ui.assistantSend {text}`: opens the panel and sends the message (`busy` is true while the
 ///   turn runs).
-/// - `ui.assistantState`: `{open, busy, sendsTo, approval, items: [{kind, text}], tokens}`,
-///   where `sendsTo` is the panel's notice of the host messages go to and `approval` is the
-///   waiting card's lines or null.
+/// - `ui.assistantState`: `{open, busy, sendsTo, limits, approval, items: [{kind, text}],
+///   tokens}`, where `sendsTo` is the panel's notice of the host messages go to, `limits` what it
+///   cannot do yet in the browser, and `approval` the waiting card's lines or null.
 /// - `ui.assistantAnswer {allow}`: answers the waiting approval card.
 /// - `ui.assistantStop`: Stop.
 pub fn page_command(
@@ -1093,6 +1097,8 @@ fn page_state(app: &EditorApp) -> Value {
         "busy": panel.busy(),
         // What the panel shows before a message is sent: where it goes.
         "sendsTo": recipient_notice(&app.ui.prefs.ai.base_url),
+        // What it cannot do yet, as the panel shows it.
+        "limits": BROWSER_LIMITS,
         "approval": panel.approval.as_ref().filter(|a| a.answer.is_none()).map(|a| a.what.clone()),
         "items": items,
         "tokens": { "input": panel.tokens.0, "output": panel.tokens.1 },

@@ -1197,12 +1197,13 @@ The browser editor (#693) runs the desktop's Assistant, with what a web page can
 
 **Not in the browser yet**
 - Coding agents (ACP need a local process).
-- Attachments and a scratch folder (the scratch folder needs the page's in-memory files).
+- Attachments and a scratch folder, so it cannot see a picture the user gives it or import an SVG
+  it draws (the scratch folder needs the page's in-memory files, #1224).
 - Question cards: `ask_user` tells the model to ask in its reply.
 
 **Outside AI clients**
 - An MCP client still cannot drive the page: a page cannot listen on a port.
-- The design for an opt-in local bridge is #766's follow-up:
+- The design for an opt-in local bridge is #1223:
   - a relay started by the user, with MCP on stdio and a loopback WebSocket with a one-time
     token;
   - an explicit, per-visit opt-in in the page;

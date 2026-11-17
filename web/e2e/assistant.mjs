@@ -121,6 +121,9 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
     const host = new URL(model.address).host;
     const notice = (await ok(page, { command: "ui.assistantState" })).sendsTo;
     if (!notice.includes(host)) throw new Error(`the panel does not name ${host}: ${notice}`);
+    // And says what it cannot do yet in the browser (#1224, #1223).
+    const limits = (await ok(page, { command: "ui.assistantState" })).limits;
+    if (!/picture/.test(limits) || !limits.includes("#1224") || !limits.includes("#1223")) throw new Error(`limits: ${limits}`);
     await ok(page, { command: "ui.assistantSend", params: { text: "draw a box" } });
     let s = await settled(page);
     const after = await objects(page);
