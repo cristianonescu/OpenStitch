@@ -161,6 +161,8 @@ actions! {
     StampEmboss => "stampEmboss", "Stamp/Emboss", "Emboss or engrave a shape, or place stamps in it.", None, Some("shape.emboss"), true;
     ModifyOverlap => "modifyOverlap", "Modify Overlap", "Merge, remove overlap or combine outlines.", None, Some("shape.combine"), true;
     DecorativeFrame => "decorativeFrame", "Decorative Frame", "Add a frame around the selection.", None, Some("shape.decorative"), true;
+    JoinLines => "joinLines", "Join Lines", "Make two or more open lines, satin skeletons or Manual Punch columns whose ends meet (within 1 mm) one object, sewn as one path with no trim between them; the first-sewn one keeps its attributes and place.", Some("Ctrl+J"), Some("shape.joinLines"), true;
+    BreakApart => "breakApart", "Break Apart", "Split the selection into pieces: text into one text per letter in place, a fill with islands into one object per piece (holes stay with theirs), a line object into its outlines, and groups such as copies along a line into separate objects.", Some("Ctrl+Shift+K"), Some("object.breakApart"), true;
     FitTextToOutline => "fitText", "Fit Text", "Fit Text to Outline: select a text and a shape, and the text follows the shape's outline. Release Text from Outline takes it off again.", None, Some("text.setPath"), true;
     // Home ▸ Wizards.
     BackgroundFill => "backgroundFill", "Background fill", "Fill around the selection with a background stitch.", None, Some("wizard.backgroundFill"), true;
@@ -176,7 +178,7 @@ actions! {
     DensityMap => "densityMap", "Density Map", "Show where thread layers pile up and step through the hotspots (Check Design, Density map).", None, Some("design.density"), true;
     ReviewSewingOrder => "reviewSewingOrder", "Review Sewing Order", "Step through every move between objects, with trims, jumps and warnings (Check Design, Sewing order).", None, Some("design.route"), true;
     // Image tab.
-    OpenImage => "openImage", "Open Image", "Show an image behind the design (PNG, JPEG, BMP).", None, Some("background.set"), true;
+    OpenImage => "openImage", "Open Image", "Show an image behind the design (PNG, JPEG, BMP, GIF, WebP).", None, Some("background.set"), true;
     PasteImage => "pasteImage", "Paste Image", "Use the image on the clipboard as the background.", None, Some("background.set"), true;
     SaveImage => "saveImage", "Save Image", "Save the background image as shown to a file, or copy it to the clipboard.", None, Some("background.save"), true;
     ModifyImage => "modifyImage", "Modify Image", "Move, scale, crop or adjust the colours of the background image.", None, Some("background.modify"), true;
@@ -565,6 +567,7 @@ const HOME: &[Group] = &[
         items: &[
             Small(&[A::Arrange, A::RotateFlip, A::Size]),
             Small(&[A::Group, A::Ungroup, A::FitTextToOutline]),
+            Small(&[A::JoinLines, A::BreakApart]),
             Small(&[A::StampEmboss, A::ModifyOverlap, A::DecorativeFrame]),
             Small(&[A::Align]),
         ],

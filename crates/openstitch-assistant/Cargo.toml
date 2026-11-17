@@ -10,8 +10,20 @@ autotests = false
 [dependencies]
 base64 = "0.23.1"
 serde_json.workspace = true
-# Blocking HTTPS client; rustls with the bundled Mozilla roots, no async runtime.
+# A clock that works in a browser page too (std's `Instant::now` panics there); std's own
+# `Instant` on the desktop (#766).
+web-time = "1.1.0"
+
+# The desktop: blocking HTTPS client; rustls with the bundled Mozilla roots, no async runtime.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
+
+# The browser (#766): the page's own `fetch`, its streamed body and timers.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.129"
+wasm-bindgen-futures = "0.4.79"
+js-sys = "0.3.106"
+web-sys = { version = "0.3.106", features = ["Window", "Headers", "Request", "RequestInit", "RequestMode", "RequestCredentials", "Response", "ReadableStream", "ReadableStreamDefaultReader", "AbortController", "AbortSignal"] }
 
 [dev-dependencies]
 # Temp folders that are removed when a test ends (#366).

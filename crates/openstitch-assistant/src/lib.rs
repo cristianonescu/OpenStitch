@@ -27,7 +27,12 @@ mod models;
 pub mod notes;
 mod openai;
 mod sse;
+#[cfg(not(target_arch = "wasm32"))]
 mod transport;
+// The turn loops' async seams, and the browser's fetch over them (#766).
+#[cfg(target_arch = "wasm32")]
+pub mod browser;
+pub mod fetch;
 
 use std::time::Duration;
 
@@ -35,7 +40,7 @@ use serde_json::{Value, json};
 
 pub use acp::{
     AcpConfig, AcpConversation, AcpError, AgentState, AuthMethod, BRIDGE_NAME, Discovered,
-    KNOWN_AGENTS, KnownAgent, McpServer, claude_disallowed_tools, discover, discover_in,
+    KNOWN_AGENTS, KnownAgent, McpServer, Resume, claude_disallowed_tools, discover, discover_in,
     discover_in_within, find_program, search_dirs,
 };
 pub use conversation::Conversation;
@@ -43,6 +48,7 @@ pub use images::{GENERATE_IMAGE, ImageConfig, NO_GENERATOR, WithImages, generate
 pub use models::{
     ModelInfo, edit_request_without_tools, list_models, ollama_tools_capability, pick_model,
 };
+#[cfg(not(target_arch = "wasm32"))]
 pub use transport::UreqTransport;
 
 /// The model the assistant uses unless the user picks another.
