@@ -4490,3 +4490,18 @@ CIEDE2000 14.19 → 12.71, MS-SSIM 0.757 → 0.825, 9601 → 10563 stitches, 192
 stitch under 1 mm (a 0.075 mm margin keeps needle points that fall between the 0.1 mm steps of
 a design file from rounding below it). With two art pixels per cross: 18.72 and 0.559. Off by
 default: whether it is on in OpenStitch mode is the owner's call.
+
+### Join Lines and Break Apart, 2026-11-17 (#744)
+
+Beyond PE-DESIGN, so no reference capture applies; internal tier. `shape.joinLines` chains open
+lines, satin skeletons or Manual Punch columns at their nearest ends (tolerance 1 mm by default);
+two running lines 0.5 mm apart, joined, compile to exactly the stitches of the same four-point
+line drawn in one go (`joining_two_lines_sews_one_path_without_a_trim`): one tie-in, one tie-off,
+fewer trims than the two lines apart. A joined satin skeleton's outline is the one its joined
+centre line makes, so both rails run on through the seam. `object.breakApart` sets each letter of
+plain text as its own text object and checks it lands within 0.05 mm of where the letter was;
+text on a path, in a Text Transform, arched or in a Name Drop box breaks into letter shapes
+instead. Both are one undo step and round-trip through `.osd`. A design of two running lines and
+two satin skeletons, each pair joined through `stitchtool exec` and exported to PES 6, passes
+`tools/sew_check.py` (100×100 hoop): 509 stitches, two colours, one trim per colour, read back
+within 0.07 mm.

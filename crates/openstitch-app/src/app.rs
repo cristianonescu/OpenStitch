@@ -2017,6 +2017,11 @@ impl EditorApp {
         } else if hit(A::Group) {
             crate::edit_ui::group(self);
         }
+        if hit(A::BreakApart) {
+            crate::edit_ui::break_apart(self);
+        } else if hit(A::JoinLines) {
+            crate::edit_ui::join_lines(self);
+        }
         if hit(A::Delete) && self.tools.is_busy() && crate::keyboard_ui::draws(self.tools.tool()) {
             // While drawing, Backspace / Delete take back the last point (#499).
             self.tools.remove_last_point();

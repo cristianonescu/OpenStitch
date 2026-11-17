@@ -161,6 +161,8 @@ actions! {
     StampEmboss => "stampEmboss", "Stamp/Emboss", "Emboss or engrave a shape, or place stamps in it.", None, Some("shape.emboss"), true;
     ModifyOverlap => "modifyOverlap", "Modify Overlap", "Merge, remove overlap or combine outlines.", None, Some("shape.combine"), true;
     DecorativeFrame => "decorativeFrame", "Decorative Frame", "Add a frame around the selection.", None, Some("shape.decorative"), true;
+    JoinLines => "joinLines", "Join Lines", "Make two or more open lines, satin skeletons or Manual Punch columns whose ends meet (within 1 mm) one object, sewn as one path with no trim between them; the first-sewn one keeps its attributes and place.", Some("Ctrl+J"), Some("shape.joinLines"), true;
+    BreakApart => "breakApart", "Break Apart", "Split the selection into pieces: text into one text per letter in place, a fill with islands into one object per piece (holes stay with theirs), a line object into its outlines, and groups such as copies along a line into separate objects.", Some("Ctrl+Shift+K"), Some("object.breakApart"), true;
     FitTextToOutline => "fitText", "Fit Text", "Fit Text to Outline: select a text and a shape, and the text follows the shape's outline. Release Text from Outline takes it off again.", None, Some("text.setPath"), true;
     // Home ▸ Wizards.
     BackgroundFill => "backgroundFill", "Background fill", "Fill around the selection with a background stitch.", None, Some("wizard.backgroundFill"), true;
@@ -565,6 +567,7 @@ const HOME: &[Group] = &[
         items: &[
             Small(&[A::Arrange, A::RotateFlip, A::Size]),
             Small(&[A::Group, A::Ungroup, A::FitTextToOutline]),
+            Small(&[A::JoinLines, A::BreakApart]),
             Small(&[A::StampEmboss, A::ModifyOverlap, A::DecorativeFrame]),
             Small(&[A::Align]),
         ],

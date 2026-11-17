@@ -135,6 +135,30 @@ pub fn can_ungroup(app: &EditorApp) -> bool {
     edit_ops::any_grouped(app.session.design(), &app.selection)
 }
 
+pub fn can_join_lines(app: &EditorApp) -> bool {
+    edit_ops::can_join_lines(app.session.design(), &app.selection)
+}
+
+/// Join Lines (#744): the joined line stays selected.
+pub fn join_lines(app: &mut EditorApp) {
+    if can_join_lines(app) {
+        let r = edit_ops::join_lines(app.session.design(), &app.selection);
+        run_and_select(app, r);
+    }
+}
+
+pub fn can_break_apart(app: &EditorApp) -> bool {
+    edit_ops::can_break_apart(app.session.design(), &app.selection)
+}
+
+/// Break Apart (#744): every piece is selected afterwards.
+pub fn break_apart(app: &mut EditorApp) {
+    if can_break_apart(app) {
+        let r = edit_ops::break_apart(&app.selection);
+        run_and_select(app, r);
+    }
+}
+
 /// The single selected shape object.
 pub fn single_shape(app: &EditorApp) -> Option<u64> {
     single(app).filter(|&id| kind_of(app, id) == Some(ObjectKind::Shape))
