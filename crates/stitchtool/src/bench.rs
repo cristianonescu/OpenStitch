@@ -2074,9 +2074,8 @@ mod tests {
         assert!((task.check)(&design(json!("radial"))).is_ok());
     }
 
-    /// #1006: the branch-columns task passes on the design `object.deriveSkeleton {branches:
-    /// true}` makes of its Y, read as the benchmark reads it, and fails on the Y left as a
-    /// fill or sewn as one skeleton column.
+    /// #1232: the floppy-image task passes on a transfer.diskImage call that puts the design onto
+    /// an image file as DST, and fails on another format, no design, a non-image path or no call.
     #[test]
     fn the_floppy_image_task_needs_the_design_on_an_image_as_dst() {
         let task = TASKS.iter().find(|t| t.id == "floppy-image").expect("task");
@@ -2126,6 +2125,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// #1229: the join-lines and break-apart tasks fail as set up and pass after their command.
     #[test]
     fn the_join_and_break_apart_tasks_need_their_commands() {
         let design = |s: &mut Session| {
@@ -2158,6 +2158,9 @@ mod tests {
         }
     }
 
+    /// #1006: the branch-columns task passes on the design `object.deriveSkeleton {branches:
+    /// true}` makes of its Y, read as the benchmark reads it, and fails on the Y left as a
+    /// fill or sewn as one skeleton column.
     #[test]
     fn the_branch_columns_task_counts_the_columns() {
         let task = TASKS
