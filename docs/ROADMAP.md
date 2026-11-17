@@ -180,8 +180,10 @@ where PE-DESIGN starts them (#1017), M and N from the top of the first stem (par
 bar ended along the legs (part of #938); a lock or tie-in a few hundredths of a millimetre off its
 point made exact, and every letter piece tied in (#1032); the zigzag net turned by its Direction,
 its bands reaching in from lines outside the shape, and a switch to a net fill starting at
-Direction 0 (#1054; #1043 stays open for PE-DESIGN's travel along the outline: stitch counts within
-5 % of PE-DESIGN's on 10 of its 12 captures). Details in COMPATIBILITY_AUDIT.
+Direction 0 (#1054); nets travelling along the outline in PE-DESIGN's order, the lines before the
+bands (#1043, #1071, 2026-11-17: stitch counts within 3.5 % of PE-DESIGN's on all 16 net
+captures), and the zigzag net's Density field in PE-DESIGN's lines per mm (#1163). Details in
+COMPATIBILITY_AUDIT.
 
 Done 2026-11-13 (#1051): the kit previews are placed by millimetres. The tiles are drawn with
 `--show bare --px-per-mm 16 --center X,Y` on whole pixels and cropped round the stitch bounds the

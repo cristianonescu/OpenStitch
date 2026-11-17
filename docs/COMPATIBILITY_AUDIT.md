@@ -4602,3 +4602,52 @@ lines/mm in all gets one note naming both layers, with the same fields as a plai
 docs' Check Design screenshot (`examples/check-design.json`: 2 errors, 5 warnings, no gradient,
 blend or tartan) is unchanged.
 
+
+### Net travel along the outline, in PE-DESIGN's order, 2026-11-17 (#1043, #1071, #1163)
+
+**Measured:** PE-DESIGN 11.50's needle paths on round 13's zigzag nets (30 × 20 mm at nine
+Directions, 40 × 20 at 45° and 90°, 30 × 30 at 45°) and plain nets (net-switch-dir0, net-dir45,
+net-dir90), and round 15's 40 × 20 zigzag net at 90° without under sewing.
+
+**What PE-DESIGN does:**
+- **Zigzag net with under sewing:** it sews the line under every band along the Direction, then
+  those across, then the bands in the same order.
+- **Start of each family:** the line nearest the region's start (the bottom centre), then on to
+  the nearest line left. Into the next family the needle goes back by the start.
+- **Travel:** always along the outline, in 2 mm steps.
+- **No edge run** round the net.
+- **Plain net:** the same order, with no bands.
+
+**What OpenStitch did:** each line and its band in turn, the needle travelling along the net lines,
+after an edge run round the whole outline; the plain net's lines in one sweep.
+
+**Now:** the same order and travel as PE-DESIGN's.
+
+| capture | PE-DESIGN | OpenStitch |
+|---|---:|---:|
+| zigzag net 30 × 20 at 0 / 30 / 45 / 60 / 90° | 981 / 1,148 / 1,141 / 1,144 / 850 | 991 / 1,119 / 1,135 / 1,168 / 877 |
+| zigzag net 30 × 20 at 120 / 135 / 150 / 180° | 1,140 / 1,130 / 1,095 / 923 | 1,131 / 1,091 / 1,117 / 905 |
+| zigzag net 40 × 20 at 45 / 90°, 30 × 30 at 45° | 1,496 / 1,127 / 1,579 | 1,479 / 1,088 / 1,611 |
+| zigzag net 40 × 20 at 90°, no under sewing | 955 | 986 |
+| plain net 30 × 20 at 0 / 45 / 90° | 281 / 336 / 281 | 279 / 330 / 277 |
+
+All 16 are within 5 % (−3.5 % to +3.2 %).
+
+**Also in this change:**
+- **No crossing into the end-point travel.** The travel from a net's last needle point to the
+  region's end point could cut back across the last rung (the honeycomb on a circle turned 50° to
+  85°, 0.34 mm from the rung's end): the needle point between is left out, as inside the net.
+- **`travel` off** (beyond PE-DESIGN's captures) no longer walks the outline: the needle travels
+  under the bands only and jumps to a part the net's lines do not reach. It sewed the same as on.
+- **Density (#1163).** PE-DESIGN's Density of a zigzag net counts lines, a rung and the diagonal
+  back being two. Measured on its bands: rung to rung 0.4444 mm at Density 4.5 (round 13
+  zigzag-net-dir0, round 15 zigzag-net-circle40-w3p0) and 0.4252 mm at 4.7
+  (zigzag-net-circle40-w3p0-density-4p7), 2 / Density both times. OpenStitch stores rungs per mm
+  (2.25 by default) and keeps doing so; the inspector's Density field now shows and takes
+  PE-DESIGN's number (4.5), as PES version 11 holds it at body +368.
+
+**Left:**
+- On 40 × 20 at 90° PE-DESIGN laps the right and bottom edges twice between the band families, a
+  path not reproduced (−3.5 %).
+- Under sewing is off by default on an OpenStitch zigzag net and on in PE-DESIGN 11.50: a
+  30 × 20 mm net sews 906 stitches by default and 991 with under sewing, against PE-DESIGN's 981.

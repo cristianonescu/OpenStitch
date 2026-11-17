@@ -5745,3 +5745,38 @@ fn an_open_openstitch_fill_entered_away_from_its_rows_sews_no_travel_across_it()
         );
     }
 }
+
+/// #1043: the uncrossing after the travel to a region's start and end points is for nets only.
+/// A fill and a satin with start and end points (so both travels are sewn) compile to the
+/// stitches main sewed before that change: each print is the stitch count and an FNV-1a hash of
+/// every command and point to 0.0001 mm, taken on main f0a5be7f.
+#[test]
+fn start_and_end_point_travel_of_other_region_types_is_not_uncrossed() {
+    let print = |kind: RegionType| -> (usize, u64) {
+        let mut d = Design::new("travel", DesignPage::default());
+        let mut r = region(kind);
+        r.entry = Some(v2(200.0, 50.0));
+        r.exit = Some(v2(350.0, 350.0));
+        d.add(DesignObject::shape(vec![circle()], Some(r), None));
+        let p = crate::Compiler::default().compile(&d);
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for q in &p.stitches {
+            let s = format!(
+                "{:?}{}:{};",
+                q.command,
+                (q.x * 1000.0).round() as i64,
+                (q.y * 1000.0).round() as i64
+            );
+            for b in s.bytes() {
+                h ^= u64::from(b);
+                h = h.wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+        (p.stitches.len(), h)
+    };
+    assert_eq!(print(RegionType::Fill), FILL_PRINT, "fill");
+    assert_eq!(print(RegionType::Satin), SATIN_PRINT, "satin");
+}
+
+const FILL_PRINT: (usize, u64) = (1185, 7_922_731_928_622_289_692);
+const SATIN_PRINT: (usize, u64) = (370, 18_225_474_142_322_398_452);
