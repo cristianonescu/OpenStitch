@@ -394,6 +394,15 @@ Done 2026-11-13 (#469, PR #992): PE-compatible Cross Stitch lays PE-DESIGN's gri
 checked against PE-DESIGN's own captures. Left: PE-DESIGN's threads and its part-covered edge
 cells (#991) and, in OpenStitch mode, following a pixel-art image's own grid (#994).
 
+batch:mac-digitize-5 (2026-11-17, for alpha.18): OpenStitch-mode Cross Stitch finds pixel art
+and can lay one cross per art pixel on the art's own grid (`pixelGrid`, #994; off by default
+until the owner decides from the g07 measurements); Auto Punch's traced outlines never cross
+themselves (#1137: the storybook kit design is no longer "Fix this first"); the image tools and
+the background read GIF (first frame) and WebP, and every image picker offers exactly what
+decodes (#832). Measured and left open: PE-DESIGN's threads for the pixel strawberry (#991:
+265 of 401 shared cells take PE-DESIGN's thread; the outline's Amber Red needs PE-DESIGN's own
+median-cut boxes, in the census step Auto Punch's PE references share).
+
 batch:mac-wizard (2026-11-06): the image dialog previews Auto Punch's regions, lists them with
 the stitch each got and why, lets any row or a click on the picture change it, warns when
 more than a quarter is left out, and takes a colour order and a purpose preset (#489, done).

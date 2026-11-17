@@ -4443,3 +4443,50 @@ Shapes-gallery outlines are PE-DESIGN library geometry: `pe11/o-gallery-heart`,
 capture drawn with the outline tools. The four isosceles-triangle references stay (three
 corners fitted to the dragged box). The formats test now also fails on a `CEmbSpecialShape`
 outside those four files.
+
+### Auto Punch outlines never cross themselves, 2026-11-17 (#1137)
+
+`L-autopunch-storybook-openstitch` (`p03-storybook.jpg` through `digitize.autoPunch` at 199 mm,
+OpenStitch mode) had one fill whose outline crossed itself, so Check Design rated the kit's
+storybook "Fix this first". The tracer's loops are simple (marching squares keeps diagonal
+neighbours apart); the crossing came from the Béziers fitted between the 16 vertices Douglas–
+Peucker kept on one hole: flattened at the design's size (from about 2.25 design units per
+pixel up), two of them crossed. `trace::simple_contour` now checks every traced contour
+(`trace::crosses_itself`, a sweep over the flattened outline) and, when it crosses, drops the
+curves, then halves the simplification tolerance until it does not, ending at the dense loop at
+the latest. Every image tool that traces a mask (`regions::trace_mask`: Auto Punch, Design
+Center, coverage, font images) gets it. On the storybook exactly one contour was repaired (the
+curves dropped, the same 16 vertices kept); Check Design now reports 0 errors and "Sewable with
+small risks". The kit: `image-tools/L-autopunch-storybook-openstitch.pes` 95,055 → 95,058
+stitches, 1082 trims and 199 × 150.1 mm as before, crowding count 227 as before; no other kit
+file and no golden hash moved, and PE-compatible output is unchanged. Tests
+`a_traced_contour_never_crosses_itself` (the storybook's own traced hole) and
+`crossing_test_counts_proper_crossings_only`.
+
+### GIF and WebP pictures, 2026-11-17 (#832)
+
+`Raster::decode` reads GIF (its first frame) and WebP besides PNG, JPEG and BMP, under the same
+limits (32 MiB file, 8192 pixels a side, 16 Mi pixels, checked from the header before any pixel
+memory). The image crate's `gif` and `webp` features add the pure-Rust `gif`, `color_quant` and
+`image-webp` crates (MIT, MIT or Apache-2.0; THIRD_PARTY_NOTICES.md regenerated). Every image
+picker (the image wizards, File ▸ Background Image, the Stitch Design Factory's and the
+Creator's templates, the Font Creator's image) filters on `raster::PICTURE_EXTENSIONS`, so it
+offers exactly what decodes: the Stitch Design Factory's picker no longer lists TIFF, which never
+decoded. Dropping a GIF or WebP on the browser page sets it as the background as other pictures
+do. Test `decodes_gif_first_frame_and_webp`. The Assistant's attachments are not image tools and
+keep PNG, JPEG and BMP.
+
+### Cross Stitch on pixel art's own grid (OpenStitch mode), 2026-11-17 (#994)
+
+PE-DESIGN keeps its plain grid at the cross size on pixel art (capture round 11, #469), so this
+is OpenStitch mode only, and PE-compatible output is byte-identical (`pixelGrid` is never read
+there; `pixel_grid_leaves_pe_mode_and_other_pictures_alone`). `pixelgrid::detect` finds a
+regular grid of flat-colour squares from where the picture's colour edges lie; among the 30
+example images only the pixel strawberry is found (art pixels about 34.7 × 33.2 image pixels,
+22 × 23 of them). With `pixelGrid: true` each cross covers one art pixel (or `pixelsPerCross`
+of them each way) and takes the colour of one of its own art pixels. On g07 at 80 mm
+(`tools/image_similarity.py --no-dists`, calibrated render; plain grid → art grid): mean
+CIEDE2000 14.19 → 12.71, MS-SSIM 0.757 → 0.825, 9601 → 10563 stitches, 192 → 105 trims, no
+stitch under 1 mm (a 0.075 mm margin keeps needle points that fall between the 0.1 mm steps of
+a design file from rounding below it). With two art pixels per cross: 18.72 and 0.559. Off by
+default: whether it is on in OpenStitch mode is the owner's call.

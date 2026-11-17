@@ -715,7 +715,7 @@ Threads, in sewing order: 517 Dark Olive, 800 Red, 704 Pewter, 339 Clay Brown.
 
 #### Auto Punch, storybook, OpenStitch mode
 
-[`image-tools/L-autopunch-storybook-openstitch.pes`](image-tools/L-autopunch-storybook-openstitch.pes) · 260 × 160 mm hoop · 199 × 150.1 mm · 95,055 stitches · 1082 trims · about 174.3 min
+[`image-tools/L-autopunch-storybook-openstitch.pes`](image-tools/L-autopunch-storybook-openstitch.pes) · 260 × 160 mm hoop · 199 × 150.1 mm · 95,058 stitches · 1082 trims · about 174.3 min
 
 `p03-storybook.jpg` through Auto Punch at its defaults in OpenStitch mode, fitted to the 260 × 160 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -732,5 +732,15 @@ Threads, in sewing order: 017 Light Blue, 843 Beige, 005 Silver, 348 Khaki, 339 
 <img src="../images/p03-storybook.jpg" height="180" alt="Source image"> <img src="previews/L-autopunch-storybook-pe-compatible.png" height="180" alt="Realistic view of image-tools/L-autopunch-storybook-pe-compatible.pes">
 
 Threads, in sewing order: 307 Linen, 804 Lavender, 843 Beige, 126 Pumpkin, 817 Gray, 348 Khaki, 323 Light Brown, 337 Reddish Brown, 330 Russet Brown, 517 Dark Olive.
+
+#### Cross Stitch, strawberry, on the art's own pixel grid
+
+[`image-tools/S-cross-stitch-strawberry-pixel-grid.pes`](image-tools/S-cross-stitch-strawberry-pixel-grid.pes) · 100 × 100 mm hoop · 61.7 × 77.4 mm · 7,160 stitches · 105 trims · about 14.3 min
+
+`g07-pixel-strawberry.png` through Cross Stitch in OpenStitch mode with `pixelGrid` on: one cross per pixel of the art, on the art's own grid instead of a 2.5 mm grid, fitted to the 100 × 100 mm hoop. Compare it with the OpenStitch-mode strawberry above.
+
+<img src="../images/g07-pixel-strawberry.png" height="180" alt="Source image"> <img src="previews/S-cross-stitch-strawberry-pixel-grid.png" height="180" alt="Realistic view of image-tools/S-cross-stitch-strawberry-pixel-grid.pes">
+
+Threads, in sewing order: 206 Harvest Gold, 079 Salmon Pink, 509 Leaf Green, 800 Red, 515 Moss Green, 107 Dark Fuchsia, 507 Emerald Green.
 
 <!-- kit:end -->

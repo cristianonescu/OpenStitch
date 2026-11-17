@@ -6,6 +6,8 @@
 
 #[path = "acp.rs"]
 mod acp;
+#[path = "async_turns.rs"]
+mod async_turns;
 #[path = "local_preset.rs"]
 mod local_preset;
 #[path = "openai.rs"]

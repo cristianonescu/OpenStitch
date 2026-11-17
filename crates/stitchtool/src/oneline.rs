@@ -26,7 +26,7 @@ pub const USAGE: &str = "one-line commands (formats follow the file extensions):
       file is first divided into one object per colour; --auto-start sets the design's start
       rule first (design.setProperties autoStart: each object starts nearest where the last ended)
   stitchtool digitize <image> <out> [--size MM] [--method pe|openstitch] [--colors N] [--json]
-      Auto Punch a PNG, JPEG or BMP (digitize.autoPunch; --size is the width in mm)
+      Auto Punch a PNG, JPEG, BMP, GIF or WebP (digitize.autoPunch; --size is the width in mm)
   stitchtool formats [--json]
       what OpenStitch reads and writes (formats.list)
   stitchtool thumbnail <file> <out.png> [--size PX] [--json]

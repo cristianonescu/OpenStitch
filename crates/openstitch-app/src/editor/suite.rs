@@ -185,7 +185,7 @@ commands! {
         FlipHorizontal => "flipHorizontal", "Flip horizontally", "Mirror the current line left to right.", None, None, RotateFlip, Button, true;
         SplitAtPoint => "splitAtPoint", "Split at Point", "Split the line in two at the selected point (fill/stamp patterns; click a point first).", None, None, SplitAtPoint, Button, true;
         AddToDesign => "addToDesign", "Add to Design", "Put the pattern in the open design (one Undo); choose it in the Sewing Attributes pane.", None, Some("pattern.define"), ConvertToStitches, Button, true;
-        OpenTemplate => "openTemplate", "Open Template", "Show a PNG, JPEG or BMP image of your own behind the pattern to trace (one at a time).", None, None, OpenImage, Button, true;
+        OpenTemplate => "openTemplate", "Open Template", "Show a PNG, JPEG, BMP, GIF or WebP image of your own behind the pattern to trace (one at a time).", None, None, OpenImage, Button, true;
         ModifyTemplate => "modifyTemplate", "Modify Template", "Drag inside the red frame to move the template image, its corner to scale it; click outside to finish.", None, None, ModifyImage, Toggle, true;
         DeleteImage => "deleteImage", "Delete Image", "Remove the template image.", None, None, DeleteImage, Button, true;
         ImageDensity => "imageDensity", "Background Image Density", "Fade or hide the template image (F6 steps through the densities).", None, None, ImageDensity, Menu, true;
