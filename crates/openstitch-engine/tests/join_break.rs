@@ -401,3 +401,29 @@ fn a_single_piece_is_refused() {
     let e = fails(&mut s, "object.breakApart", json!({ "ids": [a] }));
     assert!(e.contains("nothing to break apart"), "{e}");
 }
+
+/// The registry's help says what each command does to sewing attributes, thread and sewing
+/// order, so the Assistant and `stitchtool` users know before they run it.
+#[test]
+fn the_help_says_what_happens_to_attributes_thread_and_order() {
+    let s = Session::new(std::env::temp_dir());
+    for id in ["shape.joinLines", "object.breakApart"] {
+        let spec = s
+            .commands()
+            .into_iter()
+            .find(|c| c.id == id)
+            .unwrap_or_else(|| panic!("{id} is registered"));
+        assert_eq!(
+            spec.effect,
+            openstitch_engine::commands::Effect::Edit,
+            "{id}: one undo step"
+        );
+        for words in ["Sewing attributes", "thread", "Sewing order"] {
+            assert!(
+                spec.summary.contains(words),
+                "{id} help names {words}: {}",
+                spec.summary
+            );
+        }
+    }
+}

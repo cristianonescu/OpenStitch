@@ -34,7 +34,7 @@ pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "shape.joinLines",
-            "Join open lines (or satin skeletons, or Manual Punch columns) whose ends meet into one object, sewn as one path with no trim between them; the first id's sewing attributes and place in the sewing order win, and the others are chained on at their nearest ends",
+            "Join open lines (or satin skeletons, or Manual Punch columns) whose ends meet into one object, sewn as one path with no trim between them. Sewing attributes and thread: the first id's (its line or region sewing, colour included); the others' are dropped. Sewing order: the joined object sews where the first id did; the others are removed from the order. The others are chained on at their nearest ends",
             Effect::Edit,
             vec![
                 req(
@@ -52,7 +52,7 @@ pub fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.breakApart",
-            "Break compound objects into pieces: text into one text object per letter (same place and attributes; text on a path, in a Text Transform, arched or in a Name Drop box into one shape per letter), a region with several islands into one object per piece (holes stay with their piece), a line object with several outlines into one per outline, and groups (copies along a line, monograms) into separate objects",
+            "Break compound objects into pieces: text into one text object per letter (same place; text on a path, in a Text Transform, arched or in a Name Drop box into one shape per letter), a region with several islands into one object per piece (holes stay with their piece), a line object with several outlines into one per outline, and groups (copies along a line, monograms) into separate objects. Sewing attributes and thread: every piece keeps the whole's (same colour, so no colour change between them). Sewing order: the pieces sew one after another where the whole did, the first keeping its id",
             Effect::Edit,
             vec![IDS],
             break_apart,

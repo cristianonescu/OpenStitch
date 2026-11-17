@@ -386,7 +386,8 @@ then style them in the next.
   splits text into one text per letter in place (`text` says `as: shapes` when a letter
   cannot stand alone: text on a path, a Text Transform, an arc or a Name Drop box), a fill with
   islands into one object per piece (holes stay with theirs), a line object into its outlines,
-  and groups (copies along a line, a monogram) into separate objects. Each is one undo step;
+  and groups (copies along a line, a monogram) into separate objects; every piece keeps the
+  whole's sewing attributes and thread and sews where the whole did. Each is one undo step;
   Ctrl+J and Ctrl+Shift+K in the editor (`ui.run joinLines` / `ui.run breakApart`).
 - Clean up: `shape.simplify` `{ids, tolerance: 0.2}` removes nodes within a tolerance (mm; a
   Manual Punch column loses one direction line per call; `ui.run smoothShape` uses the
