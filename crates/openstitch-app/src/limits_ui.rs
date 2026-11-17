@@ -111,7 +111,9 @@ mod tests {
         // #833 and #834: the system fonts note, and the keys the browser keeps.
         assert!(v["limits"].as_array().is_some_and(|l| l.iter().any(|x| x["key"] == "systemFonts")));
         assert_eq!(v["browserKeys"], json!(["Ctrl+N", "Ctrl+T", "Ctrl+W"]));
-        assert!(v["limits"][0]["message"].as_str().unwrap_or_default().contains("#766"));
+        assert!(v["limits"][0]["message"].as_str().unwrap_or_default().contains("#830"));
+        // The Assistant has its own panel in the browser since #766.
+        assert!(!v["limits"].as_array().is_some_and(|l| l.iter().any(|x| x["key"] == "assistant")));
         openstitch_app::platform::pretend_browser(false);
     }
 

@@ -1,14 +1,13 @@
 //! What the browser version cannot do, and what to say instead (#830).
 //!
 //! The web page runs the desktop editor itself, but a page cannot reach the system's
-//! keychain, printers, USB sticks, folders, the system clipboard's pictures or the
-//! self-updater. Each of those shows one clear message there: what it is, why, what to do
+//! printers, USB sticks, folders, the system clipboard's pictures or the self-updater. (The
+//! Assistant was one until it got its own browser panel, #766.) Each of those shows one clear message there: what it is, why, what to do
 //! instead and the issue that tracks it. The desktop never shows them.
 
 /// One thing the browser version cannot do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Limit {
-    Assistant,
     Print,
     Transfer,
     Updates,
@@ -18,8 +17,7 @@ pub enum Limit {
 }
 
 impl Limit {
-    pub const ALL: [Limit; 7] = [
-        Limit::Assistant,
+    pub const ALL: [Limit; 6] = [
         Limit::Print,
         Limit::Transfer,
         Limit::Updates,
@@ -31,7 +29,6 @@ impl Limit {
     /// Its key in `ui.browserLimits`.
     pub fn key(self) -> &'static str {
         match self {
-            Limit::Assistant => "assistant",
             Limit::Print => "print",
             Limit::Transfer => "transfer",
             Limit::Updates => "updates",
@@ -44,7 +41,6 @@ impl Limit {
     /// What it is, as the user knows it.
     pub fn what(self) -> &'static str {
         match self {
-            Limit::Assistant => "The Assistant",
             Limit::Print => "Printing",
             Limit::Transfer => "Sending to a machine or USB stick",
             Limit::Updates => "Checking for updates",
@@ -57,9 +53,6 @@ impl Limit {
     /// Why a page cannot, and what to do instead.
     pub fn instead(self) -> &'static str {
         match self {
-            Limit::Assistant => {
-                "Its key needs the system keychain. Use the desktop editor for the Assistant."
-            }
             Limit::Print => {
                 "A web page cannot reach the system's printers. Export a job sheet (PDF) from Print ▸ Job Sheet and print that."
             }
@@ -82,7 +75,6 @@ impl Limit {
     /// The issue that tracks it.
     pub fn issue(self) -> u32 {
         match self {
-            Limit::Assistant => 766,
             Limit::SystemFonts => 833,
             _ => 830,
         }
@@ -116,7 +108,8 @@ mod tests {
             assert!(m.contains(&format!("#{}", l.issue())), "{m}");
             assert_eq!(Limit::from_key(l.key()), Some(l));
         }
-        assert!(Limit::Assistant.message().contains("#766"));
+        // The Assistant has its own browser panel since #766.
+        assert_eq!(Limit::from_key("assistant"), None);
         assert_eq!(Limit::from_key("nope"), None);
     }
 }
