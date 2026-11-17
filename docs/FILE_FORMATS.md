@@ -1256,6 +1256,29 @@ Canvas Workspace (with the legal opinion covering their use), or a sacrificial S
 With that, a reader (FCM → Bézier shapes, which maps directly onto `Contour`) is about a day's
 work; a writer should wait for a machine test.
 
+## Floppy disk images (FAT12, 1.44 MB, #876)
+
+`openstitch_formats::fat12` reads and writes the standard 3.5" high-density floppy layout, for
+older machines that read only floppies and for the USB floppy emulators fitted to many of them
+(the emulator, or a floppy writer, takes the image file). OpenStitch writes the image file only;
+putting it on a floppy or an emulator's stick is the user's step.
+
+| Field | Value |
+|---|---|
+| Size | 1,474,560 bytes: 2,880 sectors of 512 |
+| Boot sector | jump `EB 3C 90`, OEM `OPENSTCH`, BIOS parameter block below, extended signature `29`, a fixed serial, label, `FAT12   `, `55 AA` at 510; not bootable (`int 18h`) |
+| BPB | 512 bytes per sector, 1 sector per cluster, 1 reserved sector, 2 FATs of 9 sectors, 224 root entries, media `F0`, 18 sectors per track, 2 heads |
+| Layout | FATs at sectors 1 and 10, root directory 19–32, data from 33: clusters 2–2848 |
+| Entries | 8.3 names only (no long-name entries are written; ones found are skipped), archive attribute, date 2000-01-01 (fixed, so an image is reproducible), first cluster, size |
+
+Short names follow Windows' rule: upper case, characters DOS does not allow as `_`, spaces and
+extra dots dropped, and a base over eight characters or one that changed becomes its first six
+characters and `~1`, `~2`, … (fewer characters as the number grows). Files are written into the
+first free clusters and both FAT copies; a zero-byte file has no cluster. Reading checks the
+size and every BPB value above, and each entry's chain: inside clusters 2–2848, no loop, no
+cluster shared with another entry, a free or bad-cluster mark inside a chain refused, and as many
+clusters as the size needs. Folders in the root are listed and kept, never changed.
+
 ## Format limits and split export
 
 Each writer refuses (`ValueOutOfRange`) a design it cannot represent:

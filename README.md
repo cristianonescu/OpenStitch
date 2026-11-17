@@ -615,6 +615,9 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - **USB stick or SD card:** the editor and the Design Database's Writing List find removable
   drives on every OS and write to them, asking before overwriting.
 - **PEC preview icons** and the 64-colour chart the machine shows.
+- (+) **Floppy disk images** for older machines that read floppies or a USB floppy emulator: a
+  1.44 MB image with the design and other files, made and edited in Sew Embroidery ▸ Floppy
+  Image… ([#876](https://github.com/cristianonescu/OpenStitch/issues/876)).
 - Wireless transfer and Link are not available; see [Not yet implemented](#not-yet-implemented).
 
 ### The AI Assistant and MCP
@@ -679,7 +682,7 @@ Benchmark of alpha 12 (2026-11-05) on its 12 embroidery tasks: Claude Code 12/12
 gpt-oss:20b 8/12. It was tested on macOS and Windows (12/12 there too); on Linux, CI runs its
 tests and the keychain round trip
 ([#401](https://github.com/cristianonescu/OpenStitch/issues/401)). Details are in the
-[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md). The benchmark has since grown to 32 tasks
+[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md). The benchmark has since grown to 34 tasks
 (`stitchtool bench-assistant --list`).
 
 ### Scripting (Python package)

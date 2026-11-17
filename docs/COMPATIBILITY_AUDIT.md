@@ -4513,3 +4513,21 @@ instead. Both are one undo step and round-trip through `.osd`. A design of two r
 two satin skeletons, each pair joined through `stitchtool exec` and exported to PES 6, passes
 `tools/sew_check.py` (100×100 hoop): 509 stitches, two colours, one trim per colour, read back
 within 0.07 mm.
+
+### Floppy disk images, 2026-11-17 (#876)
+
+Beyond PE-DESIGN, internal tier; no reference applies (PE-DESIGN 11 writes no disk images). A
+1.44 MB image written by `transfer.diskImage` with the design (DST), a long-named text file and
+a zero-byte EXP reads back through an independent FAT reader written for the test from the FAT
+specification (every size taken from the boot sector, both FAT copies compared): the design's
+file has the same stitch records as `design.export` writes, the short names are `ROSEGA~1.DST`
+and `NOTESF~1.TXT`, and the free space is 2,847 clusters less those used. On macOS an image written
+through `stitchtool exec` mounts read-only (`hdiutil attach -readonly`) and lists the same three
+files, sizes and contents (a 1,424 KB disk), and `fsck_msdos -n` checks it with no errors: 3
+files, 2,839 clusters (1,419 KiB) free. Full
+disks, the 224-entry root, replacing a name, and damaged images (loops, chains off the disk or
+into a free or bad cluster, a size that does not match, shared clusters, a truncated image,
+impossible boot-sector sizes, random bytes) are refused with the image left as it was. No
+image from a machine maker's software is in the repository: every test image is built by the
+test. Not checked here: a real floppy machine or emulator reading the image (left to the user).
+
