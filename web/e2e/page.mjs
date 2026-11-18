@@ -177,7 +177,9 @@ async function extraChecks(browser, type, label) {
     }
   }
 
-  // #1260: the Point tool in the browser. A right-click on a point opens the editor's own
+  // #1260: the Point tool in the browser. One click on the outline inserts a point, a mouse
+  // drag moves a point and Ctrl+click adds one to the selection, none of them the browser's
+  // to act on. A right-click on a point opens the editor's own
   // menu and the browser's stays shut (the page's contextmenu event is cancelled); the arrow
   // keys move the selected point 0.5 mm and do not scroll the page; Delete removes the point
   // and the keyboard stays with the editor; a right-click beside the points opens the
@@ -225,6 +227,40 @@ async function extraChecks(browser, type, label) {
       });
       const scroll = () => page.evaluate(() => [window.scrollX, window.scrollY, document.activeElement?.id ?? ""]);
       const before = await scroll();
+      // One click on the outline inserts a point there (the middle of the top side).
+      await page.mouse.click(box.x + (sx + far[0]) / 2, box.y + sy);
+      await page.waitForFunction(() => window.openstitch.run({ command: "ui.pointMenu" }).result?.pointCount === 5, null, { timeout: 10_000 });
+      await ok({ command: "history.undo" });
+      // Dragging a point with the mouse moves it; the page neither scrolls nor selects text.
+      await onScreen(0);
+      await page.mouse.move(at[0], at[1]);
+      await page.mouse.down();
+      for (let step = 1; step <= 5; step += 1) await page.mouse.move(at[0] - 5 * step, at[1] - 4 * step);
+      await page.mouse.up();
+      await page.waitForFunction(
+        ([x, y]) => {
+          const s = window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.[0]?.screen;
+          return s && Math.abs(s[0] - x) < 6 && Math.abs(s[1] - y) < 6;
+        },
+        [sx - 25, sy - 20],
+        { timeout: 10_000 },
+      );
+      const afterDrag = await scroll();
+      const picked = await page.evaluate(() => String(window.getSelection?.() ?? ""));
+      if (afterDrag[0] !== before[0] || afterDrag[1] !== before[1] || picked !== "") {
+        throw new Error(`a point drag moved the page or selected text: ${before} -> ${afterDrag}, "${picked}"`);
+      }
+      await ok({ command: "history.undo" });
+      // Ctrl+click on a second point adds it to the selection; the browser opens no menu and
+      // no tab of its own.
+      await onScreen(0);
+      await page.mouse.click(box.x + far[0], box.y + far[1], { modifiers: ["Control"] });
+      await page.waitForFunction(() => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2, null, { timeout: 10_000 });
+      const stray = await page.evaluate(() => window.__menus.length);
+      if (stray !== 0 || context.pages().length !== 1) {
+        throw new Error(`Ctrl+click was the browser's: ${stray} menu(s), ${context.pages().length} page(s)`);
+      }
+      await onScreen(0);
       // Right-click on the point: our menu, with PE-DESIGN's seven entries, not the browser's.
       await page.mouse.click(at[0], at[1], { button: "right" });
       await page.waitForFunction(() => window.openstitch.run({ command: "ui.pointMenu" }).result?.open === true, null, { timeout: 10_000 });

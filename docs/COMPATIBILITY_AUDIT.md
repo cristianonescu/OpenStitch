@@ -4993,7 +4993,9 @@ Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_mak
 
 **In the browser:** the web editor runs the same editor code, so all of the above is there. The
 page test (`web/e2e/page.mjs`, CI job `web`: Chromium, Firefox and WebKit) checks what a browser
-could take away (first run 2026-11-18, Chromium and Firefox): a right-click on a point opens the editor's menu with the seven entries and the
+could take away (first run 2026-11-18, Chromium and Firefox): one click on the outline inserts
+a point; a mouse drag moves a point without scrolling the page or selecting text; Ctrl+click
+adds a second point and the browser opens no menu or tab of its own; a right-click on a point opens the editor's menu with the seven entries and the
 page's `contextmenu` event is cancelled (the browser's own menu stays shut), likewise beside the
 points for the object's menu; the arrow keys move the selected point 0.5 mm, do nothing with
 Shift, are taken from the browser and do not scroll the page; Delete removes the point, the
