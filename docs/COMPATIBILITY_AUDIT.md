@@ -689,6 +689,32 @@ Line references are relative to `crates/`.
   8 mm's 8 extra needle points (163 / 155) are all in its middle V (#1064), and M at 8 mm's
   11 missing (154 / 165) are PE-DESIGN's start (8), its fan at each stem's top (5 and 6) less
   the middle V (ours 8 over).
+  Since 2026-11-18 (#1064, part): W's two inner arms are one block over the apex, as
+  PE-DESIGN's. No Convert to Blocks capture of M or W exists, so the block was read from the
+  stitch references: stroke-satin-M-8's middle block is one column through the notch, its
+  outer side the V's lower outline and its inner side the upper one, joined at equal fractions
+  of their lengths (its crossings stand at 44 to 54 degrees). The middle one of three corners
+  along an open stroke whose four pieces are slanted and lean opposite ways in turn (W, w) is
+  no longer cut; the column's sides are ordered along the outline contour (ordered by their
+  place along the centre line, the apex's points fell on both arms in turn and the outer side
+  ran back and forth over it) and joined by length. Needle points (PE-DESIGN / before / after):
+  W's middle block 154 / 74 + 98 / 152 and W 363 / 382 / 361; at 8 mm the block 62 / 32 + 42 /
+  64 and W 155 / 163 / 146. At 8 mm the 9 still missing are PE-DESIGN's foot tip sewn as a
+  second pass on the arm that runs on into its foot (40 + 12 against our 45) and its runs (8
+  against 3): #939; main's 163 came from the two arms overlapping in the middle. At 20 mm the
+  total agrees partly by compensation (our stopped arm 102 against 78, our run-on arm 98
+  against 94 + 14). OpenStitch's W is the mirror of PE-DESIGN's: ours runs the arms that fall
+  to the right on into the feet (the rule taken from V and A, #446), so its block is the right
+  foot and the two inner arms, where PE-DESIGN's is the left foot and the two inner arms;
+  which arm owns each foot is #939's question. Lowercase w (no capture): 285 → 266 at 20 mm,
+  116 → 120 at 8 mm. Fill text takes the same block and sides (no fill capture of W): fill W
+  737 → 727 and 211 → 206, fill w 470 → 454 and 146 → 143, fill M and V unchanged. Nothing
+  else changes: of 248 samples (every letter and digit, Lato Bold
+  and Pacifico, 20 and 8 mm) only W and w, and of the 241 text specs only those two; M, N and V
+  are byte-identical. M's middle V stays two blocks: as one column M falls from 367 to 349
+  against 374 until the fan at each stem's top is sewn too (#940). `stroke-satin-w` is held to
+  3 % (`w_s_inner_arms_are_one_column_through_the_apex`,
+  `satin_w_s_inner_arms_are_one_block_of_pe_design_s_size`).
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.

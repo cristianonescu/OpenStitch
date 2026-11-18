@@ -66,6 +66,9 @@ pub struct Stroke {
     pub widths: Vec<f64>,
     pub closed: bool,
     pub ends: [StrokeEnd; 2],
+    /// Two arms through a sharp corner left uncut (W's inner arms over its apex, #1064): the
+    /// centre line doubles back there.
+    pub hairpin: bool,
 }
 
 impl Stroke {
@@ -805,9 +808,10 @@ impl Graph {
                     }
                 }
             }
-            let mut pieces = cut_sharp(&centre, closed, ends);
+            let mut uncut = false;
+            let mut pieces = cut_sharp(&centre, closed, ends, &mut uncut);
             run_on_stems(&mut pieces, edges, grid.step);
-            for piece in pieces {
+            for (k, piece) in pieces.into_iter().enumerate() {
                 let centre = densify(&piece.0, piece.1);
                 let widths = centre.iter().map(|&p| 2.0 * clearance(p)).collect();
                 strokes.push(Stroke {
@@ -815,6 +819,8 @@ impl Graph {
                     widths,
                     closed: piece.1,
                     ends: piece.2,
+                    // The middle one of the three pieces left by the two outer cuts.
+                    hairpin: uncut && k == 1,
                 });
             }
         }
@@ -852,6 +858,7 @@ impl Graph {
                 widths,
                 closed: false,
                 ends: [StrokeEnd::Free, StrokeEnd::Free],
+                hairpin: false,
             });
         }
         // Deterministic order: by the top of each stroke, then its left.
@@ -952,6 +959,7 @@ fn cut_sharp(
     centre: &[Vec2],
     closed: bool,
     ends: [StrokeEnd; 2],
+    uncut: &mut bool,
 ) -> Vec<(Vec<Vec2>, bool, [StrokeEnd; 2])> {
     let n = centre.len();
     if n < 3 {
@@ -1027,6 +1035,34 @@ fn cut_sharp(
             if turn >= prev && turn >= next {
                 cuts.push(i);
             }
+        }
+    }
+    // The middle one of three corners along an open stroke whose four pieces are slanted and
+    // lean opposite ways in turn (W's apex between its two feet) is not cut: PE-DESIGN sews the
+    // two inner arms as one column through the corner, its sides joined over their whole length
+    // (stroke-satin-W: 155 needle points from one foot over the apex to the other arm, where two
+    // arms cut apart sewed 176; #1064). Between upright stems (M's middle V between its top
+    // corners) the cut stays: one column there is PE-DESIGN's too, but its M has a fan at each
+    // stem's top that OpenStitch does not sew yet, and M alone fell from 367 to 349 needle
+    // points against 374 (#940).
+    if !closed && cuts.len() == 3 {
+        let ends = [0, cuts[0], cuts[1], cuts[2], n - 1];
+        // +1 or -1 as the piece falls to the right or to the left; 0 when upright or level.
+        let lean: Vec<f64> = ends
+            .windows(2)
+            .map(|w| {
+                let d = centre[w[1]] - centre[w[0]];
+                let least = STEM_LEAN.to_radians().dsin() * d.length();
+                if d.x.abs() > least && d.y.abs() > least {
+                    (d.x * d.y).signum()
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        if lean.windows(2).all(|w| w[0] * w[1] < 0.0) {
+            cuts.remove(1);
+            *uncut = true;
         }
     }
     if cuts.is_empty() {
@@ -1685,6 +1721,22 @@ impl GlyphStrokes {
                 // Only a bending stroke needs the progress pairing: on a straight one the two
                 // agree, except where a junction cuts one side short (A's legs at the bar),
                 // where the progress pairing fans.
+                // A column through a hairpin (W's inner arms over the apex, #1064): PE-DESIGN
+                // joins its sides at equal fractions of their lengths over the whole column
+                // (stroke-satin-M-8's middle block: the V's lower outline against its upper
+                // one, its crossings at 44 to 54 degrees). Each side is walked along the
+                // outline first: by their place along the centre line, the apex's points fall
+                // on both arms in turn and the side ran back and forth over it. Fill text's rows
+                // take the same sides.
+                if st.hairpin {
+                    let outlines: Vec<Vec<Vec2>> = contours
+                        .iter()
+                        .filter(|c| c.closed)
+                        .map(Contour::outline_points)
+                        .collect();
+                    let (l, r) = (outline_order(&l, &outlines), outline_order(&r, &outlines));
+                    return span_rungs(&l, &r, spacing, Spans::Length);
+                }
                 let progress = pairing == Pairing::Progress && bends(st);
                 if !progress {
                     return span_rungs(&l, &r, spacing, Spans::Length);
@@ -1888,6 +1940,76 @@ fn corner_pairs(l: &[(f64, Vec2)], r: &[(f64, Vec2)], width: f64) -> Vec<(usize,
         }
     }
     pairs
+}
+
+/// A side's points in the order the outline passes them, starting at the end its first point
+/// lies at: each point's place along its contour (the arc length to it), the side started after
+/// its longest gap there. By their place along a hairpin's centre line an apex's points fall on
+/// both arms in turn, and walking from each point to the nearest one left hops across an acute
+/// notch. A side whose points lie on several contours is returned as it is.
+fn outline_order(side: &[(f64, Vec2)], outlines: &[Vec<Vec2>]) -> Vec<(f64, Vec2)> {
+    if side.len() < 3 {
+        return side.to_vec();
+    }
+    // (contour, arc length along it) of the outline point nearest `p`.
+    let place = |p: Vec2| -> Option<(usize, f64)> {
+        let mut best: Option<(f64, usize, f64)> = None;
+        for (c, pts) in outlines.iter().enumerate() {
+            let n = pts.len();
+            let mut run = 0.0;
+            for i in 0..n {
+                let (a, b) = (pts[i], pts[(i + 1) % n]);
+                let v = b - a;
+                let len = v.length();
+                let t = if len > 1e-12 {
+                    (((p.x - a.x) * v.x + (p.y - a.y) * v.y) / (len * len)).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                let d = (a + v * t).distance(p);
+                if best.is_none_or(|(bd, _, _)| d < bd) {
+                    best = Some((d, c, run + t * len));
+                }
+                run += len;
+            }
+        }
+        best.map(|(_, c, u)| (c, u))
+    };
+    let mut placed: Vec<(f64, (f64, Vec2))> = Vec::with_capacity(side.len());
+    let mut contour = None;
+    for &q in side {
+        let Some((c, u)) = place(q.1) else {
+            return side.to_vec();
+        };
+        if *contour.get_or_insert(c) != c {
+            return side.to_vec();
+        }
+        placed.push((u, q));
+    }
+    let Some(c) = contour else {
+        return side.to_vec();
+    };
+    let pts = &outlines[c];
+    let around: f64 = (0..pts.len())
+        .map(|i| pts[i].distance(pts[(i + 1) % pts.len()]))
+        .sum();
+    placed.sort_by(|a, b| a.0.total_cmp(&b.0));
+    // Started after the longest gap round the contour (the side does not close on itself).
+    let n = placed.len();
+    let gap = |k: usize| {
+        let (a, b) = (placed[k].0, placed[(k + 1) % n].0);
+        if k + 1 == n { b + around - a } else { b - a }
+    };
+    let cut = (0..n)
+        .max_by(|&a, &b| gap(a).total_cmp(&gap(b)))
+        .map_or(0, |k| (k + 1) % n);
+    placed.rotate_left(cut);
+    let mut out: Vec<(f64, Vec2)> = placed.into_iter().map(|(_, q)| q).collect();
+    let first = side[0].1;
+    if out[n - 1].1.distance(first) < out[0].1.distance(first) {
+        out.reverse();
+    }
+    out
 }
 
 /// A stroke bends when its centre line turns by more than this (degrees) at its median step,
@@ -2236,6 +2358,7 @@ impl GlyphStrokes {
             widths,
             closed: col.parts.len() == 1 && self.strokes[first.0].closed,
             ends: [end(first, true), end(last, false)],
+            hairpin: col.parts.iter().any(|&(s, _)| self.strokes[s].hairpin),
         }
     }
 
@@ -3567,6 +3690,117 @@ mod tests {
                 far[0].distance(leaving) < far[1].distance(leaving),
                 "{ch}: the far piece starts its crossings on the outer side"
             );
+        }
+    }
+
+    /// Whether neither side of a block's rungs turns by more than 100 degrees twice in a row.
+    fn passes_once(rungs: &[[Vec2; 2]]) -> bool {
+        (0..2).all(|side| {
+            let turns: Vec<f64> = rungs
+                .windows(3)
+                .map(|w| {
+                    let (u, v) = (w[1][side] - w[0][side], w[2][side] - w[1][side]);
+                    let cos = (u.x * v.x + u.y * v.y) / (u.length() * v.length()).max(1e-12);
+                    cos.clamp(-1.0, 1.0).dacos().to_degrees()
+                })
+                .collect();
+            turns.windows(2).all(|t| t[0] <= 100.0 || t[1] <= 100.0)
+        })
+    }
+
+    #[test]
+    fn w_s_inner_arms_are_one_column_through_the_apex() {
+        // stroke-satin-W, -W-8 (#1064): PE-DESIGN sews W's two inner arms as one block over the
+        // apex (62 needle points at 8 mm), not as two arms cut apart there. The corner between
+        // upright stems (M's middle V) and corners with a free end or a stem on one side (V's
+        // foot, N's corners) are cut as before.
+        let blocks_of = |ch: &str, size: f64| {
+            let spec = TextSpec::new(ch, DEFAULT_FONT, size);
+            let contours = layout(&spec, None).expect("layout").contours();
+            let b =
+                Rect::enclosing(contours.iter().flat_map(Contour::outline_points)).expect("box");
+            (
+                strokes(&contours).expect("strokes").blocks(&contours, 30.0),
+                b,
+            )
+        };
+        for size in [20.0, 8.0] {
+            let (blocks, b) = blocks_of("W", size);
+            assert_eq!(blocks.len(), 3, "W {size}: {blocks:?}");
+            // The middle block starts at one foot, passes the apex at the letter's top and ends
+            // on the other inner arm, below the letter's middle.
+            let middle = blocks
+                .iter()
+                .max_by_key(|bl| bl.rungs.len())
+                .expect("blocks");
+            let ys: Vec<f64> = middle
+                .rungs
+                .iter()
+                .map(|r| (0.5 * (r[0].y + r[1].y) - b.min_y) / b.height())
+                .collect();
+            let top = ys.iter().copied().fold(f64::MAX, f64::min);
+            assert!(top < 0.2, "W {size}: the middle block's top at {top}");
+            assert!(
+                ys[0] > 0.6 && ys[ys.len() - 1] > 0.6,
+                "W {size}: the middle block runs from {} to {}",
+                ys[0],
+                ys[ys.len() - 1]
+            );
+            // Each side passes the apex once and never turns back on itself: ordered by their
+            // place along the centre line, the apex's points fell on both arms in turn and the
+            // outer side ran back and forth over it, two turns of 140 to 178 degrees in a row.
+            // One sharp turn is the corner itself (the notch's inner side turns by about 135).
+            assert!(
+                passes_once(&middle.rungs),
+                "W {size}: a side turns back: {:?}",
+                middle.rungs
+            );
+            // Its crossings never collapse to a point at the apex.
+            let narrow = middle
+                .rungs
+                .iter()
+                .map(|r| r[0].distance(r[1]))
+                .fold(f64::MAX, f64::min);
+            assert!(
+                narrow > 0.03 * b.height(),
+                "W {size}: a crossing {narrow} wide"
+            );
+        }
+        for (ch, size, want) in [
+            ("M", 20.0, 4),
+            ("M", 8.0, 4),
+            ("N", 20.0, 3),
+            ("N", 8.0, 3),
+            ("V", 20.0, 2),
+        ] {
+            let (blocks, _) = blocks_of(ch, size);
+            assert_eq!(blocks.len(), want, "{ch} {size}");
+        }
+        // Fill text sews its rows from the same blocks, their sides joined by length: W is the
+        // same three blocks, each side of the middle one passing the apex once, and M and V
+        // keep theirs (no PE-DESIGN fill capture of W exists: by extension of the satin block).
+        let fill_blocks = |ch: &str, size: f64| {
+            let spec = TextSpec::new(ch, DEFAULT_FONT, size);
+            let contours = layout(&spec, None).expect("layout").contours();
+            strokes(&contours)
+                .expect("strokes")
+                .blocks_paired(&contours, 30.0, Pairing::Length)
+        };
+        for size in [20.0, 8.0] {
+            let blocks = fill_blocks("W", size);
+            assert_eq!(blocks.len(), 3, "fill W {size}");
+            let middle = blocks
+                .iter()
+                .max_by_key(|bl| bl.rungs.len())
+                .expect("blocks");
+            assert!(
+                passes_once(&middle.rungs),
+                "fill W {size}: a side turns back: {:?}",
+                middle.rungs
+            );
+        }
+        for (ch, want) in [("M", 4), ("V", 2)] {
+            assert_eq!(fill_blocks(ch, 20.0).len(), want, "fill {ch}");
         }
     }
 

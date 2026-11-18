@@ -468,3 +468,56 @@ fn satin_a_s_foot_and_square_are_cut_and_reached_as_pe_design_s() {
         pe.len()
     );
 }
+
+/// The longest satin block of a letter, in needle points (0.1 mm from the box's top-left): the
+/// longest run of stitches each of which turns back against the one before it.
+fn longest_satin_block(p: &[(f64, f64)]) -> usize {
+    let (mut best, mut run) = (0, 0);
+    for i in 1..p.len().saturating_sub(1) {
+        let (u, v) = (
+            (p[i].0 - p[i - 1].0, p[i].1 - p[i - 1].1),
+            (p[i + 1].0 - p[i].0, p[i + 1].1 - p[i].1),
+        );
+        if u.0 * v.0 + u.1 * v.1 < 0.0 {
+            run += 1;
+            best = best.max(run);
+        } else {
+            run = 0;
+        }
+    }
+    best
+}
+
+#[test]
+fn satin_w_s_inner_arms_are_one_block_of_pe_design_s_size() {
+    // stroke-satin-W, -W-8 (#1064): PE-DESIGN 11.50 sews W's two inner arms as one block over
+    // the apex, 154 needle points at 20 mm and 62 at 8 mm. OpenStitch cut them apart at the
+    // apex and sewed two blocks of 74 + 98 and 32 + 42.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for (size, file, pe_block) in [
+        (20, "stroke-satin-W.pes", 154),
+        (8, "stroke-satin-W-8.pes", 62),
+    ] {
+        let pe = std::fs::read(root.join("compat/reference/text").join(file)).expect("reference");
+        let pe = from_corner(&openstitch_formats::pes::read(&pe).expect("a PES").stitches);
+        assert_eq!(longest_satin_block(&pe), pe_block, "{file}");
+        let dir = TempDir::new("satin-w-middle");
+        let mut s = Session::new(dir.path());
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        run(
+            &mut s,
+            "text.add",
+            json!({"text": "W", "font": "lato-bold", "size": size, "x": 20, "y": 70, "fill": "Red"}),
+        );
+        let ours = from_corner(
+            &Compiler::for_design(s.design())
+                .compile(s.design())
+                .stitches,
+        );
+        let block = longest_satin_block(&ours);
+        assert!(
+            block.abs_diff(pe_block) <= 4,
+            "W at {size} mm: the middle block has {block} needle points, PE-DESIGN's {pe_block}"
+        );
+    }
+}
