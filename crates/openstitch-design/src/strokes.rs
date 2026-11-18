@@ -2047,6 +2047,16 @@ pub struct Block {
     /// block's centre: the letter's start on O, S and 8 is where PE-DESIGN starts it, near the
     /// box's top-left, and the run from there lies under the satin (#1017).
     pub lead_via: Vec<Vec2>,
+    /// The lead is the run under a column's centre to its far piece or its junction square
+    /// (#938), which text under 6 mm does not take: by way of the centre each end of the run
+    /// is a stitch of half the stroke's width (0.4 mm on 4 mm text), so small text keeps the
+    /// travel it had.
+    pub lead_under: bool,
+    /// A piece of a straight column cut at a junction (A's upper left leg, its foot, the square
+    /// between them): its crossings are spaced over its whole length, as PE-DESIGN spaces a
+    /// block between two cuts, not within each stretch between two of its rungs, which are
+    /// only this code's samples of its sides (#938).
+    pub whole: bool,
 }
 
 /// A stroke's end: `(stroke, 0 or 1)`.
@@ -2556,16 +2566,50 @@ impl Order<'_> {
                 if d.length() < 1e-9 {
                     return None;
                 }
-                let hit = sides
+                let (side, hit) = sides
                     .iter()
-                    .filter_map(|side| line_hits(side, from, d))
-                    .min_by(|a, b| a.distance(to).total_cmp(&b.distance(to)))?;
-                arcs.push(project(centre, false, hit).0);
+                    .filter_map(|side| line_hits(side, from, d).map(|hit| (side, hit)))
+                    .min_by(|a, b| a.1.distance(to).total_cmp(&b.1.distance(to)))?;
+                // The cut is the column's own crossing through the corner, not the one whose
+                // middle is level with it: where the crossings tilt (A's left leg above the
+                // bar, 32 degrees on stroke-satin-A against the leg's 20 across) the two are
+                // 0.4 mm apart, and the square started below the bar's top corner.
+                let (k, t) = (0..side.len() - 1)
+                    .map(|k| {
+                        let (p, q) = (side[k], side[k + 1]);
+                        let v = q - p;
+                        let len2 = v.x * v.x + v.y * v.y;
+                        let t = if len2 > 1e-12 {
+                            (((hit.x - p.x) * v.x + (hit.y - p.y) * v.y) / len2).clamp(0.0, 1.0)
+                        } else {
+                            0.0
+                        };
+                        (k, t, (p + v * t).distance(hit))
+                    })
+                    .min_by(|a, b| a.2.total_cmp(&b.2))
+                    .map(|(k, t, _)| (k, t))?;
+                let arc = |r: &[Vec2; 2]| project(centre, false, r[0].lerp(r[1], 0.5)).0;
+                let (a0, a1) = (arc(&own[k]), arc(&own[k + 1]));
+                arcs.push(a0 + (a1 - a0) * t);
             }
         }
         let lo = arcs.iter().copied().fold(f64::INFINITY, f64::min);
         let hi = arcs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         (lo.is_finite() && hi - lo > 1e-6).then_some((lo, hi))
+    }
+
+    /// Whether column `c` runs straight from end to end: it does not bend ([`bends`]) and its
+    /// centre line stays within half its width of the line between its ends. A stem that turns
+    /// into a bowl (R, P: one column, most of whose steps are the stem's) or is bowed by a Text
+    /// Transform is not: its pieces keep the side their crossings start on and their spacing
+    /// (#938).
+    fn runs_straight(&self, c: usize) -> bool {
+        let s = &self.strokes[c];
+        let (Some(&a), Some(&b)) = (s.centre.first(), s.centre.last()) else {
+            return false;
+        };
+        let reach = 0.5 * s.widths.iter().copied().fold(0.0, f64::max);
+        !bends(s) && s.centre.iter().all(|&p| segment_distance(p, a, b) <= reach)
     }
 
     /// Rungs of column `c` between arc lengths `from` and `to` (either order), in that order,
@@ -2649,6 +2693,8 @@ impl Order<'_> {
                 new_run: false,
                 lead: None,
                 lead_via: Vec::new(),
+                lead_under: false,
+                whole: false,
             });
         }
     }
@@ -2765,11 +2811,71 @@ impl Order<'_> {
                     None => (s + toward * h, s - toward * h),
                 };
                 let a = self.piece_own(c, start, near_edge);
-                self.emit(a, false);
-                let b = self.piece_own(c, far, far_edge);
-                self.emit(b, false);
+                let mut b = self.piece_own(c, far, far_edge);
+                // PE-DESIGN starts the far piece's crossings on the side the stroke leaves
+                // from (stroke-satin-A's foot from its inner corner, H's lower stem and T's
+                // right half from the bar's and the stem's side), so each stitch back to the
+                // next crossing runs against the crossings' tilt: A's foot averages 8.5 degrees
+                // from level on its middle third, and 17 started from the outer side (#938).
+                let straight = self.runs_straight(c);
+                if straight
+                    && let Some(q) = self.waiting_at(j, c).first().map(|&k| {
+                        let s = &self.strokes[k];
+                        point_at(&s.centre, 0.5 * s.length())
+                    })
+                {
+                    let reach = |i: usize| b.iter().map(|r| r[i].distance(q)).sum::<f64>();
+                    if reach(1) < reach(0) {
+                        for r in &mut b {
+                            r.swap(0, 1);
+                        }
+                    }
+                }
                 let sq = self.piece(c, near_edge, far_edge);
+                // PE-DESIGN reaches the far piece and then the square along the column's
+                // centre, under the satin still to come, not round the outline (#938,
+                // stroke-satin-A: 5 stitches from the upper leg's end down to the foot, 3 back
+                // up from the foot's end to the square's start, where the walk round the
+                // foot took 14; stroke-satin-T: 4 stitches under the bar to its right end).
+                let mid = |r: &[Vec2; 2]| r[0].lerp(r[1], 0.5);
+                // Only where the straight run stays under the column: within half its width of
+                // its centre line all the way (a stem bowed by a Text Transform still does; a
+                // run that would cut across a bowl's counter does not, and keeps the walk).
+                let centre = &self.strokes[c].centre;
+                let half = 0.5 * self.strokes[c].widths.iter().copied().fold(0.0, f64::max);
+                let under = |from: &[[Vec2; 2]], to: &[[Vec2; 2]]| {
+                    from.last()
+                        .zip(to.first())
+                        .map(|(f, t)| (mid(f), mid(t)))
+                        .filter(|&(p, q)| {
+                            let steps = (p.distance(q) / 5.0).ceil().max(1.0) as usize;
+                            (0..=steps).all(|k| {
+                                let at = p.lerp(q, k as f64 / steps as f64);
+                                project(centre, false, at).1 <= half
+                            })
+                        })
+                        .map(|(p, q)| (p, vec![q]))
+                };
+                let (to_far, to_square) = (under(&a, &b), under(&b, &sq));
+                let cut_from = self.out.len();
+                self.emit(a, false);
+                let first = self.out.len();
+                self.emit(b, false);
+                if let (Some((lead, via)), Some(block)) = (to_far, self.out.get_mut(first)) {
+                    block.lead = Some(lead);
+                    block.lead_via = via;
+                    block.lead_under = true;
+                }
+                let first = self.out.len();
                 self.emit(sq, true);
+                if let (Some((lead, via)), Some(block)) = (to_square, self.out.get_mut(first)) {
+                    block.lead = Some(lead);
+                    block.lead_via = via;
+                    block.lead_under = true;
+                }
+                for block in &mut self.out[cut_from..] {
+                    block.whole = straight;
+                }
                 sewn_through.push(j);
                 for k in self.waiting_at(j, c) {
                     self.visit(k, self.entry_at(k, j));
@@ -3418,6 +3524,48 @@ mod tests {
             assert!(
                 near,
                 "square end {end:?} misses the bar's corners {corners:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_column_s_far_piece_and_square_are_reached_under_it_and_spaced_whole() {
+        // stroke-satin-A, -H-10, -T (#938): PE-DESIGN runs along the column's centre from its
+        // first piece to the far one and from there to the junction square, and starts the far
+        // piece's crossings on the side the stroke leaves from.
+        for ch in ["A", "H", "T"] {
+            let spec = TextSpec::new(ch, DEFAULT_FONT, 20.0);
+            let contours = layout(&spec, None).expect("layout").contours();
+            let blocks = strokes(&contours).expect("strokes").blocks(&contours, 30.0);
+            let square = blocks.iter().position(|bl| bl.junction).expect("a square");
+            assert_eq!(square, 2, "{ch}");
+            let mid = |r: &[Vec2; 2]| r[0].lerp(r[1], 0.5);
+            for (from, to) in [(0, 1), (1, 2)] {
+                let (a, b) = (&blocks[from], &blocks[to]);
+                assert!(b.lead_under, "{ch}: block {to}");
+                let lead = b.lead.expect("a lead");
+                assert!(
+                    lead.distance(mid(&a.rungs[a.rungs.len() - 1])) < 1e-6,
+                    "{ch}: block {to} is led from {lead:?}"
+                );
+                assert_eq!(b.lead_via.len(), 1, "{ch}: block {to}");
+                assert!(
+                    b.lead_via[0].distance(mid(&b.rungs[0])) < 1e-6,
+                    "{ch}: block {to}"
+                );
+            }
+            assert!(blocks[..3].iter().all(|bl| bl.whole), "{ch}");
+            assert!(
+                blocks[3..].iter().all(|bl| !bl.whole && !bl.lead_under),
+                "{ch}"
+            );
+            // The far piece's crossings start on the side of the stroke that leaves the column
+            // (A's bar, H's bar, T's stem), whose first crossing is the next block's.
+            let leaving = mid(&blocks[3].rungs[blocks[3].rungs.len() / 2]);
+            let far = &blocks[1].rungs[blocks[1].rungs.len() / 2];
+            assert!(
+                far[0].distance(leaving) < far[1].distance(leaving),
+                "{ch}: the far piece starts its crossings on the outer side"
             );
         }
     }

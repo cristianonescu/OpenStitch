@@ -1801,6 +1801,13 @@ fn stroke_columns(
                     let rows = 2.0 * spacing * if open { 3.0 } else { 1.0 };
                     satin_rungs(&f[i].rungs, turns_corner(&b.rungs), rows)
                 }
+                // A piece of a straight column between two cuts (#938): spaced over its whole
+                // length. Its 3 mm rungs are samples of its sides, and rounding the crossings
+                // down within each lost up to one pair per sample (A's foot: 16 pairs over
+                // 6.9 mm where PE-DESIGN sews 18 over 7.0).
+                _ if b.whole && region.satin_shaping.is_plain() => {
+                    crate::column::rungs_whole(&b.rungs, 2.0 * spacing)
+                }
                 _ => b.rungs.clone(),
             };
             // OpenStitch's satin shaping (#676, #686): short stitches, compensation per side and
@@ -1841,7 +1848,9 @@ fn stroke_columns(
         }
         // A block with a lead is reached straight from it, under its satin (X's arms run out
         // along the arm first, stroke-satin-X, #446; a new run starts at the lead).
-        if let (Some(lead), Some(&to)) = (b.lead, column.first()) {
+        if let (Some(lead), Some(&to)) =
+            (b.lead.filter(|_| !(small && b.lead_under)), column.first())
+        {
             let mut path: Vec<Vec2> = run
                 .last()
                 .copied()
