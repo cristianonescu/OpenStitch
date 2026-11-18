@@ -291,7 +291,7 @@ fn crowding_counts_agree_with_sew_check() {
         ("compat/reference/stitches/radial-circle40-dmax.pes", 591),
         (
             "examples/sew/image-tools/L-autopunch-storybook-openstitch.pes",
-            227,
+            258,
         ),
         ("examples/sew/fills/fill-options.pes", 29),
     ] {

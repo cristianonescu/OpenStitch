@@ -5732,5 +5732,8 @@ fn start_and_end_point_travel_of_other_region_types_is_not_uncrossed() {
     assert_eq!(print(RegionType::Satin), SATIN_PRINT, "satin");
 }
 
-const FILL_PRINT: (usize, u64) = (1185, 7_922_731_928_622_289_692);
+// The fill's print was taken again with #1131 (it was 1185 stitches on main f0a5be7f): its
+// halves now meet on the end point instead of the start point, so the travel to the end point
+// is gone, and its rows follow PE-DESIGN's count, corners and page grid.
+const FILL_PRINT: (usize, u64) = (1113, 14_435_622_413_151_508_637);
 const SATIN_PRINT: (usize, u64) = (370, 18_225_474_142_322_398_452);

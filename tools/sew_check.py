@@ -508,7 +508,7 @@ def synthetic_pes(path, block_len, records, width=668, height=996):
 # Files and the pairs Check Design's crowding counts on them (#1036); both sides assert these.
 CROWD_AGREES = [
     ("compat/reference/stitches/radial-circle40-dmax.pes", 591),
-    ("examples/sew/image-tools/L-autopunch-storybook-openstitch.pes", 227),
+    ("examples/sew/image-tools/L-autopunch-storybook-openstitch.pes", 258),
     ("examples/sew/fills/fill-options.pes", 29),
 ]
 
