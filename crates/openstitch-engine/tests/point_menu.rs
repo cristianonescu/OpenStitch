@@ -309,7 +309,7 @@ fn split_at_point_opens_a_closed_outline_and_cuts_an_open_line_in_two() {
     );
     assert_eq!(
         r,
-        json!({ "ids": [id], "opened": true, "regionOff": false })
+        json!({ "ids": [id], "opened": true, "regionOff": false, "regionToLine": false })
     );
     let c = contour(&s, id);
     assert!(!c.closed);
@@ -387,7 +387,8 @@ fn opening_the_outline_of_a_region() {
     );
     assert_eq!(r["regionOff"], true);
     assert!(object(&s, both).region.is_none() && object(&s, both).line.is_some());
-    // Region only: refused, nothing changes.
+    // Region only: the region becomes line sewing in its thread, a running stitch, as
+    // object.regionToLine gives it; one undo step.
     let only = run(
         &mut s,
         "shape.rectangle",
@@ -395,15 +396,44 @@ fn opening_the_outline_of_a_region() {
     )["id"]
         .as_u64()
         .expect("id");
-    if object(&s, only).line.is_none() {
-        let e = fails(
-            &mut s,
-            "object.splitAtPoint",
-            json!({ "id": only, "index": 0 }),
-        );
-        assert!(e.contains("nothing to sew"), "{e}");
-        assert!(contour(&s, only).closed);
-    }
+    assert!(object(&s, only).line.is_none());
+    let thread = object(&s, only)
+        .region
+        .as_ref()
+        .expect("region")
+        .thread
+        .clone();
+    let r = run(
+        &mut s,
+        "object.splitAtPoint",
+        json!({ "id": only, "index": 0 }),
+    );
+    assert_eq!(
+        (&r["regionOff"], &r["regionToLine"]),
+        (&json!(true), &json!(true))
+    );
+    let o = object(&s, only);
+    assert!(!o.contours[0].closed && o.region.is_none());
+    let line = o.line.as_ref().expect("line sewing");
+    assert_eq!(
+        (line.kind, &line.thread),
+        (openstitch_design::LineType::Running, &thread)
+    );
+    undo(&mut s);
+    let o = object(&s, only);
+    assert!(
+        o.contours[0].closed && o.region.is_some() && o.line.is_none(),
+        "one undo step"
+    );
+    // Open does the same.
+    let r = run(&mut s, "object.openOutline", json!({ "id": only }));
+    assert_eq!(
+        r,
+        json!({ "id": only, "regionOff": true, "regionToLine": true })
+    );
+    let o = object(&s, only);
+    assert!(!o.contours[0].closed && o.region.is_none() && o.line.is_some());
+    assert!(!stitches(&s).is_empty());
 }
 
 /// #1258's rule: a command says what it stores, read from the registry as a model reads it.
@@ -464,7 +494,9 @@ fn the_registry_says_what_each_point_command_stores() {
     for words in [
         "closed outline is opened",
         "region",
-        "switched off",
+        "is removed",
+        "region only gets line sewing",
+        "regionToLine",
         "two objects",
         "new id",
         "first and last point",
@@ -861,7 +893,10 @@ fn close_adds_a_region_and_open_removes_it_as_pe_design_does() {
     let e = fails(&mut s, "object.closeOutline", json!({ "id": id }));
     assert!(e.contains("closed already"), "{e}");
     let r = run(&mut s, "object.openOutline", json!({ "id": id }));
-    assert_eq!(r, json!({ "id": id, "regionOff": true }));
+    assert_eq!(
+        r,
+        json!({ "id": id, "regionOff": true, "regionToLine": false })
+    );
     let o = object(&s, id);
     assert!(!o.contours[0].closed && o.region.is_none() && o.line.is_some());
     assert_eq!(
@@ -908,7 +943,9 @@ fn the_registry_says_what_the_1260_commands_store() {
         "closing side",
         "removed",
         "regionOff",
-        "region only",
+        "region only gets line sewing",
+        "running stitch in the region's thread",
+        "regionToLine",
         "One undo step",
     ] {
         assert!(

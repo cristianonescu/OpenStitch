@@ -2565,10 +2565,10 @@ fn alt_drops_an_end_point_on_another_end_point_and_connects_them() {
     let _ = sel;
 }
 
-/// Split at Point is greyed out on a closed shape sewn as a region only (the engine would
-/// refuse it: nothing would be left to sew); the rest of the menu is as on any corner.
+/// Split at Point on a closed shape sewn as a region only (what the Rectangle tool draws) is
+/// available like on any corner: the outline opens and the region becomes a line.
 #[test]
-fn split_at_point_is_greyed_on_a_shape_sewn_as_a_region_only() {
+fn split_at_point_makes_a_region_only_shape_a_line() {
     use super::points::PointAction as P;
     let mut s = session();
     let id = rect_design(&mut s);
@@ -2583,10 +2583,13 @@ fn split_at_point_is_greyed_on_a_shape_sewn_as_a_region_only() {
         (m[1], m[5], m[6]),
         (
             ("toCurve", true),
-            ("splitAtPoint", false),
+            ("splitAtPoint", true),
             ("deletePoint", true)
         )
     );
-    assert_eq!(choose(&mut t, &mut s, &sel, P::Split), 0);
-    assert!(s.design().objects[0].contours[0].closed);
+    assert_eq!(choose(&mut t, &mut s, &sel, P::Split), 1);
+    let o = &s.design().objects[0];
+    assert!(!o.contours[0].closed && o.region.is_none() && o.line.is_some());
+    undo(&mut s);
+    assert!(s.design().objects[0].contours[0].closed, "one Undo");
 }

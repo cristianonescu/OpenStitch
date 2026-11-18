@@ -358,10 +358,7 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         }
         OffsetLines | FloralPattern => edit_ui::single_outline(app).is_some(),
         EditPoint => crate::point_menu_ui::states(app).is_some(),
-        OpenOutline => {
-            crate::point_menu_ui::outline_closed(app) == Some(true)
-                && !crate::point_menu_ui::needs_line(app)
-        }
+        OpenOutline => crate::point_menu_ui::outline_closed(app) == Some(true),
         CloseOutline => crate::point_menu_ui::outline_closed(app) == Some(false),
         DeletePoint => match crate::point_menu_ui::states(app) {
             Some(e) => e[6],
