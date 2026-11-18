@@ -325,6 +325,21 @@ pub fn point_actions_enabled(c: &Contour, selected: &[usize]) -> [bool; 7] {
     ]
 }
 
+/// Whether opening contour `contour` of `o` (Split at Point on a closed outline, Open)
+/// would leave nothing to sew: the shape is sewn as a region only and has no other closed
+/// outline. The engine refuses that, so the menus grey the entries (PE-DESIGN's behaviour
+/// on such a shape is not captured).
+pub fn opening_leaves_nothing(o: &DesignObject, contour: usize) -> bool {
+    o.contours.get(contour).is_some_and(|c| c.closed)
+        && o.region.is_some()
+        && o.line.is_none()
+        && !o
+            .contours
+            .iter()
+            .enumerate()
+            .any(|(k, c)| k != contour && c.closed)
+}
+
 /// Whether `c` can lose the vertices `selected` (as `object.deletePoint` checks): an outline
 /// keeps 2 points, open or closed, as PE-DESIGN's does.
 pub fn can_delete_points(c: &Contour, selected: &[usize]) -> bool {

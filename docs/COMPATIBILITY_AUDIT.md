@@ -4957,8 +4957,9 @@ Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_mak
 
 **Not matched, and why:**
 
-- Split at Point and Open on a shape sewn as a region only are refused (nothing would be left to
-  sew); PE-DESIGN's behaviour there is not captured.
+- Split at Point and Open on a shape sewn as a region only are greyed out, with the reason as
+  their hint ("give it line sewing first"), and refused by the commands (nothing would be left
+  to sew); PE-DESIGN's behaviour there is not captured.
 - Shift or Ctrl held while dragging a point with the mouse is not captured; here Shift locks the
   drag to an axis and Ctrl drags without snapping, as before.
 - The drag box selects the points of one outline of the shape (the one with the most points in

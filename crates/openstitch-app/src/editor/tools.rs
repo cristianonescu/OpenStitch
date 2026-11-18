@@ -761,9 +761,16 @@ impl ToolController {
         }
         let selected = self.selected_points(ctx);
         let first = selected.first()?;
-        let c = ctx.point_target()?.contours.get(first.contour)?;
+        let o = ctx.point_target()?;
+        let c = o.contours.get(first.contour)?;
         let indexes: Vec<usize> = selected.iter().map(|p| p.index).collect();
-        Some(point_actions_enabled(c, &indexes))
+        let mut enabled = point_actions_enabled(c, &indexes);
+        // Split at Point would open the outline of a shape sewn as a region only: the
+        // engine refuses that, so the entry is greyed out.
+        if super::points::opening_leaves_nothing(o, first.contour) {
+            enabled[5] = false;
+        }
+        Some(enabled)
     }
 
     /// Runs one entry of the point menu on the selected vertices: one command, one Undo.

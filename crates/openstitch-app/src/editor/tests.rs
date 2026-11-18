@@ -2004,6 +2004,19 @@ fn a_two_mm_candlewick_is_kept_by_a_set_line_without_width() {
 
 // MARK: the point menu (#1258)
 
+/// The rectangle of [`rect_design`] with line sewing as well as its fill, as PE-DESIGN's
+/// capture shapes had: a shape sewn as a region only greys Split at Point and Open.
+fn outlined_rect(s: &mut Session) -> u64 {
+    let r = run(
+        s,
+        &CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 10, "y": 10, "width": 20, "height": 10, "fill": "#2e8b57", "outline": "#203040" }),
+        ),
+    );
+    r["id"].as_u64().expect("id")
+}
+
 /// The menu's entries for the selected points, as `(key, enabled)` in menu order.
 fn menu(t: &ToolController, s: &Session, sel: &BTreeSet<u64>) -> Vec<(&'static str, bool)> {
     use super::points::PointAction;
@@ -2062,7 +2075,7 @@ fn the_point_menu_has_pe_designs_entries_in_order_with_its_separators() {
 fn a_right_click_on_a_straight_corner_offers_what_pe_design_offers() {
     use super::points::PointAction as P;
     let mut s = session();
-    let id = rect_design(&mut s);
+    let id = outlined_rect(&mut s);
     let mut t = ToolController::default();
     t.set_tool(Tool::Point);
     let sel = BTreeSet::from([id]);
@@ -2211,7 +2224,7 @@ fn the_end_of_an_open_line_offers_what_pe_design_offers() {
 fn ctrl_click_selects_several_points_and_the_menu_acts_on_all() {
     use super::points::PointAction as P;
     let mut s = session();
-    let id = rect_design(&mut s);
+    let id = outlined_rect(&mut s);
     let mut t = ToolController::default();
     t.set_tool(Tool::Point);
     let sel = BTreeSet::from([id]);
@@ -2300,7 +2313,7 @@ fn ctrl_click_selects_several_points_and_the_menu_acts_on_all() {
 fn split_at_point_and_delete_from_the_menu() {
     use super::points::PointAction as P;
     let mut s = session();
-    let id = rect_design(&mut s);
+    let id = outlined_rect(&mut s);
     let mut t = ToolController::default();
     t.set_tool(Tool::Point);
     let sel = BTreeSet::from([id]);
@@ -2357,7 +2370,7 @@ fn split_at_point_and_delete_from_the_menu() {
 #[test]
 fn a_drag_box_selects_points_and_they_move_together() {
     let mut s = session();
-    let id = rect_design(&mut s);
+    let id = outlined_rect(&mut s);
     let mut t = ToolController::default();
     t.set_tool(Tool::Point);
     let sel = BTreeSet::from([id]);
@@ -2408,7 +2421,7 @@ fn a_drag_box_selects_points_and_they_move_together() {
 #[test]
 fn one_click_on_a_side_inserts_a_point_and_a_drag_there_does_not_move_it() {
     let mut s = session();
-    let id = rect_design(&mut s);
+    let id = outlined_rect(&mut s);
     let mut t = ToolController::default();
     t.set_tool(Tool::Point);
     let sel = BTreeSet::from([id]);
@@ -2445,7 +2458,7 @@ fn one_click_on_a_side_inserts_a_point_and_a_drag_there_does_not_move_it() {
 #[test]
 fn a_right_click_beside_the_points_is_for_the_object_menu() {
     let mut s = session();
-    let id = rect_design(&mut s);
+    let id = outlined_rect(&mut s);
     let mut t = ToolController::default();
     t.set_tool(Tool::Point);
     let sel = BTreeSet::from([id]);
@@ -2550,4 +2563,30 @@ fn alt_drops_an_end_point_on_another_end_point_and_connects_them() {
         v2(1199.0, 801.0)
     );
     let _ = sel;
+}
+
+/// Split at Point is greyed out on a closed shape sewn as a region only (the engine would
+/// refuse it: nothing would be left to sew); the rest of the menu is as on any corner.
+#[test]
+fn split_at_point_is_greyed_on_a_shape_sewn_as_a_region_only() {
+    use super::points::PointAction as P;
+    let mut s = session();
+    let id = rect_design(&mut s);
+    assert!(s.design().objects[0].line.is_none());
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let design = s.design().clone();
+    assert!(t.select_point_at(v2(100.0, 100.0), &ctx(&design, &sel)));
+    let m = menu(&t, &s, &sel);
+    assert_eq!(
+        (m[1], m[5], m[6]),
+        (
+            ("toCurve", true),
+            ("splitAtPoint", false),
+            ("deletePoint", true)
+        )
+    );
+    assert_eq!(choose(&mut t, &mut s, &sel, P::Split), 0);
+    assert!(s.design().objects[0].contours[0].closed);
 }
