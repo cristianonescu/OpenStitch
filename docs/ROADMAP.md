@@ -183,7 +183,9 @@ its bands reaching in from lines outside the shape, and a switch to a net fill s
 Direction 0 (#1054); nets travelling along the outline in PE-DESIGN's order, the lines before the
 bands (#1043, #1071, 2026-11-17: stitch counts within 3.5 % of PE-DESIGN's on all 16 net
 captures), the zigzag net's Density field in PE-DESIGN's lines per mm (#1163), and a new zigzag net with
-under sewing on, PE-DESIGN's default (#1239). Details in
+under sewing on, PE-DESIGN's default (#1239); satin on Closed Straight Line shapes: the U's
+under sewing and bar end as PE-DESIGN's and the 120° band keeps the spacing across its leaning
+rungs, both within 3 needle points of PE-DESIGN's per part (#1154). Details in
 COMPATIBILITY_AUDIT.
 
 Done 2026-11-13 (#1051): the kit previews are placed by millimetres. The tiles are drawn with
@@ -508,7 +510,7 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    turned letters cut upright and satin crossings along the outer side since 2026-11-05 (#444,
    satin 5.6 % on average, no capture further than before, the README's arched and 4 mm text whole), small lettering's i dots, pieces and travel since
    2026-11-05 (#465); next, under sewing per
-   stroke, V's, M's and W's run-on feet and M's and W's needle counts at 8 mm (#939–#941, #1064; A's bar ends along the legs since 2026-11-13, PR #1062, and its left foot and junction square are cut and reached as PE-DESIGN's since 2026-11-17, #938; M and N start at the top of the first stem since 2026-11-13, part of #940, PR #1016; O, S, 8, A and e start where PE-DESIGN starts them since 2026-11-14, #1017, PR #1081; N's corner and A's and V's slanted feet done, #446 closed 2026-11-12; X sewn as PE-DESIGN's, one diagonal through, since 2026-11-06), and a satin capture of small text) — the structural
+   stroke, V's, M's and W's run-on feet and M's and W's needle counts at 8 mm (#939–#941, #1064; A's bar ends along the legs since 2026-11-13, PR #1062, and its left foot and junction square are cut and reached as PE-DESIGN's since 2026-11-17, #938; W's inner arms are one block over the apex since 2026-11-18, part of #1064; M and N start at the top of the first stem since 2026-11-13, part of #940, PR #1016; O, S, 8, A and e start where PE-DESIGN starts them since 2026-11-14, #1017, PR #1081; N's corner and A's and V's slanted feet done, #446 closed 2026-11-12; X sewn as PE-DESIGN's, one diagonal through, since 2026-11-06), and a satin capture of small text) — the structural
    gap behind text-fit-*, text-transform-* and text-sewing-order; the fitted circle's running
    stitch follows PE-DESIGN's Bézier halving since 2026-10-28 (text-fit-default mean needle
    distance 0.27 → 0.20 mm; #121 kept it and lifted the 256-chord ceiling, 2026-10-29); Text Transform presets 13 and 14 (fan out / in) done 2026-10-28; round 4 (2026-10-29)

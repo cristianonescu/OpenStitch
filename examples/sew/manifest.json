@@ -1553,7 +1553,7 @@
    199.0,
    150.1
   ],
-  "stitches": 96543,
+  "stitches": 96530,
   "trims": 1088,
   "threads": [
    "017 Light Blue",
@@ -1570,7 +1570,7 @@
   "sewingMinutes": 176.4,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "0cd0117e5c3e570cf725651f4762aa4c9d7aa3d51bb23b45e42ab483b1346cb3",
+  "sha256": "a7a218407b6c230432435c4f576c39b2e3798c9569e1b849e9a8e55797e7e0ca",
   "renderVersion": 3
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
@@ -1581,7 +1581,7 @@
    199.3,
    150.9
   ],
-  "stitches": 114320,
+  "stitches": 114086,
   "trims": 2047,
   "threads": [
    "307 Linen",
@@ -1595,10 +1595,10 @@
    "330 Russet Brown",
    "517 Dark Olive"
   ],
-  "sewingMinutes": 247.8,
+  "sewingMinutes": 247.5,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "4d55f53eae81eab96ef249940c5b18d308724e6777ba02274f49ad8bb1941b1b",
+  "sha256": "5d89d6f555a693ad1c0d9c00eb45fd6f617b77e9c963c731af130770af679489",
   "renderVersion": 3
  },
  "image-tools/S-cross-stitch-strawberry-pixel-grid.pes": {
