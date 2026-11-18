@@ -56,11 +56,30 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         max_x: page.width,
         max_y: page.height,
     };
+    // A canvas too small to show anything (the window squeezed or minimised, the panes over
+    // it) changes nothing in the stored view, and a fit asked for waits until there is room
+    // (#1266).
+    if !screen.usable() {
+        app.workspace.canvas = Some(rect);
+        ui.painter_at(rect).rect_filled(
+            rect,
+            CornerRadius::ZERO,
+            crate::theme::canvas(ui.ctx()).work_area,
+        );
+        return;
+    }
     let fit_screen = beside_dialog(screen, app.dialog_rect.filter(|_| app.screenshot_run()));
     let untouched_fit = app
         .auto_fit
         .filter(|&(s, v, _, _)| s != fit_screen && app.viewport == Some(v));
-    if app.viewport.is_none() || app.fit_requested || untouched_fit.is_some() {
+    // The canvas the view was last drawn in, when it has another size or place now and the
+    // view is still the one drawn then.
+    let moved = app
+        .view_canvas
+        .filter(|&(s, v)| s != screen && app.viewport == Some(v))
+        .map(|(s, _)| s);
+    let broken = app.viewport.is_some_and(|v| !v.is_sane());
+    if app.viewport.is_none() || app.fit_requested || untouched_fit.is_some() || broken {
         let mut fitted = Viewport::fit(page_rect, fit_screen, 24.0);
         let (zoom, center) = match untouched_fit {
             Some((_, _, z, c)) if !app.fit_requested => (z, c),
@@ -94,6 +113,11 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         app.viewport = Some(fitted);
         app.auto_fit = Some((fit_screen, fitted, zoom, center));
         app.fit_requested = false;
+    } else if let (Some(from), Some(v)) = (moved, app.viewport) {
+        // The window resized or a pane opened under a view the user set: the design point in
+        // the middle of the canvas stays there, at the same zoom (#1266; the view was tied to
+        // the window's corner, so a smaller window pushed the page out of the canvas).
+        app.viewport = Some(v.recentred(from, screen));
     }
     let mut vp = app.viewport.unwrap_or_default();
 
@@ -137,6 +161,13 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     {
         vp = moved;
         app.viewport = Some(vp);
+    }
+    // The view can never be lost (#1266): part of the page, or of a design sewn beside it,
+    // stays inside the canvas. Checked when the view or the canvas changed.
+    if app.view_canvas != Some((screen, vp)) {
+        vp = vp.kept_in_view(view_content(app, page_rect), screen);
+        app.viewport = Some(vp);
+        app.view_canvas = Some((screen, vp));
     }
 
     app.workspace.canvas = Some(rect);
@@ -277,6 +308,26 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     };
     if response.hovered() {
         ui.ctx().set_cursor_icon(cursor);
+    }
+}
+
+/// What the view keeps part of inside the canvas: the Design Page with the stitches around it.
+fn view_content(app: &EditorApp, page: Rect) -> Rect {
+    use openstitch_core::Command;
+    let sewn = app
+        .pattern
+        .stitches
+        .iter()
+        .any(|s| matches!(s.command, Command::Stitch | Command::Jump));
+    if !sewn {
+        return page;
+    }
+    let b = app.pattern.bounds();
+    Rect {
+        min_x: page.min_x.min(b.min_x),
+        min_y: page.min_y.min(b.min_y),
+        max_x: page.max_x.max(b.max_x),
+        max_y: page.max_y.max(b.max_y),
     }
 }
 

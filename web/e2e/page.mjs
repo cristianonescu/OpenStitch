@@ -499,6 +499,7 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
     }
     if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
     await extraChecks(browser, type, label);
+    await resizeChecks(browser, type, label);
     console.log(`ok ${label}: started, opened ${name} with the file picker, the PES and DST downloads are identical to the desktop build, a dropped photo shows and converts, preferences and thread charts last across reloads, a sample opens, Ctrl+S and Ctrl+P reach the editor, it runs at 2× pixels and at phone width with touch, a closed tab's design is recovered, and it runs with storage refused`);
   } catch (e) {
     console.error(`FAIL ${label}: ${e.message}`);
@@ -517,3 +518,113 @@ server.close();
 if (failures) process.exit(1);
 console.log("web page test passed");
 process.exit(0);
+
+// #1266: a browser window made smaller and larger again keeps the page in view. With the view
+// as the editor fitted it, the page fits again; with a view the user zoomed, the zoom and the
+// design point in the middle of the canvas are kept; and from any of the sizes Fit (ui.zoom)
+// brings the page back. The sizes: a docked layout squeezed low, a phone-narrow window, and one
+// that leaves the canvas no room. In Chromium the same with the page zoomed by the browser
+// (150 %: fewer CSS pixels, more device pixels each, through the DevTools protocol; Firefox and
+// WebKit have no way to zoom a page from a test). Screenshots before and after go to OUT_DIR.
+// (A function declaration: the loop above calls it.)
+async function resizeChecks(browser, type, label) {
+  console.log(`${label}: the window made smaller and larger again keeps the page in view`);
+  const big = { width: 1100, height: 750 };
+  const small = [{ width: 700, height: 260 }, { width: 320, height: 240 }, { width: 150, height: 100 }];
+  const context = await browser.newContext({ viewport: big, deviceScaleFactor: 1 });
+  try {
+    const { page, errors } = await editorPage(context);
+    // The view once the editor has drawn the same one twice in a row.
+    const view = async () => {
+      let last = "";
+      for (let i = 0; i < 40; i += 1) {
+        await page.waitForTimeout(150);
+        const s = (await run(page, { command: "ui.state" })).result;
+        const now = JSON.stringify({ zoom: s?.zoomPercent, ...s?.view });
+        if (s?.view && now === last) return JSON.parse(now);
+        last = now;
+      }
+      throw new Error(`the view did not settle: ${last}`);
+    };
+    const shot = async (name) => {
+      if (!outDir) return;
+      mkdirSync(outDir, { recursive: true });
+      await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-resize-${name}.png`) });
+    };
+    const usable = (v) => v.canvasPoints[0] >= 32 && v.canvasPoints[1] >= 32;
+    const inView = (what, v) => {
+      if (!(v.zoom > 0) || !Number.isFinite(v.zoom) || !v.centerMm.every(Number.isFinite)) {
+        throw new Error(`${what}: the view is broken: ${JSON.stringify(v)}`);
+      }
+      if (usable(v) && !(v.pagePointsInCanvas[0] > 0 && v.pagePointsInCanvas[1] > 0)) {
+        throw new Error(`${what}: the page is outside the canvas: ${JSON.stringify(v)}`);
+      }
+    };
+    const sameCanvas = (a, b) => a.canvasPoints[0] === b.canvasPoints[0] && a.canvasPoints[1] === b.canvasPoints[1];
+    const near = (a, b, by) => Math.abs(a - b) <= by;
+    const sameCentre = (a, b) => near(a.centerMm[0], b.centerMm[0], 0.05) && near(a.centerMm[1], b.centerMm[1], 0.05);
+    // Down through the sizes and back up, with `resize` setting the window's size.
+    const round = async (what, resize, zoomed) => {
+      const before = await view();
+      inView(`${what}, before`, before);
+      for (const size of small) {
+        await resize(size);
+        const at = await view();
+        inView(`${what}, at ${size.width}x${size.height}`, at);
+        if (zoomed && !near(at.zoom, before.zoom, 0.01)) {
+          throw new Error(`${what}, at ${size.width}x${size.height}: the zoom went from ${before.zoom} to ${at.zoom}`);
+        }
+        if (zoomed && usable(at) && !sameCentre(at, before)) {
+          throw new Error(`${what}, at ${size.width}x${size.height}: the canvas's middle shows ${at.centerMm}, it showed ${before.centerMm}`);
+        }
+      }
+      await resize(big);
+      const after = await view();
+      inView(`${what}, after`, after);
+      // The narrow layout folds the panes away and they stay folded, so the canvas can be
+      // wider than before: a fitted page then fits that; a zoomed view keeps zoom and middle.
+      if (!sameCentre(after, before) || ((zoomed || sameCanvas(after, before)) && !near(after.zoom, before.zoom, 0.01))) {
+        throw new Error(`${what}: before ${JSON.stringify(before)}, after ${JSON.stringify(after)}`);
+      }
+      if (!zoomed && !(after.pagePointsInCanvas[0] > 100 && after.pagePointsInCanvas[1] > 100)) {
+        throw new Error(`${what}: the page is ${after.pagePointsInCanvas} points in the canvas after: ${JSON.stringify(after)}`);
+      }
+    };
+    const windowSize = (size) => page.setViewportSize(size);
+    await shot("before");
+    await round("the fitted view", windowSize, false);
+    await shot("after");
+    const zoom = await run(page, { command: "ui.zoom", params: { percent: 200 } });
+    if (!zoom.ok) throw new Error(`ui.zoom: ${JSON.stringify(zoom).slice(0, 200)}`);
+    await shot("zoomed-before");
+    await round("a zoomed view", windowSize, true);
+    await shot("zoomed-after");
+    if (type === chromium) {
+      // The browser's own zoom at 150 %: the window's size in CSS pixels divided by 1.5.
+      const cdp = await context.newCDPSession(page);
+      const zoomedWindow = (size) => cdp.send("Emulation.setDeviceMetricsOverride", {
+        width: Math.round(size.width / 1.5), height: Math.round(size.height / 1.5), deviceScaleFactor: 1.5, mobile: false,
+      });
+      await zoomedWindow(big);
+      await round("a zoomed view, the page zoomed 150 % by the browser", zoomedWindow, true);
+      await shot("browser-zoom-after");
+      await cdp.send("Emulation.clearDeviceMetricsOverride");
+      inView("back from the browser's zoom", await view());
+    }
+    // The way back from the smallest window that has a canvas: Fit.
+    await windowSize(small[1]);
+    await view();
+    const fit = await run(page, { command: "ui.zoom", params: { fit: "page" } });
+    if (!fit.ok) throw new Error(`ui.zoom fit: ${JSON.stringify(fit).slice(0, 200)}`);
+    await windowSize(big);
+    const fitted = await view();
+    inView("after Fit", fitted);
+    if (!(fitted.pagePointsInCanvas[0] > 100 && fitted.pagePointsInCanvas[1] > 100)) {
+      throw new Error(`after Fit the page is ${fitted.pagePointsInCanvas} points in the canvas: ${JSON.stringify(fitted)}`);
+    }
+    await shot("fit-after");
+    noErrors("resize", errors);
+  } finally {
+    await context.close();
+  }
+}
