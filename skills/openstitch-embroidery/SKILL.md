@@ -438,7 +438,9 @@ then style them in the next.
   closed outline's closing side and its region (a region-only shape becomes a line, as with
   Split at Point); `object.closeOutline` `{id, region}` closes
   an open line and, unless `region: false`, gives it Fill Stitch at 45° when it has no
-  region (`ui.run openOutline` / `closeOutline`; `ui.pointMenu` lists them as `objectMenu`). Each is one undo step. In the window `ui.pointMenu`
+  region; two ends lying on each other (within 0.05 mm) become one point. A new
+  `shape.ellipse` has four smooth points: moving one handle with `object.setSegment` turns
+  the other. (`ui.run openOutline` / `closeOutline`; `ui.pointMenu` lists them as `objectMenu`). Each is one undo step. In the window `ui.pointMenu`
   `{points, contour}` selects points as Ctrl+click does and reports the seven entries with
   what is greyed out; `{action}` runs one (`ui.run pointToCurve` and the other ribbon
   buttons do the same).

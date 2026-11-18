@@ -157,7 +157,7 @@ pub fn object_entry_enabled(app: &EditorApp, a: Action) -> bool {
 /// Line removes the selected direction lines, and no direction line can be selected on the
 /// canvas here, so it has nothing to act on; Delete Lines Not Selected removes the others,
 /// which is all of them: the shape goes back to one straight sewing direction
-/// (`object.setDirectionLines` with none). Both are grey on a shape without direction lines.
+/// ([`delete_direction_lines`]). Both are grey on a shape without direction lines.
 pub fn direction_submenu(app: &EditorApp) -> [(&'static str, &'static str, bool); 2] {
     let ctx = app.tool_context(app.session.design());
     let has_lines = ctx
@@ -239,6 +239,36 @@ fn row(
     response
 }
 
+/// Delete Lines Not Selected: removes every direction line of the selected shape, the
+/// straight ones (`object.setDirectionLines` with none) and a curved one
+/// (`object.setDirectionCurve` with none), in one undo step; the region is sewn in its one
+/// straight direction again.
+pub fn delete_direction_lines(app: &mut EditorApp) {
+    let ctx = app.tool_context(app.session.design());
+    let Some((id, lines, curve)) = ctx.point_target().and_then(|o| {
+        let r = o.region.as_ref()?;
+        Some((o.id, !r.direction_lines.is_empty(), r.direction_curve.is_some()))
+    }) else {
+        return;
+    };
+    let mut requests = Vec::new();
+    if lines {
+        requests.push(openstitch_app::editor::CommandRequest::new(
+            "object.setDirectionLines",
+            json!({ "id": id, "lines": null }),
+        ));
+    }
+    if curve {
+        requests.push(openstitch_app::editor::CommandRequest::new(
+            "object.setDirectionCurve",
+            json!({ "id": id, "points": null }),
+        ));
+    }
+    if !requests.is_empty() {
+        app.execute_all(&requests);
+    }
+}
+
 /// A menu panel at `at` (the pointer: the menu opens to the right of and below it, as
 /// PE-DESIGN's), opaque from its first frame.
 fn panel<R>(
@@ -313,6 +343,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
 fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
     use openstitch_app::editor::ribbon::POINT_OBJECT_MENU;
     let mut chosen = None;
+    let mut delete_lines = false;
     let mut sub_at = None;
     let r = panel(ctx, "point-object-menu", m.at, 210.0, |ui| {
         for a in POINT_OBJECT_MENU {
@@ -346,11 +377,15 @@ fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
         let sub = panel(ctx, "point-object-submenu", at, 200.0, |ui| {
             for (_, text, enabled) in entries {
                 if row(ui, None, t(text), enabled, false).clicked() {
-                    chosen = Some(Action::DeleteDirectionLine);
+                    delete_lines = true;
                 }
             }
         });
         over_sub = sub.response.contains_pointer();
+    }
+    if delete_lines {
+        delete_direction_lines(app);
+        return;
     }
     if let Some(a) = chosen {
         crate::ribbon::run(app, a, ctx);
@@ -778,7 +813,7 @@ mod tests {
         .expect("direction lines");
         let sub = direction_submenu(&app);
         assert_eq!((sub[0].2, sub[1].2), (false, true));
-        crate::ribbon::run(&mut app, Action::DeleteDirectionLine, &egui::Context::default());
+        delete_direction_lines(&mut app);
         let region = app.session.design().objects[0].region.clone().expect("region");
         assert!(region.direction_lines.is_empty() && region.direction_curve.is_none());
         assert!(!direction_submenu(&app)[1].2);
