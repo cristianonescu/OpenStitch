@@ -690,8 +690,12 @@ fn zoom_controls(app: &mut EditorApp, ui: &mut egui::Ui) {
     let mut p = now.round();
     if ui
         .add(
+            // The field limits what is typed or dragged, never the view it shows (#1266: an
+            // automatic fit under 10 % was written back as 10 %, so it was no longer the fit
+            // and the page stayed tiny when the window grew again).
             egui::DragValue::new(&mut p)
                 .range(10.0..=2000.0)
+                .clamp_existing_to_range(false)
                 .suffix(" %")
                 .speed(1.0),
         )

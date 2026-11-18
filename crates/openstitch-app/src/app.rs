@@ -230,6 +230,9 @@ pub struct EditorApp {
         Option<f64>,
         Option<openstitch_design::Vec2>,
     )>,
+    /// The canvas and the view of the last frame drawn (#1266): when the canvas changes under
+    /// that view, the design point in its middle stays in the middle.
+    pub view_canvas: Option<(openstitch_app::editor::ScreenRect, Viewport)>,
     /// A wizard dialog's rectangle in the previous frame, and the one being drawn this frame
     /// (`dialog_window`). In a `--screenshot` run the automatic fit keeps the page clear of it
     /// (#565: the dialogs hid part of the design in the documentation images).
@@ -403,6 +406,7 @@ impl EditorApp {
             viewport_json: None,
             bare: false,
             auto_fit: None,
+            view_canvas: None,
             dialog_rect: None,
             dialog_rect_next: None,
             player: None,
@@ -3060,6 +3064,9 @@ mod px_per_mm_tests;
 #[cfg(test)]
 #[path = "narrow_tests.rs"]
 mod narrow_tests;
+#[cfg(test)]
+#[path = "resize_tests.rs"]
+mod resize_tests;
 #[cfg(test)]
 #[path = "monkey_tests.rs"]
 mod monkey_tests;
