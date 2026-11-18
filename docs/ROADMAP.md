@@ -182,7 +182,8 @@ point made exact, and every letter piece tied in (#1032); the zigzag net turned 
 its bands reaching in from lines outside the shape, and a switch to a net fill starting at
 Direction 0 (#1054); nets travelling along the outline in PE-DESIGN's order, the lines before the
 bands (#1043, #1071, 2026-11-17: stitch counts within 3.5 % of PE-DESIGN's on all 16 net
-captures), and the zigzag net's Density field in PE-DESIGN's lines per mm (#1163). Details in
+captures), the zigzag net's Density field in PE-DESIGN's lines per mm (#1163), and a new zigzag net with
+under sewing on, PE-DESIGN's default (#1239). Details in
 COMPATIBILITY_AUDIT.
 
 Done 2026-11-13 (#1051): the kit previews are placed by millimetres. The tiles are drawn with

@@ -73,7 +73,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   back as two lines): for PE-DESIGN's 4.5, the default, pass 2.25. The inspector's Density field
   shows PE-DESIGN's number. `travel: false` on a `zigzagNetFill` keeps the needle off the outline
   (it travels under the bands only and jumps to a part the net's lines do not reach); on a
-  `netFill` each line is its own run, with a jump between lines.
+  `netFill` each line is its own run, with a jump between lines. A new `zigzagNetFill` has
+  `underlay` on (PE-DESIGN's default: a running line under every band, sewn first); pass
+  `underlay: false` for the bands only, as a new net sewed before alpha 18.
 - Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
   `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
   save PES version 6.
