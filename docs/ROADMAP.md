@@ -188,6 +188,16 @@ under sewing and bar end as PE-DESIGN's and the 120° band keeps the spacing acr
 rungs, both within 3 needle points of PE-DESIGN's per part (#1154). Details in
 COMPATIBILITY_AUDIT.
 
+Done 2026-11-18 (#1266): the view is kept across a change of the window's size, on the desktop
+and in the browser. The cause of the page left tiny and out of sight: the status bar's zoom field
+(10 to 2000 %) wrote its limit back whenever the automatic fit was under 10 %, as in a window
+squeezed until the canvas was a few points wide, so the view was no longer the fit and was not
+fitted again when the window grew (measured 1440 × 900 → 390 × 300 → 1440 × 900: scale 0.3812 →
+0.0378, the page 38 points wide and left of the canvas). Now the field writes only what is typed
+or dragged; a canvas under 32 points changes nothing in the stored view; a view the user set keeps
+the design point in the middle of the canvas where it was tied to the window's corner; the pan
+keeps 48 points of the page or design inside the canvas; a view that cannot draw becomes the fit.
+
 Done 2026-11-13 (#1051): the kit previews are placed by millimetres. The tiles are drawn with
 `--show bare --px-per-mm 16 --center X,Y` on whole pixels and cropped round the stitch bounds the
 editor reports (`--viewport-json`), not by the page-fit screenshot's pixels. Before, a change to the

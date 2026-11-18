@@ -628,6 +628,32 @@ impl EditorApp {
         self.viewport.map(|vp| vp.zoom_percent(ppm))
     }
 
+    /// The view for `ui.state`: `None` before the canvas is first drawn.
+    fn view_json(&self) -> Option<Value> {
+        let (vp, c) = (self.viewport?, self.workspace.canvas?);
+        let mid = vp.to_model(openstitch_design::v2(
+            f64::from(c.center().x),
+            f64::from(c.center().y),
+        ));
+        let page = self.session.design().page;
+        let (a, b) = (
+            vp.to_screen(openstitch_design::v2(0.0, 0.0)),
+            vp.to_screen(openstitch_design::v2(page.width, page.height)),
+        );
+        let inside = |lo: f64, hi: f64, from: f32, to: f32| {
+            (hi.min(f64::from(to)) - lo.max(f64::from(from))).max(0.0)
+        };
+        let round = |v: f64| (v * 100.0).round() / 100.0;
+        Some(json!({
+            "centerMm": [round(mid.x / 10.0), round(mid.y / 10.0)],
+            "canvasPoints": [c.width(), c.height()],
+            "pagePointsInCanvas": [
+                round(inside(a.x, b.x, c.min.x, c.max.x)),
+                round(inside(a.y, b.y, c.min.y, c.max.y)),
+            ],
+        }))
+    }
+
     fn stats_json(&self) -> Value {
         let s = &self.stats;
         json!({
@@ -670,6 +696,9 @@ impl EditorApp {
             "selection": self.selection,
             "tool": format!("{:?}", self.tools.tool()),
             "zoomPercent": self.zoom_percent(),
+            // Where the canvas looks (#1266): the design point in its middle, the canvas's
+            // size in points, and the part of the Design Page inside it.
+            "view": self.view_json(),
             "stats": self.stats_json(),
             "simulator": self.simulator_json(),
             "canUndo": self.session.can_undo(), "canRedo": self.session.can_redo(),
