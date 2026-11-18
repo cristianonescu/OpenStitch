@@ -49,7 +49,7 @@ pub fn table(tool: Tool) -> (&'static str, [Option<&'static str>; 3]) {
             [None, FREE, None],
         ),
         Tool::Point => (
-            "Click the outline to add a point · drag points or handles; Ctrl+click or a drag box selects several, which move together · arrow keys move them 0.5 mm · right-click a point for its menu, the shape for Open and Close · Delete removes the selected points · hold Alt and drop an end point of an open line on its other end to close it · C curve / S straight under the pointer · on a text: click a character, drag it, its top handle turns it, the others resize it",
+            "Click the outline to add a point · drag points or handles; Ctrl+click or a drag box selects several, which move together · arrow keys move them 0.5 mm · right-click a point for its menu, the shape for Open and Close · Delete removes the selected points · C curve / S straight under the pointer · on a text: click a character, drag it, its top handle turns it, the others resize it",
             [None, FREE, None],
         ),
         Tool::Pen => (
@@ -96,6 +96,44 @@ pub fn table(tool: Tool) -> (&'static str, [Option<&'static str>; 3]) {
                 Some("Alt: the pieces dragged across are removed"),
             ],
         ),
+    }
+}
+
+/// What the Point tool has selected on an outline, for its hint line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PointSelection {
+    /// The points show and none is selected.
+    None,
+    /// One straight point (not an end of an open line).
+    Straight,
+    /// One curve point (not an end of an open line).
+    Curve,
+    /// One point, the first or last of an open line.
+    LineEnd,
+    /// Two or more points.
+    Several,
+}
+
+/// The Point tool's hint for what is selected (#1260): PE-DESIGN changes its status-bar hint
+/// with the selected point (with an end point of an open line it tells of Alt and connecting);
+/// these are our own words for what each selection can do.
+pub fn point_hint(selection: PointSelection) -> &'static str {
+    match selection {
+        PointSelection::None => {
+            "Click a point to select it, or the outline to add one there · a drag box selects several · right-click the shape for Open and Close"
+        }
+        PointSelection::Straight => {
+            "Drag the point, or move it 0.5 mm with the arrow keys · right-click it for To Curve, Split at Point and Delete · Ctrl+click adds another point"
+        }
+        PointSelection::Curve => {
+            "Drag the point, or the ends of its two handle lines to shape the curve · right-click it for To Straight, To Smooth, To Symmetry and To Cusp · arrow keys move it 0.5 mm"
+        }
+        PointSelection::LineEnd => {
+            "Hold Alt and drag this end point onto the line's other end to connect the two ends into a closed shape · arrow keys move it 0.5 mm · right-click it for To Curve and Delete"
+        }
+        PointSelection::Several => {
+            "Drag one of the selected points to move them all, or use the arrow keys (0.5 mm) · Delete removes them · right-click one for what applies to all"
+        }
     }
 }
 

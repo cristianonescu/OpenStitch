@@ -593,8 +593,20 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
             command: i.modifiers.command,
             alt: i.modifiers.alt,
         });
-        let hint = openstitch_app::editor::hints::hint(app.tools.tool(), held);
         let any_held = held != openstitch_app::editor::hints::Held::default();
+        // The Point tool's hint follows what is selected (#1260), unless a held key has a
+        // text of its own for this tool (Ctrl: no snapping). Alt held keeps the end point's
+        // hint, which is about Alt.
+        let hint = {
+            use openstitch_app::editor::hints;
+            let tool = app.tools.tool();
+            let keyed = hints::hint(tool, held);
+            if keyed != hints::hint(tool, hints::Held::default()) {
+                keyed
+            } else {
+                crate::point_menu_ui::hint(app).unwrap_or(keyed)
+            }
+        };
         let text = match app.ui.hover {
             Some(h) => h.to_string(),
             None if any_held || app.status == "Ready" => hint.to_string(),

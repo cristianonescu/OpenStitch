@@ -211,6 +211,8 @@ async function extraChecks(browser, type, label) {
       await onScreen(0);
       const start = await menu();
       if (start.pointCount !== 4 || start.open) throw new Error(`point tool: ${JSON.stringify(start).slice(0, 300)}`);
+      // The hint line follows the selection (a straight corner here: To Curve, no Alt).
+      if (!/To Curve/.test(start.hint ?? "") || /Alt/.test(start.hint)) throw new Error(`hint: ${start.hint}`);
       const box = await page.locator("#openstitch").boundingBox();
       const [sx, sy] = start.selected[0].screen;
       const at = [box.x + sx, box.y + sy];
@@ -262,11 +264,17 @@ async function extraChecks(browser, type, label) {
       await page.keyboard.press("Delete");
       await page.waitForFunction(() => window.openstitch.run({ command: "ui.pointMenu" }).result?.pointCount === 3, null, { timeout: 10_000 });
       const keys = await page.evaluate(() => window.__keys.map((e) => [e.key, e.defaultPrevented]));
-      for (const key of ["ArrowRight", "ArrowDown", "Delete"]) {
+      // The arrow keys would scroll a page: the editor must take them from the browser. A
+      // browser does nothing of its own with Delete on a canvas (the editor does not cancel
+      // it, in Chromium and Firefox alike), so for Delete what counts is above and below: the
+      // point is gone, the page has not moved and the keyboard is still with the editor.
+      for (const key of ["ArrowRight", "ArrowDown"]) {
         if (!keys.some(([k, prevented]) => k === key && prevented)) {
           throw new Error(`${key} was left to the browser: ${JSON.stringify(keys)}`);
         }
       }
+      if (!keys.some(([k]) => k === "Delete")) throw new Error(`Delete never reached the page: ${JSON.stringify(keys)}`);
+      if (new URL(page.url()).pathname !== "/") throw new Error(`the page went elsewhere: ${page.url()}`);
       const after = await scroll();
       if (after[0] !== before[0] || after[1] !== before[1]) throw new Error(`the page scrolled: ${before} -> ${after}`);
       if (after[2] !== "openstitch") throw new Error(`the keyboard left the editor: focus is on "${after[2]}"`);

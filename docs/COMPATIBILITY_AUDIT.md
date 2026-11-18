@@ -4938,7 +4938,11 @@ saved files, not in the repository).
   and greying. `object.closeOutline` adds Fill Stitch at 45° in the line's thread when the object
   has no region (`region: false` leaves it out); `object.openOutline` removes the closing side
   and the region.
-- The Point tool's hint line names these in our own words.
+- The Point tool's hint line follows the selection, in our own words: nothing selected, a
+  straight point, a curve point, several points, and an end point of an open line, where it
+  says that holding Alt while dragging it onto the line's other end connects the two ends
+  (PE-DESIGN shows its Alt hint in that case). `ui.pointMenu` reports it as `hint`
+  (`the_hint_line_follows_the_selected_point`).
 - **Look.** Both menus are drawn as menu rows, not buttons: an icon column, the text
   left-aligned, the whole row highlighted under the pointer, grey text for an unavailable
   entry, PE-DESIGN's separators, opening at the pointer to the right of and below it. Split at
@@ -4989,10 +4993,11 @@ Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_mak
 
 **In the browser:** the web editor runs the same editor code, so all of the above is there. The
 page test (`web/e2e/page.mjs`, CI job `web`: Chromium, Firefox and WebKit) checks what a browser
-could take away: a right-click on a point opens the editor's menu with the seven entries and the
+could take away (first run 2026-11-18, Chromium and Firefox): a right-click on a point opens the editor's menu with the seven entries and the
 page's `contextmenu` event is cancelled (the browser's own menu stays shut), likewise beside the
 points for the object's menu; the arrow keys move the selected point 0.5 mm, do nothing with
-Shift, and do not scroll the page; Delete removes the point and the keyboard focus stays on the
-editor; Open runs through the ribbon command. A screenshot of each menu per browser is kept
+Shift, are taken from the browser and do not scroll the page; Delete removes the point, the
+page stays where it is and the keyboard focus stays on the editor (a browser does nothing of
+its own with Delete on a canvas, and the editor does not cancel that key); Open runs through the ribbon command. A screenshot of each menu per browser is kept
 with the job's artifacts. `ui.pointMenu` reports each selected point's place in the window
 (`selected[].screen`), which is how the test finds where to click.

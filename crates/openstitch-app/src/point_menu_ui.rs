@@ -90,6 +90,15 @@ pub fn action_of(a: Action) -> Option<PointAction> {
     })
 }
 
+/// The Point tool's hint line for what is selected of the outline whose points show
+/// (`editor::hints::point_hint`); `None` with another tool or target.
+pub fn hint(app: &EditorApp) -> Option<&'static str> {
+    let ctx = app.tool_context(app.session.design());
+    app.tools
+        .point_selection(&ctx)
+        .map(openstitch_app::editor::hints::point_hint)
+}
+
 /// Which entries are available for the selected points, in menu order; `None` when the Point
 /// tool has no point selected.
 pub fn states(app: &EditorApp) -> Option<[bool; 7]> {
@@ -452,6 +461,7 @@ pub fn state(app: &EditorApp) -> Value {
         .and_then(|o| o.contours.first())
         .map(|c| c.points.len());
     json!({
+        "hint": hint(app),
         "selected": selected,
         "pointCount": point_count,
         "open": app.workspace.view.point_menu.as_ref().is_some_and(|m| !m.object),
@@ -797,6 +807,56 @@ mod tests {
         use openstitch_app::editor::ribbon::EDIT_POINT_MENU;
         assert_eq!(EDIT_POINT_MENU, [ribbon[0], ribbon[1], ribbon[2], ribbon[3], ribbon[4]]);
         assert_eq!((t("menu-point-line-type"), t("menu-point-curve-type")), ("Line Type", "Curve Type"));
+    }
+
+    /// The hint line follows the selection, as PE-DESIGN's status bar does (#1260): with an
+    /// end point of an open line selected it tells of Alt and connecting the two ends.
+    #[test]
+    fn the_hint_line_follows_the_selected_point() {
+        let hint = |app: &mut EditorApp, points: Value| {
+            let s = app
+                .ui_command("ui.pointMenu", Some(&json!({ "points": points })))
+                .expect("points");
+            s["hint"].as_str().expect("hint").to_string()
+        };
+        let (mut app, _) = with_rectangle();
+        assert!(app.ui_command("ui.pointMenu", None).expect("state")["hint"].is_null());
+        app.tools.set_tool(openstitch_app::editor::Tool::Point);
+        let none = app.ui_command("ui.pointMenu", None).expect("state")["hint"]
+            .as_str()
+            .expect("hint")
+            .to_string();
+        assert!(none.contains("Click a point") && none.contains("Open and Close"), "{none}");
+        let straight = hint(&mut app, json!([0]));
+        assert!(straight.contains("To Curve") && !straight.contains("Alt"), "{straight}");
+        let several = hint(&mut app, json!([0, 2]));
+        assert!(several.contains("move them all"), "{several}");
+        app.execute(&CommandRequest::new(
+            "object.setPointKind",
+            json!({ "id": 1, "index": 0, "kind": "curve" }),
+        ))
+        .expect("To Curve");
+        let curve = hint(&mut app, json!([0]));
+        assert!(curve.contains("handle lines") && curve.contains("To Symmetry"), "{curve}");
+        // An open line: its ends tell of Alt, its middle point does not.
+        let mut app = EditorApp::new(Launch::default());
+        let id = app
+            .execute(&CommandRequest::new(
+                "shape.polygon",
+                json!({ "points": [[10, 60], [40, 60], [40, 30]], "closed": false, "outline": "#203040" }),
+            ))
+            .expect("line")["id"]
+            .as_u64()
+            .expect("id");
+        app.selection = BTreeSet::from([id]);
+        for end in [0, 2] {
+            let text = hint(&mut app, json!([end]));
+            assert!(
+                text.contains("Hold Alt") && text.contains("other end") && text.contains("closed shape"),
+                "{text}"
+            );
+        }
+        assert!(!hint(&mut app, json!([1])).contains("Alt"));
     }
 
     /// The menus as PE-DESIGN draws them: an icon in front of Split at Point and of Delete,
