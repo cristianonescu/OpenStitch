@@ -1032,6 +1032,8 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             // band across the menu, with its entries indented under it; the entries are
             // greyed as the point menu's are.
             use openstitch_app::editor::ribbon::EDIT_POINT_MENU;
+            // As wide as its entries need, not as wide as the window allows.
+            ui.set_max_width(180.0);
             let heading = |ui: &mut egui::Ui, text: &str| {
                 let (rect, _) = ui.allocate_exact_size(
                     egui::vec2(ui.available_width(), 20.0),

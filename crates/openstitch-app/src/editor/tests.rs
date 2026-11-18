@@ -860,7 +860,7 @@ fn point_tool_drags_handle_and_selects_shapes() {
     assert_eq!(sel, BTreeSet::from([id]));
     // A handle shows, and can be dragged, once its point is selected (PE-DESIGN's, #1260):
     // before that a press there is a press on empty space.
-    let sel = drag(&mut t, &mut s, sel, v2(250.0, 50.0), v2(260.0, 20.0), false);
+    drag(&mut t, &mut s, sel, v2(250.0, 50.0), v2(260.0, 20.0), false);
     assert_eq!(
         *s.design(),
         before,
