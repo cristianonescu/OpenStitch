@@ -1095,6 +1095,22 @@ pub const TASKS: &[Task] = &[
             need(widest(d) >= 55.0, "both lines kept, about 60 mm")
         },
     },
+    // #1260: the Point tool's Close through the Assistant.
+    Task {
+        id: "close-line",
+        setup: &[(
+            "shape.polygon",
+            r##"{"points": [[20, 60], [50, 20], [80, 60]], "closed": false, "outline": "#203040"}"##,
+        )],
+        prompt: "This open line should be a closed, filled triangle: close it the way the point tool's Close does, and keep it one object.",
+        check: |d| {
+            need(d.objects.len() == 1, "one object")?;
+            need(
+                d.has("region", "fill"),
+                "a fill region (object.closeOutline)",
+            )
+        },
+    },
     Task {
         id: "break-apart",
         setup: &[(
@@ -1877,7 +1893,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 35);
+        assert_eq!(TASKS.len(), 36);
     }
 
     #[test]
@@ -2143,6 +2159,7 @@ mod tests {
         for (id, command, params) in [
             ("join-lines", "shape.joinLines", json!({"ids": [1, 2]})),
             ("break-apart", "object.breakApart", json!({"ids": [1]})),
+            ("close-line", "object.closeOutline", json!({"id": 1})),
         ] {
             let task = TASKS.iter().find(|t| t.id == id).expect("task");
             let mut s = Session::new(std::env::temp_dir());
