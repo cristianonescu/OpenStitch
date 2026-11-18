@@ -322,6 +322,57 @@ mod tests {
         );
     }
 
+    /// #1239: a new zigzag net has under sewing on, PE-DESIGN 11.50's default for the type. A
+    /// project always stores the value, so one saved with it off loads with it off and sews as
+    /// it did (the bands only, no line under them), and a region without the field is refused,
+    /// as before: no file can pick up the new default by having left the old one out.
+    #[test]
+    fn a_stored_zigzag_net_keeps_its_under_sewing_and_a_new_one_has_it_on() {
+        let new = RegionSewing::new(RegionType::ZigzagNetFill, Thread::rgb(0xff0000));
+        assert!(new.underlay, "a new zigzag net");
+        assert!(
+            !RegionSewing::new(RegionType::NetFill, Thread::rgb(0xff0000)).underlay,
+            "a plain net has none"
+        );
+        let design = |underlay: bool| {
+            let mut d = Design::new("net", DesignPage::default());
+            let mut r = new.clone();
+            r.underlay = underlay;
+            d.add(DesignObject::shape(
+                vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)],
+                Some(r),
+                None,
+            ));
+            d
+        };
+        let stitches = |d: &Design| crate::Compiler::default().compile(d).stitches;
+        let mut v: serde_json::Value =
+            serde_json::from_slice(&encode(&design(false)).expect("encode")).expect("json");
+        assert_eq!(
+            v["design"]["objects"][0]["region"]["underlay"],
+            serde_json::json!(false),
+            "the value is written"
+        );
+        let stored = decode(&serde_json::to_vec(&v).expect("bytes")).expect("decode");
+        assert!(!stored.objects[0].region.as_ref().expect("region").underlay);
+        let (off, on) = (stitches(&design(false)), stitches(&design(true)));
+        assert_eq!(stitches(&stored), off, "sews as it did");
+        assert!(
+            on.len() > off.len() + 50,
+            "{} with, {} without",
+            on.len(),
+            off.len()
+        );
+        v["design"]["objects"][0]["region"]
+            .as_object_mut()
+            .expect("object")
+            .remove("underlay");
+        assert!(
+            decode(&serde_json::to_vec(&v).expect("bytes")).is_err(),
+            "a region without the field"
+        );
+    }
+
     /// #1043: a zigzag net from a version-3 file sewed on the page axes whatever its angle, so
     /// it loads at Direction 0 and sews as before; a version-4 file keeps its angle.
     #[test]
@@ -490,6 +541,8 @@ mod tests {
             let mut d = Design::new("net", DesignPage::default());
             let mut r = RegionSewing::new(RegionType::ZigzagNetFill, Thread::rgb(0xff0000));
             (r.spacing, r.pattern_width, r.angle) = (Some(pitch), width, angle);
+            // The under sewing these files stored: off, a new net's default until #1239.
+            r.underlay = false;
             d.add(DesignObject::shape(
                 vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)],
                 Some(r),

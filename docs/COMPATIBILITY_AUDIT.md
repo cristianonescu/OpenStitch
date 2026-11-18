@@ -911,6 +911,36 @@ Line references are relative to `crates/`.
       `pattern_sizes_outside_the_commands_range_are_kept_to_it`,
       `text_numbers_outside_the_commands_range_are_kept_or_refused`,
       `an_unchanged_pe_design_file_is_written_back_byte_for_byte`).
+    - #1237: a stem line's Width, Spacing, Angle and Stitch Type are the line body's +100,
+      +102, +104 and +106, a chain line's Stitch Type, Size, Time and Arrange +118, +120, +122
+      and +124 (ten captures of 2026-11-17, one value changed each; a zigzag width set and the
+      line switched back moved only +48). `import.pes` read a stem's and a chain's width from
+      the zigzag width at +48 (2.0 mm for a chain PE-DESIGN sews at 4.0) and none of the other
+      values; the PES 0110 export wrote the width to +48 and left the fields at PE-DESIGN's
+      defaults. Both use the fields now, the sewn box is half the Width or Size beyond the
+      outline, and a chain with every other link flipped is refused by the export. Inferred,
+      not measured on stitches: the second Stitch Type button as the diamond link and the
+      second Arrange button as the mirrored side
+      (`a_stem_and_a_chain_lines_values_come_back_from_pe_design`,
+      `a_chain_with_alternating_links_is_refused_in_pes_11`, formats
+      `a_stem_and_a_chain_lines_own_fields_read_and_write_back`).
+    - #1236: a candlewick knot has more points the larger it is, and the run between knots
+      goes at the run pitch to the next knot's edge and then one stitch of the knot's radius
+      to its centre. PE-DESIGN 11.50 on one 40 mm square, Size 3.0
+      to 10.0 in three densities (13 captures of 2026-11-17 and round 15's and 16's): a knot
+      has four times the quarter circle's arc over a pitch of 1.0, 0.75 or 0.5 mm (Light,
+      Medium, Dense) plus 0.1, rounded up (Medium 16, 20, 24, 28, 32, 36 and 44 points at
+      Size 3, 4, 5, 6, 7, 8 and 10); the 0.1 is fitted, anything above 0.073 up to 0.146
+      gives the same counts. OpenStitch took the count from the density alone (24 at every
+      Size) and sewed the whole run to the centre at the line's run pitch, so at Size 6.0 it sewed 658 needle
+      points where PE-DESIGN sews 756. Knots per side were already PE-DESIGN's. **Changed
+      output, by extension and not by measurement:** PE-DESIGN's dialog takes Size 3.0 to
+      10.0 and three densities, so below Size 3.0 and for any other density the knot follows
+      the same rule without a reference, and existing designs with such candlewicks sew
+      fewer points (Size 2.0 Medium: 12 points, it was 24, the kit's line-sew-types row;
+      density 8 at Size 5.0: 12, it was 16). Left against PE-DESIGN: one or two needle points
+      at the line's start and end on 11 of the 20 measured settings, none on the other 9 (`candlewick_knots_have_pe_designs_points_at_every_size`,
+      specs `line-candlewick-*-size*-square40`).
     - #1160: a candlewick line's Size and Spacing are the line body's +112 and +114; +48 and
       +50 are the zigzag tool's width and density, which PE-DESIGN keeps in every line body
       (round 16: one 40 mm square saved with Size 6.0, with Spacing 2.0, and after a zigzag
@@ -4692,3 +4722,17 @@ All 16 are within 5 % (−3.5 % to +3.2 %).
   path not reproduced (−3.5 %).
 - Under sewing is off by default on an OpenStitch zigzag net and on in PE-DESIGN 11.50: a
   30 × 20 mm net sews 906 stitches by default and 991 with under sewing, against PE-DESIGN's 981.
+
+### A new zigzag net has under sewing on, 2026-11-18 (#1239)
+
+**Measured:** PE-DESIGN 11.50's Zigzag Net Fill at its defaults has under sewing on (round 13,
+zigzag-net-dir0: 981 stitches on a 30 × 20 mm rectangle). OpenStitch's new zigzag net had it off:
+906 stitches on the same rectangle, the bands only.
+
+**Now:** `RegionSewing::new` turns under sewing on for a zigzag net, so the inspector's type
+switch and `object.setRegion` without `underlay` give 991 stitches, the line under every band
+sewn before the bands.
+
+**Existing projects:** a project always stores the value, so a net saved with under sewing off
+loads with it off and sews as it did. A region without the field does not load, as before. No
+`.osd` version step.

@@ -1690,7 +1690,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "mm",
                     "Fill (beyond PE-DESIGN): the top stitching's sides parallel to its rows move in by this much, 0-2 (0 = off); the row ends keep pullCompensation",
                 ),
-                opt("underlay", "bool", "Underlay (style in underlayStyle)"),
+                opt(
+                    "underlay",
+                    "bool",
+                    "Underlay (style in underlayStyle); a new region or a switch of type starts with PE-DESIGN's default for the type: on for fill, programmableFill, satin and zigzagNetFill, off for the others; on a zigzagNetFill it is a running line under every band, sewn before the bands, with no edge run, and underlayStyle is not used",
+                ),
                 opt(
                     "underlayStyle",
                     "edge|zigzag|edgeZigzag|double|edgeFill|cross|auto|centreWalk",
@@ -2524,17 +2528,17 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "runTimes",
                     "int 1-6",
-                    "Running and E/V passes (1-5); chain passes (1-6)",
+                    "Running and E/V passes (1-5); chain passes (1-6, PE-DESIGN's Time; PES version 11 stores a chain's Time at body +122, #1237)",
                 ),
                 opt(
                     "width",
                     "mm",
-                    "Zigzag, motif, stem width; candlewick, chain size; E/V stroke, 0.5-10 (candlewick: PE-DESIGN's Size range is 3-10; below 3 is OpenStitch's own; PES version 11 stores a candlewick's Size at body +112, and the zigzag tool's default width 2.0, not the Size, at +48, #1160)",
+                    "Zigzag, motif, stem width; candlewick, chain size; E/V stroke, 0.5-10 (candlewick: PE-DESIGN's Size range is 3-10; below 3 is OpenStitch's own; PES version 11 stores a candlewick's Size at body +112, and the zigzag tool's default width 2.0, not the Size, at +48, #1160; a stem's Width at body +100 and a chain's Size at body +120, #1237; a candlewick knot has more points the larger its Size, PE-DESIGN's own count from 3.0 to 10.0, #1236; below 3.0 the same rule is extended, not measured: a Medium knot of Size 2.0 has 12 points, 24 before #1236)",
                 ),
                 opt(
                     "density",
                     "stitches/mm",
-                    "Zigzag density (lines/mm: along an open line; on a closed outline along its outer edge, as PE-DESIGN, so a 40 mm square at 2 mm sews 4.5 x 42 / 40 along its sides); candlewick: the knot's points ÷ 2, PE-DESIGN's Density choices Light 10, Medium 12 (the default) and Dense 16 (knots of 20, 24 and 32 points, round 15); PES version 11 stores only Dense, Medium or Light, so another candlewick density is written as the nearest of 16, 12 and 10, a tie to the denser (#1142). 0.1-14 (candlewick 0.1-16)",
+                    "Zigzag density (lines/mm: along an open line; on a closed outline along its outer edge, as PE-DESIGN, so a 40 mm square at 2 mm sews 4.5 x 42 / 40 along its sides); candlewick: the knot's points ÷ 2, PE-DESIGN's Density choices Light 10, Medium 12 (the default) and Dense 16 (knots of 20, 24 and 32 points, round 15); PES version 11 stores only Dense, Medium or Light, so another candlewick density is written as the nearest of 16, 12 and 10, a tie to the denser (#1142). A knot's points also grow with its Size, measured on PE-DESIGN for these three densities; another density follows the same rule by extension, not measured, so it is not always twice the density: density 8 at Size 5.0 has 12 points, 16 before #1236. 0.1-14 (candlewick 0.1-16)",
                 ),
                 opt(
                     "motif",
@@ -2549,14 +2553,18 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "spacing",
                     "mm",
-                    "Gap between motifs (0-20), stem stitches, knots (candlewick 0-100, PE-DESIGN's Spacing range; PES version 11 stores a candlewick's Spacing at body +114, #1160), E/V strokes (0.5-20)",
+                    "Gap between motifs (0-20), stem stitches, knots (candlewick 0-100, PE-DESIGN's Spacing range; PES version 11 stores a candlewick's Spacing at body +114, #1160, and a stem's Spacing at body +102, #1237), E/V strokes (0.5-20)",
                 ),
                 opt(
                     "angle",
                     "degrees",
-                    "Stem stitch angle to the line, counter-clockwise, 45-135",
+                    "Stem stitch angle to the line, counter-clockwise, 45-135 (PES version 11 stores it in whole degrees at body +104, #1237)",
                 ),
-                opt("single", "bool", "Stem: single instead of triple stitches"),
+                opt(
+                    "single",
+                    "bool",
+                    "Stem: single instead of triple stitches (PE-DESIGN's second Stitch Type button; PES version 11 stores it at body +106, #1237)",
+                ),
                 opt(
                     "strokeTimes",
                     "int 1-3",
@@ -2565,9 +2573,13 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "arrange",
                     "normal|mirror|alternate",
-                    "Side of motifs, E/V strokes, chain links",
+                    "Side of motifs, E/V strokes, chain links (PES version 11 stores a chain's normal or mirror at body +124, PE-DESIGN's two Arrange buttons; a chain with alternate is refused there: set normal or mirror, or export PES version 6, #1237)",
                 ),
-                opt("chainShape", "triangle|diamond", "Chain link shape"),
+                opt(
+                    "chainShape",
+                    "triangle|diamond",
+                    "Chain link shape (PES version 11 stores it at body +118, PE-DESIGN's two Stitch Type buttons, #1237)",
+                ),
                 opt("leaveUncut", "bool", "Cutting: leave short uncut bridges"),
                 opt("halfStitch", "bool", "Zigzag: thin the inner side of bends"),
                 opt(

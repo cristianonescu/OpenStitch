@@ -355,3 +355,37 @@ Each shape's pattern block (PE-DESIGN's default decorative pattern, #1060) was r
 | `1160-cw-size-6p0.pes` | 7682 | `4394e14b60b9f6dbc92a29867a4b0c48f57940501075daed938f6e19b4bc9346` | `b445924963c81b8a9500325544c267d92976db88fb5ce2b5dd03817a6c06bb4e` | `1344828fa009c5de` |
 | `1160-cw-spacing-2p0.pes` | 7488 | `87e1f34eeb271913336cfec3a4e5251d036ca8428e6b410071814ed09635ce89` | `bc9f7dae8b3d1dd8d81d4f351e244420f64239dacbf72cb001f8481c51e95d29` | `3b45fdb6196bcaca` |
 | `1160-cw-zigzag-w4p0-d1p0.pes` | 7702 | `aac4dd54a77fd7d52563546a69f86fe6510721b33c37e6075eb20704a49b1d34` | `c7e105b61e8b89df9e05da1de8f29cebc6e5b9db038e486f37ae9c57b20b95f2` | `1be0903684e2829b` |
+
+### Stem and chain line fields (#1237)
+
+Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows on 2026-11-17 (evening, one session), for issue #1237: which line body fields hold a stem line's and a chain line's values. Sources: the repository's own `compat/reference/stitches/line-stem-default.pes` and `line-chain-default.pes` (a 40 x 20 mm rectangle each), each opened and saved again unchanged as the session's control (same line body as the reference; not kept here), then one value changed per file with the field's arrow keys. Save As 'Layout & Editing Ver.11.0 File'. Stem pane: Width 2,0, Spacing 1,5, Angle 45, Stitch Type the first of two buttons; chain pane: Stitch Type the first of two buttons, Size 4,0, Time 5 (1 to 6), Arrange the first of two buttons.
+
+| file | changed from the session's control | PE-DESIGN's status bar |
+|---|---|---|
+| `1237-stem-width-3p0.pes` | Stem: Width 3,0 | 43,00 x 23,00 mm |
+| `1237-stem-spacing-2p5.pes` | Stem: Spacing 2,5 | 42,00 x 22,00 mm |
+| `1237-stem-angle-60.pes` | Stem: Angle 60 | 41,60 x 21,60 mm, 167 stitches |
+| `1237-stem-type-2.pes` | Stem: Stitch Type, the second button | 42,00 x 22,00 mm, 89 stitches |
+| `1237-stem-zigzag-w4p0.pes` | Stem: line switched to Zigzag Stitch, Zigzag width 4,0 set, switched back to Stem Stitch, whose pane still showed Width 2,0, Spacing 1,5, Angle 45 | 42,20 x 22,20 mm, 169 stitches |
+| `1237-chain-size-5p0.pes` | Chain: Size 5,0 | 45,00 x 25,00 mm |
+| `1237-chain-time-6.pes` | Chain: Time 6 | 44,00 x 24,00 mm |
+| `1237-chain-type-2.pes` | Chain: Stitch Type, the second button | 44,00 x 24,00 mm |
+| `1237-chain-arrange-2.pes` | Chain: Arrange, the second button | 44,00 x 24,00 mm |
+| `1237-chain-zigzag-w3p0.pes` | Chain: line switched to Zigzag Stitch, Zigzag width 3,0 set, switched back to Chain Stitch, whose pane still showed Size 4,0, Time 5 | 44,00 x 24,00 mm |
+
+Against the control, before the PEC block: stem Width moves the line body's +100 (20 to 30) and the sewn box by 5, Spacing +102 (15 to 25), Angle +104 (45 to 60), the second Stitch Type button +106 (1 to 0); chain Size moves +120 (40 to 50) and the sewn box by 5, Time +122 (5 to 6), the second Stitch Type button +118 (0 to 1), the second Arrange button +124 (0 to 1); each zigzag round trip moves +48 only (20 to 40, 20 to 30).
+
+Each shape's pattern block was rewritten with `tools/redact_pattern_blocks.py --write` as above; every other byte is as PE-DESIGN saved it. `tools/private_scan.py` finds no embedded path in them.
+
+| file | bytes | SHA-256 as saved by PE-DESIGN | SHA-256 here | SHA-256 of every byte outside the block, first 16 hex digits (before = after) |
+|---|---|---|---|---|
+| `1237-stem-width-3p0.pes` | 21723 | `eddf0286591ddd6269d0c7e8ccedc456c275b4c53f55b1291a137b9474198b61` | `22c95ef14b75790d4406174b9049589d8226e2f4efb7fd2dc99f01c6994e8f59` | `a23667fbefea7020` |
+| `1237-stem-spacing-2p5.pes` | 21595 | `2a9b7976e8c8995214533360cb4a2b83a733bbe1ea561f313c293701025e5f48` | `a119f6d065d64e10a3dd27b39f933d1a0e4e40841d235de4d00210c9bab953fc` | `f730f11e23131ce5` |
+| `1237-stem-angle-60.pes` | 21717 | `e2b42702f8f0ed3f0a9c23d16da9378a1f74d7eb58b417d0ae8e73c9927979ae` | `51511f5994d287050cc86d947c1396263290a6a0f0983e935876980f2b4e0453` | `a34af5ac4ae7b129` |
+| `1237-stem-type-2.pes` | 21563 | `219dedd84c64c4cafb854ddfb342bde6e7cd8f199e07b0342557265198e0cc65` | `ec0d49820c8829f4994da8a94241e5dc9297f03daf7de7883ecd144e8b2748d8` | `e83bd5d56a552307` |
+| `1237-stem-zigzag-w4p0.pes` | 21723 | `45ac13f92f29a8795037dfdfd62ca16297e47909f302f1cbbb30dbd981f6f643` | `1d6257c5372b1afbba0d8d92987c7b54c4e3d4aa25fec07e6f2400b5a94217f5` | `6d1857461520b993` |
+| `1237-chain-size-5p0.pes` | 21941 | `defc876eb6cd96da833c7b5d489b705fd5a267c8e8bab2cc8257bbde374029f1` | `3cd93c04d46462bb9bb1105c18a58edd521839b0d4729b6de554c90ba23d6823` | `1fada814da9d81b8` |
+| `1237-chain-time-6.pes` | 22195 | `4f14868ae63e8d65376283365f4019ebd1bf535a5de4548f0121c62e69cdaf7f` | `e8303ecc03da8a0a0d9470871d98cc4271db6fda4d31b2e3d386fa8ff647ee11` | `e299eeeaef2c5796` |
+| `1237-chain-type-2.pes` | 22265 | `8442095e4df43458446aec8147d9116fa34b1f65e8603091f66d5d710803b2aa` | `b26a016a29c604711ebecf6dde58c13f2d35be67fae96c09ca752582c6c895bc` | `f0f237a9fbb173b7` |
+| `1237-chain-arrange-2.pes` | 22081 | `44f47641c4e1dbb60cf566e8a257e515045381e893042c28e80ac9bcaa99f99f` | `e8a4cfcb9b01f165cea40a33d2199a1c0b4b6b59b1d2aed133b9c5dffa78d5e3` | `9a0af7f89ebe53ae` |
+| `1237-chain-zigzag-w3p0.pes` | 22081 | `ad96b9d02b87388f4baa96983ebe90f12461fe88655b9591c2953fc1e29bd063` | `6a280a76051a17f190761868720572068e78dd69d544247872cf21c1cfe131ed` | `f819edcbbd9bc65a` |

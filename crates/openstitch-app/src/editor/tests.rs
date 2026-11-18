@@ -1744,6 +1744,43 @@ fn every_inspector_number_field_holds_its_settings_values() {
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
+/// #1239: the inspector's switch to Zigzag Net Fill gives a net with under sewing on, PE-DESIGN
+/// 11.50's default for the type, also from a fill whose under sewing was off; its Under sewing
+/// toggle shows on and turns it off.
+#[test]
+fn the_inspectors_switch_to_zigzag_net_has_under_sewing_on() {
+    use super::inspector::{Control, region_controls};
+    let mut s = Session::new(std::env::temp_dir());
+    s.execute(
+        "shape.rectangle",
+        Some(&json!({"x": 10, "y": 10, "width": 30, "height": 20, "fill": "Red"})),
+    )
+    .expect("rectangle");
+    let sel = BTreeSet::from([1]);
+    let toggle = |s: &Session| {
+        region_controls(s.design().objects[0].region.as_ref().expect("region"))
+            .into_iter()
+            .find(|c| c.param() == "underlay")
+            .expect("underlay")
+    };
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region(json!({ "underlay": false })));
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region_type(Some(RegionType::ZigzagNetFill)));
+    let c = toggle(&s);
+    assert!(matches!(c, Control::Toggle { value: true, .. }), "{c:?}");
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region(c.params(json!(false))));
+    assert!(matches!(toggle(&s), Control::Toggle { value: false, .. }));
+    assert!(
+        !s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("region")
+            .underlay
+    );
+}
+
 /// #1163: a zigzag net's Density field shows PE-DESIGN's lines per mm, 4.5 at the default, where
 /// the net stores 2.25 rungs per mm; a value typed in the field is stored as half of it, and the
 /// field of another type still shows the stored rows per mm.

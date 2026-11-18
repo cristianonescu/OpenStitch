@@ -426,8 +426,12 @@ fn object(s: &Shape, table: &[Thread], notes: &mut Vec<String>) -> Result<Design
             (other, _) => return Err(format!("line type {other} is not mapped yet")),
         };
         let mut l = LineSewing::new(kind, thread(table, s.line_color));
-        // +48 and +50 are the zigzag tool's; a candlewick takes neither (below).
-        if kind != LineType::Candlewick {
+        // +48 and +50 are the zigzag tool's; a candlewick, a stem and a chain take neither
+        // (below).
+        if !matches!(
+            kind,
+            LineType::Candlewick | LineType::Stem | LineType::Chain
+        ) {
             let width = f64::from(if matches!(kind, LineType::EStitch | LineType::VStitch) {
                 s.ev_width
             } else {
@@ -467,6 +471,55 @@ fn object(s: &Shape, table: &[Thread], notes: &mut Vec<String>) -> Result<Design
             );
             if (spacing - 1.0).abs() > 1e-6 {
                 l.spacing = Some(spacing);
+            }
+        }
+        // A stem's Width, Spacing, Angle and Stitch Type are +100 to +106, not the zigzag width
+        // at +48 (#1237): the pane's first Stitch Type button (1) is the triple stitch, the
+        // second (0) the single one. Spacing and Angle stay unset at PE-DESIGN's 1.5 and 45.
+        // `object.setLine` takes a width of 0.5-10, a spacing of 0.5-20 and an angle of 45-135.
+        if kind == LineType::Stem {
+            l.width = in_range(
+                notes,
+                "stem width",
+                f64::from(s.stem_width),
+                LINE_WIDTH.0,
+                LINE_WIDTH.1,
+            );
+            let spacing = in_range(
+                notes,
+                "stem spacing",
+                f64::from(s.stem_spacing),
+                SPACING.0,
+                SPACING.1,
+            );
+            if (spacing - 1.5).abs() > 1e-6 {
+                l.spacing = Some(spacing);
+            }
+            let angle = in_range(notes, "stem angle", f64::from(s.stem_angle), 45.0, 135.0);
+            if (angle - 45.0).abs() > 1e-6 {
+                l.angle = Some(angle);
+            }
+            l.single = s.stem_type == 0;
+        }
+        // A chain's Stitch Type, Size, Time and Arrange are +118 to +124 (#1237): the first
+        // Stitch Type button (0) is the triangle link, the second the diamond; the second
+        // Arrange button (1) puts the links on the other side of the line. Both second buttons
+        // are inferred from OpenStitch's own two choices, not measured on PE-DESIGN's stitches.
+        // `object.setLine` takes a size of 0.5-10 and 1-6 passes.
+        if kind == LineType::Chain {
+            l.width = in_range(
+                notes,
+                "chain size",
+                f64::from(s.chain_size),
+                LINE_WIDTH.0,
+                LINE_WIDTH.1,
+            );
+            l.run_times = in_range(notes, "chain time", f64::from(s.chain_times), 1.0, 6.0) as u32;
+            if s.chain_type == 1 {
+                l.chain_shape = openstitch_design::model::ChainShape::Diamond;
+            }
+            if s.chain_arrange == 1 {
+                l.arrange = openstitch_design::model::Arrange::Mirror;
             }
         }
         // An E or V line's spacing (+88, #982): kept unset at PE-DESIGN's default 5.0.

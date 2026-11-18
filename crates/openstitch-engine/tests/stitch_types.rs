@@ -2983,7 +2983,7 @@ fn a_motif_line_cuts_the_corners_of_a_square() {
 }
 
 /// The needle points (0.1 mm) of a zigzag net with under sewing (PE-DESIGN's default for the
-/// type; OpenStitch's is off) at Direction 0 on a 40 × 20 mm rectangle from (30, 40) mm: its
+/// type, set here whatever the default) at Direction 0 on a 40 × 20 mm rectangle from (30, 40) mm: its
 /// lines lie at x = 31.5 + 8k and y = 41.5 + 8k mm.
 fn zigzag_net_40_by_20() -> Vec<(f64, f64)> {
     let mut s = Session::new(std::env::temp_dir());
@@ -3004,6 +3004,114 @@ fn zigzag_net_40_by_20() -> Vec<(f64, f64)> {
         .filter(|q| q.command == Command::Stitch)
         .map(|q| (q.x, q.y))
         .collect()
+}
+
+/// #1239: a new zigzag net has under sewing on, as PE-DESIGN 11.50's Zigzag Net Fill has at its
+/// defaults (round 13, zigzag-net-dir0: 981 stitches on a 30 × 20 mm rectangle): a switch to the
+/// type by `object.setRegion` without `underlay` sews the line under every band, the same
+/// stitches as with `underlay: true`; `underlay: false` in the same call or later turns it off;
+/// a switch on to a plain net starts without, that type's default. The `underlay` description
+/// names the types whose default is on.
+#[test]
+fn a_new_zigzag_net_has_under_sewing_on() {
+    let net = |extra: Value| -> (bool, Vec<(f64, f64)>) {
+        let mut s = Session::new(std::env::temp_dir());
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+        );
+        let mut p = json!({"id": 1, "type": "zigzagNetFill"});
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        run(&mut s, "object.setRegion", p);
+        let on = s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("region")
+            .underlay;
+        let pts = Compiler::for_design(s.design())
+            .compile(s.design())
+            .stitches
+            .iter()
+            .filter(|q| q.command == Command::Stitch)
+            .map(|q| (q.x, q.y))
+            .collect();
+        (on, pts)
+    };
+    let (default_on, default) = net(json!({}));
+    let (_, with) = net(json!({"underlay": true}));
+    let (off, without) = net(json!({"underlay": false}));
+    assert!(default_on && !off);
+    assert_eq!(default, with, "the default is under sewing on");
+    assert!(
+        (default.len() as f64 - 981.0).abs() <= 981.0 * 0.05,
+        "{} stitches against PE-DESIGN's 981",
+        default.len()
+    );
+    assert!(
+        without.len() + 50 < default.len(),
+        "{} without, {} with",
+        without.len(),
+        default.len()
+    );
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+    );
+    let underlay = |s: &Session| {
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("region")
+            .underlay
+    };
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "underlay": false}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "zigzagNetFill"}),
+    );
+    assert!(underlay(&s), "a switch from a fill without under sewing");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "underlay": false}),
+    );
+    assert!(!underlay(&s), "turned off afterwards");
+    run(&mut s, "object.setRegion", json!({"id": 1, "angle": 30}));
+    assert!(!underlay(&s), "another setting leaves it off");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "netFill"}),
+    );
+    assert!(!underlay(&s), "a plain net");
+    let summary = s
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion")
+        .params
+        .iter()
+        .find(|p| p.name == "underlay")
+        .expect("underlay")
+        .summary
+        .to_string();
+    for words in [
+        "a new region or a switch of type starts with PE-DESIGN's default for the type",
+        "on for fill, programmableFill, satin and zigzagNetFill, off for the others",
+        "on a zigzagNetFill it is a running line under every band, sewn before the bands, with no edge run",
+    ] {
+        assert!(summary.contains(words), "{words:?} in {summary}");
+    }
 }
 
 /// #1043: with under sewing a zigzag net sews in PE-DESIGN 11.50's order (round 13,

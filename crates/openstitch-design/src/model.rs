@@ -2243,9 +2243,14 @@ impl RegionSewing {
             },
             stitch_length: 4.0,
             pull_compensation: 0.0,
+            // A zigzag net too: PE-DESIGN 11.50's Zigzag Net Fill has under sewing on at its
+            // defaults (round 13, zigzag-net-dir0, #1239), the line under every band.
             underlay: matches!(
                 kind,
-                RegionType::Fill | RegionType::ProgrammableFill | RegionType::Satin
+                RegionType::Fill
+                    | RegionType::ProgrammableFill
+                    | RegionType::Satin
+                    | RegionType::ZigzagNetFill
             ),
             underlay_style: match kind {
                 RegionType::Fill | RegionType::ProgrammableFill => UnderlayStyle::EdgeFill,

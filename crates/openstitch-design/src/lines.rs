@@ -561,11 +561,13 @@ fn stem_pieces(
 
 /// Candlewicking, as PE-DESIGN 11.50 sews it (line-candlewick-default.pes): a knot at both
 /// ends of every straight leg and evenly between, `round(leg / (size + spacing))` apart per
-/// leg. A knot is a star of `points` chords on a circle of `size` around the line: from the
+/// leg. A knot is a star of chords on a circle of `size` around the line, `points` of them at
+/// Size 5.0 and more on a larger knot ([`candlewick_points`]): from the
 /// point straight ahead it jumps `points / 2 - 1` points at a time until it is back there (a
 /// corner knot faces along the leg it leads into). The first knot starts with a stitch to its
 /// centre and back. Between knots, running stitch along the line from one knot's front point
-/// to the next one's, every node kept, the short stitch first, then `pitch`. A curved leg
+/// to the next one's, every node kept: the short stitch first, then `pitch`, as far as the
+/// next knot's edge, and one stitch of the knot's radius from there to its centre. A curved leg
 /// (between two of the `nodes`, see [`nodes_of`]) is measured by arc length, so its knots are
 /// evenly spaced along the curve (#464).
 pub fn candlewick(
@@ -585,6 +587,26 @@ pub fn candlewick(
         extend(&mut run, p.pts.iter().copied());
     }
     run
+}
+
+/// The points of one knot of the given `size` (0.1 mm), from the count PE-DESIGN's Density
+/// choice has at Size 5.0 (`points`: Light 20, Medium 24, Dense 32). PE-DESIGN 11.50 gives a
+/// larger knot more points (#1236): four times the quarter circle's arc over a pitch of 1.0,
+/// 0.75 or 0.5 mm (Light, Medium, Dense), plus 0.1, rounded up. That is every knot of the 16
+/// captures (Size 3.0 to 10.0; Medium 16, 20, 24, 28, 32, 36 and 44 points at 3, 4, 5, 6, 7 and
+/// 7.1, 7.8 and 8, and 10 mm; Light 12, 20, 24, 32 and Dense 20, 32, 48, 64 at 3, 5, 7, 10).
+/// The 0.1 is fitted: any value above 0.073 up to 0.146 gives the same 16 counts. One over the
+/// pitch is `(points - 8) / 12` per mm, which is PE-DESIGN's three pitches and a straight line
+/// between and beyond them for OpenStitch's other densities. Measured only for those three
+/// densities from Size 3.0, the smallest PE-DESIGN's dialog takes, to 10.0: below 3.0 and for
+/// any other density the same rule is an extension, and such knots have fewer points than
+/// before #1236, when the count was `points` at every Size (Medium at Size 2.0: 12, it was 24;
+/// density 8, `points` 16, at Size 5.0: 12). Always a multiple of four, so
+/// the star's step of `points / 2 - 1` visits every point.
+pub(crate) fn candlewick_points(points: usize, size: f64) -> usize {
+    let per_mm = (points as f64 - 8.0).max(0.0) / 12.0;
+    let quarter = std::f64::consts::PI * (size / 10.0) / 4.0;
+    4 * (quarter * per_mm + 0.1).ceil().max(1.0) as usize
 }
 
 /// The knots of [`candlewick`] in sewing order. A knot's lead is the running stitch to its
@@ -607,7 +629,7 @@ fn candlewick_pieces(
         return None;
     }
     let r = size / 2.0;
-    let points = points.max(4);
+    let points = candlewick_points(points, size);
     let step = (points / 2).saturating_sub(1).max(1);
     // Knot stations (arc length, facing direction).
     let mut stations: Vec<(f64, Vec2)> = Vec::new();
@@ -634,7 +656,11 @@ fn candlewick_pieces(
     let front = |&(s, t): &(f64, Vec2)| w.at(s) + t * r;
     // Running stitch along the line from `prev`'s front point to arc `b`, then to `to`. After
     // the closing knot (facing away from the next leg) it runs on from the corner, and a short
-    // first stitch is shared with the next (1.6 + 1.6 mm, not 0.7 + 2.5).
+    // first stitch is shared with the next (1.6 + 1.6 mm, not 0.7 + 2.5). The run goes at the
+    // line's run pitch only as far as the next knot's edge, and from there one stitch of the
+    // knot's radius to its centre (#1236: 1.0 + 1.5 mm between knots of 3 mm, 0.7 + 2.5 of
+    // 5 mm, 2.0 + 4.0 of 8 mm, one of 5.0 where knots of 10 mm touch, 1.7 + 2.5 at Spacing
+    // 2.0; with one run to the centre at the run pitch, a 4 mm radius was cut in two).
     let lead = |prev: &(f64, Vec2), b: f64, to: Vec2| {
         let closing = prev.0 >= len - 1e-9;
         let a = if closing { 0.0 } else { (prev.0 + r).min(len) };
@@ -644,13 +670,17 @@ fn candlewick_pieces(
             let total: f64 = slice.windows(2).map(|q| q[0].distance(q[1])).sum();
             let sw = Walker::new(&slice);
             let mut cuts: Vec<f64> = Vec::new();
-            let mut d = total % pitch;
-            if d < 1e-6 {
-                d = pitch;
-            }
-            while d < total - 1e-6 {
-                cuts.push(d);
-                d += pitch;
+            let edge = total - r;
+            if edge > 1e-6 {
+                let mut d = edge % pitch;
+                if d < 1e-6 {
+                    d = pitch;
+                }
+                while d < edge - 1e-6 {
+                    cuts.push(d);
+                    d += pitch;
+                }
+                cuts.push(edge);
             }
             // The nodes' needle points are kept (a curve's flattening vertices are not, or
             // they would leave short stitches between the pitch's).
