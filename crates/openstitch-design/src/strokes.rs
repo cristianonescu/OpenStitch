@@ -1060,7 +1060,13 @@ fn cut_sharp(
                 }
             })
             .collect();
-        if lean.windows(2).all(|w| w[0] * w[1] < 0.0) {
+        // An outer piece may also be an upright stem (M's middle V between its stems, #940).
+        let upright = |i: usize| {
+            let d = centre[ends[i + 1]] - centre[ends[i]];
+            d.x.abs() <= STEM_LEAN.to_radians().dsin() * d.length()
+        };
+        let outer = |i: usize, next: usize| upright(i) || lean[i] * lean[next] < 0.0;
+        if lean[1] * lean[2] < 0.0 && outer(0, 1) && outer(3, 2) {
             cuts.remove(1);
             *uncut = true;
         }
@@ -1108,6 +1114,14 @@ const STEM_LEAN: f64 = 12.0;
 const STEM_BEND: f64 = 0.5;
 /// How far from the corner (0.1 mm) [`run_on_stems`] measures a stroke's direction.
 const STEM_REACH: f64 = 40.0;
+
+/// Where an upright stem stops a slanted stroke: this many of the stem's half widths from its
+/// centre line, so half a width clear of its edge. The slanted stroke's first crossing then runs
+/// from where its lower edge meets the stem across to its upper edge, and the corner above it is
+/// the stem's fan ([`Order::fan`]), as on stroke-satin-M-8 (the crossing (1.3, 2.3)-(2.6, 2.1),
+/// #940). At the stem's edge itself the stroke's inner side ran on up into the corner on
+/// whichever side the thinning had put the corner inside the stem (M's right, not its left).
+const STEM_AGAINST: f64 = 2.0;
 
 /// Where a slanted run-on ([`slanted_run_on`]) stops the other arm: this much of the
 /// run-on arm's half width from its centre line. The arms meet at a sharp angle, so stopping
@@ -1227,7 +1241,12 @@ fn run_on_stems(
         };
         let total = length(&slanted);
         // A slanted run-on stops the other arm nearer its centre line ([`SLANTED_AGAINST`]).
-        let stop = half * if upright(dir) { 1.0 } else { SLANTED_AGAINST };
+        let stop = half
+            * if upright(dir) {
+                STEM_AGAINST
+            } else {
+                SLANTED_AGAINST
+            };
         let mut cut = None;
         let mut at = 0.0;
         for w in slanted.windows(2) {
@@ -1942,6 +1961,69 @@ fn corner_pairs(l: &[(f64, Vec2)], r: &[(f64, Vec2)], width: f64) -> Vec<(usize,
     pairs
 }
 
+/// The outline from `from` to `to`, both on one contour, the shorter way round: the two points
+/// and the contour's vertices between them. `None` when they lie on different contours.
+fn outline_stretch(outlines: &[Vec<Vec2>], from: Vec2, to: Vec2) -> Option<Vec<Vec2>> {
+    // (contour, arc length along it) of the outline point nearest `p`.
+    let place = |p: Vec2| -> Option<(usize, f64)> {
+        let mut best: Option<(f64, usize, f64)> = None;
+        for (c, pts) in outlines.iter().enumerate() {
+            let n = pts.len();
+            let mut run = 0.0;
+            for i in 0..n {
+                let (a, b) = (pts[i], pts[(i + 1) % n]);
+                let v = b - a;
+                let len = v.length();
+                let t = if len > 1e-12 {
+                    (((p.x - a.x) * v.x + (p.y - a.y) * v.y) / (len * len)).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                let d = (a + v * t).distance(p);
+                if best.is_none_or(|(bd, _, _)| d < bd) {
+                    best = Some((d, c, run + t * len));
+                }
+                run += len;
+            }
+        }
+        best.map(|(_, c, u)| (c, u))
+    };
+    let ((c, u0), (c1, u1)) = (place(from)?, place(to)?);
+    if c != c1 {
+        return None;
+    }
+    let pts = &outlines[c];
+    let n = pts.len();
+    // Each vertex's arc length round the contour.
+    let mut arcs = Vec::with_capacity(n);
+    let mut run = 0.0;
+    for i in 0..n {
+        arcs.push(run);
+        run += pts[i].distance(pts[(i + 1) % n]);
+    }
+    let around = run;
+    let forward = (u1 - u0).rem_euclid(around);
+    let mut out = vec![from];
+    if forward <= around - forward {
+        let mut mid: Vec<(f64, Vec2)> = (0..n)
+            .map(|i| ((arcs[i] - u0).rem_euclid(around), pts[i]))
+            .filter(|&(d, _)| d > 1e-6 && d < forward - 1e-6)
+            .collect();
+        mid.sort_by(|a, b| a.0.total_cmp(&b.0));
+        out.extend(mid.into_iter().map(|(_, p)| p));
+    } else {
+        let back = around - forward;
+        let mut mid: Vec<(f64, Vec2)> = (0..n)
+            .map(|i| ((u0 - arcs[i]).rem_euclid(around), pts[i]))
+            .filter(|&(d, _)| d > 1e-6 && d < back - 1e-6)
+            .collect();
+        mid.sort_by(|a, b| a.0.total_cmp(&b.0));
+        out.extend(mid.into_iter().map(|(_, p)| p));
+    }
+    out.push(to);
+    Some(out)
+}
+
 /// A side's points in the order the outline passes them, starting at the end its first point
 /// lies at: each point's place along its contour (the arc length to it), the side started after
 /// its longest gap there. By their place along a hairpin's centre line an apex's points fall on
@@ -2397,6 +2479,11 @@ impl GlyphStrokes {
             return Vec::new();
         };
         let mut rungs = merged.rungs_paired(contours, spacing, pairing);
+        let outlines: Vec<Vec<Vec2>> = contours
+            .iter()
+            .filter(|c| c.closed)
+            .map(Contour::outline_points)
+            .collect();
         let sewn = |rungs: &[Vec<[Vec2; 2]>]| {
             let mut order = Order {
                 g: self,
@@ -2407,6 +2494,8 @@ impl GlyphStrokes {
                 out: Vec::new(),
                 at: v2(b.min_x, b.min_y),
                 seq: Vec::new(),
+                outlines: &outlines,
+                spacing,
             };
             // The letter's own box, its outline's: the centre lines' box sits half a stroke in.
             let corner = Rect::enclosing(
@@ -2534,6 +2623,9 @@ struct Order<'a> {
     at: Vec2,
     /// The columns in the order they are sewn.
     seq: Vec<usize>,
+    /// The letter's closed outlines and the rungs' spacing (for [`Self::fan`]).
+    outlines: &'a [Vec<Vec2>],
+    spacing: f64,
 }
 
 impl Order<'_> {
@@ -2733,6 +2825,92 @@ impl Order<'_> {
         };
         let reach = 0.5 * s.widths.iter().copied().fold(0.0, f64::max);
         !bends(s) && s.centre.iter().all(|&p| segment_distance(p, a, b) <= reach)
+    }
+
+    /// The fan at end `end` of an upright stem that a slanted stroke stops against there (#940):
+    /// (the arc length along the stem of the notch where the stroke's lower edge meets it, the
+    /// fan's rungs from the notch out to the stem's end). PE-DESIGN sews the corner above the
+    /// slanted stroke's first crossing as crossings from the stem's outer edge to the stroke's
+    /// outer edge, widening from the stem's top down to that crossing, and stops the stem's own
+    /// satin at the notch (stroke-satin-M-8: 13 needle points from (0, 0)-(1.5, 0.1) to
+    /// (0, 2.6)-(2.5, 1.9), the stem below from (0, 2.6)-(1.3, 2.3); stroke-satin-N: 11 at the
+    /// top-left, 33 at the bottom-right). `None` where no stroke stops against the stem there.
+    fn fan(&self, c: usize, end: usize) -> Option<(f64, Vec<[Vec2; 2]>)> {
+        let s = &self.strokes[c];
+        let own = &self.rungs[c];
+        if s.closed || bends(s) || s.ends[end] != StrokeEnd::Free || own.len() < 2 {
+            return None;
+        }
+        let (a, b) = (*s.centre.first()?, *s.centre.last()?);
+        let along = b - a;
+        if along.x.abs() > STEM_LEAN.to_radians().dsin() * along.length() {
+            return None;
+        }
+        let tip = if end == 0 { a } else { b };
+        let width = s.widths.iter().copied().fold(0.0, f64::max);
+        // The stroke stopped against this stem here: its end crossing nearest the stem's tip.
+        let mut found: Option<(f64, [Vec2; 2])> = None;
+        for (k, o) in self.strokes.iter().enumerate() {
+            let rs = &self.rungs[k];
+            if k == c || rs.len() < 2 {
+                continue;
+            }
+            for e in 0..2 {
+                if o.ends[e] != StrokeEnd::Against {
+                    continue;
+                }
+                let d0 = if e == 0 { rs[0] } else { rs[rs.len() - 1] };
+                let near = d0[0].distance(tip).min(d0[1].distance(tip));
+                if near <= 3.0 * width && found.is_none_or(|(n, _)| near < n) {
+                    found = Some((near, d0));
+                }
+            }
+        }
+        let (_, d0) = found?;
+        let off = |p: Vec2| project(&s.centre, false, p).1;
+        let (lower, upper) = if off(d0[0]) <= off(d0[1]) {
+            (d0[0], d0[1])
+        } else {
+            (d0[1], d0[0])
+        };
+        if off(lower) > 0.75 * width {
+            return None;
+        }
+        let notch = project(&s.centre, false, lower).0;
+        let at: Vec<f64> = own
+            .iter()
+            .map(|r| project(&s.centre, false, r[0].lerp(r[1], 0.5)).0)
+            .collect();
+        // The stem's side facing the stroke, by the rung nearest the notch.
+        let k = (0..own.len())
+            .min_by(|&i, &j| (at[i] - notch).abs().total_cmp(&(at[j] - notch).abs()))?;
+        let inner = usize::from(own[k][1].distance(lower) < own[k][0].distance(lower));
+        let outer = 1 - inner;
+        // The outer side from level with the notch out to the stem's end.
+        let level = self.piece(c, notch, if end == 0 { 0.0 } else { s.length() });
+        if level.len() < 2 {
+            return None;
+        }
+        let outer_side: Vec<(f64, Vec2)> = level.iter().map(|r| (0.0, r[outer])).collect();
+        // The stroke's outer edge from its first crossing's far end to the stem's end corner.
+        let corner = level[level.len() - 1][inner];
+        let inner_side: Vec<(f64, Vec2)> = outline_stretch(self.outlines, upper, corner)?
+            .into_iter()
+            .map(|p| (0.0, p))
+            .collect();
+        if inner_side.len() < 2 {
+            return None;
+        }
+        let mut rungs = span_rungs(&outer_side, &inner_side, self.spacing, Spans::Length);
+        if rungs.len() < 2 {
+            return None;
+        }
+        if outer == 1 {
+            for r in &mut rungs {
+                r.swap(0, 1);
+            }
+        }
+        Some((notch, rungs))
     }
 
     /// Rungs of column `c` between arc lengths `from` and `to` (either order), in that order,
@@ -3006,8 +3184,41 @@ impl Order<'_> {
             }
             (Entry::End(e), None) => {
                 let (a, b) = if e == 0 { (0.0, len) } else { (len, 0.0) };
-                let whole = self.piece(c, a, b);
-                self.emit(whole, false);
+                let fans = [self.fan(c, 0), self.fan(c, 1)];
+                if fans.iter().all(Option::is_none) {
+                    let whole = self.piece(c, a, b);
+                    self.emit(whole, false);
+                } else {
+                    // A stem with a fan at an end (#940): the fan from the end in to the notch,
+                    // the stem between the notches, the other end's fan from its notch out, each
+                    // after the first reached by one stitch across the column.
+                    let from = fans[e].as_ref().map_or(a, |f| f.0);
+                    let to = fans[1 - e].as_ref().map_or(b, |f| f.0);
+                    let mut pieces: Vec<Vec<[Vec2; 2]>> = Vec::new();
+                    if let Some((_, fan)) = &fans[e] {
+                        pieces.push(fan.iter().rev().copied().collect());
+                    }
+                    // The stem's rung at a notch and its own rung just past it may be a hair
+                    // apart: one crossing there, not two on top of each other.
+                    let mut stem = self.piece(c, from, to);
+                    stem.dedup_by(|b, a| a[0].distance(b[0]) < 5.0 && a[1].distance(b[1]) < 5.0);
+                    pieces.push(stem);
+                    if let Some((_, fan)) = &fans[1 - e] {
+                        pieces.push(fan.clone());
+                    }
+                    let mut led = false;
+                    for piece in pieces {
+                        let Some(start) = piece.first().map(|r| r[0]) else {
+                            continue;
+                        };
+                        if led {
+                            self.emit_led(piece, start);
+                        } else {
+                            self.emit(piece, false);
+                        }
+                        led = true;
+                    }
+                }
             }
             (Entry::Through, _) => {
                 // Sewn whole from its upper end, however near the junction is to the other
