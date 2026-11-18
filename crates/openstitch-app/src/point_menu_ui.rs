@@ -248,34 +248,11 @@ fn row(
     response
 }
 
-/// Delete Lines Not Selected: removes every direction line of the selected shape, the
-/// straight ones (`object.setDirectionLines` with none) and a curved one
-/// (`object.setDirectionCurve` with none), in one undo step; the region is sewn in its one
-/// straight direction again.
+/// Delete Lines Not Selected: removes every direction line of the selected shape, straight
+/// and curved, in one undo step: what the ribbon's Delete Direction Line does
+/// ([`crate::edit_ui::delete_direction`]).
 pub fn delete_direction_lines(app: &mut EditorApp) {
-    let ctx = app.tool_context(app.session.design());
-    let Some((id, lines, curve)) = ctx.point_target().and_then(|o| {
-        let r = o.region.as_ref()?;
-        Some((o.id, !r.direction_lines.is_empty(), r.direction_curve.is_some()))
-    }) else {
-        return;
-    };
-    let mut requests = Vec::new();
-    if lines {
-        requests.push(openstitch_app::editor::CommandRequest::new(
-            "object.setDirectionLines",
-            json!({ "id": id, "lines": null }),
-        ));
-    }
-    if curve {
-        requests.push(openstitch_app::editor::CommandRequest::new(
-            "object.setDirectionCurve",
-            json!({ "id": id, "points": null }),
-        ));
-    }
-    if !requests.is_empty() {
-        app.execute_all(&requests);
-    }
+    crate::edit_ui::delete_direction(app);
 }
 
 /// A menu panel at `at` (the pointer: the menu opens to the right of and below it, as
@@ -509,12 +486,28 @@ pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, Str
     let Some(key) = params.and_then(|p| p.get("action")).and_then(Value::as_str) else {
         return Ok(state(app));
     };
+    // An entry of the object menu's Delete Direction Line sub-menu (#1269).
+    if let Some((_, _, enabled)) = direction_submenu(app).into_iter().find(|e| e.0 == key) {
+        if !enabled {
+            return Err(format!(
+                "{key} is not available: {}",
+                if key == "deleteSelectedLine" {
+                    "no direction line can be selected here; deleteLinesNotSelected removes them all"
+                } else {
+                    "the selected shape has no direction lines"
+                }
+            ));
+        }
+        delete_direction_lines(app);
+        app.workspace.view.point_menu = None;
+        return Ok(state(app));
+    }
     let a = PointAction::MENU
         .into_iter()
         .find(|a| a.key() == key)
         .ok_or_else(|| {
             format!(
-                "action: must be one of {}",
+                "action: must be one of {}, deleteSelectedLine, deleteLinesNotSelected",
                 PointAction::MENU.map(PointAction::key).join(", ")
             )
         })?;
@@ -902,16 +895,61 @@ mod tests {
         .expect("direction lines");
         let sub = direction_submenu(&app);
         assert_eq!((sub[0].2, sub[1].2), (false, true));
-        delete_direction_lines(&mut app);
+        // Through the command, as a script or the Assistant runs it (#1269); a curved
+        // direction is set too, so that both kinds go in the one step.
+        app.execute(&CommandRequest::new(
+            "object.setDirectionCurve",
+            json!({ "id": 1, "points": [[11, 15], [20, 13], [29, 15]] }),
+        ));
+        let had_curve = app.session.design().objects[0]
+            .region
+            .as_ref()
+            .is_some_and(|r| r.direction_curve.is_some());
+        let had_lines = app.session.design().objects[0]
+            .region
+            .as_ref()
+            .map_or(0, |r| r.direction_lines.len());
+        let e = app
+            .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteSelectedLine" })))
+            .expect_err("grey");
+        assert!(e.contains("not available") && e.contains("deleteLinesNotSelected"), "{e}");
+        let s = app
+            .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteLinesNotSelected" })))
+            .expect("Delete Lines Not Selected");
+        assert_eq!(s["objectMenu"][1]["submenu"][1]["enabled"], false, "nothing left to delete");
         let region = app.session.design().objects[0].region.clone().expect("region");
         assert!(region.direction_lines.is_empty() && region.direction_curve.is_none());
         assert!(!direction_submenu(&app)[1].2);
+        let e = app
+            .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteLinesNotSelected" })))
+            .expect_err("grey now");
+        assert!(e.contains("no direction lines"), "{e}");
         app.undo();
+        let region = app.session.design().objects[0].region.clone().expect("region");
         assert_eq!(
-            app.session.design().objects[0].region.as_ref().map(|r| r.direction_lines.len()),
-            Some(2),
-            "one Undo"
+            (region.direction_lines.len(), region.direction_curve.is_some()),
+            (had_lines, had_curve),
+            "one Undo brings back what was there"
         );
+        assert!(had_lines == 2 || had_curve, "the shape had direction lines to delete");
+        // The ribbon's Delete Direction Line (`ui.run deleteDirection`) does the same, and
+        // its ui.actions entry names the command it sends.
+        app.ui_command("ui.run", Some(&json!({ "action": "deleteDirection" })))
+            .expect("ui.run deleteDirection");
+        let region = app.session.design().objects[0].region.clone().expect("region");
+        assert!(region.direction_lines.is_empty() && region.direction_curve.is_none());
+        let info = Action::DeleteDirectionLine.info();
+        assert_eq!(info.engine, Some("object.setDirectionLines"));
+        assert!(info.tip.contains("object.setDirectionCurve") && info.tip.contains("one undo step"));
+        // The summary a model reads says what `submenu` is and how to run its entries.
+        let summary = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.pointMenu")
+            .expect("ui.pointMenu")
+            .summary;
+        for words in ["submenu", "deleteSelectedLine", "deleteLinesNotSelected", "key, label and enabled"] {
+            assert!(summary.contains(words), "ui.pointMenu's summary names {words:?}");
+        }
     }
 
     /// The object's menu (#1260): PE-DESIGN's entries in its order, a separator before Open;

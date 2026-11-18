@@ -438,7 +438,11 @@ then style them in the next.
   closed outline's closing side and its region (a region-only shape becomes a line, as with
   Split at Point); `object.closeOutline` `{id, region}` closes
   an open line and, unless `region: false`, gives it Fill Stitch at 45° when it has no
-  region; two ends lying on each other (within 0.05 mm) become one point. A new
+  region; two ends lying on each other (within 0.05 mm) become one point. To remove every
+  direction line of a shape, straight ones and a curved one, in one undo step:
+  `ui.pointMenu` `{action: "deleteLinesNotSelected"}` (the object menu's Delete Direction
+  Line sub-menu) or `ui.run deleteDirection`; in the engine `object.setDirectionLines`
+  `{lines: null}` and `object.setDirectionCurve` `{points: null}`. A new
   `shape.ellipse` has four smooth points: moving one handle with `object.setSegment` turns
   the other. (`ui.run openOutline` / `closeOutline`; `ui.pointMenu` lists them as `objectMenu`, and
   the selected points with their page and window positions as `selected`, and the status

@@ -249,7 +249,7 @@ actions! {
     LineGap => "lineGap", "Turning Gap", "Leave part of the selected closed line unsewn, the opening for turning in-the-hoop pieces: where it starts along the outline and how long it is. Running, triple, zigzag, E and V lines.", None, Some("object.setLineGap"), true;
     SplitOutline => "splitOutline", "Split Outline", "Draw a cut line that splits the selected shape.", None, Some("shape.split"), true;
     AddDirectionLine => "addDirection", "Add Direction Line", "Draw a curved sewing direction across the region.", None, Some("object.setDirectionCurve"), true;
-    DeleteDirectionLine => "deleteDirection", "Delete Direction Line", "Back to a straight sewing direction.", None, Some("object.setDirectionLines"), true;
+    DeleteDirectionLine => "deleteDirection", "Delete Direction Line", "Back to one straight sewing direction: the shape's direction lines and its curved direction are removed (object.setDirectionLines and object.setDirectionCurve with none), in one undo step.", None, Some("object.setDirectionLines"), true;
     ReverseDirectionLine => "reverseDirection", "Reverse Direction Line", "Sew the direction line the other way.", None, Some("object.reverseDirection"), true;
     EditPoint => "editPoint", "Edit Point", "Change the selected points of the outline: Line Type (To Straight, To Curve) and Curve Type (To Smooth, To Symmetry, To Cusp). Select points with the Point tool (Point Edit, A); Ctrl+click adds one. A right-click on a point opens the same entries with Split at Point and Delete.", None, Some("object.setPointKind"), true;
     DeletePoint => "deletePoint", "Delete Point", "Delete the selected points.", Some("Delete"), Some("object.deletePoint"), true;

@@ -318,10 +318,29 @@ pub fn add_direction(app: &mut EditorApp) {
     }
 }
 
+/// Delete Direction Line: the selected region goes back to its one straight sewing
+/// direction. Its straight direction lines (`object.setDirectionLines` with none) and its
+/// curved one (`object.setDirectionCurve` with none) are removed, in one undo step (#1269: it
+/// cleared the curve only, while its `ui.actions` entry named `object.setDirectionLines`).
 pub fn delete_direction(app: &mut EditorApp) {
-    if let Some(id) = single_region(app) {
-        app.execute(&edit_ops::straight_direction(id));
+    let Some(id) = single_region(app) else {
+        return;
+    };
+    let lines = {
+        let d = app.session.design();
+        d.index_of(id)
+            .and_then(|i| d.objects[i].region.as_ref())
+            .is_some_and(|r| !r.direction_lines.is_empty())
+    };
+    let mut requests = Vec::new();
+    if lines {
+        requests.push(CommandRequest::new(
+            "object.setDirectionLines",
+            serde_json::json!({ "id": id, "lines": null }),
+        ));
     }
+    requests.push(edit_ops::straight_direction(id));
+    app.execute_all(&requests);
 }
 
 /// Centre point and reference point of the region's stitch pattern.
