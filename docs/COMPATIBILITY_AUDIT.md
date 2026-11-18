@@ -4736,3 +4736,44 @@ sewn before the bands.
 **Existing projects:** a project always stores the value, so a net saved with under sewing off
 loads with it off and sews as it did. A region without the field does not load, as before. No
 `.osd` version step.
+
+### Satin on Closed Straight Line shapes: the U and the 120° band, 2026-11-18 (#1154)
+
+**Measured** on `compat/reference` (needle points; the U by part: right leg / left leg / bar).
+
+| shape | PE-DESIGN 11.50 | before | now |
+|---|---:|---:|---:|
+| `region-travel-u-satin` | 466 = 153 / 142 / 171 | 492 = 153 / 157 / 182 | 461 = 151 / 141 / 169 |
+| `satin-auto-bend-120`, `-nohalf` | 161 | 171 | 159 |
+| the band's mean stitch, Half Stitch on / off | 4.61 / 4.78 mm | 4.77 / 4.99 mm | 4.61 / 4.78 mm |
+
+**What PE-DESIGN does, and OpenStitch now too:**
+- **Under sewing on an inner edge.** A row lying on an inner edge of the under-sewing outline is
+  sewn on the side it is reached from: the U's row at x = 21 mm, reached from the leg, runs the
+  leg's length; the one at x = 9 mm, reached from the bar, only the bar part. The rows after it
+  then end beside the start point. OpenStitch sewed both the leg's length and walked 15 needle
+  points up the left edge.
+- **The section that holds the end point.** Entered from that point's side (the U's bar after
+  its left leg), its rows each end away from the point. PE-DESIGN starts the section on its own
+  first row (9.8 mm), sews the next one lattice line on (9.6 mm) and every other line from
+  there (9.1 … 0.2 mm), then steps up the far edge and sews the edge's own row back onto the
+  start point. OpenStitch sewed 9.8, 9.3 … 0.0 mm and walked 30 mm back.
+- **Round a bend of more than 100°** (Auto direction; the bends OpenStitch rebuilds on the outer edge) the spacing is kept across the leaning
+  rung at its outer end, so the outer needle points lie spacing / cos(lean) apart: 0.67 mm on
+  the legs, 0.94 mm at 45° and 1.3 mm at the 120° band's corner. OpenStitch kept 0.67 mm along
+  the edge all the way round.
+
+**Kept as it was:** a text's letters (no capture shows a letter's end or bend), columns of one
+section, and bends up to 100° (PE-DESIGN's 30° to 90° references keep their lattice).
+
+**Left:**
+- The U's right leg is 151 against 153. Its earlier 153 = 153 was two differences cancelling: a
+  top row at 10.2 mm counted in the leg (now at 10.0, as PE-DESIGN's), and under-sewing rows
+  one stitch short.
+- **Satin under sewing rows, not changed here:** PE-DESIGN steps the needle points 1.2 mm from
+  row to row on its 4 mm stitch (30 %), starting 2.0 mm in, so a 28 mm row has 8 stitches;
+  OpenStitch steps a third (1.33 mm) from 0, and has 7 on most rows. PE-DESIGN's second pass
+  along the first edge steps 2.33 mm, OpenStitch's 2.0 mm. Changing it moves every satin with
+  under sewing.
+- The 120° band's longest crossing is 9.78 mm against PE-DESIGN's 9.63 mm with Half Stitch
+  (9.71 before; without Half Stitch 10.03, so that one moved closer).

@@ -522,7 +522,7 @@ fn layers_inner(
     // and where the skeleton column does not cover the region (a branch, a blob).
     if r.auto_direction
         && r.kind == RegionType::Satin
-        && let Some((top, rungs, start)) = auto_satin(closed, r, holes)
+        && let Some((top, rungs, start)) = auto_satin(closed, r, holes, letter)
     {
         // PE-DESIGN 11 sews the under sewing rows of Auto satin at 90° (across a bent band's
         // horizontal leg, along its vertical one): the rows of a 0° satin.
@@ -597,7 +597,7 @@ fn layers_inner(
                 stitch_length: params.stitch_length,
                 pull_compensation: -SATIN_UNDERLAY_INSETS[0],
             };
-            satin_underlay_rows(closed, &p, holes, satin_start)
+            satin_underlay_rows(closed, &p, holes, satin_start, letter)
         };
         // The outline starts at the start point, or else where the rows begin.
         let satin_edge = |start: Option<Vec2>| -> Vec<Run> {
@@ -757,7 +757,7 @@ fn layers_inner(
             if !shaped || (r.sewn_gradation().is_none() && r.split_length.is_none()) =>
         {
             if r.satin_shaping.is_plain() {
-                sawtooth_satin(closed, r, &params, holes)
+                sawtooth_satin(closed, r, &params, holes, letter)
             } else {
                 // OpenStitch's satin looks on a fixed-direction satin (#685): the open look's
                 // rows three times as far apart, raised satin's padding lanes under each
@@ -768,7 +768,7 @@ fn layers_inner(
                     row_spacing: params.row_spacing * if open { 3.0 } else { 1.0 },
                     ..params
                 };
-                let rows = sawtooth_satin(closed, r, &p, holes);
+                let rows = sawtooth_satin(closed, r, &p, holes, letter);
                 if let Some(raised) = &r.satin_shaping.raised {
                     for run in &rows {
                         let rungs: Vec<[Vec2; 2]> = run
@@ -2029,12 +2029,14 @@ fn split_outside(run: Run, closed: &[Contour], holes: &[Contour]) -> Vec<Run> {
 /// row is cut in two, they are sewn one after the other across the region, each from its end
 /// nearer the last needle point, as PE-DESIGN 11 does; otherwise as fill rows (nearest row
 /// next). A row on an inner edge of that outline, between two parts, is sewn on the side it is
-/// reached from (#1154).
+/// reached from (#1154); a `letter` of a text keeps the longer side, as no PE-DESIGN capture
+/// shows a letter's (as #1088).
 fn satin_underlay_rows(
     closed: &[Contour],
     p: &RegionParams,
     holes: &[Contour],
     start: Option<Vec2>,
+    letter: bool,
 ) -> Vec<Run> {
     let Some(inner) = satin_inset(closed, holes) else {
         return generate::fill(closed, p, holes);
@@ -2099,7 +2101,7 @@ fn satin_underlay_rows(
         // leg's length, reached from the bar at x = 9 mm only the bar part, so the rows after
         // it end beside the start point, #1154). The first row takes its longer side.
         let spans = match before {
-            Some(b) if (length(&lo) - length(&hi)).abs() > 1.0 => {
+            Some(b) if !letter && (length(&lo) - length(&hi)).abs() > 1.0 => {
                 if b < y {
                     lo
                 } else {
@@ -2204,12 +2206,14 @@ const CROSSING_MERGE_GAP: f64 = 10.0;
 /// Fixed-direction satin as PE-DESIGN 11 sews it: rows two crossings apart from the region's
 /// first edge to its last, each row sewn whole in one direction and the stitch to the next row
 /// slanting back (a sawtooth: one crossing along the sewing direction, the next slanted). With
-/// a start point inside the column it is sewn in two halves ([`split_satin`]).
+/// a start point inside the column it is sewn in two halves ([`split_satin`]). A `letter` of a
+/// text keeps its rows where they were (no PE-DESIGN capture shows a letter's end, #1154).
 fn sawtooth_satin(
     closed: &[Contour],
     r: &RegionSewing,
     p: &RegionParams,
     holes: &[Contour],
+    letter: bool,
 ) -> Vec<Run> {
     let pitch = 2.0 * p.row_spacing;
     if let Some(run) = r
@@ -2309,7 +2313,7 @@ fn sawtooth_satin(
     // onto the end point, where OpenStitch walked back along the edge (#1154). The section
     // still starts on its own first row (the U's bar at 9.8 mm): the row after it is one line
     // on (9.6 mm) and the rest every other line from there.
-    if toward_exit && ordered.len() > 1 && ends_away(&ordered) == Some(true) {
+    if !letter && toward_exit && ordered.len() > 1 && ends_away(&ordered) == Some(true) {
         let first = ordered.last().and_then(|s| s.first()).map(|r| r.0);
         let shifted = rows_of(first);
         let again = order(&shifted);
@@ -3060,6 +3064,7 @@ fn auto_satin(
     closed: &[Contour],
     r: &RegionSewing,
     holes: &[Contour],
+    letter: bool,
 ) -> Option<(Run, Vec<[Vec2; 2]>, Vec2)> {
     let shaped =
         r.sewn_gradation().is_some() || r.sewn_feather().is_some() || r.split_length.is_some();
@@ -3118,7 +3123,7 @@ fn auto_satin(
     // then rebuilt on the outer edge (bends up to 90 degrees keep the skeleton's lattice,
     // which PE-DESIGN's 30 to 90 degree references pin).
     let rungs = if sharpest_reflex_turn(&closed[0]) > SHARP_BEND {
-        even_outer(rungs, &closed[0], spacing)
+        even_outer(rungs, &closed[0], spacing, !letter)
     } else {
         rungs
     };
@@ -3350,8 +3355,15 @@ fn outline_point(c: &Contour, s: f64) -> Vec2 {
 /// from the outer edge to the inner corner, and PE-DESIGN 11.50 keeps the spacing measured
 /// across the rung at its outer end, so along the edge it is the spacing over the cosine of the
 /// rung's lean (satin-auto-bend-120: the outer needle points 0.67 mm apart on the legs, 0.94 mm
-/// where the rung leans 45 degrees and 1.3 mm at the outer corner, 60 degrees).
-fn even_outer(rungs: Vec<[Vec2; 2]>, outline: &Contour, spacing: f64) -> Vec<[Vec2; 2]> {
+/// where the rung leans 45 degrees and 1.3 mm at the outer corner, 60 degrees). Without
+/// `spread` (a letter of a text, of which no PE-DESIGN capture shows a bend) they stay
+/// `spacing` apart along the edge.
+fn even_outer(
+    rungs: Vec<[Vec2; 2]>,
+    outline: &Contour,
+    spacing: f64,
+    spread: bool,
+) -> Vec<[Vec2; 2]> {
     let n = rungs.len();
     if n < 3 || spacing.is_nan() || spacing <= 0.0 {
         return rungs;
@@ -3468,7 +3480,7 @@ fn even_outer(rungs: Vec<[Vec2; 2]>, outline: &Contour, spacing: f64) -> Vec<[Ve
             let corner = reflex_corners
                 .iter()
                 .min_by(|p, q| p.distance(outer).total_cmp(&q.distance(outer)));
-            if let Some(&c) = corner.filter(|_| along <= len + 1e-6) {
+            if let Some(&c) = corner.filter(|_| spread && along <= len + 1e-6) {
                 let cos = crate::paths::dot(crate::paths::unit(c - outer), inward);
                 lean += spacing / cos.clamp(0.25, 1.0) - spacing;
             }

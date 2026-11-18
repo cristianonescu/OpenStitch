@@ -5786,16 +5786,11 @@ fn start_and_end_point_travel_of_other_region_types_is_not_uncrossed() {
 const FILL_PRINT: (usize, u64) = (1113, 14_435_622_413_151_508_637);
 const SATIN_PRINT: (usize, u64) = (370, 18_225_474_142_322_398_452);
 
-/// #1154: the satin U of compat region-travel-u-satin sews PE-DESIGN 11.50's needle points per
-/// part within 3 (its file: 466 = 153 in the right leg, 142 in the left leg, 171 in the bar).
-/// - Under sewing: the row on the left leg's inner edge (x = 19 mm on the page) is reached from
-///   the bar and sewn only there, so the rows after it end beside the start point; no walk up
-///   the left edge follows.
-/// - The bar is entered from the left leg, so its rows start one lattice line in from the
-///   start point's edge and the edge's own row comes last, sewn back onto the start point: no
-///   walk back along the top edge.
-#[test]
-fn a_satin_u_sews_pe_designs_needle_points_per_part() {
+/// The needle points of the satin U of compat region-travel-u-satin (Direction 0, under
+/// sewing on), 0.1 mm on the page: the outline starts at (10, 10) mm, its bar is the top
+/// 10 mm and its legs reach down to y = 40 mm.
+#[cfg(test)]
+fn satin_u_points() -> Vec<Vec2> {
     let u = Contour::new(
         vec![
             v2(100.0, 100.0),
@@ -5813,13 +5808,23 @@ fn a_satin_u_sews_pe_designs_needle_points_per_part() {
     r.angle = 0.0;
     let mut d = Design::new("u", DesignPage::default());
     d.add(DesignObject::shape(vec![u], Some(r), None));
-    let pts: Vec<Vec2> = Compiler::default()
+    Compiler::default()
         .compile(&d)
         .stitches
         .iter()
         .filter(|q| q.command == Command::Stitch)
         .map(|q| v2(q.x, q.y))
-        .collect();
+        .collect()
+}
+
+/// #1154: the satin U sews PE-DESIGN 11.50's needle points per part within 3 (its file: 466 =
+/// 153 in the right leg, 142 in the left leg, 171 in the bar), and its bar ends as PE-DESIGN's.
+/// The bar is entered from the left leg, so its rows start one lattice line in from the start
+/// point's edge and the edge's own row comes last, reached up the far edge and sewn back onto
+/// the start point: no walk back along the top edge.
+#[test]
+fn a_satin_u_ends_its_bar_on_the_start_point_as_pe_design_does() {
+    let pts = satin_u_points();
     // Parts as in the exported file, which holds 0.1 mm: a row on the junction (y = 20 mm) is
     // the bar's.
     let count = |f: &dyn Fn(&Vec2) -> bool| pts.iter().filter(|p| f(p)).count() as i64;
@@ -5836,42 +5841,252 @@ fn a_satin_u_sews_pe_designs_needle_points_per_part() {
             "{part}: {ours} against PE-DESIGN's {pe}"
         );
     }
-    // The last stitch before the lock lies along the top edge and ends on the start point,
-    // the outline's first point; before it the needle steps up the far edge.
+    // The last crossing lies along the top edge, from the far corner onto the start point (the
+    // outline's first point); only the lock follows it.
     let start = v2(100.0, 100.0);
-    let last_long = (0..pts.len() - 1)
+    let last = (0..pts.len() - 1)
         .rev()
         .find(|&i| pts[i].distance(pts[i + 1]) > 60.0)
         .expect("a crossing");
+    assert!(pts[last + 1].distance(start) < 0.6, "{:?}", pts[last + 1]);
     assert!(
-        pts[last_long + 1].distance(start) < 0.6,
+        pts[last].distance(v2(400.0, 100.0)) < 0.6,
         "{:?}",
-        pts[last_long + 1]
+        pts[last]
     );
     assert!(
-        (pts[last_long].y - 100.0).abs() < 0.6 && (pts[last_long].x - 400.0).abs() < 0.6,
-        "{:?}",
-        pts[last_long]
-    );
-    assert!(
-        pts[last_long + 1..]
-            .iter()
-            .all(|p| p.distance(start) < 10.0),
+        pts[last + 1..].iter().all(|p| p.distance(start) < 10.0),
         "only the lock follows: {:?}",
-        &pts[last_long + 1..]
+        &pts[last + 1..]
     );
-    // No under sewing point on the left leg's inner edge below the bar's rows.
-    let first_long = (0..pts.len() - 1)
+    // Before it the needle steps up the far edge from the last full row, half a pitch below.
+    assert!(
+        (pts[last - 1].x - 400.0).abs() < 0.6 && (pts[last - 1].y - 100.0).abs() < 4.0,
+        "{:?}",
+        pts[last - 1]
+    );
+}
+
+/// #1154: the U's under sewing ends beside the start point, as PE-DESIGN 11.50's does. Its row
+/// on the left leg's inner edge (x = 19 mm on the page) is reached from the bar and sewn only
+/// there, so the rows after it run 17, 15, 13 and 11 mm and the last ends at (11, 11) mm; sewn
+/// the leg's whole length, the last row ended at the leg's foot and 15 needle points walked up
+/// the left edge.
+#[test]
+fn a_satin_us_under_sewing_ends_beside_the_start_point() {
+    let pts = satin_u_points();
+    let first = (0..pts.len() - 1)
         .find(|&i| pts[i].distance(pts[i + 1]) > 60.0)
         .expect("a crossing");
-    let on_inner_edge = pts[..first_long]
+    let under = &pts[..first];
+    // The edge run passes the inner edge once (PE-DESIGN: 9 needle points on 2.5 mm steps); the
+    // row itself, sewn the leg's length, added 6 more below the bar.
+    let on_inner_edge = under
         .iter()
         .filter(|p| (p.x - 190.0).abs() < 0.6 && p.y > 195.0)
         .count();
-    // The edge run passes there once (9 needle points on PE-DESIGN's 2.5 mm steps); the row
-    // itself would add 6 more.
     assert!(
         on_inner_edge <= 10,
         "{on_inner_edge} needle points on x = 19 mm"
+    );
+    // The last under-sewing row is the one on the left edge's inset, sewn up to (11, 11) mm.
+    let end = under
+        .iter()
+        .rposition(|p| (p.x - 110.0).abs() < 0.6 && (p.y - 110.0).abs() < 0.6)
+        .expect("the inset corner beside the start point");
+    assert!(
+        (under[end - 1].x - 110.0).abs() < 0.6 && under[end - 1].y > under[end].y,
+        "reached up the left inset: {:?}",
+        under[end - 1]
+    );
+    assert!(
+        under.len() - end <= 3,
+        "{} needle points after it",
+        under.len() - end
+    );
+}
+
+/// A 5 mm satin band bent through `turn` degrees at 3 lines/mm, Direction Auto, no under
+/// sewing (the shape of compat satin-auto-bend-*: 30 mm along x, then 17.3 mm).
+#[cfg(test)]
+fn bent_band(turn: f64) -> (Contour, RegionSewing) {
+    let (sin, cos) = (turn.to_radians().sin(), turn.to_radians().cos());
+    let (d, n) = (v2(cos, sin), v2(-sin, cos));
+    let outer = v2(300.0, 0.0);
+    let along = 50.0 * (1.0 - cos) / sin;
+    let inner = outer + n * 50.0 + d * along;
+    let end = outer + d * 173.2;
+    let band = Contour::new(
+        vec![
+            v2(0.0, 0.0),
+            outer,
+            end,
+            end + n * 50.0,
+            inner,
+            v2(0.0, 50.0),
+        ],
+        true,
+    );
+    let mut r = region(RegionType::Satin);
+    r.auto_direction = true;
+    r.density = 3.0;
+    r.underlay = false;
+    (band, r)
+}
+
+/// Stitch count and FNV-1a hash of every command and point to 0.0001 mm.
+#[cfg(test)]
+fn stitch_print(contour: Contour, r: RegionSewing) -> (usize, u64) {
+    let mut d = Design::new("print", DesignPage::default());
+    d.add(DesignObject::shape(vec![contour], Some(r), None));
+    let p = Compiler::default().compile(&d);
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for q in &p.stitches {
+        let s = format!(
+            "{:?}{}:{};",
+            q.command,
+            (q.x * 1000.0).round() as i64,
+            (q.y * 1000.0).round() as i64
+        );
+        for b in s.bytes() {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+    }
+    (p.stitches.len(), h)
+}
+
+/// #1154 changes satin only where a section holding the end point is entered from that point's
+/// side, where an under-sewing row lies on an inner edge, and round a bend of more than 100
+/// degrees. Shapes with none of these sew the stitches main 10e55fd2 sewed (each print taken
+/// there): a one-section column with under sewing (the 40 x 6 mm column of the
+/// satin-length-sweep captures), the same column at Direction 90, and a band bent through
+/// exactly 90 degrees.
+#[test]
+fn satin_this_change_does_not_touch_sews_as_before() {
+    let column = || Contour::rectangle(105.0, 100.0, 400.0, 60.0);
+    let mut across = region(RegionType::Satin);
+    across.angle = 0.0;
+    let mut along = region(RegionType::Satin);
+    along.angle = 90.0;
+    let (band, auto) = bent_band(90.0);
+    let prints = [
+        ("column, Direction 0", stitch_print(column(), across)),
+        ("column, Direction 90", stitch_print(column(), along)),
+        ("band bent 90 degrees", stitch_print(band, auto)),
+    ];
+    assert_eq!(prints, UNTOUCHED_SATIN, "{prints:?}");
+}
+
+const UNTOUCHED_SATIN: [(&str, (usize, u64)); 3] = [
+    ("column, Direction 0", (171, 13_267_944_168_609_796_493)),
+    ("column, Direction 90", (297, 1_536_964_459_986_213_840)),
+    ("band bent 90 degrees", (179, 7_417_743_674_088_692_993)),
+];
+
+/// #1154: round a bend of more than 100 degrees (where Auto satin's rungs are rebuilt on the
+/// outer edge, `SHARP_BEND`) the outer needle points lie further apart than
+/// on the legs, the spacing being kept across the leaning rung: on a band bent through 105
+/// degrees (the rung at the outer corner leans 52.5 degrees) up to 0.667 / cos 52.5 = 1.10 mm,
+/// against 0.667 mm on the legs. Without half stitch, so every other needle point is an outer
+/// one.
+#[test]
+fn a_band_bent_past_100_degrees_spreads_its_outer_needle_points() {
+    let (band, mut r) = bent_band(105.0);
+    r.half_stitch = false;
+    let run = crate::region::layers(std::slice::from_ref(&band), &r, &[])
+        .concat()
+        .concat();
+    let (corner, end) = (band.points[1], band.points[2]);
+    // Distance along the outer edge (the first leg, then the second) of the needle points on it,
+    // from the first crossing on.
+    let first = (0..run.len() - 1)
+        .find(|&i| run[i].distance(run[i + 1]) > 40.0)
+        .expect("a crossing");
+    let mut outer: Vec<f64> = run[first..]
+        .iter()
+        .filter_map(|p| {
+            if crate::skeleton::segment_distance(*p, v2(0.0, 0.0), corner) < 0.6 {
+                Some(p.x)
+            } else if crate::skeleton::segment_distance(*p, corner, end) < 0.6 {
+                Some(300.0 + p.distance(corner))
+            } else {
+                None
+            }
+        })
+        .collect();
+    outer.sort_by(f64::total_cmp);
+    outer.dedup_by(|a, b| (*a - *b).abs() < 0.5);
+    let gaps: Vec<f64> = outer.windows(2).map(|w| w[1] - w[0]).collect();
+    let on_leg: Vec<f64> = outer
+        .windows(2)
+        // Not the first gap, which holds the leg's remainder at the start point's end.
+        .filter(|w| w[0] > 20.0 && w[1] < 150.0)
+        .map(|w| w[1] - w[0])
+        .collect();
+    assert!(on_leg.len() > 10, "{on_leg:?}");
+    assert!(
+        on_leg.iter().all(|g| (g - 6.667).abs() < 0.4),
+        "on the first leg: {on_leg:?}"
+    );
+    let widest = gaps.iter().copied().fold(0.0, f64::max);
+    assert!(
+        (10.0..=12.0).contains(&widest),
+        "the widest gap round the bend: {widest}"
+    );
+}
+
+/// #1154: a letter of a text keeps its satin as it was. No PE-DESIGN capture shows how a
+/// letter's last section ends or which side its under-sewing rows take, so the U sewn as a
+/// letter still sews the row on its inner edge the leg's whole length and still walks back
+/// along the top edge after its last row.
+#[test]
+fn a_letter_shaped_like_the_u_keeps_its_satin() {
+    let u = Contour::new(
+        vec![
+            v2(100.0, 100.0),
+            v2(400.0, 100.0),
+            v2(400.0, 400.0),
+            v2(300.0, 400.0),
+            v2(300.0, 200.0),
+            v2(200.0, 200.0),
+            v2(200.0, 400.0),
+            v2(100.0, 400.0),
+        ],
+        true,
+    );
+    let mut r = region(RegionType::Satin);
+    r.angle = 0.0;
+    let sewn = |letter: bool| -> Vec<Vec2> {
+        crate::region::layers_for(std::slice::from_ref(&u), &r, &[], &[], letter, None)
+            .concat()
+            .concat()
+    };
+    let (shape, letter) = (sewn(false), sewn(true));
+    let on_inner_edge = |pts: &[Vec2]| {
+        let first = (0..pts.len() - 1)
+            .find(|&i| pts[i].distance(pts[i + 1]) > 60.0)
+            .expect("a crossing");
+        pts[..first]
+            .iter()
+            .filter(|p| (p.x - 190.0).abs() < 0.6 && p.y > 195.0)
+            .count()
+    };
+    assert!(on_inner_edge(&letter) > on_inner_edge(&shape) + 4);
+    // The letter's last crossing ends on the far corner, the shape's on the start point.
+    let last_end = |pts: &[Vec2]| {
+        let i = (0..pts.len() - 1)
+            .rev()
+            .find(|&i| pts[i].distance(pts[i + 1]) > 60.0)
+            .expect("a crossing");
+        pts[i + 1]
+    };
+    assert!(last_end(&shape).distance(v2(100.0, 100.0)) < 0.6);
+    assert!(last_end(&letter).distance(v2(400.0, 100.0)) < 0.6);
+    assert!(
+        letter.len() > shape.len() + 15,
+        "{} {}",
+        letter.len(),
+        shape.len()
     );
 }
