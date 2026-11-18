@@ -1966,7 +1966,8 @@ fn split_outside(run: Run, closed: &[Contour], holes: &[Contour]) -> Vec<Run> {
 /// under sewing outline ([`satin_inset`]), so none runs along the region's own edge. Where no
 /// row is cut in two, they are sewn one after the other across the region, each from its end
 /// nearer the last needle point, as PE-DESIGN 11 does; otherwise as fill rows (nearest row
-/// next).
+/// next). A row on an inner edge of that outline, between two parts, is sewn on the side it is
+/// reached from (#1154).
 fn satin_underlay_rows(
     closed: &[Contour],
     p: &RegionParams,
@@ -1976,29 +1977,36 @@ fn satin_underlay_rows(
     let Some(inner) = satin_inset(closed, holes) else {
         return generate::fill(closed, p, holes);
     };
-    let rows: Vec<(usize, f64, Vec<Span>)> = inset_rows(&inner, p.angle, p.row_spacing)
+    let length = |s: &[Span]| s.iter().map(|s| s.end() - s.start()).sum::<f64>();
+    // (row, y, its spans on the side where it is longer, on its low side, on its high side)
+    type Row = (usize, f64, Vec<Span>, Vec<Span>, Vec<Span>);
+    let rows: Vec<Row> = inset_rows(&inner, p.angle, p.row_spacing)
         .into_iter()
         .enumerate()
         .map(|(i, y)| {
             // Spans that touch (a row along an edge between two parts) are one span. A row on
-            // an edge of the inset region takes the side where it is longer, so a row on a
-            // leg's inner edge runs the leg's length (PE-DESIGN does so on one leg of
-            // region-travel-u-satin's U; on the other it sews only the bar part).
-            let side = |d: f64| spans_at(&inner, &[], p.angle, y + d);
-            let length = |s: &[Span]| s.iter().map(|s| s.end() - s.start()).sum::<f64>();
-            let (lo, hi) = (side(-EDGE_ROW_INSET), side(EDGE_ROW_INSET));
-            let mut merged: Vec<Span> = Vec::new();
-            for s in if length(&hi) > length(&lo) { hi } else { lo } {
-                match merged.last_mut() {
-                    Some(m) if s.start() - m.end() < 1e-6 => *m = *m.start()..=*s.end(),
-                    _ => merged.push(s),
+            // an edge of the inset region has a longer and a shorter side: on a leg's inner
+            // edge it runs the leg's length on one, only the bar part on the other.
+            let side = |d: f64| -> Vec<Span> {
+                let mut merged: Vec<Span> = Vec::new();
+                for s in spans_at(&inner, &[], p.angle, y + d) {
+                    match merged.last_mut() {
+                        Some(m) if s.start() - m.end() < 1e-6 => *m = *m.start()..=*s.end(),
+                        _ => merged.push(s),
+                    }
                 }
-            }
-            let spans = merged.into_iter().filter(|s| s.end() > s.start()).collect();
-            (i, y, spans)
+                merged.into_iter().filter(|s| s.end() > s.start()).collect()
+            };
+            let (lo, hi) = (side(-EDGE_ROW_INSET), side(EDGE_ROW_INSET));
+            let longer = if length(&hi) > length(&lo) {
+                hi.clone()
+            } else {
+                lo.clone()
+            };
+            (i, y, longer, lo, hi)
         })
         .collect();
-    if rows.iter().any(|(_, _, s)| s.len() > 1) {
+    if rows.iter().any(|(_, _, s, _, _)| s.len() > 1) {
         let p = RegionParams {
             pull_compensation: 0.0,
             ..*p
@@ -2009,7 +2017,7 @@ fn satin_underlay_rows(
     // the top stitching starts; the first row from its end nearer the start point (where the
     // outline ends), as PE-DESIGN sews the U and the bent band.
     let mut rows = rows;
-    let near = |row: &(usize, f64, Vec<Span>)| -> Option<f64> {
+    let near = |row: &Row| -> Option<f64> {
         let s = start?.rotated(-p.angle.to_radians());
         row.2.first().map(|_| (row.1 - s.y).abs())
     };
@@ -2021,10 +2029,27 @@ fn satin_underlay_rows(
     }
     let mut at: Option<Vec2> = start;
     let mut runs = Vec::new();
-    for (i, y, spans) in rows {
+    let mut before: Option<f64> = None;
+    for (i, y, longer, lo, hi) in rows {
+        // A row whose two sides differ (by more than 0.1 mm) lies on an edge between two
+        // parts: PE-DESIGN 11.50 sews it on the side it is reached from, the side of the row
+        // before it (region-travel-u-satin: reached from the leg at x = 21 mm the row runs the
+        // leg's length, reached from the bar at x = 9 mm only the bar part, so the rows after
+        // it end beside the start point, #1154). The first row takes its longer side.
+        let spans = match before {
+            Some(b) if (length(&lo) - length(&hi)).abs() > 1.0 => {
+                if b < y {
+                    lo
+                } else {
+                    hi
+                }
+            }
+            _ => longer,
+        };
         let Some(span) = spans.first() else {
             continue;
         };
+        before = Some(y);
         let mut xs = tatami_points(span, i, p.stitch_length, Stagger::Third);
         let run: Run = xs.iter().map(|&x| unrotate(x, y, p.angle)).collect();
         let reverse = at.is_some_and(|a| a.distance(run[run.len() - 1]) < a.distance(run[0]));
@@ -2142,10 +2167,24 @@ fn sawtooth_satin(
             .y;
         Some((y - b.min_y) > (b.max_y - y))
     });
-    let rows: Vec<(f64, Vec<Span>)> = edge_rows(closed, p.angle, pitch, from_high.unwrap_or(false))
-        .into_iter()
-        .map(|y| (y, pulled_spans(closed, holes, p, y)))
-        .collect();
+    // The lattice's rows, or with `also` the shifted lattice's and the row at `also` besides.
+    let rows_of = |also: Option<f64>| -> Vec<(f64, Vec<Span>)> {
+        let mut ys = edge_rows(
+            closed,
+            p.angle,
+            pitch,
+            from_high.unwrap_or(false),
+            also.is_some(),
+        );
+        if let Some(y) = also.filter(|y| ys.iter().all(|z| (z - y).abs() > 1e-6)) {
+            ys.push(y);
+            ys.sort_by(f64::total_cmp);
+        }
+        ys.into_iter()
+            .map(|y| (y, pulled_spans(closed, holes, p, y)))
+            .collect()
+    };
+    let rows = rows_of(None);
     let exit = r.exit.or(start);
     let rad = p.angle.to_radians();
     let mut runs: Vec<Run> = Vec::new();
@@ -2179,30 +2218,53 @@ fn sawtooth_satin(
         .first()
         .map(|c| c.points.iter().map(|q| q.rotated(-rad)).collect())
         .unwrap_or_default();
-    runs.extend(
+    // A feathered edge moves the rows' starting ends, so their direction stays; a region
+    // without a Running Stitch Path (files saved before it existed) would jump to the
+    // far end, so it keeps sewing from the start point's side as it always did.
+    let toward_exit = r.sewn_feather().is_none() && r.travel_path().is_some();
+    let order = |rows: &[(f64, Vec<Span>)]| {
         sections_in_order(
-            &rows,
+            rows,
             start.map(|s| s.rotated(-rad)),
             exit.map(|e| e.rotated(-rad)),
             &corners,
             pitch,
-            // A feathered edge moves the rows' starting ends, so their direction stays; a region
-            // without a Running Stitch Path (files saved before it existed) would jump to the
-            // far end, so it keeps sewing from the start point's side as it always did.
-            r.sewn_feather().is_none() && r.travel_path().is_some(),
+            toward_exit,
         )
-        .into_iter()
-        .map(|rows| {
-            let n = rows.len();
-            rows.into_iter()
-                .enumerate()
-                .flat_map(|(k, (y, from, to))| {
-                    let (from, to) = feathered(from, to, k, k + 1 == n, r.sewn_feather());
-                    [unrotate(from, y, p.angle), unrotate(to, y, p.angle)]
-                })
-                .collect()
-        }),
-    );
+    };
+    // Whether the last row sewn lies on the end point's edge and ends at its end away from that
+    // point (`Some(true)`), or at the end nearer it.
+    let ends_away = |ordered: &[Vec<(f64, f64, f64)>]| -> Option<bool> {
+        let e = exit?.rotated(-rad);
+        let &(y, from, to) = ordered.last()?.last()?;
+        ((y - e.y).abs() <= pitch).then_some((to - e.x).abs() > (from - e.x).abs() + 1.0)
+    };
+    let mut ordered = order(&rows);
+    // Where the section holding the end point is entered from that point's side (the bar of
+    // region-travel-u-satin's U, after its left leg), its rows each end away from the point.
+    // PE-DESIGN 11.50 then sews the rows one lattice line in from that edge (0.2, 0.7, 1.1 mm …)
+    // and the edge's own line last, half a pitch on, reached up the far edge and sewn back
+    // onto the end point, where OpenStitch walked back along the edge (#1154). The section
+    // still starts on its own first row (the U's bar at 9.8 mm): the row after it is one line
+    // on (9.6 mm) and the rest every other line from there.
+    if toward_exit && ordered.len() > 1 && ends_away(&ordered) == Some(true) {
+        let first = ordered.last().and_then(|s| s.first()).map(|r| r.0);
+        let shifted = rows_of(first);
+        let again = order(&shifted);
+        if ends_away(&again) == Some(false) {
+            ordered = again;
+        }
+    }
+    runs.extend(ordered.into_iter().map(|rows| {
+        let n = rows.len();
+        rows.into_iter()
+            .enumerate()
+            .flat_map(|(k, (y, from, to))| {
+                let (from, to) = feathered(from, to, k, k + 1 == n, r.sewn_feather());
+                [unrotate(from, y, p.angle), unrotate(to, y, p.angle)]
+            })
+            .collect()
+    }));
     runs
 }
 
@@ -2460,7 +2522,15 @@ fn feather_mix(mut x: u64) -> u64 {
 /// the high side), as PE-DESIGN sews a column from its far end back to its start point: on a
 /// 3 mm column at 1 line/mm the rows are 3, 2 and 0 mm from the start. Every earlier satin
 /// reference has a whole `height × density`, where the stretched lattice is the plain one.
-fn edge_rows(contours: &[Contour], angle: f64, pitch: f64, from_high: bool) -> Vec<f64> {
+/// With `shifted` the rows lie one line further from the start point's end, and its own line
+/// stays a row: lines 0, 1, 3, 5 … (see [`sawtooth_satin`], #1154).
+fn edge_rows(
+    contours: &[Contour],
+    angle: f64,
+    pitch: f64,
+    from_high: bool,
+    shifted: bool,
+) -> Vec<f64> {
     let Some(b) = rotated_bounds(contours, angle) else {
         return Vec::new();
     };
@@ -2476,7 +2546,11 @@ fn edge_rows(contours: &[Contour], angle: f64, pitch: f64, from_high: bool) -> V
     // The gap on the full height, so a whole `height × density` keeps the plain lattice.
     let line = b.height() / n as f64;
     // Every other line counted from the start point's end, plus the far end's line.
-    let mut ks: Vec<usize> = (0..=n).step_by(2).collect();
+    let mut ks: Vec<usize> = if shifted {
+        std::iter::once(0).chain((1..=n).step_by(2)).collect()
+    } else {
+        (0..=n).step_by(2).collect()
+    };
     if ks.last() != Some(&n) {
         ks.push(n);
     }
@@ -3209,6 +3283,12 @@ fn outline_point(c: &Contour, s: f64) -> Vec2 {
 /// bend). The outer side is the stretch of outline between the first and the last rung that
 /// does not pass a reflex corner (the longer one on a straight band). Fewer than three rungs
 /// come back unchanged.
+///
+/// Round the bend the stations are further apart along the edge (#1154): there a rung leans
+/// from the outer edge to the inner corner, and PE-DESIGN 11.50 keeps the spacing measured
+/// across the rung at its outer end, so along the edge it is the spacing over the cosine of the
+/// rung's lean (satin-auto-bend-120: the outer needle points 0.67 mm apart on the legs, 0.94 mm
+/// where the rung leans 45 degrees and 1.3 mm at the outer corner, 60 degrees).
 fn even_outer(rungs: Vec<[Vec2; 2]>, outline: &Contour, spacing: f64) -> Vec<[Vec2; 2]> {
     let n = rungs.len();
     if n < 3 || spacing.is_nan() || spacing <= 0.0 {
@@ -3225,13 +3305,17 @@ fn even_outer(rungs: Vec<[Vec2; 2]>, outline: &Contour, spacing: f64) -> Vec<[Ve
         .map(|i| crate::paths::cross(pts[i], pts[(i + 1) % m]))
         .sum::<f64>()
         > 0.0;
-    let reflex: Vec<f64> = (0..m)
+    let reflex_corners: Vec<Vec2> = (0..m)
         .filter(|&k| {
             let (a, v, b) = (pts[(k + m - 1) % m], pts[k], pts[(k + 1) % m]);
             let turn = crate::paths::cross(v - a, b - v);
             turn.abs() > 1e-9 && (turn > 0.0) != ccw
         })
-        .map(|k| outline_position(outline, pts[k]))
+        .map(|k| pts[k])
+        .collect();
+    let reflex: Vec<f64> = reflex_corners
+        .iter()
+        .map(|&c| outline_position(outline, c))
         .collect();
     let pos = |p: Vec2| outline_position(outline, p);
     let (first, last) = (rungs[0], rungs[n - 1]);
@@ -3282,8 +3366,11 @@ fn even_outer(rungs: Vec<[Vec2; 2]>, outline: &Contour, spacing: f64) -> Vec<[Ve
     let (a, dir, len) = if o == 0 { c0 } else { c1 };
     let mut out: Vec<[Vec2; 2]> = Vec::new();
     let mut k = 0usize;
+    // How much further along the edge the stations round the bend have moved than `spacing`
+    // each.
+    let mut lean = 0.0;
     while k <= 1_000_000 {
-        let t = len - spacing * k as f64;
+        let t = len - spacing * k as f64 - lean;
         if t < -1e-9 {
             break;
         }
@@ -3308,6 +3395,21 @@ fn even_outer(rungs: Vec<[Vec2; 2]>, outline: &Contour, spacing: f64) -> Vec<[Ve
             let mut g = [outer, outer];
             g[1 - o] = start + inward * d;
             out.push(g);
+            // A station whose square rung lands on the outer edge again is round the bend: its
+            // rung will lean to the inner corner ([`fan_corners`]).
+            let landed = pos(start + inward * d);
+            let along = if dir > 0.0 {
+                (landed - a).rem_euclid(total)
+            } else {
+                (a - landed).rem_euclid(total)
+            };
+            let corner = reflex_corners
+                .iter()
+                .min_by(|p, q| p.distance(outer).total_cmp(&q.distance(outer)));
+            if let Some(&c) = corner.filter(|_| along <= len + 1e-6) {
+                let cos = crate::paths::dot(crate::paths::unit(c - outer), inward);
+                lean += spacing / cos.clamp(0.25, 1.0) - spacing;
+            }
         }
         k += 1;
     }

@@ -745,9 +745,11 @@ fn region(kind: RegionType) -> RegionSewing {
 
 #[test]
 fn auto_satin_on_a_sharp_bend_spaces_its_needle_points_along_the_outer_edge() {
-    // The 120 degree band of compat satin-auto-bend-120 (PE-DESIGN 11.50: 161 stitches, the
-    // longest crossing 9.6 mm, needle points 1/3 mm apart along the 47.3 mm outer edge): its
-    // rungs are rebuilt on the outer edge, square on the legs and fanned round the bend.
+    // The 120 degree band of compat satin-auto-bend-120 (PE-DESIGN 11.50: 161 stitches, 128 of
+    // them crossings of 4 mm or more, the longest 9.6 mm): its rungs are rebuilt on the outer
+    // edge, square on the legs and 1/3 mm apart there, and fanned round the bend, where the
+    // spacing is kept across the leaning rung, so the needle points lie further apart along
+    // the outer edge (#1154; evenly along the edge it sewed 140 crossings).
     let band = Contour::new(
         vec![
             v2(0.0, 0.0),
@@ -770,9 +772,9 @@ fn auto_satin_on_a_sharp_bend_spaces_its_needle_points_along_the_outer_edge() {
         .map(|w| w[0].distance(w[1]))
         .filter(|&d| d >= 40.0)
         .collect();
-    // About 3 per millimetre of outer edge (141 for PE-DESIGN), none longer than two widths.
+    // Within 3 of PE-DESIGN's 128 crossings, none longer than two widths.
     assert!(
-        (130..=150).contains(&crossings.len()),
+        (125..=131).contains(&crossings.len()),
         "{}",
         crossings.len()
     );
@@ -5780,3 +5782,93 @@ fn start_and_end_point_travel_of_other_region_types_is_not_uncrossed() {
 
 const FILL_PRINT: (usize, u64) = (1185, 7_922_731_928_622_289_692);
 const SATIN_PRINT: (usize, u64) = (370, 18_225_474_142_322_398_452);
+
+/// #1154: the satin U of compat region-travel-u-satin sews PE-DESIGN 11.50's needle points per
+/// part within 3 (its file: 466 = 153 in the right leg, 142 in the left leg, 171 in the bar).
+/// - Under sewing: the row on the left leg's inner edge (x = 19 mm on the page) is reached from
+///   the bar and sewn only there, so the rows after it end beside the start point; no walk up
+///   the left edge follows.
+/// - The bar is entered from the left leg, so its rows start one lattice line in from the
+///   start point's edge and the edge's own row comes last, sewn back onto the start point: no
+///   walk back along the top edge.
+#[test]
+fn a_satin_u_sews_pe_designs_needle_points_per_part() {
+    let u = Contour::new(
+        vec![
+            v2(100.0, 100.0),
+            v2(400.0, 100.0),
+            v2(400.0, 400.0),
+            v2(300.0, 400.0),
+            v2(300.0, 200.0),
+            v2(200.0, 200.0),
+            v2(200.0, 400.0),
+            v2(100.0, 400.0),
+        ],
+        true,
+    );
+    let mut r = region(RegionType::Satin);
+    r.angle = 0.0;
+    let mut d = Design::new("u", DesignPage::default());
+    d.add(DesignObject::shape(vec![u], Some(r), None));
+    let pts: Vec<Vec2> = Compiler::default()
+        .compile(&d)
+        .stitches
+        .iter()
+        .filter(|q| q.command == Command::Stitch)
+        .map(|q| v2(q.x, q.y))
+        .collect();
+    // Parts as in the exported file, which holds 0.1 mm: a row on the junction (y = 20 mm) is
+    // the bar's.
+    let count = |f: &dyn Fn(&Vec2) -> bool| pts.iter().filter(|p| f(p)).count() as i64;
+    let right = count(&|p| p.x >= 299.5 && p.y > 200.5);
+    let left = count(&|p| p.x <= 200.5 && p.y > 200.5);
+    let bar = count(&|p| p.y <= 200.5);
+    for (part, ours, pe) in [
+        ("right leg", right, 153),
+        ("left leg", left, 142),
+        ("bar", bar, 171),
+    ] {
+        assert!(
+            (ours - pe).abs() <= 3,
+            "{part}: {ours} against PE-DESIGN's {pe}"
+        );
+    }
+    // The last stitch before the lock lies along the top edge and ends on the start point,
+    // the outline's first point; before it the needle steps up the far edge.
+    let start = v2(100.0, 100.0);
+    let last_long = (0..pts.len() - 1)
+        .rev()
+        .find(|&i| pts[i].distance(pts[i + 1]) > 60.0)
+        .expect("a crossing");
+    assert!(
+        pts[last_long + 1].distance(start) < 0.6,
+        "{:?}",
+        pts[last_long + 1]
+    );
+    assert!(
+        (pts[last_long].y - 100.0).abs() < 0.6 && (pts[last_long].x - 400.0).abs() < 0.6,
+        "{:?}",
+        pts[last_long]
+    );
+    assert!(
+        pts[last_long + 1..]
+            .iter()
+            .all(|p| p.distance(start) < 10.0),
+        "only the lock follows: {:?}",
+        &pts[last_long + 1..]
+    );
+    // No under sewing point on the left leg's inner edge below the bar's rows.
+    let first_long = (0..pts.len() - 1)
+        .find(|&i| pts[i].distance(pts[i + 1]) > 60.0)
+        .expect("a crossing");
+    let on_inner_edge = pts[..first_long]
+        .iter()
+        .filter(|p| (p.x - 190.0).abs() < 0.6 && p.y > 195.0)
+        .count();
+    // The edge run passes there once (9 needle points on PE-DESIGN's 2.5 mm steps); the row
+    // itself would add 6 more.
+    assert!(
+        on_inner_edge <= 10,
+        "{on_inner_edge} needle points on x = 19 mm"
+    );
+}

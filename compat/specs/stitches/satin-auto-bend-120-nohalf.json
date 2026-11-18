@@ -103,7 +103,7 @@
       "evidence": "PE-DESIGN 11.50 reference stitches/satin-auto-bend-120-nohalf.pes",
       "reference": {
         "tolerance": {
-          "percent": 10
+          "count": 3
         }
       }
     },
