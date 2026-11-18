@@ -847,7 +847,8 @@ mod tests {
                 )),
                 ..Default::default()
             };
-            let _ = ctx.run_ui(raw, |ui| window(app, ui.ctx()));
+            let mut out = ctx.run_ui(raw, |ui| window(app, ui.ctx()));
+            out.textures_delta.clear();
             app.ui_command("ui.pointMenu", None).expect("state")
         };
         for object in [false, true] {
