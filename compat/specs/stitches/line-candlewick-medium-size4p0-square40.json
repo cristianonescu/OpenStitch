@@ -1,0 +1,145 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "line-candlewick-medium-size4p0-square40",
+  "area": "stitches",
+  "title": "Candlewicking round a 40 mm square, Size 4.0, Density Medium",
+  "description": "A 40 x 40 mm square's outline sewn as Candlewicking, Size 4.0 mm, Spacing 1.0 mm, Density Medium: PE-DESIGN 11.50 sews 32 knots (8 a side) of 20 points each, 744 needle points in its status bar. A knot has more points the larger it is: four times the quarter circle's arc over a pitch of 1.0, 0.75 or 0.5 mm (Light, Medium, Dense) plus 0.1, rounded up, and the run between knots ends with one stitch of the knot's radius, from its edge to its centre (#1236). The point counts are pinned by the design test candlewick_knots_have_pe_designs_points_at_every_size.",
+  "covers": {
+    "featureMatrix": [
+      {
+        "area": "Line sew types",
+        "feature": "Motif (OpenStitch's own motif library"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "guide",
+      "url": "https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/16_1293444.html",
+      "note": "line sew types and their attributes"
+    },
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 reference stitches/line-candlewick-medium-size4p0-square40.pes (the coordinator's capture of 2026-11-17, #1236): 744 stitches, 44 x 44 mm, 32 knots of 20 points; the Size is stored at the line body's +112 (40), the Density choice at +110 (1)"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.rectangle",
+      "params": {
+        "x": 30,
+        "y": 30,
+        "width": 40,
+        "height": 40,
+        "outline": "Red"
+      }
+    },
+    {
+      "command": "object.setRegion",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "none"
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "candlewick",
+        "density": 12,
+        "width": 4,
+        "spacing": 1,
+        "color": "Red"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "line.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/line-candlewick-medium-size4p0-square40.pes",
+      "make": "Layout & Editing, 100 x 100 mm page: a 40 x 40 mm square at (30,30)-(70,70) mm; region Not Sewn; line Candlewicking, 800 EMBROIDERY RED, Size 4,0, Spacing 1,0, Density Medium, Start/End Type Feed. Save As PES (default type)."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "line.pes"
+      },
+      "evidence": "PE-DESIGN 11.50 sews 744 needle points: 32 knots of 20 points and the runs between them",
+      "reference": {
+        "tolerance": {
+          "percent": 1
+        }
+      }
+    },
+    {
+      "id": "width",
+      "measure": {
+        "kind": "bounds",
+        "property": "width"
+      },
+      "source": {
+        "export": "line.pes"
+      },
+      "evidence": "the 4.0 mm knots centred on the outline: 44 mm",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "line.pes"
+      },
+      "evidence": "the 4.0 mm knots centred on the outline: 44 mm",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "stitch-length-median",
+      "measure": {
+        "kind": "stitchLength",
+        "stat": "median",
+        "minLength": 0.3
+      },
+      "source": {
+        "export": "line.pes"
+      },
+      "evidence": "a knot's chord, nearly its 4.0 mm size",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    }
+  ]
+}
