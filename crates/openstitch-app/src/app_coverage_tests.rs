@@ -441,6 +441,11 @@ fn snap_to_grid_places_a_dragged_curve_handle_on_the_grid() {
         }
         app.tools.set_tool(Tool::Point);
         app.selection = BTreeSet::from([1]);
+        // The handle belongs to the first point, which has to be selected for it to show.
+        app.with_tools(|tools, ctx| {
+            assert!(tools.select_points(0, &[0], ctx));
+            vec![]
+        });
         app
     };
     let first_handle = |app: &EditorApp| {

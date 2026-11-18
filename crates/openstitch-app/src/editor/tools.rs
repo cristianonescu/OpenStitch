@@ -2,8 +2,8 @@ use super::handles::{Handle, SelectionHandles};
 use super::hit::{bounds_of, object_at, object_at_opts, objects_in, rect_from};
 use super::pen::{PenNode, is_valid, path_request, pen_contour};
 use super::points::{
-    Control, PointAction, PointHit, PointRef, can_delete_points, point_actions_enabled, point_at,
-    smooth_curve, with_control, with_vertex,
+    Control, PointAction, PointHit, PointRef, can_delete_points, point_actions_enabled,
+    point_at_selected, smooth_curve, with_control, with_vertex,
 };
 use super::request::{CommandRequest, mm};
 use super::snap::{SnapGuide, SnapLines, TOLERANCE_POINTS, snap_move};
@@ -675,6 +675,17 @@ impl ToolController {
         (p.index < o.contours.get(p.contour)?.points.len()).then_some(p)
     }
 
+    /// What of `o` lies under `p` for the Point tool: a vertex, a handle of a selected vertex
+    /// (no other handle shows) or a side.
+    fn point_hit(&self, o: &DesignObject, p: Vec2, ctx: &ToolContext) -> Option<PointHit> {
+        let selected: Vec<(usize, usize)> = self
+            .selected_points(ctx)
+            .iter()
+            .map(|q| (q.contour, q.index))
+            .collect();
+        point_at_selected(o, p, ctx.point_radius(), ctx.tolerance(), &selected)
+    }
+
     /// Every selected vertex: the one clicked last first, then those added with Ctrl+click
     /// (same object and contour, still existing).
     pub fn selected_points(&self, ctx: &ToolContext) -> Vec<PointRef> {
@@ -735,9 +746,7 @@ impl ToolController {
         let Some(o) = ctx.point_target() else {
             return false;
         };
-        let Some(PointHit::Vertex { contour, index }) =
-            point_at(o, at, ctx.point_radius(), ctx.tolerance())
-        else {
+        let Some(PointHit::Vertex { contour, index }) = self.point_hit(o, at, ctx) else {
             return false;
         };
         let point = PointRef {
@@ -751,6 +760,17 @@ impl ToolController {
         }
         self.gesture = None;
         true
+    }
+
+    /// Whether the Point tool is showing the points of an outline (not needle points, a
+    /// column's rungs, a satin line's widths or a text's characters).
+    pub fn shows_outline_points(&self, ctx: &ToolContext) -> bool {
+        self.tool() == Tool::Point
+            && ctx.point_target().is_some()
+            && ctx.needle_target().is_none()
+            && ctx.rung_target().is_none()
+            && ctx.satin_target().is_none()
+            && ctx.text_target().is_none()
     }
 
     /// Which entries of the point menu are available for the selected vertices, in
@@ -865,9 +885,7 @@ impl ToolController {
         match (e.phase, self.gesture.clone()) {
             (Phase::Down, _) => {
                 let target = ctx.point_target();
-                let hit = target.and_then(|o| {
-                    point_at(o, p, ctx.point_radius(), ctx.tolerance()).map(|h| (o, h))
-                });
+                let hit = target.and_then(|o| self.point_hit(o, p, ctx).map(|h| (o, h)));
                 match hit {
                     Some((o, PointHit::Vertex { contour, index })) => {
                         let point = PointRef {
@@ -1195,7 +1213,7 @@ impl ToolController {
         let Some(o) = ctx.point_target() else {
             return false;
         };
-        match point_at(o, at, ctx.point_radius(), ctx.tolerance()) {
+        match self.point_hit(o, at, ctx) {
             Some(PointHit::Vertex { .. }) => false,
             Some(_) => true,
             None => object_at(ctx.design, at, ctx.tolerance()) == Some(o.id),

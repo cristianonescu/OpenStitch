@@ -526,8 +526,7 @@ fn the_registry_says_what_each_point_command_stores() {
 }
 
 /// Point kinds change editing, not sewing: every example design compiles to the same
-/// stitches with a kind stored on each of its points, and saves without a `kinds` key until
-/// one is stored.
+/// stitches with a kind stored on each of its points, and the kinds are saved.
 #[test]
 fn example_designs_sew_the_same_stitches_whatever_kinds_their_points_have() {
     let examples = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
@@ -579,12 +578,6 @@ fn example_designs_sew_the_same_stitches_whatever_kinds_their_points_have() {
         if d.objects.iter().all(|o| o.contours.is_empty()) {
             continue;
         }
-        let saved = openstitch_design::project::encode(&d).expect("encode");
-        assert!(
-            !String::from_utf8_lossy(&saved).contains("\"kinds\""),
-            "{}: no kinds until one is stored",
-            path.display()
-        );
         let before = Compiler::for_design(&d).compile(&d).stitches;
         for o in &mut d.objects {
             for c in &mut o.contours {
@@ -994,4 +987,53 @@ fn the_registry_says_what_the_1260_commands_store() {
         .and_then(|c| c.params.iter().find(|p| p.name == "dx"))
         .expect("dx");
     assert!(dx.summary.contains("old ones plus this"));
+}
+
+/// A new ellipse's four points are smooth curve points, as the points of PE-DESIGN's circle
+/// are (kind 0x11, capture c0): a dragged handle turns the other. Its stitches and its PES
+/// vertices are what they were before kinds existed.
+#[test]
+fn a_new_ellipse_has_smooth_points_as_pe_designs_circle() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = run(
+        &mut s,
+        "shape.ellipse",
+        json!({ "cx": 50, "cy": 50, "rx": 20, "outline": "#203040" }),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let c = contour(&s, id).clone();
+    assert_eq!(c.points.len(), 4);
+    assert!((0..4).all(|i| c.kind(i) == PointKind::Smooth && c.is_curve_point(i)));
+    // The kinds change nothing that is sewn.
+    let mut plain = s.design().clone();
+    for o in &mut plain.objects {
+        for c in &mut o.contours {
+            c.kinds.clear();
+        }
+    }
+    assert!(
+        Compiler::for_design(&plain).compile(&plain).stitches == stitches(&s),
+        "the same stitches with and without the kinds"
+    );
+    // Dragging the leaving handle of point 0 turns its arriving handle.
+    let (a, l) = c.point_handles(0);
+    let (a, l) = (a.expect("a") - c.points[0], l.expect("l") - c.points[0]);
+    let to = c.points[0] + v2(l.y, -l.x);
+    drag_leaving(&mut s, id, 0, [to.x / 10.0, to.y / 10.0]);
+    let c2 = contour(&s, id);
+    let a2 = c2.point_handles(0).0.expect("a") - c2.points[0];
+    assert!(
+        (a2.length() - a.length()).abs() < 1e-6,
+        "its length is kept"
+    );
+    assert!(
+        (a2.x * l.x + a2.y * l.y).abs() < 1e-6,
+        "turned a quarter with the dragged one"
+    );
+    assert!(
+        s.commands()
+            .iter()
+            .any(|c| c.id == "shape.ellipse" && c.summary.contains("stored as smooth"))
+    );
 }

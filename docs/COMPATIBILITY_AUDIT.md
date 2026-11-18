@@ -4921,7 +4921,7 @@ saved files, not in the repository).
 | Alt + drag of an end point onto the line's other end | Connects the two ends: the open line becomes a closed shape, the two ends one point, with a fill as Close gives it. Owner's hand check, 2026-11-18 (the capture tool cannot hold Alt in a drag). | owner |
 | Delete key | Removes the selected points in one step; one Undo brings them back. | screen |
 | To Curve on a point in the middle of a straight side | Both handles on the side: the outline does not change (the same rule, point ∓ (next − previous) / 4). | e5 |
-| Right click on the shape, not on a point | The object's menu: Add Direction Line, Delete Direction Line, Reverse Direction Line, separator, Open, Close. Open line: only Close is available of the last two, Add and Reverse grey. Closed shape: Add, Reverse and Open available, Close grey. | screen |
+| Right click on the shape, not on a point | The object's menu: Add Direction Line, Delete Direction Line (a sub-menu: Delete Selected Line, Delete Lines Not Selected), Reverse Direction Line, separator, Open, Close. Add and Reverse carry an icon, Delete Direction Line none. Delete Direction Line is always available; on an open line its two sub-menu entries are grey. Open line: Add and Reverse grey, Open grey, Close available. Closed shape with a region: Add, Reverse and Open available, Close grey. | screen |
 | Close | The open line becomes a closed shape through the same points and gets a region: Fill Stitch at direction 45 (1289 stitches against 310). | e7 |
 | Open | The closing side goes and the region is removed; the line is as before (310 stitches). | e8 |
 | An end point dragged onto the other end without Alt | Lies on it; the line stays open. | e6 |
@@ -4939,6 +4939,25 @@ saved files, not in the repository).
   has no region (`region: false` leaves it out); `object.openOutline` removes the closing side
   and the region.
 - The Point tool's hint line names these in our own words.
+- **Look.** Both menus are drawn as menu rows, not buttons: an icon column, the text
+  left-aligned, the whole row highlighted under the pointer, grey text for an unavailable
+  entry, PE-DESIGN's separators, opening at the pointer to the right of and below it. Split at
+  Point and Delete carry an icon, as do the three direction-line entries of the object's menu
+  (our own icons, the ribbon's; Add and Reverse Direction Line have one in the object's menu,
+  Delete Direction Line none, as in PE-DESIGN's); Delete Direction Line is always available
+  and opens PE-DESIGN's sub-menu, Delete Selected Line and Delete Lines Not Selected. What
+  those two do with direction lines present is not captured, so they are built from their
+  names: no direction line can be selected on the canvas here, so Delete Selected Line has
+  nothing to act on and stays grey, and Delete Lines Not Selected removes them all (back to
+  one straight direction); both are grey on a shape without direction lines. On the canvas every
+  point is a small hollow square and a selected point a filled black one; a selected curve
+  point shows its two handle lines, each ending in a small filled square, and no other handle
+  shows or can be grabbed. With the points showing and none selected, Edit Point, Delete Point
+  and Split at Point are all grey.
+- A new ellipse's four points are stored as smooth, as the points of PE-DESIGN's circle are
+  (To Smooth grey, a dragged handle turns the other); ellipses saved before keep independent
+  handles. Every one of the 16 rows of the menu table above is a test case
+  (`every_row_of_pe_designs_menu_table`, through `ui.pointMenu` and the ribbon).
 
 Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_makes_it`,
 `several_points_move_together_in_one_undo_step`,
