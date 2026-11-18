@@ -1690,7 +1690,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "mm",
                     "Fill (beyond PE-DESIGN): the top stitching's sides parallel to its rows move in by this much, 0-2 (0 = off); the row ends keep pullCompensation",
                 ),
-                opt("underlay", "bool", "Underlay (style in underlayStyle)"),
+                opt(
+                    "underlay",
+                    "bool",
+                    "Underlay (style in underlayStyle); a new region or a switch of type starts with PE-DESIGN's default for the type: on for fill, programmableFill, satin and zigzagNetFill, off for the others; on a zigzagNetFill it is a running line under every band, sewn before the bands, with no edge run, and underlayStyle is not used",
+                ),
                 opt(
                     "underlayStyle",
                     "edge|zigzag|edgeZigzag|double|edgeFill|cross|auto|centreWalk",

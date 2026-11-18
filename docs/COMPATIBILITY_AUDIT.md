@@ -4684,3 +4684,17 @@ All 16 are within 5 % (−3.5 % to +3.2 %).
   path not reproduced (−3.5 %).
 - Under sewing is off by default on an OpenStitch zigzag net and on in PE-DESIGN 11.50: a
   30 × 20 mm net sews 906 stitches by default and 991 with under sewing, against PE-DESIGN's 981.
+
+### A new zigzag net has under sewing on, 2026-11-18 (#1239)
+
+**Measured:** PE-DESIGN 11.50's Zigzag Net Fill at its defaults has under sewing on (round 13,
+zigzag-net-dir0: 981 stitches on a 30 × 20 mm rectangle). OpenStitch's new zigzag net had it off:
+906 stitches on the same rectangle, the bands only.
+
+**Now:** `RegionSewing::new` turns under sewing on for a zigzag net, so the inspector's type
+switch and `object.setRegion` without `underlay` give 991 stitches, the line under every band
+sewn before the bands.
+
+**Existing projects:** a project always stores the value, so a net saved with under sewing off
+loads with it off and sews as it did. A region without the field does not load, as before. No
+`.osd` version step.
