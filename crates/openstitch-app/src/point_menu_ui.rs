@@ -177,8 +177,9 @@ fn row(
         if lit {
             ui.painter().rect_filled(rect, 3.0, v.selection.bg_fill);
         }
+        // An unavailable entry is plainly grey, well apart from the text colour.
         let fg = if !enabled {
-            v.weak_text_color()
+            v.text_color().gamma_multiply(0.38)
         } else if lit {
             v.selection.stroke.color
         } else {
@@ -209,7 +210,7 @@ fn row(
             );
         }
     }
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, text));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, text));
     response
 }
 
@@ -562,7 +563,8 @@ mod tests {
         let delete = |indexes: Value| ("object.deletePoint", json!({ "id": 1, "indexes": indexes }));
         let line = || polygon(json!([[10, 60], [40, 60], [40, 30]]), false);
         // (PE-DESIGN's row, the commands that make the case, the selected points, the row).
-        let rows: Vec<(&str, Vec<(&'static str, Value)>, Value, [bool; 7])> = vec![
+        type Row = (&'static str, Vec<(&'static str, Value)>, Value, [bool; 7]);
+        let rows: Vec<Row> = vec![
             ("closed, straight corner", vec![rectangle.clone()], json!([0]), [NO, ON, NO, NO, NO, ON, ON]),
             (
                 "closed, after To Curve (point is smooth)",

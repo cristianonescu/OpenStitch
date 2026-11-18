@@ -1030,11 +1030,12 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
         EditPoint => {
             // PE-DESIGN's Edit Point drop-down: two headings, greyed as the point menu is.
             use openstitch_app::editor::ribbon::EDIT_POINT_MENU;
-            ui.label(egui::RichText::new(t("menu-point-line-type")).weak());
+            ui.label(egui::RichText::new(t("menu-point-line-type")).strong());
             for a in &EDIT_POINT_MENU[..2] {
                 menu_item(app, ui, *a);
             }
-            ui.label(egui::RichText::new(t("menu-point-curve-type")).weak());
+            ui.separator();
+            ui.label(egui::RichText::new(t("menu-point-curve-type")).strong());
             for a in &EDIT_POINT_MENU[2..] {
                 menu_item(app, ui, *a);
             }
