@@ -858,6 +858,15 @@ fn point_tool_drags_handle_and_selects_shapes() {
     // No target yet: clicking a shape selects it.
     let sel = click_at(&mut t, &mut s, BTreeSet::new(), v2(200.0, 150.0), 1);
     assert_eq!(sel, BTreeSet::from([id]));
+    // A handle shows, and can be dragged, once its point is selected (PE-DESIGN's, #1260):
+    // before that a press there is a press on empty space.
+    let sel = drag(&mut t, &mut s, sel, v2(250.0, 50.0), v2(260.0, 20.0), false);
+    assert_eq!(
+        *s.design(),
+        before,
+        "an unselected point's handle is not there"
+    );
+    let sel = click_at(&mut t, &mut s, BTreeSet::from([id]), v2(300.0, 100.0), 1);
     let sel = drag(&mut t, &mut s, sel, v2(250.0, 50.0), v2(260.0, 20.0), false);
     let z = s.design().objects[0].contours[0].curve(0).expect("curve");
     assert_eq!(z.c2, v2(260.0, 20.0));

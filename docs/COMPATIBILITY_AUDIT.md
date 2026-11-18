@@ -4939,6 +4939,20 @@ saved files, not in the repository).
   has no region (`region: false` leaves it out); `object.openOutline` removes the closing side
   and the region.
 - The Point tool's hint line names these in our own words.
+- **Look.** Both menus are drawn as menu rows, not buttons: an icon column, the text
+  left-aligned, the whole row highlighted under the pointer, grey text for an unavailable
+  entry, PE-DESIGN's separators, opening at the pointer to the right of and below it. Split at
+  Point and Delete carry an icon, as do the three direction-line entries of the object's menu
+  (our own icons, the ribbon's); Delete Direction Line opens a sub-menu (PE-DESIGN's own
+  entries there were not captured; ours has one, All Direction Lines). On the canvas every
+  point is a small hollow square and a selected point a filled black one; a selected curve
+  point shows its two handle lines, each ending in a small filled square, and no other handle
+  shows or can be grabbed. With the points showing and none selected, Edit Point, Delete Point
+  and Split at Point are all grey.
+- A new ellipse's four points are stored as smooth, as the points of PE-DESIGN's circle are
+  (To Smooth grey, a dragged handle turns the other); ellipses saved before keep independent
+  handles. Every one of the 16 rows of the menu table above is a test case
+  (`every_row_of_pe_designs_menu_table`, through `ui.pointMenu` and the ribbon).
 
 Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_makes_it`,
 `several_points_move_together_in_one_undo_step`,

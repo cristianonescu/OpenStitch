@@ -360,9 +360,16 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         EditPoint => crate::point_menu_ui::states(app).is_some(),
         OpenOutline => crate::point_menu_ui::outline_closed(app) == Some(true),
         CloseOutline => crate::point_menu_ui::outline_closed(app) == Some(false),
+        // With an outline's points showing and none selected it is grey, as PE-DESIGN's.
         DeletePoint => match crate::point_menu_ui::states(app) {
             Some(e) => e[6],
-            None => app.tools.tool() == Tool::Point && any,
+            None => {
+                app.tools.tool() == Tool::Point
+                    && any
+                    && !app
+                        .tools
+                        .shows_outline_points(&app.tool_context(app.session.design()))
+            }
         },
         SplitAtPoint => {
             let (_, one, needles) = convert_ui::stitch_selection(app);

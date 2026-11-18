@@ -455,7 +455,14 @@ mod tests {
     #[test]
     fn the_ribbon_and_ui_point_menu_follow_the_menu() {
         let (mut app, _) = with_rectangle();
-        for a in [Action::EditPoint, Action::SplitAtPoint, Action::PointToCurve] {
+        // No point selected, the points showing: all three of the group are grey.
+        app.tools.set_tool(openstitch_app::editor::Tool::Point);
+        for a in [
+            Action::EditPoint,
+            Action::DeletePoint,
+            Action::SplitAtPoint,
+            Action::PointToCurve,
+        ] {
             assert!(!enabled(&app, a), "{a:?} with no point selected");
         }
         let s = app

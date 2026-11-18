@@ -762,6 +762,17 @@ impl ToolController {
         true
     }
 
+    /// Whether the Point tool is showing the points of an outline (not needle points, a
+    /// column's rungs, a satin line's widths or a text's characters).
+    pub fn shows_outline_points(&self, ctx: &ToolContext) -> bool {
+        self.tool() == Tool::Point
+            && ctx.point_target().is_some()
+            && ctx.needle_target().is_none()
+            && ctx.rung_target().is_none()
+            && ctx.satin_target().is_none()
+            && ctx.text_target().is_none()
+    }
+
     /// Which entries of the point menu are available for the selected vertices, in
     /// [`PointAction::MENU`] order; `None` when no vertex is selected.
     pub fn point_actions(&self, ctx: &ToolContext) -> Option<[bool; 7]> {
