@@ -183,7 +183,9 @@ its bands reaching in from lines outside the shape, and a switch to a net fill s
 Direction 0 (#1054); nets travelling along the outline in PE-DESIGN's order, the lines before the
 bands (#1043, #1071, 2026-11-17: stitch counts within 3.5 % of PE-DESIGN's on all 16 net
 captures), the zigzag net's Density field in PE-DESIGN's lines per mm (#1163), and a new zigzag net with
-under sewing on, PE-DESIGN's default (#1239). Details in
+under sewing on, PE-DESIGN's default (#1239); satin on Closed Straight Line shapes: the U's
+under sewing and bar end as PE-DESIGN's and the 120° band keeps the spacing across its leaning
+rungs, both within 3 needle points of PE-DESIGN's per part (#1154). Details in
 COMPATIBILITY_AUDIT.
 
 Done 2026-11-13 (#1051): the kit previews are placed by millimetres. The tiles are drawn with
