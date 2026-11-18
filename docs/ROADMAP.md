@@ -451,7 +451,12 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    at 90°; at 30°/45° PE's rows sit about half a spacing from ours, as Type 1's do. Round 6
    (2026-10-31) pinned the rows to the shape at the exact 1/density spacing, counted from the
    far side; left to model: the per-angle needle-grid constant and PE-DESIGN's dependence on
-   the page position, which ours lacks); Half Stitch; feathered-edge patterns; gradation presets, per-step editing and Blend. Gradation
+   the page position, which ours lacks). Type 1 has both since 2026-11-17 (#1131, #1088): the
+   grid starts at the origin of PE-DESIGN's page coordinates, 100 mm left of and above the
+   page's centre, with the nearest row count, corner rows and halves meeting on the end point
+   (30° squares 2031 to 2040 against PE-DESIGN's 2032 to 2042). Left for Type 2: its grid stays
+   with the shape in PE-DESIGN, and its passes sit 0.13 mm (first half) and 0.58 mm (second
+   half) from ours at 30°; Half Stitch; feathered-edge patterns; gradation presets, per-step editing and Blend. Gradation
    rows follow PE-DESIGN's cumulative-density placement since 2026-10-28 (#95: every row of
    the U within 0.12 mm, overlap 0.83 → 0.89); left for the U: PE's section order for fills in
    several parts (right leg, left leg, then the top bar ending at the first vertex). Under

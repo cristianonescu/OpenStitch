@@ -694,7 +694,11 @@ fn entry_exit_command() -> CommandSpec {
         vec![
             req("id", "int", "Shape object"),
             opt("regionEntry", "[x, y] mm | null", "Region entry point (R1)"),
-            opt("regionExit", "[x, y] mm | null", "Region exit point (R2)"),
+            opt(
+                "regionExit",
+                "[x, y] mm | null",
+                "Region exit point (R2); a Fill whose rows are one span each ends both its halves there, as PE-DESIGN does, and other regions travel to it",
+            ),
             opt(
                 "lineEntry",
                 "[x, y] mm | null",

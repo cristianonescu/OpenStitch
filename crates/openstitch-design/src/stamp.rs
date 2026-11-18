@@ -5,7 +5,9 @@
 //!
 //! - engraved line: a penetration wherever a stitch crosses the effect outline, so the outline
 //!   shows as a line of needle holes;
-//! - engraved region: stitches inside the effect area are cut into short ones (sunken look);
+//! - engraved region: stitches inside the effect area are cut into short ones (sunken look); on
+//!   a plain Fill the area's rows take a needle grid of their own, as PE-DESIGN's do
+//!   ([`Rows`]);
 //! - embossed region: needle points inside the effect area are dropped, so stitches there are
 //!   long (raised look), up to [`STAMP_EMBOSS_MAX`].
 //!
@@ -24,8 +26,69 @@ pub const EMBOSS_MAX: f64 = 70.0;
 /// Stitch length inside a stamp's engraved region. PE-DESIGN 11.50 cuts a Fill's 4 mm
 /// stitches to 1.9 mm on average there (round-10 capture
 /// `471-engraved-region-circle.pes`, spec `stamp-engraved-region-circle`: 262 needle points per cm²
-/// inside against 128 outside, #471).
+/// inside against 128 outside, #471): its rows inside the area carry a 2 mm needle grid of
+/// their own (#1144, see [`Rows`]).
 pub const STAMP_ENGRAVE_STEP: f64 = 20.0;
+/// PE-DESIGN leaves out an engraved row's grid point closer than this to where the row crosses
+/// the area's outline, 0.1 mm: taken as the fill's own rule at its row ends (the capture's
+/// nearest, read off its 0.1 mm needle points, are 0.35 to 0.42 mm away).
+const ENGRAVE_END_GAP: f64 = 3.0;
+
+/// The rows and needle grid of a plain Fill (rotated by `-angle`), for an engraved region on it.
+/// PE-DESIGN 11.50 gives the part of each row inside the area a grid of
+/// [`STAMP_ENGRAVE_STEP`] in place of the fill's: it starts where the fill's does and moves
+/// by the same Frequency per row (row k's lies `(k + 1)·shift` of a step from `anchor`), with a
+/// needle point where the row enters and leaves the area (round-10 capture, rows through the
+/// 14.5 mm circle: 0.6 mm per row at Frequency 30 %; #1144).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Rows {
+    /// The rows' direction, degrees (geometry angle).
+    pub angle: f64,
+    /// Where row 0 lies across the rows.
+    pub first: f64,
+    /// Distance between rows.
+    pub gap: f64,
+    /// Where the fill's needle grid starts along the rows.
+    pub anchor: f64,
+    /// Fraction of a stitch the grid moves per row.
+    pub shift: f64,
+}
+
+impl Rows {
+    fn rotated(&self, p: Vec2) -> Vec2 {
+        p.rotated(-self.angle.to_radians())
+    }
+
+    /// Whether a→b runs along one row.
+    fn level(&self, a: Vec2, b: Vec2) -> bool {
+        (self.rotated(a).y - self.rotated(b).y).abs() < 1e-2
+    }
+
+    /// The engraved grid's needle points between `a` and `b` on one row, in that order, without
+    /// those closer than [`ENGRAVE_END_GAP`] to either.
+    fn between(&self, a: Vec2, b: Vec2) -> Vec<Vec2> {
+        let (ra, rb) = (self.rotated(a), self.rotated(b));
+        let k = ((ra.y - self.first) / self.gap).round().max(0.0);
+        let step = STAMP_ENGRAVE_STEP;
+        let phase = self.anchor + ((k + 1.0) * self.shift).fract() * step;
+        let (lo, hi) = (ra.x.min(rb.x), ra.x.max(rb.x));
+        let mut x = phase + ((lo - phase) / step).floor() * step;
+        let mut xs = Vec::new();
+        while x < hi - ENGRAVE_END_GAP {
+            if x > lo + ENGRAVE_END_GAP {
+                xs.push(x);
+            }
+            x += step;
+        }
+        if ra.x > rb.x {
+            xs.reverse();
+        }
+        let along = (rb.x - ra.x).abs().max(1e-9);
+        xs.into_iter()
+            .map(|x| a.lerp(b, (x - ra.x).abs() / along))
+            .collect()
+    }
+}
 /// Longest stitch inside a stamp's embossed region. PE-DESIGN 11.50 drops every needle point
 /// inside and leaves the rows crossing a 14.5 × 14 mm circle whole, up to 14.3 mm (round-10
 /// capture `471-embossed-region-circle.pes`: within 6 mm of the centre 13 needle points per cm², the
@@ -170,12 +233,64 @@ fn pieces(a: Vec2, b: Vec2, edges: &[(Vec2, Vec2)], area: &[Contour]) -> Vec<(Ve
     out
 }
 
-fn apply_one(runs: Vec<Run>, s: &Stamp) -> Vec<Run> {
+/// An engraved region on a plain Fill's `run`: each stretch of a row inside `area` sews the
+/// engraved grid ([`Rows::between`]) between the needle points where it enters and leaves, in
+/// place of the fill's own points there. Stitches inside that do not run along a row (travel,
+/// the steps from row to row) are cut into [`STAMP_ENGRAVE_STEP`] pieces as before.
+fn engrave_rows(run: Run, e: &[(Vec2, Vec2)], area: &[Contour], rows: &Rows) -> Run {
+    let Some(&first) = run.first() else {
+        return run;
+    };
+    let mut out = vec![first];
+    // Where the row stretch being sewn inside the area started (a needle point already out).
+    let mut open: Option<Vec2> = None;
+    for w in run.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        let level = rows.level(a, b);
+        let mut from = a;
+        for (p, inside) in pieces(a, b, e, area) {
+            if inside && level {
+                let start = *open.get_or_insert(from);
+                // The stitch's own end stays open: the row may go on inside the area.
+                if p != b {
+                    out.extend(rows.between(start, p));
+                    out.push(p);
+                    open = None;
+                }
+            } else {
+                if let Some(start) = open.take() {
+                    out.extend(rows.between(start, from));
+                    out.push(from);
+                }
+                if inside {
+                    let n = (from.distance(p) / STAMP_ENGRAVE_STEP).ceil().max(1.0) as usize;
+                    out.extend((1..=n).map(|i| from.lerp(p, i as f64 / n as f64)));
+                } else {
+                    out.push(p);
+                }
+            }
+            from = p;
+        }
+    }
+    if let (Some(start), Some(&last)) = (open, run.last()) {
+        out.extend(rows.between(start, last));
+        out.push(last);
+    }
+    out
+}
+
+fn apply_one(runs: Vec<Run>, s: &Stamp, rows: Option<&Rows>) -> Vec<Run> {
     let e = edges(&s.contours);
     if e.is_empty() {
         return runs;
     }
     let area = &s.contours;
+    if let (StampEffect::EngravedRegion, Some(rows)) = (s.effect, rows) {
+        return runs
+            .into_iter()
+            .map(|run| engrave_rows(run, &e, area, rows))
+            .collect();
+    }
     runs.into_iter()
         .map(|run| {
             let Some(&first) = run.first() else {
@@ -239,9 +354,15 @@ fn emboss(run: &[Vec2], inside_before: &[bool]) -> Run {
 }
 
 /// The region's top-layer `runs` with every stamp applied in order.
-pub fn apply(mut runs: Vec<Run>, stamps: &[Stamp]) -> Vec<Run> {
+pub fn apply(runs: Vec<Run>, stamps: &[Stamp]) -> Vec<Run> {
+    apply_on(runs, stamps, None)
+}
+
+/// [`apply`] on a plain Fill whose rows and needle grid are `rows`: its engraved regions sew
+/// PE-DESIGN's grid ([`Rows`]).
+pub fn apply_on(mut runs: Vec<Run>, stamps: &[Stamp], rows: Option<&Rows>) -> Vec<Run> {
     for s in stamps {
-        runs = apply_one(runs, s);
+        runs = apply_one(runs, s, rows);
     }
     runs
 }
@@ -296,6 +417,50 @@ mod tests {
             }
             // 19 mm inside in 2 mm stitches: 10 where the plain row has 5.
             assert!(run.len() > 15, "{}", run.len());
+        }
+    }
+
+    #[test]
+    fn engraved_region_on_a_plain_fill_sews_its_own_grid() {
+        // rows() as a fill's rows 0 to 2, their grid on multiples of 4 mm from the anchor.
+        let grid = Rows {
+            angle: 0.0,
+            first: 150.0,
+            gap: 17.0,
+            anchor: 0.0,
+            shift: 0.3,
+        };
+        let stamps = [square_stamp(StampEffect::EngravedRegion)];
+        let out = apply_on(rows(), &stamps, Some(&grid));
+        for (k, run) in out.iter().enumerate() {
+            // Row k's engraved grid lies (k + 1) × 30 % of 2 mm from the anchor, every 2 mm,
+            // in place of the fill's own points, none within 0.3 mm of the outline.
+            let phase = ((k + 1) as f64 * 0.3).fract() * STAMP_ENGRAVE_STEP;
+            let inner: Vec<f64> = run.iter().filter(|p| inside(p)).map(|p| p.x).collect();
+            assert_eq!(inner.len(), 9, "row {k}: {inner:?}");
+            for x in &inner {
+                let off = (x - phase).rem_euclid(STAMP_ENGRAVE_STEP);
+                assert!(
+                    !(1e-6..=STAMP_ENGRAVE_STEP - 1e-6).contains(&off),
+                    "row {k}: {x}"
+                );
+                assert!(x - 105.0 > ENGRAVE_END_GAP && 295.0 - x > ENGRAVE_END_GAP);
+            }
+            // A needle point where the row enters and leaves, and the row still runs one way.
+            assert!(run.contains(&v2(105.0, run[0].y)) && run.contains(&v2(295.0, run[0].y)));
+            assert!(run.windows(2).all(|w| w[1].x > w[0].x));
+            assert_eq!(run.first(), Some(&v2(0.0, run[0].y)));
+            assert_eq!(run.last(), Some(&v2(400.0, run[0].y)));
+        }
+        // Rows sewn the other way hold the same needle points.
+        let back: Vec<Run> = rows()
+            .into_iter()
+            .map(|r| r.into_iter().rev().collect())
+            .collect();
+        for (a, b) in out.iter().zip(apply_on(back, &stamps, Some(&grid))) {
+            let b: Run = b.into_iter().rev().collect();
+            assert_eq!(a.len(), b.len());
+            assert!(a.iter().zip(&b).all(|(p, q)| p.distance(*q) < 1e-9));
         }
     }
 

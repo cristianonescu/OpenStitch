@@ -103,7 +103,7 @@
         "min": 2950,
         "max": 3300
       },
-      "evidence": "3,123 stitches: 53 fewer than the plain square (PE-DESIGN 60 fewer), on the 40 mm square with the 14.5 mm circle",
+      "evidence": "3,189 stitches: 55 fewer than the plain square (PE-DESIGN 3,191, 60 fewer), on the 40 mm square with the 14.5 mm circle",
       "reference": {
         "tolerance": {
           "percent": 5

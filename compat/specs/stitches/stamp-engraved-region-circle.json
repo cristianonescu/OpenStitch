@@ -103,10 +103,27 @@
         "min": 3300,
         "max": 3650
       },
-      "evidence": "3,484 stitches: 308 more than the plain square (PE-DESIGN 280 more), on the 40 mm square with the 14.5 mm circle",
+      "evidence": "3,525 stitches: 281 more than the plain square (PE-DESIGN 3,531, 280 more), on the 40 mm square with the 14.5 mm circle; the plain square itself is 7 short of PE-DESIGN's (stamp-plain-square-baseline)",
       "reference": {
         "tolerance": {
-          "percent": 5
+          "count": 6
+        }
+      }
+    },
+    {
+      "id": "inside-circle",
+      "measure": {
+        "kind": "centreCrowding",
+        "within": 6.5,
+        "property": "points"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "evidence": "Needle points within 6.5 mm of the centre, inside the engraved circle: PE-DESIGN 314, OpenStitch 313 (about 30 more before #1144, when the fill's own needle points stayed there and each stitch was cut into 2 mm pieces)",
+      "reference": {
+        "tolerance": {
+          "count": 3
         }
       }
     }

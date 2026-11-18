@@ -471,7 +471,7 @@ pub fn section_starts(page_mm: u16, section_mm: u16) -> Vec<u16> {
     if step <= 0 {
         return Vec::new();
     }
-    let corner = 1000 - page * 5;
+    let corner = openstitch_core::PE_PAGE_CENTRE as i32 - page * 5;
     let mut out = Vec::new();
     let mut covered = section;
     let mut k = 1;

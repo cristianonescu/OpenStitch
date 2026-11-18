@@ -485,7 +485,10 @@ fn commands_documented_and_unique() {
 /// (#1088; 5902 → 5959 stitches: only the ellipse's under sewing changes, from the first record to
 /// its step out to the entry, and the last 5237 records are identical), and again that day when
 /// the under sewing's rows took PE-DESIGN's needle grid and short row ends (#1132; 5959 → 5971:
-/// the first 152 and the last 5259 records are identical, only the ellipse's rows change). The same design
+/// the first 152 and the last 5259 records are identical, only the ellipse's rows change), and on
+/// 2026-11-17 when a Stitch Type 1 fill's rows followed PE-DESIGN's row count, corners and page
+/// grid (#1131; 5971 → 5962: the first 737 and the last 674 records are identical, only the
+/// ellipse's top fill changes). The same design
 /// exported as `1t`
 /// must keep writing the identical bytes; the
 /// script's default export is now version 6 with objects and sews the same stitches.

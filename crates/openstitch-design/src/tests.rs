@@ -725,6 +725,165 @@ fn fill_rows_in_a_sliver_are_joined() {
 }
 
 #[test]
+fn fill_rows_take_the_nearest_whole_number_of_gaps() {
+    // PE-DESIGN 11.50 at 4.5 rows/mm (#1131): 148.5 gaps over 33 mm sew as 148, 31.8 across a
+    // 5 mm square at 45° as 32, 245.9 and 254.6 across a 40 mm square at 30° and 45° as 246
+    // and 255.
+    let gaps = |w: f64, h: f64, angle: f64| {
+        let c = [Contour::rectangle(0.0, 0.0, w, h)];
+        let p = params(angle, 10.0 / 4.5, 40.0, 0.0);
+        let (_, gap) = generate::fill_row_frame(&c, &p).expect("rows");
+        let height = crate::region::rotated_bounds(&c, angle)
+            .expect("bounds")
+            .height();
+        (height / gap).round() as usize
+    };
+    assert_eq!(gaps(400.0, 330.0, 0.0), 148);
+    assert_eq!(gaps(400.0, 400.0, 0.0), 180);
+    assert_eq!(gaps(50.0, 50.0, -45.0), 32);
+    assert_eq!(gaps(400.0, 400.0, -30.0), 246);
+    assert_eq!(gaps(400.0, 400.0, -45.0), 255);
+}
+
+#[test]
+fn a_fill_from_a_corner_keeps_the_edge_points_of_the_rows_sewn_back() {
+    // PE-DESIGN 11.50's lone 5 mm square at 45° (fill-square-5mm-under-sewing, #1131), started
+    // at the middle of its bottom edge: the top-left corner is one needle point, then every
+    // other row runs from the top edge to the left edge with both its edge points.
+    let square = [Contour::rectangle(0.0, 0.0, 50.0, 50.0)];
+    let p = params(-45.0, 10.0 / 4.5, 40.0, 0.0);
+    let stagger = generate::Stagger::Regular(0.3);
+    let entry = Some(v2(25.0, 50.0));
+    let run = generate::edge_to_edge_rows(&square, &p, &[], stagger, entry, false).concat();
+    let near = |a: geometry::Vec2, b: geometry::Vec2| a.distance(b) < 0.02;
+    let at = |q| run.iter().position(|r| near(*r, q));
+    let count = |q| run.iter().filter(|r| near(**r, q)).count();
+    let corner = at(v2(0.0, 0.0)).expect("the corner is sewn");
+    assert_eq!(count(v2(0.0, 0.0)), 1);
+    // 32 gaps: the rows are 3.125 apart along the edges.
+    assert!(
+        near(run[corner + 1], v2(6.25, 0.0)),
+        "{:?}",
+        run[corner + 1]
+    );
+    assert!(
+        near(run[corner + 2], v2(0.0, 6.25)),
+        "{:?}",
+        run[corner + 2]
+    );
+    let fourth = at(v2(12.5, 0.0)).expect("row 4 starts on the top edge");
+    assert!(
+        near(run[fourth + 1], v2(0.0, 12.5)),
+        "{:?}",
+        run[fourth + 1]
+    );
+    // The row through the start point closes the first half only: sewn once, towards it.
+    assert_eq!(count(v2(50.0, 25.0)), 1);
+    // The far corner is one needle point too, and the second half ends on the row next to the
+    // start point, one stitch from it.
+    assert_eq!(count(v2(50.0, 50.0)), 1);
+    let n = run.len();
+    assert!(near(run[n - 2], v2(28.125, 50.0)), "{:?}", run[n - 2]);
+    assert!(
+        run[n - 1].distance(v2(25.0, 50.0)) < 1e-9,
+        "{:?}",
+        run[n - 1]
+    );
+}
+
+#[test]
+fn the_halves_of_a_fill_meet_at_its_end_point() {
+    // PE-DESIGN 11.50, machine-jumps' squares (#1088): entered at the top-left corner and left
+    // at the top-right one, the fill sews the corner half from where it is, ends it on the end
+    // point, travels to the far corner and ends the other half there as well. The diagonal
+    // through the end point closes both halves.
+    let square = [Contour::rectangle(0.0, 0.0, 50.0, 50.0)];
+    let p = params(-45.0, 10.0 / 4.5, 40.0, 0.0);
+    let run = generate::fill_edge_to_edge_travel(
+        &square,
+        &p,
+        &[],
+        generate::Stagger::Regular(0.3),
+        Some(v2(0.0, 0.0)),
+        Some(v2(50.0, 0.0)),
+        false,
+        false,
+        None,
+    )
+    .concat();
+    let count = |q: geometry::Vec2| run.iter().filter(|r| r.distance(q) < 0.02).count();
+    assert!(run[0].distance(v2(0.0, 0.0)) < 0.02, "{:?}", run[0]);
+    let n = run.len();
+    assert!(
+        run[n - 1].distance(v2(50.0, 0.0)) < 1e-9,
+        "{:?}",
+        run[n - 1]
+    );
+    assert_eq!(count(v2(0.0, 0.0)), 1);
+    assert_eq!(count(v2(50.0, 50.0)), 1);
+    assert_eq!(count(v2(0.0, 50.0)), 2);
+    // Without an end point both halves end on the start point, as before.
+    let run = generate::fill_edge_to_edge_travel(
+        &square,
+        &p,
+        &[],
+        generate::Stagger::Regular(0.3),
+        Some(v2(0.0, 0.0)),
+        None,
+        false,
+        false,
+        None,
+    )
+    .concat();
+    let n = run.len();
+    assert!(
+        run[0].distance(run[n - 1]) < 0.02,
+        "{:?} {:?}",
+        run[0],
+        run[n - 1]
+    );
+}
+
+#[test]
+fn a_type_1_fills_needle_grid_starts_at_the_origin_it_is_given() {
+    // PE-DESIGN 11.50 lays the grid out from the origin of its page coordinates (#1131): row
+    // 1's grid lies 2 × 30 % of a 4 mm stitch from it along the rows. Without an origin the
+    // grid starts at the shape, and Stitch Type 2's does either way.
+    let square = [Contour::rectangle(0.0, 0.0, 400.0, 400.0)];
+    let p = params(0.0, 10.0 / 4.5, 40.0, 0.0);
+    let fill = |sloped: bool, origin| {
+        generate::fill_edge_to_edge_travel(
+            &square,
+            &p,
+            &[],
+            generate::Stagger::Regular(0.3),
+            Some(v2(200.0, 400.0)),
+            None,
+            sloped,
+            false,
+            origin,
+        )
+        .concat()
+    };
+    let row_1 = |run: &[geometry::Vec2]| -> Vec<f64> {
+        run.iter()
+            .filter(|q| (q.y - 400.0 / 180.0).abs() < 0.01 && q.x > 1.0 && q.x < 399.0)
+            .map(|q| q.x.rem_euclid(40.0))
+            .collect()
+    };
+    let at_shape = row_1(&fill(false, None));
+    assert!(at_shape.len() > 5, "{at_shape:?}");
+    assert!(
+        at_shape.iter().all(|x| (x - 24.0).abs() < 1e-6),
+        "{at_shape:?}"
+    );
+    let moved = row_1(&fill(false, Some(v2(-3.0, 7.0))));
+    assert!(moved.len() > 5, "{moved:?}");
+    assert!(moved.iter().all(|x| (x - 21.0).abs() < 1e-6), "{moved:?}");
+    assert_eq!(fill(true, Some(v2(-3.0, 7.0))), fill(true, None));
+}
+
+#[test]
 fn join_short_stitches_keeps_short_corners_and_the_last_point() {
     // Six short stitches in a row stay (PE-DESIGN's most in its drawn fills).
     let corner: Vec<_> = (0..7)

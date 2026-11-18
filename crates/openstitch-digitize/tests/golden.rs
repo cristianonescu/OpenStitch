@@ -91,7 +91,9 @@ fn actual() -> Vec<(String, &'static str, u64)> {
 
 /// Pinned on macOS (aarch64); must match on Windows and Linux (x86_64).
 const EXPECTED: &[(&str, &str, u64)] = &[
-    ("emblem", "auto-punch", 0x39c2849305aff9bb),
+    // #1131: a fill's rows follow PE-DESIGN's (the nearest row count, corners as one needle
+    // point, the needle grid from the page's origin).
+    ("emblem", "auto-punch", 0xadae27ab580dbc75),
     ("emblem", "photo-stitch-1", 0xb7c99464763dafd8),
     ("emblem", "photo-stitch-2", 0x5f19ecc7e7dec154),
     // #702: OpenStitch mode splits long branching strokes into columns by default (the veins).

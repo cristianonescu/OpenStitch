@@ -32,7 +32,7 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 13.5,
+        "x": 13.5506,
         "y": 7.5,
         "width": 40,
         "height": 40

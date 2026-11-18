@@ -55,7 +55,9 @@ fn moves_as_a_translation(s: &mut Session, what: &str) {
 #[test]
 fn moving_a_shape_moves_its_stitches_and_nothing_else() {
     // The issue's 20 x 10 mm rectangle as satin, fill and running line, plus a programmable
-    // fill, a rotated satin ellipse and a fill with a hole.
+    // fill, a rotated satin ellipse and a fill with a hole. The plain fills are moved along
+    // their own 45° rows' diagonal here, which keeps them on the page's needle grid (#1131);
+    // `a_moved_plain_fill_keeps_its_rows_and_takes_the_grid_of_its_new_place` moves one off it.
     let cases: [(&str, Value, Option<Value>); 6] = [
         (
             "satin",
@@ -104,6 +106,245 @@ fn moving_a_shape_moves_its_stitches_and_nothing_else() {
         json!({"text": "Hg", "font": "lato-bold", "size": 12, "x": 30, "y": 30, "fill": "Red"}),
     );
     moves_as_a_translation(&mut s, "text");
+}
+
+/// As [`moves_as_a_translation`], moved sideways and by unequal steps: whole, half and odd
+/// fractions of a millimetre, so nothing hides behind a diagonal move.
+fn moves_sideways_as_a_translation(s: &mut Session, what: &str) {
+    let before = sewn(s);
+    assert!(before.len() > 20, "{what}: {} stitches", before.len());
+    let (mut x, mut y) = (0.0, 0.0);
+    for (dx, dy) in [
+        (1.0, 0.0),
+        (0.5, 0.0),
+        (0.37, 0.2),
+        (3.5, -1.0),
+        (12.25, 0.0),
+        (0.05, 0.0),
+    ] {
+        run(s, "object.move", json!({"ids": [1], "dx": dx, "dy": dy}));
+        x += dx;
+        y += dy;
+        let after = sewn(s);
+        assert_eq!(after.len(), before.len(), "{what} moved ({x}, {y}) mm");
+        for (k, ((p, c), (q, e))) in before.iter().zip(&after).enumerate() {
+            let off = *q - (*p + v2(x * 10.0, y * 10.0));
+            assert!(
+                c == e && off.length() < 1e-6,
+                "{what} moved ({x}, {y}) mm: point {k} {p:?} -> {q:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn only_a_plain_fills_needle_points_depend_on_its_place_on_the_page() {
+    // #1131: PE-DESIGN's page-wide needle grid is for the plain Fill with a Frequency. Every
+    // other sew type, the fills OpenStitch adds (the random stagger, the textures) and Stitch
+    // Type 2 sew the same stitches wherever the shape lies (#567).
+    let cases: [(&str, Value); 12] = [
+        ("satin", json!({"id": 1, "type": "satin"})),
+        (
+            "satin at 37 degrees",
+            json!({"id": 1, "type": "satin", "angle": 37, "density": 4.5}),
+        ),
+        (
+            "programmable fill",
+            json!({"id": 1, "type": "programmableFill", "pattern": "diamonds"}),
+        ),
+        ("motif fill", json!({"id": 1, "type": "motifFill"})),
+        ("net fill", json!({"id": 1, "type": "netFill"})),
+        ("zigzag net fill", json!({"id": 1, "type": "zigzagNetFill"})),
+        (
+            "piping",
+            json!({"id": 1, "type": "piping", "density": 1.2, "angle": 30}),
+        ),
+        ("cross stitch", json!({"id": 1, "type": "crossStitch"})),
+        ("stippling", json!({"id": 1, "type": "stippling"})),
+        (
+            "fill with the random stagger",
+            json!({"id": 1, "type": "fill", "angle": 0, "stagger": "random"}),
+        ),
+        (
+            "fill with a texture",
+            json!({"id": 1, "type": "fill", "angle": 0, "texture": "ribs"}),
+        ),
+        (
+            "fill, Stitch Type 2",
+            json!({"id": 1, "type": "fill", "angle": 0, "stitchType": 2}),
+        ),
+    ];
+    for (what, region) in cases {
+        let mut s = session();
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 10, "y": 10, "width": 20, "height": 10, "fill": "Blue"}),
+        );
+        run(&mut s, "object.setRegion", region);
+        moves_sideways_as_a_translation(&mut s, what);
+    }
+    let mut s = session();
+    run(
+        &mut s,
+        "shape.polygon",
+        json!({"points": [[10, 20], [40, 20], [40, 30]], "closed": false, "line": "Blue"}),
+    );
+    moves_sideways_as_a_translation(&mut s, "running line");
+    let mut s = session();
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "Hg", "font": "lato-bold", "size": 12, "x": 30, "y": 30, "fill": "Red"}),
+    );
+    run(&mut s, "object.setRegion", json!({"id": 1, "type": "fill"}));
+    moves_sideways_as_a_translation(&mut s, "filled text");
+}
+
+/// The rows of a 0° fill: the heights (0.1 mm) that hold a stitch along the row at least 1 mm
+/// long, and every needle point of those stitches as (row height, x).
+fn fill_rows(s: &Session) -> (Vec<f64>, Vec<(f64, f64)>) {
+    let pts: Vec<Vec2> = sewn(s)
+        .into_iter()
+        .filter(|(_, c)| *c == Command::Stitch)
+        .map(|(p, _)| p)
+        .collect();
+    let mut rows: Vec<f64> = Vec::new();
+    let mut on_rows = Vec::new();
+    for w in pts.windows(2) {
+        if (w[0].y - w[1].y).abs() < 1e-6 && (w[0].x - w[1].x).abs() >= 10.0 {
+            if !rows.iter().any(|y| (y - w[0].y).abs() < 1e-6) {
+                rows.push(w[0].y);
+            }
+            on_rows.extend([(w[0].y, w[0].x), (w[1].y, w[1].x)]);
+        }
+    }
+    rows.sort_by(f64::total_cmp);
+    (rows, on_rows)
+}
+
+/// A 40 mm square of plain Fill at 0° with its top-left corner at (`x`, `y`) mm on a page of
+/// `page` mm, without under sewing.
+fn plain_fill(page: (f64, f64), x: f64, y: f64) -> Session {
+    let mut s = session();
+    run(
+        &mut s,
+        "design.new",
+        json!({"width": page.0, "height": page.1}),
+    );
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": x, "y": y, "width": 40, "height": 40, "fill": "Blue"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "fill", "angle": 0, "underlay": false}),
+    );
+    s
+}
+
+/// Checks that every needle point inside the rows of `s`'s 40 mm fill (left edge at `left`
+/// mm) lies on PE-DESIGN's grid: row k's points (k + 1) × 30 % of the 4 mm stitch from the
+/// origin of PE-DESIGN's coordinates, 100 mm left of the page's centre at `centre` mm.
+fn assert_on_the_page_grid(s: &Session, left: f64, centre: f64, what: &str) {
+    let (rows, on_rows) = fill_rows(s);
+    assert_eq!(rows.len(), 181, "{what}");
+    let gap = (rows[180] - rows[0]) / 180.0;
+    let origin = (centre - 100.0) * 10.0;
+    let mut checked = 0;
+    for (y, x) in on_rows {
+        let k = ((y - rows[0]) / gap).round();
+        // The edge points, and the first and last row (sewn out and back, walked to the
+        // start point), are not grid points.
+        if x < left * 10.0 + 1.0 || x > left * 10.0 + 399.0 || k < 1.0 || k > 179.0 {
+            continue;
+        }
+        let off = (x - origin - ((k + 1.0) * 0.3).fract() * 40.0).rem_euclid(40.0);
+        assert!(
+            !(1e-4..=40.0 - 1e-4).contains(&off),
+            "{what}: row {k}, x {x}: {off} off the grid"
+        );
+        checked += 1;
+    }
+    assert!(checked > 1500, "{what}: {checked} grid points");
+}
+
+#[test]
+fn a_moved_plain_fill_keeps_its_rows_and_takes_the_grid_of_its_new_place() {
+    // #1131, the new rule for the plain Fill (PE-DESIGN 11.50: the sweep squares at five
+    // angles, the 30 degree square at four positions): the rows move with the shape, and the
+    // needle points along them lie on a grid fixed to the page, so their number may change
+    // by a few.
+    let mut s = plain_fill((100.0, 100.0), 10.0, 10.0);
+    let (rows, _) = fill_rows(&s);
+    let count = sewn(&s).len();
+    assert_on_the_page_grid(&s, 10.0, 50.0, "at 10 mm");
+    let mut at = 10.0;
+    for dx in [1.0, 0.5, 0.37, 3.5, 12.25, 0.05] {
+        run(
+            &mut s,
+            "object.move",
+            json!({"ids": [1], "dx": dx, "dy": 0}),
+        );
+        at += dx;
+        let (moved, _) = fill_rows(&s);
+        assert_eq!(moved.len(), rows.len(), "at {at} mm");
+        assert!(
+            rows.iter().zip(&moved).all(|(a, b)| (a - b).abs() < 1e-6),
+            "the rows stay where they are when the fill moves along them, at {at} mm"
+        );
+        assert_on_the_page_grid(&s, at, 50.0, &format!("at {at} mm"));
+        let now = sewn(&s).len();
+        assert!(
+            now.abs_diff(count) <= 25,
+            "at {at} mm: {now} stitches, {count} before the move"
+        );
+    }
+    // Moved across the rows, the rows move with the shape and the grid stays.
+    run(
+        &mut s,
+        "object.move",
+        json!({"ids": [1], "dx": 0, "dy": 7.3}),
+    );
+    let (moved, _) = fill_rows(&s);
+    assert!(
+        rows.iter()
+            .zip(&moved)
+            .all(|(a, b)| (b - a - 73.0).abs() < 1e-6),
+        "the rows move with the shape"
+    );
+    assert_on_the_page_grid(&s, at, 50.0, "moved down");
+}
+
+#[test]
+fn a_plain_fill_sews_the_same_at_the_same_distance_from_the_page_centre() {
+    // PE-DESIGN's coordinates start 100 mm left of and above the page's centre whatever the
+    // page's size (the stamp capture on a 180 x 130 mm page fits the grid the 100 mm pages
+    // gave): the same shape at the same distance from the centre sews the same stitches.
+    // (The place is chosen so that no grid point lies exactly 0.3 mm from a row end, where
+    // the last digit of the shape's page coordinates would decide whether it is sewn.)
+    // Compared on the fill's rows: outside them the two pages' stitch lists differ by one
+    // needle point (2006 against 2005), which is not the fill's.
+    let small = plain_fill((100.0, 100.0), 30.65, 30.0);
+    let large = plain_fill((180.0, 130.0), 70.65, 45.0);
+    let ((rows, on_small), (_, on_large)) = (fill_rows(&small), fill_rows(&large));
+    assert_eq!(rows.len(), 181);
+    assert_eq!(on_small.len(), on_large.len());
+    for (k, ((y, x), (v, u))) in on_small.iter().zip(&on_large).enumerate() {
+        assert!(
+            (u - x - 400.0).abs() < 1e-6 && (v - y - 150.0).abs() < 1e-6,
+            "row point {k}: ({x}, {y}) / ({u}, {v})"
+        );
+    }
+    // At the same page coordinates on a page 5 mm wider, the centre lies 2.5 mm further right:
+    // the rows are the same and the needle points follow the new centre.
+    let wider = plain_fill((105.0, 100.0), 30.65, 30.0);
+    let (same, on_wider) = fill_rows(&wider);
+    assert!(rows.iter().zip(&same).all(|(a, b)| (a - b).abs() < 1e-6));
+    assert_on_the_page_grid(&wider, 30.65, 52.5, "on the wider page");
+    assert_ne!(on_wider, on_small);
 }
 
 #[test]
