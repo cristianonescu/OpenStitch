@@ -580,5 +580,6 @@
         }
       }
     }
-  ]
+  ],
+  "pageModeDiffers": "Four designs in one script: the first three are exported from a 100 x 100 mm Hoop Size page, as their three references; the last is on a 200 x 150 mm Custom Size page, as its reference, and the check reads the design the script ends on."
 }

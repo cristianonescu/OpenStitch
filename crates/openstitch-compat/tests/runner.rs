@@ -560,3 +560,99 @@ fn only_selects_by_id_or_area_and_a_typo_is_an_error() {
         .expect("parse");
     assert!(openstitch_compat::cli::run(&o).is_err());
 }
+
+#[test]
+fn a_design_on_the_other_kind_of_page_than_its_reference_fails_unless_it_says_why() {
+    // #1265. The stand-in reference is the Custom Size design's own #PES0110 export.
+    let root = temp_root("page-mode");
+    let spec = |id: &str, mode: &str, why: Option<&str>| {
+        let mut s = satin(id);
+        s["script"][0]["params"]["pageMode"] = json!(mode);
+        s["exports"] = json!([{"path": "satin.pes", "pesVersion": "11"}]);
+        s["references"][0]["file"] = json!("stitches/page.pes");
+        s["measurements"] = json!([{"id": "stitches", "measure": {"kind": "stitchSegments"},
+            "source": {"export": "satin.pes"}, "evidence": "stand-in",
+            "reference": {"tolerance": {"count": 2}}}]);
+        if let Some(why) = why {
+            s["pageModeDiffers"] = json!(why);
+        }
+        s
+    };
+    write_spec(&root, &spec("page-custom", "custom", None));
+    let r = run(&config(&root)).expect("run");
+    let bytes = std::fs::read(root.join("work/page-custom/satin.pes")).expect("export");
+    std::fs::create_dir_all(root.join("reference/stitches")).expect("dir");
+    std::fs::write(root.join("reference/stitches/page.pes"), &bytes).expect("ref");
+    assert_eq!(
+        spec_result(&r, "page-custom").status,
+        Status::PendingReference
+    );
+
+    let ids = [
+        ("page-custom", "custom", None),
+        ("page-hoop", "hoop", None),
+        (
+            "page-hoop-why",
+            "hoop",
+            Some("PE-DESIGN's file is on a Custom Size page by mistake"),
+        ),
+        ("page-custom-why", "custom", Some("left over")),
+    ];
+    let files: Vec<Value> = ids
+        .iter()
+        .map(|(id, _, _)| {
+            json!({"file": "stitches/page.pes", "spec": id, "reference": "pe-design",
+                   "madeBy": "test", "peDesignVersion": "11.50", "date": "2026-11-18",
+                   "os": "test", "settings": "defaults", "sha256": sha256::hex(&bytes)})
+        })
+        .collect();
+    std::fs::write(
+        root.join("reference/MANIFEST.json"),
+        serde_json::to_string_pretty(
+            &json!({"schema": "openstitch-compat-reference/1", "files": files}),
+        )
+        .expect("json"),
+    )
+    .expect("manifest");
+    for (id, mode, why) in ids {
+        write_spec(&root, &spec(id, mode, why));
+    }
+    let r = run(&config(&root)).expect("run");
+    let page = |id: &str| {
+        spec_result(&r, id)
+            .checks
+            .iter()
+            .find(|c| c.measurement == "page-mode")
+    };
+    let md = summary_markdown(&r);
+    assert!(page("page-custom").is_none(), "{md}");
+    assert_eq!(spec_result(&r, "page-custom").status, Status::Pass, "{md}");
+    let hoop = page("page-hoop").expect("a hoop design against a custom reference");
+    assert_eq!(hoop.status, CheckStatus::Fail);
+    assert_eq!(
+        (hoop.expected.as_ref(), hoop.actual.as_ref()),
+        (Some(&json!("custom")), Some(&json!("hoop")))
+    );
+    assert_eq!(spec_result(&r, "page-hoop").status, Status::Fail, "{md}");
+    assert!(page("page-hoop-why").is_none(), "a stated reason: {md}");
+    let stale = page("page-custom-why").expect("a reason nothing needs");
+    assert_eq!(stale.status, CheckStatus::Fail);
+    assert!(
+        stale
+            .note
+            .as_deref()
+            .is_some_and(|n| n.contains("remove it")),
+        "{stale:?}"
+    );
+
+    // An empty reason is no reason.
+    let mut empty = spec("page-empty", "hoop", Some(" "));
+    empty["id"] = json!("page-empty");
+    write_spec(&root, &empty);
+    let r = run(&config(&root)).expect("run");
+    assert!(
+        r.invalid
+            .iter()
+            .any(|i| i.problems.iter().any(|p| p.contains("pageModeDiffers")))
+    );
+}

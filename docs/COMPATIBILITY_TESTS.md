@@ -94,6 +94,13 @@ The fields:
   specs its `WITHDRAWN` list names. The list is empty today: `programmable-fill-45`, whose
   PE-DESIGN capture was withdrawn on 2026-11-13 (#1060), runs again on a clean capture (#1075,
   closed 2026-11-14).
+- **`pageModeDiffers`** (optional) is the reason the design is on the other kind of Design
+  Page (Hoop Size or Custom Size) than a PE-DESIGN 11 reference. PE-DESIGN starts a run on a
+  stitch in place on a Hoop Size page only, so the harness compares the page mode of the
+  design the script ends on with each `#PES0110` reference's and fails the spec (check
+  `page-mode`) when they differ and no reason is given; a reason that no reference needs
+  fails too. Give `design.new` the reference's `pageMode` instead wherever that is possible
+  (#1265).
 - **`script`** is what `stitchtool exec` takes. An optional `id` labels a step, so a
   measurement can read its reply.
   - The script runs in a session sandboxed to the spec's work directory.

@@ -355,6 +355,9 @@ fn execute(
         exports: &exports,
         replies: &replies,
     };
+    result
+        .checks
+        .extend(page_mode_check(spec, config, manifest, &session));
     for m in &spec.measurements {
         result.checks.extend(ctx.checks(m, &mut session));
     }
@@ -364,6 +367,68 @@ fn execute(
             .push(ctx.machine_check(machine, &result.exports));
     }
     Ok(())
+}
+
+/// PE-DESIGN 11.50 starts a run's one-step tie-in on a stitch in place on a Hoop Size page and
+/// not on a Custom Size one (#1013), so a design compared with a file made on the other kind of
+/// page is a needle point off per run before anything else is compared (#1265). A failing check
+/// when the design, as the script left it, and a `#PES0110` reference differ in that without a
+/// stated reason (`pageModeDiffers`), or when a reason is stated and none differs; nothing
+/// otherwise. A spec that only writes its inputs again sews no design and is not looked at.
+fn page_mode_check(
+    spec: &Spec,
+    config: &Config,
+    manifest: &Manifest,
+    session: &Session,
+) -> Option<Check> {
+    if spec.exports.iter().all(|x| x.from_input.is_some()) {
+        return None;
+    }
+    let name = |hoop: bool| if hoop { "hoop" } else { "custom" };
+    let ours = session.design().hoop_size_page();
+    let other: Vec<&str> = spec
+        .references
+        .iter()
+        .filter(|r| {
+            let Reference::Available { bytes, .. } =
+                provenance::resolve(&config.reference_root, manifest, &r.file, &spec.id, &r.id)
+            else {
+                return false;
+            };
+            openstitch_formats::pes::read_objects(&bytes).is_ok_and(|section| {
+                section.version == "0110" && section.page_mm.is_some() && section.hoop_page != ours
+            })
+        })
+        .map(|r| r.file.as_str())
+        .collect();
+    let note = match (other.is_empty(), &spec.page_mode_differs) {
+        (false, None) => format!(
+            "the design is on a {} page and PE-DESIGN's file on a {} page: one stitch in place \
+             per run differs (#1013); give design.new that pageMode, or say why not in \
+             pageModeDiffers",
+            name(ours),
+            name(!ours)
+        ),
+        (true, Some(_)) => "pageModeDiffers is stated but no reference is on the other kind of \
+                            page: remove it"
+            .to_string(),
+        _ => return None,
+    };
+    Some(Check {
+        measurement: "page-mode".into(),
+        kind: "pageMode".into(),
+        tier: Tier::Reference,
+        status: CheckStatus::Fail,
+        expected: (!other.is_empty()).then(|| json!(name(!ours))),
+        actual: Some(json!(name(ours))),
+        tolerance: None,
+        file: other.first().map(|f| format!("compat/reference/{f}")),
+        mismatches: Vec::new(),
+        differences: Vec::new(),
+        unlisted_differences: 0,
+        note: Some(note),
+        dropped_repeats: None,
+    })
 }
 
 struct Ctx<'a> {

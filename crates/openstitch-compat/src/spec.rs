@@ -74,6 +74,11 @@ pub struct Spec {
     /// Reason the spec is not run.
     #[serde(default)]
     pub skip: Option<String>,
+    /// Why the design is on the other kind of Design Page (Hoop Size or Custom Size) than a
+    /// PE-DESIGN 11 reference file. Without it that difference fails the spec, and so does a
+    /// reason when no reference differs (#1265).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_mode_differs: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -325,6 +330,13 @@ impl Spec {
         }
         if self.covers.audit.is_empty() && self.covers.feature_matrix.is_empty() {
             err("covers: at least one audit item or FEATURE_MATRIX row".into());
+        }
+        if self
+            .page_mode_differs
+            .as_deref()
+            .is_some_and(|why| why.trim().is_empty())
+        {
+            err("pageModeDiffers: say why, or leave it out".into());
         }
         if self.evidence.is_empty() {
             err("evidence: at least one source".into());

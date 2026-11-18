@@ -27,7 +27,8 @@
       "params": {
         "name": "machine-rbgb",
         "width": 100,
-        "height": 100
+        "height": 100,
+        "pageMode": "custom"
       }
     },
     {

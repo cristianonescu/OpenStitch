@@ -33,7 +33,8 @@
       "params": {
         "name": "machine-jumps",
         "width": 100,
-        "height": 100
+        "height": 100,
+        "pageMode": "custom"
       }
     },
     {

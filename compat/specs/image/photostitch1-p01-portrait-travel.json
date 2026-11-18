@@ -94,5 +94,6 @@
         }
       }
     }
-  ]
+  ],
+  "pageModeDiffers": "The Design Page is the picture with a 5 mm margin (77.2 x 110 mm), which is no hoop, so it is a Custom Size page; PE-DESIGN's capture was made on a Hoop Size page. Only the trim count and the stitch count within its tolerance are compared, not where a run starts (#1265)."
 }

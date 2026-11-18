@@ -174,6 +174,16 @@ Line references are relative to `crates/`.
   files, none of its three-step ones, none of 1,981 on Custom Size pages). OpenStitch
   follows the design's page mode (`design.new` `pageMode`); the specs measured on a
   Custom Size page say so.
+  Issue #1265 (2026-11-18): 315 specs still sewed on a Hoop Size page against a PE-DESIGN
+  file made on a Custom Size page (text 204, stitches 92, machine 13, pes 5, image 1), so
+  each run start carried a stitch in place PE-DESIGN's file has not. 311 now create their
+  design with `pageMode: custom`; four say why they differ (`pageModeDiffers`). 94 checks in
+  those specs moved, 88 of them stitch counts (72 by one needle point, the others by four or
+  five), and all still pass on unchanged tolerances: 49 nearer to PE-DESIGN's value, 30
+  farther (the extra point had hidden a point missing elsewhere: `region-travel-u-fill`
+  1240 to 1239 against 1254, `square-gradation-default` 646 to 645 against 673), and the
+  stitch counts that equal PE-DESIGN's went from 3 to 23. The harness now fails a spec whose
+  design and `#PES0110` reference are on different kinds of page without a stated reason.
   A rectangle starts and ends in the middle of its bottom edge: PE runs along that edge to one
   end, sews back to the middle (the last row 0.2 mm short, reached along the far edge), then
   does the same for the other half: 27 stitches, 7 of them short edge stitches at the start

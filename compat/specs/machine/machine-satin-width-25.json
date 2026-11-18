@@ -27,7 +27,8 @@
       "params": {
         "name": "machine-satin-width-25",
         "width": 100,
-        "height": 100
+        "height": 100,
+        "pageMode": "custom"
       }
     },
     {

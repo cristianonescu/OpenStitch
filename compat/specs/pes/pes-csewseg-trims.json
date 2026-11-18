@@ -169,5 +169,6 @@
       "evidence": "PE-DESIGN 11 reopens a.pes with the same stitches, jumps and trims",
       "reference": {}
     }
-  ]
+  ],
+  "pageModeDiffers": "The reference is PE-DESIGN's re-save of this spec's a.pes, a stitch group it reopened and kept as it was sewn on a Custom Size page (#1013): the re-save's own Hoop Size page sews nothing again."
 }
