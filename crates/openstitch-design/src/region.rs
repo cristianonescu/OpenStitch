@@ -740,6 +740,19 @@ fn layers_inner(
             .collect();
             least_on_top(candidates)
         }
+        // Saved with travel off: its parts as they were sewn, joined by jumps.
+        RegionType::Fill if !shaped && r.travel_path().is_none() => {
+            generate::fill_edge_to_edge_jumps(
+                top_closed,
+                &params,
+                top_holes,
+                r.fill_stagger(),
+                r.entry,
+                r.exit,
+                r.stitch_type == FillStitchType::Two,
+                origin,
+            )
+        }
         RegionType::Fill if !shaped => generate::fill_edge_to_edge_travel(
             top_closed,
             &params,
@@ -1446,11 +1459,34 @@ fn half_rows(
     let b = generate::chain_spans_from(spans, p, points, at, true);
     let chained = if finish(&b) < finish(&a) - 1.0 { b } else { a };
     if chained.len() > 1
+        && has_valley(spans)
         && let Some(rows) = rows_in_order(spans, p, points, at, start)
     {
         return vec![rows];
     }
     chained
+}
+
+/// Whether the rows get shorter and then longer again by more than 1 mm (the columns under a
+/// U: its legs' on either side of its bar's). A convex outline's rows never do.
+fn has_valley(spans: &[generate::RowSpan]) -> bool {
+    let mut lengths: std::collections::BTreeMap<usize, f64> = std::collections::BTreeMap::new();
+    for s in spans {
+        *lengths.entry(s.row).or_default() += s.range.end() - s.range.start();
+    }
+    let lengths: Vec<f64> = lengths.into_values().collect();
+    let mut after = vec![0.0_f64; lengths.len()];
+    let mut most = 0.0_f64;
+    for (i, &l) in lengths.iter().enumerate().rev() {
+        after[i] = most;
+        most = most.max(l);
+    }
+    let mut before = 0.0_f64;
+    lengths.iter().zip(&after).any(|(&l, &a)| {
+        let valley = l + 10.0 < before && l + 10.0 < a;
+        before = before.max(l);
+        valley
+    })
 }
 
 /// Under sewing rows of different lengths, one span each (the columns under the U of
@@ -3804,7 +3840,7 @@ fn shaped_rows(
         Some(RunningStitchPath::AlongOutline | RunningStitchPath::OnOutline) => outline_travel(r),
         _ => None,
     };
-    if !satin && feather.is_none() && split.is_none() {
+    if !satin && feather.is_none() && split.is_none() && r.travel_path().is_some() {
         let start = r
             .entry
             .or_else(|| closed.first().and_then(|c| c.points.first().copied()));

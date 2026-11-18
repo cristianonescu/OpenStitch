@@ -427,7 +427,30 @@ pub fn fill_edge_to_edge_travel(
     origin: Option<Vec2>,
 ) -> Vec<Run> {
     let mut runs = edge_rows_travel(
-        contours, p, holes, stagger, entry, exit, sloped, along, false, origin,
+        contours, p, holes, stagger, entry, exit, sloped, along, false, origin, true,
+    )
+    .swap_remove(0);
+    runs.iter_mut().for_each(join_short_stitches);
+    runs
+}
+
+/// [`fill_edge_to_edge_travel`] for a fill whose parts are joined by jumps (a design saved
+/// with travel off): its parts in the nearest-first order such designs were sewn in, each its
+/// own run, not PE-DESIGN's part order with its travel (#1244).
+// The fill entry points pass their few switches straight through.
+#[allow(clippy::too_many_arguments)]
+pub fn fill_edge_to_edge_jumps(
+    contours: &[Contour],
+    p: &RegionParams,
+    holes: &[Contour],
+    stagger: Stagger,
+    entry: Option<Vec2>,
+    exit: Option<Vec2>,
+    sloped: bool,
+    origin: Option<Vec2>,
+) -> Vec<Run> {
+    let mut runs = edge_rows_travel(
+        contours, p, holes, stagger, entry, exit, sloped, None, false, origin, false,
     )
     .swap_remove(0);
     runs.iter_mut().for_each(join_short_stitches);
@@ -457,7 +480,7 @@ pub fn fill_edge_to_edge_travel_hidden(
     origin: Option<Vec2>,
 ) -> Vec<Vec<Run>> {
     let mut candidates = edge_rows_travel(
-        contours, p, holes, stagger, entry, exit, sloped, None, true, origin,
+        contours, p, holes, stagger, entry, exit, sloped, None, true, origin, true,
     );
     for runs in &mut candidates {
         runs.iter_mut().for_each(join_short_stitches);
@@ -476,7 +499,7 @@ pub(crate) fn edge_to_edge_rows(
     sloped: bool,
 ) -> Vec<Run> {
     edge_rows_travel(
-        contours, p, holes, stagger, entry, None, sloped, None, false, None,
+        contours, p, holes, stagger, entry, None, sloped, None, false, None, true,
     )
     .swap_remove(0)
 }
@@ -496,6 +519,7 @@ fn edge_rows_travel(
     along: Option<crate::paths::OutlineTravel>,
     hidden: bool,
     origin: Option<Vec2>,
+    parts: bool,
 ) -> Vec<Vec<Run>> {
     let l = p.stitch_length;
     let start = entry.map(|e| e.rotated(-p.angle.to_radians()));
@@ -567,7 +591,7 @@ fn edge_rows_travel(
     };
     // A Type 1 fill in several parts takes PE-DESIGN's part order (#1244).
     let parts = match (start, end) {
-        (Some(from), Some(to)) if !sloped => pe_parts(
+        (Some(from), Some(to)) if parts && !sloped => pe_parts(
             &spans,
             p,
             &points,
