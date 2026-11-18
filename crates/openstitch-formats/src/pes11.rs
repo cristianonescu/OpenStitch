@@ -366,6 +366,13 @@ impl RegionSewType {
 pub const KIND_CURVE_AFTER: u32 = 0x01;
 /// Vertex kind bit: the segment before the vertex is a curve (its last handle is `handles[0]`).
 pub const KIND_CURVE_BEFORE: u32 = 0x10;
+/// Vertex kind bit on a curve point (`0x11`): To Symmetry, the two handles mirror each other
+/// (`0x15`; PE-DESIGN 11.50's Select Point menu, #1258).
+pub const KIND_SYMMETRIC: u32 = 0x04;
+/// Vertex kind bit on a curve point (`0x11`): To Cusp, the two handles move independently
+/// (`0x19`; also what the freehand tool writes at its corners). Without either bit a curve
+/// point is smooth: its handles stay in line.
+pub const KIND_CUSP: u32 = 0x08;
 
 /// One outline vertex in file units: 0.1 mm with the page's top-left corner at
 /// ([`PAGE_ORIGIN`], [`PAGE_ORIGIN`]). `handles[0]` is the cubic Bézier handle of the segment
@@ -376,8 +383,11 @@ pub struct Vertex {
     pub x: f32,
     pub y: f32,
     pub handles: [(f32, f32); 2],
-    /// [`KIND_CURVE_BEFORE`] | [`KIND_CURVE_AFTER`]: 0 a corner between straight segments,
-    /// `0x11` a smooth curve point (the circle's four vertices).
+    /// [`KIND_CURVE_BEFORE`] | [`KIND_CURVE_AFTER`]: 0 a straight point (no handles of its
+    /// own; a handle field it still holds is stale), `0x11` a smooth curve point (the circle's
+    /// four vertices, and what To Curve makes), `0x15` with [`KIND_SYMMETRIC`] a symmetric
+    /// one, `0x19` with [`KIND_CUSP`] a cusp. A side is a curve when either of its ends is a
+    /// curve point; a straight end's control point is the vertex itself.
     pub kind: u32,
 }
 

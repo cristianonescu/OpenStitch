@@ -847,7 +847,15 @@ openstitch_app::editor (lib, no egui, unit-tested)
   shape: a vertex drag sends one `object.setPoint`, a handle drag one `object.setSegment` with
   both control points, a double-click on a segment one `object.insertPoint`, Delete one
   `object.deletePoint`; C / S curve or straighten the segment under the pointer (new handles
-  follow Catmull-Rom tangents through the neighbouring vertices). `editor::pen` keeps the path
+  follow Catmull-Rom tangents through the neighbouring vertices). A right-click on a point
+  opens PE-DESIGN's point menu (#1258; `point_menu_ui.rs` draws it, `editor::points`
+  holds the entries and `point_actions_enabled`, the rule for greying them, which the ribbon's
+  Edit Point drop-down shares): the five To entries send one `object.setPointKind`, Split at
+  Point one `object.splitAtPoint`, Delete one `object.deletePoint`, for every selected point
+  (Ctrl+click adds one). A point's kind lives in `Contour::kinds` beside `points` and `curves`;
+  `Contour::move_handle` and `move_point` keep a smooth or symmetric point's handles tied and a
+  straight point's borrowed control point on its neighbour's handle, for the preview and the
+  engine alike. `editor::pen` keeps the path
   being drawn as anchors with an optional out-handle (the in-handle mirrors it); click = corner,
   click-drag = smooth, clicking the first anchor closes, Return (or double-click) finishes open,
   and the whole path is one `shape.path` with `curves`. Double-clicks are counted by

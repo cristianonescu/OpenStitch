@@ -45,6 +45,8 @@ pub struct ViewState {
     pub guide_dialog: Option<GuideDialog>,
     /// The right-click menu of a guideline or a ruler (#799).
     pub guide_menu: Option<GuideMenu>,
+    /// The Select Point tool's right-click menu on a point (#1258).
+    pub point_menu: Option<crate::point_menu_ui::PointMenu>,
     /// New Guide… (#799).
     pub new_guide: Option<NewGuideDialog>,
     /// New Guide Layout… (#799).
@@ -1460,6 +1462,7 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
 
 pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     guide_menu_window(app, ctx);
+    crate::point_menu_ui::window(app, ctx);
     new_guide_window(app, ctx);
     guide_layout_window(app, ctx);
     guide_window(app, ctx);

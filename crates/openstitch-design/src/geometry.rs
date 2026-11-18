@@ -141,6 +141,9 @@ pub struct Bezier {
     pub c2: Vec2,
 }
 
+/// A handle nearer its vertex than this (0.1 mm units) is no handle: the point is straight.
+const HANDLE_EPS: f64 = 1e-6;
+
 /// Maximum distance (0.1 mm units) between a flattened curve and the true curve: 0.05 mm.
 pub const FLATNESS: f64 = 0.5;
 
@@ -156,6 +159,31 @@ pub struct Contour {
     pub closed: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub curves: Vec<Option<Bezier>>,
+    /// How each curve point's two handles are tied when one is dragged (see [`PointKind`]),
+    /// one per vertex; empty means none is stored, as before kinds existed. Only
+    /// editing reads it: the outline, and so the sewing, comes from `points` and `curves`.
+    /// A list whose length is not `points.len()` is ignored.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kinds: Vec<PointKind>,
+}
+
+/// What kind of curve point a vertex is: how its two handles are tied when one is dragged
+/// (PE-DESIGN's To Smooth, To Symmetry and To Cusp; its PES 0110 files store the same three).
+/// A point is *straight* when it has no handle of its own (see [`Contour::is_curve_point`]);
+/// that is not stored here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PointKind {
+    /// No kind stored, as in every design made before kinds existed: the handles move
+    /// independently.
+    #[default]
+    Unset,
+    /// The handles move independently.
+    Cusp,
+    /// The handles stay on one line through the point; each keeps its own length.
+    Smooth,
+    /// The handles stay on one line through the point at the same length.
+    Symmetric,
 }
 
 impl Contour {
@@ -164,6 +192,7 @@ impl Contour {
             points,
             closed,
             curves: Vec::new(),
+            kinds: Vec::new(),
         }
     }
 
@@ -228,6 +257,336 @@ impl Contour {
         }
     }
 
+    /// The kind of vertex `i` ([`PointKind::Unset`] when none is stored).
+    pub fn kind(&self, i: usize) -> PointKind {
+        if self.kinds.len() == self.points.len() {
+            self.kinds.get(i).copied().unwrap_or_default()
+        } else {
+            PointKind::default()
+        }
+    }
+
+    /// Stores the kind of vertex `i`, keeping `kinds` empty when no point has one. The
+    /// handles are not moved: see [`Contour::apply_kind`].
+    pub fn set_kind(&mut self, i: usize, kind: PointKind) {
+        let mut kinds = self.kinds_or_default();
+        if let Some(slot) = kinds.get_mut(i) {
+            *slot = kind;
+        }
+        self.store_kinds(kinds);
+    }
+
+    /// Every vertex's kind, one per point.
+    pub fn kinds_or_default(&self) -> Vec<PointKind> {
+        (0..self.points.len()).map(|i| self.kind(i)).collect()
+    }
+
+    /// Stores one kind per vertex (for an operation that rebuilt the points and knows where
+    /// each came from); a list of another length, or without any kind, stores nothing.
+    pub fn store_kinds(&mut self, kinds: Vec<PointKind>) {
+        self.kinds =
+            if kinds.len() == self.points.len() && kinds.iter().any(|k| *k != PointKind::Unset) {
+                kinds
+            } else {
+                Vec::new()
+            };
+    }
+
+    /// The segment ending at vertex `i`, if any.
+    pub fn incoming(&self, i: usize) -> Option<usize> {
+        let segs = self.segment_count();
+        if i > 0 {
+            (i - 1 < segs).then_some(i - 1)
+        } else if self.closed && segs > 0 {
+            Some(segs - 1)
+        } else {
+            None
+        }
+    }
+
+    /// The segment leaving vertex `i`, if any.
+    pub fn outgoing(&self, i: usize) -> Option<usize> {
+        (i < self.segment_count()).then_some(i)
+    }
+
+    /// Whether the control point of curved side `s` at its start (`start`) or end vertex is
+    /// only a copy of the other end's handle. PE-DESIGN keeps handles per point, and draws a
+    /// side from a curve point to a straight point as a cubic with BOTH control points at the
+    /// curve point's handle (#1258: the saved bounds of every capture fit that curve). Here
+    /// that is a side whose two control points coincide, between a vertex with a stored kind
+    /// and one without: the one without borrows.
+    pub fn borrows_handle(&self, s: usize, start: bool) -> bool {
+        let Some(z) = self.curve(s) else {
+            return false;
+        };
+        let n = self.points.len();
+        let (near, far) = if start {
+            (s, (s + 1) % n)
+        } else {
+            ((s + 1) % n, s)
+        };
+        z.c1.distance(z.c2) <= HANDLE_EPS
+            && self.kind(near) == PointKind::Unset
+            && self.kind(far) != PointKind::Unset
+    }
+
+    /// Whether the control point of curved side `s` at that end is the vertex's own handle:
+    /// not borrowed, and not lying on the vertex.
+    pub fn owns_handle(&self, s: usize, start: bool) -> bool {
+        let Some(z) = self.curve(s) else {
+            return false;
+        };
+        let n = self.points.len();
+        let (vertex, mine) = if start {
+            (self.points[s], z.c1)
+        } else {
+            (self.points[(s + 1) % n], z.c2)
+        };
+        !self.borrows_handle(s, start) && mine.distance(vertex) > HANDLE_EPS
+    }
+
+    /// Whether vertex `i` is a curve point: it has a stored kind, or a handle of its own.
+    /// Otherwise it is a straight point, even when a curve arrives from a curve point next
+    /// to it: PE-DESIGN keeps the kind per point, and a side is a curve when either of its
+    /// ends is a curve point.
+    pub fn is_curve_point(&self, i: usize) -> bool {
+        i < self.points.len()
+            && (self.kind(i) != PointKind::Unset
+                || self.incoming(i).is_some_and(|s| self.owns_handle(s, false))
+                || self.outgoing(i).is_some_and(|s| self.owns_handle(s, true)))
+    }
+
+    /// The control points at vertex `i`: the arriving curve's `c2` and the leaving curve's
+    /// `c1` (a straight point's are borrowed, see [`Contour::borrows_handle`]).
+    pub fn point_handles(&self, i: usize) -> (Option<Vec2>, Option<Vec2>) {
+        (
+            self.incoming(i).and_then(|s| self.curve(s)).map(|b| b.c2),
+            self.outgoing(i).and_then(|s| self.curve(s)).map(|b| b.c1),
+        )
+    }
+
+    /// Sets one control point of curved side `s`; a copy the other end borrows moves with it.
+    fn set_handle(&mut self, s: usize, start: bool, to: Vec2) {
+        let Some(mut z) = self.curve(s) else {
+            return;
+        };
+        if self.borrows_handle(s, !start) {
+            z.c1 = to;
+            z.c2 = to;
+        } else if start {
+            z.c1 = to;
+        } else {
+            z.c2 = to;
+        }
+        self.set_curve(s, Some(z));
+    }
+
+    fn set_point_handles(&mut self, i: usize, arriving: Option<Vec2>, leaving: Option<Vec2>) {
+        if let (Some(s), Some(h)) = (self.incoming(i), arriving) {
+            self.set_handle(s, false, h);
+        }
+        if let (Some(s), Some(h)) = (self.outgoing(i), leaving) {
+            self.set_handle(s, true, h);
+        }
+    }
+
+    /// Moves vertex `i` to `to`. Its own handles move with it (and the copies its straight
+    /// neighbours borrow); a control point it only borrows stays with the handle it copies.
+    pub fn move_point(&mut self, i: usize, to: Vec2) {
+        if i >= self.points.len() {
+            return;
+        }
+        let delta = to - self.points[i];
+        for (s, start) in [(self.incoming(i), false), (self.outgoing(i), true)] {
+            let Some(s) = s else { continue };
+            let Some(z) = self.curve(s) else { continue };
+            if self.borrows_handle(s, start) {
+                continue;
+            }
+            let mine = if start { z.c1 } else { z.c2 };
+            self.set_handle(s, start, mine + delta);
+        }
+        self.points[i] = to;
+    }
+
+    /// To Straight: vertex `i` loses its handles and its kind. A side whose other end has no
+    /// handle of its own becomes a straight line; a side to a curve point stays a curve drawn
+    /// from that point's handle alone, as PE-DESIGN draws it (its circle with one point made
+    /// straight still bends on both sides of the corner).
+    pub fn make_straight(&mut self, i: usize) {
+        if i >= self.points.len() {
+            return;
+        }
+        let n = self.points.len();
+        for (s, start) in [(self.incoming(i), false), (self.outgoing(i), true)] {
+            let Some(s) = s else { continue };
+            let Some(z) = self.curve(s) else { continue };
+            let far = if start { (s + 1) % n } else { s };
+            if far != i && self.owns_handle(s, !start) {
+                // The other end's handle draws the side; it is a curve point for good.
+                let theirs = if start { z.c2 } else { z.c1 };
+                if self.kind(far) == PointKind::Unset {
+                    self.set_kind(far, PointKind::Cusp);
+                }
+                self.set_curve(
+                    s,
+                    Some(Bezier {
+                        c1: theirs,
+                        c2: theirs,
+                    }),
+                );
+            } else {
+                self.set_curve(s, None);
+            }
+        }
+        self.set_kind(i, PointKind::Unset);
+    }
+
+    /// To Curve, as PE-DESIGN 11.50 does it (#1258, captures of 2026-11-18): straight point
+    /// `i` becomes a smooth curve point whose two handles lie a quarter of the way from the
+    /// previous vertex to the next one on either side of it (`p ∓ (next − previous) / 4`; at
+    /// an end of an open line the missing neighbour is the point itself). Both sides at it
+    /// become curves, so the outline bends at once; a side's other end keeps its own handle,
+    /// or borrows this one when it is a straight point. Returns whether anything changed (a
+    /// curve point is left alone).
+    pub fn make_curve(&mut self, i: usize) -> bool {
+        if i >= self.points.len() || self.is_curve_point(i) {
+            return false;
+        }
+        let p = self.points[i];
+        let n = self.points.len();
+        let previous = self.incoming(i).map_or(p, |_| self.points[(i + n - 1) % n]);
+        let next = self.outgoing(i).map_or(p, |_| self.points[(i + 1) % n]);
+        let h = (next - previous) * 0.25;
+        for (s, start) in [(self.incoming(i), false), (self.outgoing(i), true)] {
+            let Some(s) = s else { continue };
+            let mine = if start { p + h } else { p - h };
+            let far = if start { (s + 1) % n } else { s };
+            let theirs = match self.curve(s) {
+                // The other end's own handle stays.
+                Some(z) if self.owns_handle(s, !start) => {
+                    if start {
+                        z.c2
+                    } else {
+                        z.c1
+                    }
+                }
+                // A straight point borrows this one; a point with a kind but no handle on
+                // this side keeps none.
+                _ if self.kind(far) == PointKind::Unset || far == i => mine,
+                _ => self.points[far],
+            };
+            self.set_curve(
+                s,
+                Some(if start {
+                    Bezier {
+                        c1: mine,
+                        c2: theirs,
+                    }
+                } else {
+                    Bezier {
+                        c1: theirs,
+                        c2: mine,
+                    }
+                }),
+            );
+        }
+        self.set_kind(i, PointKind::Smooth);
+        true
+    }
+
+    /// To Smooth, To Symmetry, To Cusp: stores `kind` on curve point `i` and lines its two
+    /// handles up for it. Symmetric turns both onto the line through the point that is
+    /// parallel to the line between them and gives both their mean length (measured on
+    /// PE-DESIGN 11.50: 11.18 and 18.31 mm became 14.75 mm each, direction kept); Smooth does
+    /// the same with each keeping its own length; Cusp moves nothing (measured). With fewer
+    /// than two handles only the kind is stored.
+    pub fn apply_kind(&mut self, i: usize, kind: PointKind) {
+        self.set_kind(i, kind);
+        if !matches!(kind, PointKind::Smooth | PointKind::Symmetric) {
+            return;
+        }
+        let (Some(arriving), Some(leaving)) = self.point_handles(i) else {
+            return;
+        };
+        let p = self.points[i];
+        let (la, ll) = (arriving.distance(p), leaving.distance(p));
+        let along = leaving - arriving;
+        let len = along.length();
+        if len <= HANDLE_EPS {
+            return;
+        }
+        let dir = along * (1.0 / len);
+        let (la, ll) = match kind {
+            PointKind::Symmetric => ((la + ll) / 2.0, (la + ll) / 2.0),
+            _ => (la, ll),
+        };
+        self.set_point_handles(i, Some(p - dir * la), Some(p + dir * ll));
+    }
+
+    /// Moves one control point of curved segment `segment` (`start`: its `c1`, else `c2`) to
+    /// `to`, and the other handle at the same vertex as that vertex's kind asks (measured on
+    /// PE-DESIGN 11.50): a smooth point turns it to stay opposite at its own length, a
+    /// symmetric point mirrors it, a cusp leaves it. A copy a straight neighbour borrows
+    /// moves with its handle.
+    pub fn move_handle(&mut self, segment: usize, start: bool, to: Vec2) {
+        if self.curve(segment).is_none() {
+            return;
+        }
+        self.set_handle(segment, start, to);
+        let n = self.points.len();
+        let vertex = if start { segment } else { (segment + 1) % n };
+        let p = self.points[vertex];
+        let (arriving, leaving) = self.point_handles(vertex);
+        let other = if start { arriving } else { leaving };
+        let Some(other) = other else {
+            return;
+        };
+        let reach = to.distance(p);
+        if reach <= HANDLE_EPS {
+            return;
+        }
+        let back = (p - to) * (1.0 / reach);
+        let moved = match self.kind(vertex) {
+            PointKind::Unset | PointKind::Cusp => return,
+            PointKind::Smooth => p + back * other.distance(p),
+            PointKind::Symmetric => p + back * reach,
+        };
+        if start {
+            self.set_point_handles(vertex, Some(moved), None);
+        } else {
+            self.set_point_handles(vertex, None, Some(moved));
+        }
+    }
+
+    /// Split at Point. A closed contour opens at vertex `i`: one open contour that starts and
+    /// ends there. An open contour splits at an inner vertex into two that share it. `None`
+    /// at the ends of an open contour, where there is nothing to split.
+    pub fn split_at(&self, i: usize) -> Option<Vec<Contour>> {
+        let n = self.points.len();
+        if i >= n || n < 2 {
+            return None;
+        }
+        let piece = |from: usize, segments: usize| {
+            let mut c = Contour::new(
+                (0..=segments)
+                    .map(|k| self.points[(from + k) % n])
+                    .collect(),
+                false,
+            );
+            for k in 0..segments {
+                c.set_curve(k, self.curve((from + k) % self.segment_count()));
+            }
+            let kinds = (0..=segments).map(|k| self.kind((from + k) % n)).collect();
+            c.store_kinds(kinds);
+            c
+        };
+        if self.closed {
+            return Some(vec![piece(i, n)]);
+        }
+        (i > 0 && i + 1 < n).then(|| vec![piece(0, i), piece(i, n - 1 - i)])
+    }
+
     /// Segment `i` as a polyline from its start to its end vertex (inclusive); curved segments
     /// are flattened to within [`FLATNESS`].
     pub fn segment_polyline(&self, i: usize) -> Vec<Vec2> {
@@ -285,6 +644,7 @@ impl Contour {
                     })
                 })
                 .collect(),
+            kinds: self.kinds.clone(),
         }
     }
 
@@ -307,7 +667,18 @@ impl Contour {
                 )
             }
         };
+        let mut kinds = self.kinds_or_default();
+        // A point put on a curve leaves the outline as it was: its handles are in line.
+        kinds.insert(
+            i + 1,
+            if left.is_some() {
+                PointKind::Smooth
+            } else {
+                PointKind::Unset
+            },
+        );
         self.points.insert(i + 1, p);
+        self.store_kinds(kinds);
         curves[i] = left;
         curves.insert(i + 1, right);
         self.curves = curves;
@@ -352,7 +723,10 @@ impl Contour {
             }
             (None, None) => {}
         }
+        let mut kinds = self.kinds_or_default();
+        kinds.remove(index);
         self.points.remove(index);
+        self.store_kinds(kinds);
         self.curves = curves;
         self.curves.truncate(self.segment_count());
         if !self.has_curves() {

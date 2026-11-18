@@ -357,10 +357,20 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
             edit_ui::single_region(app).is_some()
         }
         OffsetLines | FloralPattern => edit_ui::single_outline(app).is_some(),
-        DeletePoint => app.tools.tool() == Tool::Point && any,
+        EditPoint => crate::point_menu_ui::states(app).is_some(),
+        DeletePoint => match crate::point_menu_ui::states(app) {
+            Some(e) => e[6],
+            None => app.tools.tool() == Tool::Point && any,
+        },
         SplitAtPoint => {
             let (_, one, needles) = convert_ui::stitch_selection(app);
-            one.is_some() && needles.len() == 1
+            (one.is_some() && needles.len() == 1)
+                || crate::point_menu_ui::states(app).is_some_and(|e| e[5])
+        }
+        PointToStraight | PointToCurve | PointToSmooth | PointToSymmetry | PointToCusp => {
+            crate::point_menu_ui::action_of(a)
+                .zip(crate::point_menu_ui::states(app))
+                .is_some_and(|(p, e)| e[crate::point_menu_ui::slot(p)])
         }
         SplitStitchData => convert_ui::stitch_selection(app).1.is_some(),
         DivideByColor => stitches,
@@ -668,7 +678,18 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         AddDirectionLine => edit_ui::add_direction(app),
         DeleteDirectionLine => edit_ui::delete_direction(app),
         DeletePoint => delete(app),
-        SplitAtPoint => convert_ui::split_at_point(app),
+        SplitAtPoint => {
+            if crate::point_menu_ui::states(app).is_some_and(|e| e[5]) {
+                crate::point_menu_ui::run(app, openstitch_app::editor::points::PointAction::Split);
+            } else {
+                convert_ui::split_at_point(app);
+            }
+        }
+        PointToStraight | PointToCurve | PointToSmooth | PointToSymmetry | PointToCusp => {
+            if let Some(p) = crate::point_menu_ui::action_of(a) {
+                crate::point_menu_ui::run(app, p);
+            }
+        }
         OffsetLines => app.edit.offset_open = true,
         FloralPattern => app.edit.floral_open = true,
         SplitStitchData => convert_ui::split_off_area(app),
@@ -994,6 +1015,18 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
                     let r = objects::move_to(&app.selection, to);
                     app.execute(&r);
                 }
+            }
+        }
+        EditPoint => {
+            // PE-DESIGN's Edit Point drop-down: two headings, greyed as the point menu is.
+            use openstitch_app::editor::ribbon::EDIT_POINT_MENU;
+            ui.label(egui::RichText::new(t("menu-point-line-type")).weak());
+            for a in &EDIT_POINT_MENU[..2] {
+                menu_item(app, ui, *a);
+            }
+            ui.label(egui::RichText::new(t("menu-point-curve-type")).weak());
+            for a in &EDIT_POINT_MENU[2..] {
+                menu_item(app, ui, *a);
             }
         }
         RotateFlip => {

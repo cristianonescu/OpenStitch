@@ -4736,3 +4736,108 @@ sewn before the bands.
 **Existing projects:** a project always stores the value, so a net saved with under sewing off
 loads with it off and sews as it did. A region without the field does not load, as before. No
 `.osd` version step.
+
+### Select Point: the right-click menu on a point, 2026-11-18 (#1258)
+
+**Measured** on PE-DESIGN 11.50 (black-box: its menu read from the screen, the geometry from 22
+files it saved; the files are not in the repository, the numbers below are what they hold). A
+right-click on a point with Select Point opens: To Straight, To Curve | To Smooth, To Symmetry,
+To Cusp | Split at Point | Delete. Ctrl+click adds a point to the selection; a click on a selected
+point keeps the selection.
+
+Which entries are available (`on`) or greyed out:
+
+| selected | To Straight | To Curve | To Smooth | To Symmetry | To Cusp | Split at Point | Delete |
+|---|---|---|---|---|---|---|---|
+| closed outline, straight corner | grey | on | grey | grey | grey | on | on |
+| closed, smooth point (after To Curve; a circle's point as drawn) | on | grey | grey | on | on | on | on |
+| closed, symmetric point | on | grey | on | grey | on | on | on |
+| closed, cusp point | on | grey | on | on | grey | on | on |
+| corner of a triangle, of 3 points in a line, of a 2-point outline | grey | on | grey | grey | grey | on | on |
+| two straight points | grey | on | grey | grey | grey | grey | on |
+| two smooth points | on | grey | grey | on | on | grey | on |
+| curve points and a straight point together | on | on | grey | on | on | grey | on |
+| open line, first or last point | grey | on | grey | grey | grey | grey | on |
+| open line, an inner point | grey | on | grey | grey | grey | on | on |
+| open line, first point after To Curve | on | grey | grey | grey | grey | grey | on |
+| circle point after To Cusp | on | grey | on | on | grey | on | on |
+| circle point after To Straight | grey | on | grey | grey | grey | on | on |
+
+The rule that reproduces every row, and that OpenStitch uses (`point_actions_enabled`): To
+Straight needs a curve point in the selection, To Curve a straight point; To Smooth, To Symmetry
+and To Cusp need a curve point with a side on either hand that is not already of that kind; Split
+at Point needs exactly one point that is not an end of an open line; Delete is always available.
+
+What each entry does:
+
+| entry | PE-DESIGN 11.50 | file |
+|---|---|---|
+| To Curve | The point becomes a smooth curve point (vertex kind `0x11`). Its handles are `point ∓ (next − previous) / 4`: on a 40 mm square's corner with a point in the middle of the next side, (−5, +10) and (+5, −10) mm; on a plain corner (∓10, ±10) mm; at the end of an open line of 29.5 mm, ±7.375 mm along it (the missing neighbour is the point itself, the line stays straight). The neighbouring points stay straight points (kind 0, no handles), yet both sides at the point become curves: the saved bounds fit a cubic with BOTH control points at the curve point's handle (26.2 mm at the left and 23.0 mm at the top for the first case; the same on every later file). Two points at once: each from the straight outline. | a1, a8-two, b1 |
+| a smooth point's handle dragged | The other handle turns to stay opposite and keeps its length (11.18 mm before and after, the dragged one 18.31 mm). | a2 |
+| To Symmetry | Kind `0x15`. Both handles take the mean length (11.18 and 18.31 → 14.75 mm), direction kept. On a cusp whose handles are not in line (22.10 and 29.45 mm) both go onto the line parallel to the one between the two handle ends, at 25.776 mm. Dragging one mirrors the other. | a3, a9 |
+| To Smooth | Kind `0x11`. On that cusp both handles go onto the same line and each keeps its length (22.10 and 29.45 mm). Greyed out on a point that is already smooth. | a9 |
+| To Cusp | Kind `0x19`. Nothing moves. Dragging one handle leaves the other. | a4 |
+| To Straight | Kind 0; the file keeps the old handle values, unused. Both sides to straight neighbours are straight lines again (the file body equals the first save). On a circle the neighbours keep their handles, so both sides still bend. | a5, c2 |
+| Split at Point, closed | One open line of the same points starting and ending at the point (the point twice). A region on the shape is gone: line sewing only. | a6 |
+| Split at Point, open | Two open lines that both keep the point. Greyed out on the first and last point, and with several points selected. | b2 |
+| Delete | One point per use, or all selected points at once; the neighbours are joined by a straight line. A closed outline goes down to two points; there Delete is still shown and does nothing. An open line goes down to two points likewise. | a7, a8-delete, b4 |
+
+Ribbon, Shapes tab, Edit Point group: Edit Point is a drop-down with two headings, Line Type (To
+Straight, To Curve) and Curve Type (To Smooth, To Symmetry, To Cusp), greyed as the menu is;
+Delete Point and Split at Point follow the menu; all three are grey with no point selected.
+
+**Now:** OpenStitch does the same.
+
+- A point's kind is stored per vertex (`Contour::kinds`: smooth, symmetric, cusp; nothing for a
+  straight point or for a curve drawn before kinds existed, whose handles stay independent). It
+  is saved in `.osd` (`kinds`, left out when no point has one, so older files load and save
+  unchanged) and read from and written to PES 0110's vertex kind (`0x11`, `0x15`, `0x19`). The
+  sewing code never reads it: every example design sews the same stitches with a kind on each of
+  its points (`example_designs_sew_the_same_stitches_whatever_kinds_their_points_have`).
+- Operations that edit an outline in place keep each point's kind: moving a point or a handle,
+  inserting and deleting points, Split at Point, Join Lines (also when a line is turned round),
+  and move, scale, rotate, flip and skew. Operations that build new outlines drop the kinds, and
+  their curves behave as curves always did (independent handles): the boolean operations and the
+  Shape Builder, Knife and Split Outline, offset lines, Smooth Shape, Shape Effects, Break Apart
+  and conversions from text or stitches. A `kinds` list whose length does not match the points
+  is ignored on load.
+- At the design level PES 0110 import keeps the three kinds above; other bits of a vertex's kind
+  are kept only by the format layer (`pes11::read` → `write` is byte for byte, as before).
+- `object.setPointKind` is the five To entries, `object.splitAtPoint` and `object.deletePoint`
+  (`indexes` for several) the other two; `object.setSegment` moves a smooth or symmetric point's
+  other handle with the one it is given, and `object.setPoint` leaves a straight point's borrowed
+  control point with the curve point's handle. Each is one undo step.
+- The editor's Point tool opens the menu on a right-click on a point, with PE-DESIGN's entries,
+  order, separators and greying; Ctrl+click adds a point; the Shapes tab has
+  the Edit Point group with the drop-down. `ui.pointMenu` reports and runs the menu for scripts.
+- PES 0110 import: a side is now a curve when EITHER end is a curve point (it was only read from
+  the leaving end, and took a straight end's unused handle field as a control point), with both
+  control points at the curve point's handle. Export writes a straight point as kind 0 without
+  handles, as PE-DESIGN does.
+
+Tests against the numbers above: design `to_curve_places_the_handles_where_pe_design_does`,
+`smooth_symmetric_and_cusp_points_follow_a_drag_as_pe_design_does` (a2 to a5 and a9),
+`to_straight_beside_curve_points_keeps_their_handles`,
+`split_at_point_opens_a_closed_outline_and_cuts_an_open_line`; engine `tests/point_menu.rs`; app
+`a_right_click_on_a_straight_corner_offers_what_pe_design_offers`,
+`the_end_of_an_open_line_offers_what_pe_design_offers`,
+`ctrl_click_selects_several_points_and_the_menu_acts_on_all`,
+`split_at_point_and_delete_from_the_menu`.
+
+**Not matched, and why:**
+
+- **Delete on a closed straight outline stops at three points** (PE-DESIGN goes on to two, a
+  shape that sews 2 stitches). The entry stays available as in PE-DESIGN and does nothing there;
+  `object.deletePoint` refuses with the reason. A closed two-point straight outline has no area
+  and no command here can make one.
+- **Split at Point on a shape sewn as a region only is refused** (it would leave nothing to
+  sew). PE-DESIGN's case with a region only was not captured; with line and region it drops the
+  region, as here.
+- **A click on the outline inserts a point in PE-DESIGN;** here a double-click does (unchanged).
+- **Curves made before this change** (and by `object.setSegment`) have no stored kind: their
+  points show To Smooth, To Symmetry and To Cusp all available, and are written to PES 0110 as
+  `0x11` as before.
+- Not tried on PE-DESIGN: Alt-drag to connect a point to another, the object menu's Open and
+  Close, dragging the twin points apart after a closed split, a drag box around points.
+- The drop-down entries reuse existing icons (`open_line`, `curve`, the Point tool's); no new
+  icon was made.

@@ -13,12 +13,13 @@ use openstitch_core::{Command, Stitch, Thread};
 use openstitch_design::patterns::{Pattern, PatternKind};
 use openstitch_design::text::{self, CharEdit, Spread, TextAlign, TextDirection, TextSpec, VAlign};
 use openstitch_design::{
-    Bezier, Contour, CrossTimes, Design, DesignObject, LineSewing, LineType, RegionSewing,
-    RegionType, RunningStitchPath, StitchBlock, Transform, Vec2, v2,
+    Bezier, Contour, CrossTimes, Design, DesignObject, LineSewing, LineType, PointKind,
+    RegionSewing, RegionType, RunningStitchPath, StitchBlock, Transform, Vec2, v2,
 };
 use openstitch_formats::pes::ObjectSection;
 use openstitch_formats::pes11::{
-    KIND_CURVE_AFTER, PAGE_ORIGIN, PesPattern, RegionSewType, Shape, StitchGroup, Text, Vertex,
+    KIND_CURVE_AFTER, KIND_CURVE_BEFORE, KIND_CUSP, KIND_SYMMETRIC, PAGE_ORIGIN, PesPattern,
+    RegionSewType, Shape, StitchGroup, Text, Vertex,
 };
 use serde_json::json;
 
@@ -763,8 +764,12 @@ fn punch_lines(s: &Shape, vertices: &[Vertex]) -> Result<Vec<[Vec2; 2]>, String>
         .collect()
 }
 
-/// The vertices as a contour: segment i is a Bézier curve when vertex i curves after it, with
-/// vertex i's leaving handle and the next vertex's arriving handle.
+/// The vertices as a contour. Segment i is a Bézier curve when vertex i curves after it or
+/// the next vertex curves before it (PE-DESIGN keeps the kind per point, #1258: To Curve on
+/// one corner leaves its neighbours straight points); an end without its curve bit has no
+/// handle, whatever stale handle the file still holds, and PE-DESIGN draws that side with
+/// both control points at the other end's handle (the bounds it saves fit that curve). A
+/// curve point's kind is kept: `0x11` smooth, `0x15` symmetric, `0x19` cusp.
 fn contour(vertices: &[Vertex], closed: bool) -> Contour {
     let n = vertices.len();
     let mut c = Contour::new(
@@ -773,13 +778,34 @@ fn contour(vertices: &[Vertex], closed: bool) -> Contour {
     );
     for i in 0..c.segment_count() {
         let (a, b) = (&vertices[i], &vertices[(i + 1) % n]);
-        if a.kind & KIND_CURVE_AFTER != 0 {
+        let (leaves, arrives) = (
+            a.kind & KIND_CURVE_AFTER != 0,
+            b.kind & KIND_CURVE_BEFORE != 0,
+        );
+        if leaves || arrives {
+            let leaving = design_xy(a.handles[1].0, a.handles[1].1);
+            let arriving = design_xy(b.handles[0].0, b.handles[0].1);
             c.set_curve(
                 i,
                 Some(Bezier {
-                    c1: design_xy(a.handles[1].0, a.handles[1].1),
-                    c2: design_xy(b.handles[0].0, b.handles[0].1),
+                    c1: if leaves { leaving } else { arriving },
+                    c2: if arrives { arriving } else { leaving },
                 }),
+            );
+        }
+    }
+    let both = KIND_CURVE_AFTER | KIND_CURVE_BEFORE;
+    for (i, v) in vertices.iter().enumerate() {
+        if v.kind & both == both {
+            c.set_kind(
+                i,
+                if v.kind & KIND_CUSP != 0 {
+                    PointKind::Cusp
+                } else if v.kind & KIND_SYMMETRIC != 0 {
+                    PointKind::Symmetric
+                } else {
+                    PointKind::Smooth
+                },
             );
         }
     }
@@ -1058,6 +1084,60 @@ pub fn commands() -> Vec<CommandSpec> {
 mod tests {
     use super::*;
     use openstitch_design::ObjectKind;
+
+    /// PE-DESIGN 11.50's vertices after To Curve on one corner of its rectangle
+    /// (`a1-to-curve`, #1258 captures of 2026-11-18; file units), then To Symmetry and To Cusp
+    /// (`a3-symmetry`, `a4-cusp`): the kind is per point, the neighbours are straight points
+    /// without handles, and each side is drawn from the curve point's handle alone.
+    #[test]
+    fn a_curve_point_between_straight_points_reads_and_writes_as_pe_design_keeps_it() {
+        let v = |x: f32, y: f32, kind: u32, handles: [(f32, f32); 2]| Vertex {
+            x,
+            y,
+            handles,
+            kind,
+        };
+        let none = [(0.0, 0.0); 2];
+        for (kind, stored, arriving, leaving) in [
+            (0x11, PointKind::Smooth, (750.0, 905.0), (850.0, 705.0)),
+            (0x15, PointKind::Symmetric, (715.4, 925.8), (884.6, 684.2)),
+            (0x19, PointKind::Cusp, (665.0, 980.0), (935.0, 630.0)),
+        ] {
+            let file = vec![
+                v(1000.0, 1205.0, 0, none),
+                v(800.0, 1205.0, 0, none),
+                v(800.0, 805.0, kind, [arriving, leaving]),
+                v(1000.0, 805.0, 0, none),
+                v(1200.0, 805.0, 0, none),
+                v(1200.0, 1205.0, 0, none),
+            ];
+            let c = contour(&file, true);
+            assert_eq!(c.kind(2), stored);
+            assert!(c.kinds.iter().filter(|k| **k != PointKind::Unset).count() == 1);
+            let (before, after) = (
+                c.curve(1).expect("arriving side"),
+                c.curve(2).expect("leaving side"),
+            );
+            let (a, l) = (
+                design_xy(arriving.0, arriving.1),
+                design_xy(leaving.0, leaving.1),
+            );
+            assert_eq!((before.c1, before.c2, after.c1, after.c2), (a, a, l, l));
+            assert!(c.curve(0).is_none() && c.curve(3).is_none() && c.curve(5).is_none());
+            assert!(c.is_curve_point(2) && !c.is_curve_point(1) && !c.is_curve_point(3));
+            // Written back vertex for vertex.
+            assert_eq!(crate::pes11_export::vertices(&c), file);
+        }
+        // A point after To Straight keeps stale handle values in the file (`a5-to-straight`):
+        // they are not used.
+        let stale = vec![
+            v(800.0, 1205.0, 0, none),
+            v(800.0, 805.0, 0, [(665.0, 980.0), (990.0, 580.0)]),
+            v(1200.0, 805.0, 0, none),
+        ];
+        let c = contour(&stale, true);
+        assert!(c.curves.is_empty() && c.kinds.is_empty());
+    }
 
     fn fixture(name: &str) -> ObjectSection {
         let path = format!(

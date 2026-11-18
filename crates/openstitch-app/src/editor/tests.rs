@@ -2000,3 +2000,338 @@ fn a_two_mm_candlewick_is_kept_by_a_set_line_without_width() {
         "below 0.5 is still refused"
     );
 }
+
+// MARK: the point menu (#1258)
+
+/// The menu's entries for the selected points, as `(key, enabled)` in menu order.
+fn menu(t: &ToolController, s: &Session, sel: &BTreeSet<u64>) -> Vec<(&'static str, bool)> {
+    use super::points::PointAction;
+    let design = s.design().clone();
+    let enabled = t
+        .point_actions(&ctx(&design, sel))
+        .expect("a point is selected");
+    PointAction::MENU
+        .iter()
+        .zip(enabled)
+        .map(|(a, e)| (a.key(), e))
+        .collect()
+}
+
+fn choose(
+    t: &mut ToolController,
+    s: &mut Session,
+    sel: &BTreeSet<u64>,
+    a: super::points::PointAction,
+) -> usize {
+    let design = s.design().clone();
+    let effects = t.point_action(a, &ctx(&design, sel));
+    let n = effects.len();
+    apply(s, effects, sel.clone());
+    n
+}
+
+#[test]
+fn the_point_menu_has_pe_designs_entries_in_order_with_its_separators() {
+    use super::points::PointAction;
+    let keys: Vec<_> = PointAction::MENU.iter().map(|a| a.key()).collect();
+    assert_eq!(
+        keys,
+        [
+            "toStraight",
+            "toCurve",
+            "toSmooth",
+            "toSymmetry",
+            "toCusp",
+            "splitAtPoint",
+            "deletePoint"
+        ]
+    );
+    let separators: Vec<_> = PointAction::MENU
+        .iter()
+        .filter(|a| a.separator_before())
+        .map(|a| a.key())
+        .collect();
+    assert_eq!(separators, ["toSmooth", "splitAtPoint", "deletePoint"]);
+}
+
+/// The owner's screen (2026-11-18): on a corner between two straight sides To Straight,
+/// To Smooth, To Symmetry and To Cusp are greyed out; To Curve, Split at Point and Delete are
+/// available.
+#[test]
+fn a_right_click_on_a_straight_corner_offers_what_pe_design_offers() {
+    use super::points::PointAction as P;
+    let mut s = session();
+    let id = rect_design(&mut s);
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let design = s.design().clone();
+    assert!(
+        t.point_actions(&ctx(&design, &sel)).is_none(),
+        "no point yet"
+    );
+    assert!(
+        !t.select_point_at(v2(200.0, 150.0), &ctx(&design, &sel)),
+        "not on a point"
+    );
+    assert!(t.select_point_at(v2(101.0, 99.0), &ctx(&design, &sel)));
+    assert_eq!(
+        t.selected_point(&ctx(&design, &sel)).map(|p| p.index),
+        Some(0)
+    );
+    assert_eq!(
+        menu(&t, &s, &sel),
+        [
+            ("toStraight", false),
+            ("toCurve", true),
+            ("toSmooth", false),
+            ("toSymmetry", false),
+            ("toCusp", false),
+            ("splitAtPoint", true),
+            ("deletePoint", true)
+        ]
+    );
+    // A greyed-out entry does nothing.
+    assert_eq!(choose(&mut t, &mut s, &sel, P::ToSmooth), 0);
+    // To Curve: one command, one Undo. The point is then smooth, as PE-DESIGN's is: To Curve
+    // and To Smooth are greyed out, the rest available.
+    assert_eq!(choose(&mut t, &mut s, &sel, P::ToCurve), 1);
+    let c = s.design().objects[0].contours[0].clone();
+    assert!(c.curve(0).is_some() && c.curve(3).is_some());
+    assert_eq!(c.kind(0), openstitch_design::PointKind::Smooth);
+    assert_eq!(
+        c.point_handles(0),
+        (Some(v2(50.0, 125.0)), Some(v2(150.0, 75.0)))
+    );
+    assert_eq!(
+        menu(&t, &s, &sel),
+        [
+            ("toStraight", true),
+            ("toCurve", false),
+            ("toSmooth", false),
+            ("toSymmetry", true),
+            ("toCusp", true),
+            ("splitAtPoint", true),
+            ("deletePoint", true)
+        ]
+    );
+    // Only the curve point shows handles: its straight neighbours have none.
+    let design = s.design().clone();
+    let overlay = t.point_overlay(&ctx(&design, &sel)).expect("overlay");
+    assert_eq!(super::points::handle_lines(&overlay.contours[0]).len(), 2);
+    // Dragging a handle of the smooth point turns the other one, in the preview and after.
+    let sel = drag(&mut t, &mut s, sel, v2(150.0, 75.0), v2(100.0, 60.0), false);
+    let c = s.design().objects[0].contours[0].clone();
+    let (a, l) = c.point_handles(0);
+    let (a, l) = (a.expect("a") - c.points[0], l.expect("l") - c.points[0]);
+    assert!(l.distance(v2(0.0, -40.0)) < 1e-6, "{l:?}");
+    assert!(
+        a.x.abs() < 1e-6 && (a.y - 3125.0_f64.sqrt()).abs() < 1e-6,
+        "opposite: {a:?}"
+    );
+    assert!(
+        !c.is_curve_point(1) && !c.is_curve_point(3),
+        "neighbours stay straight points"
+    );
+    // To Cusp, then the menu greys To Cusp and offers To Smooth again.
+    assert_eq!(choose(&mut t, &mut s, &sel, P::ToCusp), 1);
+    let m = menu(&t, &s, &sel);
+    assert_eq!(
+        (m[2], m[3], m[4]),
+        (("toSmooth", true), ("toSymmetry", true), ("toCusp", false))
+    );
+    // The neighbour is a straight point: its menu is a straight point's.
+    let design = s.design().clone();
+    assert!(t.select_point_at(v2(300.0, 100.0), &ctx(&design, &sel)));
+    let m = menu(&t, &s, &sel);
+    assert_eq!(
+        (m[0], m[1], m[2]),
+        (
+            ("toStraight", false),
+            ("toCurve", true),
+            ("toSmooth", false)
+        )
+    );
+    undo(&mut s);
+    undo(&mut s);
+    undo(&mut s);
+    assert!(s.design().objects[0].contours[0].curves.is_empty());
+}
+
+/// PE-DESIGN greys To Smooth, To Symmetry and To Cusp on the end of an open line, also after
+/// To Curve (the point has one side only), and Split at Point on both ends.
+#[test]
+fn the_end_of_an_open_line_offers_what_pe_design_offers() {
+    use super::points::PointAction as P;
+    let mut s = session();
+    let line = run(
+        &mut s,
+        &CommandRequest::new(
+            "shape.polygon",
+            json!({ "points": [[50, 50], [80, 50], [80, 80]], "closed": false, "outline": "#203040" }),
+        ),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([line]);
+    let design = s.design().clone();
+    assert!(t.select_point_at(v2(500.0, 500.0), &ctx(&design, &sel)));
+    let straight_end = [
+        ("toStraight", false),
+        ("toCurve", true),
+        ("toSmooth", false),
+        ("toSymmetry", false),
+        ("toCusp", false),
+        ("splitAtPoint", false),
+        ("deletePoint", true),
+    ];
+    assert_eq!(menu(&t, &s, &sel), straight_end);
+    assert_eq!(choose(&mut t, &mut s, &sel, P::ToCurve), 1);
+    assert_eq!(
+        menu(&t, &s, &sel),
+        [
+            ("toStraight", true),
+            ("toCurve", false),
+            ("toSmooth", false),
+            ("toSymmetry", false),
+            ("toCusp", false),
+            ("splitAtPoint", false),
+            ("deletePoint", true)
+        ]
+    );
+    let design = s.design().clone();
+    assert!(t.select_point_at(v2(800.0, 800.0), &ctx(&design, &sel)));
+    assert_eq!(menu(&t, &s, &sel), straight_end);
+}
+
+#[test]
+fn ctrl_click_selects_several_points_and_the_menu_acts_on_all() {
+    use super::points::PointAction as P;
+    let mut s = session();
+    let id = rect_design(&mut s);
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let sel = click_at(&mut t, &mut s, sel, v2(100.0, 100.0), 1);
+    // Ctrl+click adds a point (PE-DESIGN's gesture).
+    let mut e = PointerEvent::new(Phase::Down, v2(300.0, 200.0));
+    e.free = true;
+    let sel = send(&mut t, &mut s, sel, e);
+    let sel = send(
+        &mut t,
+        &mut s,
+        sel,
+        PointerEvent::new(Phase::Up, v2(300.0, 200.0)),
+    );
+    let design = s.design().clone();
+    let picked: Vec<_> = t
+        .selected_points(&ctx(&design, &sel))
+        .iter()
+        .map(|p| p.index)
+        .collect();
+    assert_eq!(picked, [2, 0]);
+    let overlay = t.point_overlay(&ctx(&design, &sel)).expect("overlay");
+    assert_eq!(
+        (overlay.selected, overlay.also),
+        (Some((0, 2)), vec![(0, 0)])
+    );
+    // Split at Point needs one point. Delete stays available, as PE-DESIGN's does, and does
+    // nothing where the outline would keep too few points (two of four corners here).
+    let m = menu(&t, &s, &sel);
+    assert_eq!(
+        (m[5], m[6]),
+        (("splitAtPoint", false), ("deletePoint", true))
+    );
+    assert_eq!(choose(&mut t, &mut s, &sel, P::Delete), 0);
+    assert_eq!(s.design().objects[0].contours[0].points.len(), 4);
+    let design = s.design().clone();
+    assert_eq!(t.selected_points(&ctx(&design, &sel)).len(), 2);
+    assert_eq!(
+        choose(&mut t, &mut s, &sel, P::ToCurve),
+        1,
+        "one command for both"
+    );
+    assert!(
+        s.design().objects[0].contours[0]
+            .curves
+            .iter()
+            .all(Option::is_some)
+    );
+    undo(&mut s);
+    assert!(
+        s.design().objects[0].contours[0].curves.is_empty(),
+        "one Undo"
+    );
+    // A right-click on a selected point keeps both; on another point it selects that one.
+    let design = s.design().clone();
+    assert!(t.select_point_at(v2(100.0, 100.0), &ctx(&design, &sel)));
+    assert_eq!(t.selected_points(&ctx(&design, &sel)).len(), 2);
+    assert!(t.select_point_at(v2(300.0, 100.0), &ctx(&design, &sel)));
+    let picked: Vec<_> = t
+        .selected_points(&ctx(&design, &sel))
+        .iter()
+        .map(|p| p.index)
+        .collect();
+    assert_eq!(picked, [1]);
+    // Ctrl+click on a selected point takes it out again; a Ctrl-drag moves the point.
+    let mut e = PointerEvent::new(Phase::Down, v2(300.0, 100.0));
+    e.free = true;
+    let sel = send(&mut t, &mut s, sel, e);
+    let sel = send(
+        &mut t,
+        &mut s,
+        sel,
+        PointerEvent::new(Phase::Up, v2(300.0, 100.0)),
+    );
+    let design = s.design().clone();
+    assert!(t.selected_points(&ctx(&design, &sel)).is_empty());
+}
+
+#[test]
+fn split_at_point_and_delete_from_the_menu() {
+    use super::points::PointAction as P;
+    let mut s = session();
+    let id = rect_design(&mut s);
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let design = s.design().clone();
+    assert!(t.select_point_at(v2(100.0, 100.0), &ctx(&design, &sel)));
+    assert_eq!(choose(&mut t, &mut s, &sel, P::Delete), 1);
+    assert_eq!(s.design().objects[0].contours[0].points.len(), 3);
+    let design = s.design().clone();
+    assert!(
+        t.point_actions(&ctx(&design, &sel)).is_none(),
+        "selection cleared"
+    );
+    // A triangle's corner: Delete is shown as available and does nothing.
+    assert!(t.select_point_at(v2(300.0, 100.0), &ctx(&design, &sel)));
+    assert_eq!(menu(&t, &s, &sel)[6], ("deletePoint", true));
+    assert_eq!(choose(&mut t, &mut s, &sel, P::Delete), 0);
+    assert_eq!(s.design().objects[0].contours[0].points.len(), 3);
+    undo(&mut s);
+
+    // An open line: Split at Point is greyed out on its ends, available in between.
+    let line = run(
+        &mut s,
+        &CommandRequest::new(
+            "shape.polygon",
+            json!({ "points": [[50, 50], [80, 50], [80, 80]], "closed": false, "outline": "#203040" }),
+        ),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let sel = BTreeSet::from([line]);
+    let design = s.design().clone();
+    assert!(t.select_point_at(v2(500.0, 500.0), &ctx(&design, &sel)));
+    assert_eq!(menu(&t, &s, &sel)[5], ("splitAtPoint", false));
+    assert!(t.select_point_at(v2(800.0, 500.0), &ctx(&design, &sel)));
+    assert_eq!(menu(&t, &s, &sel)[5], ("splitAtPoint", true));
+    let before = s.design().objects.len();
+    assert_eq!(choose(&mut t, &mut s, &sel, P::Split), 1);
+    assert_eq!(s.design().objects.len(), before + 1);
+    undo(&mut s);
+    assert_eq!(s.design().objects.len(), before, "one Undo");
+}

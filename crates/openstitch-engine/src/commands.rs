@@ -500,6 +500,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::punch::commands());
     v.extend(crate::satin_shaping::commands());
     v.extend(crate::join_break::commands());
+    v.extend(crate::point_edit::commands());
     v.extend(crate::order::commands());
     v.extend(crate::branching::commands());
     v.extend(crate::production::commands());
@@ -1416,14 +1417,17 @@ fn shape_commands() -> Vec<CommandSpec> {
 
 // MARK: paths and point editing
 
-const CONTOUR: ParamDoc = opt(
+pub(crate) const CONTOUR: ParamDoc = opt(
     "contour",
     "int",
     "Contour index within the object (default 0)",
 );
 
 /// The shape object and contour named by `id` / `contour`.
-fn contour_mut<'a>(s: &'a mut EngineState, p: &Params) -> Result<&'a mut Contour, CommandError> {
+pub(crate) fn contour_mut<'a>(
+    s: &'a mut EngineState,
+    p: &Params,
+) -> Result<&'a mut Contour, CommandError> {
     let id = p.int("id", None, 0, i64::MAX)? as u64;
     let i = s
         .design
@@ -1494,7 +1498,7 @@ fn path_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.setPoint",
-            "Move a vertex (its curve handles move with it)",
+            "Move a vertex (its curve handles move with it; a straight point beside a curve point has none, so that curve keeps the curve point's handle)",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),
@@ -1508,27 +1512,9 @@ fn path_commands() -> Vec<CommandSpec> {
                 let y = p.req("y", -5000.0, 5000.0)? * MM;
                 let c = contour_mut(s, p)?;
                 let index = p.int("index", None, 0, c.points.len() as i64 - 1)? as usize;
-                let delta = v2(x, y) - c.points[index];
-                c.points[index] = v2(x, y);
-                let segs = c.segment_count();
-                let outgoing = (index < segs).then_some(index);
-                let incoming = if index > 0 {
-                    Some(index - 1)
-                } else if c.closed {
-                    Some(segs - 1)
-                } else {
-                    None
-                };
-                if let Some(i) = outgoing.filter(|&i| c.curve(i).is_some()) {
-                    let mut b = c.curve(i).expect("curve");
-                    b.c1 = b.c1 + delta;
-                    c.set_curve(i, Some(b));
-                }
-                if let Some(i) = incoming.filter(|&i| c.curve(i).is_some()) {
-                    let mut b = c.curve(i).expect("curve");
-                    b.c2 = b.c2 + delta;
-                    c.set_curve(i, Some(b));
-                }
+                // Its own handles move with it; a control point a straight point only borrows
+                // from the curve point next to it stays with that handle (#1258).
+                c.move_point(index, v2(x, y));
                 Ok(Value::Null)
             },
         ),
@@ -1558,22 +1544,33 @@ fn path_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.deletePoint",
-            "Delete a vertex, joining its neighbouring segments",
+            "Delete a vertex, or several at once, joining the neighbouring segments (the joined side stays a curve, with the outer handles, when either side was one). Refused when it would leave an open line with fewer than 2 points or a closed straight outline with fewer than 3; nothing is deleted then",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),
                 CONTOUR,
-                req("index", "int", "Vertex index"),
+                opt("index", "int", "Vertex index (or 'indexes')"),
+                crate::point_edit::INDEXES,
             ],
             |s, p| {
                 let c = contour_mut(s, p)?;
-                let index = p.int("index", None, 0, c.points.len() as i64 - 1)? as usize;
+                let at = crate::point_edit::point_indexes(p, c)?;
                 // Open: 2 points. Closed: 3, or 2 when curves keep the region non-degenerate.
-                let minimum = if c.closed && !c.has_curves() { 3 } else { 2 };
-                if c.points.len() <= minimum {
-                    return Err(p.failed(format!("this contour needs at least {minimum} points")));
+                let mut left = c.clone();
+                for &index in at.iter().rev() {
+                    let minimum = if left.closed && !left.has_curves() {
+                        3
+                    } else {
+                        2
+                    };
+                    if left.points.len() <= minimum {
+                        return Err(
+                            p.failed(format!("this contour needs at least {minimum} points"))
+                        );
+                    }
+                    left.delete_point(index);
                 }
-                c.delete_point(index);
+                *c = left;
                 Ok(Value::Null)
             },
         ),
@@ -1588,7 +1585,7 @@ fn path_commands() -> Vec<CommandSpec> {
                 opt(
                     "curve",
                     "[[c1x, c1y], [c2x, c2y]] mm",
-                    "Control points; omitted with straight false = handles at 1/3 and 2/3 of the chord",
+                    "Control points; omitted with straight false = handles at 1/3 and 2/3 of the chord. On a segment that is already a curve, a control point that differs from the stored one also moves the other handle at its vertex when that point is smooth (turned to stay opposite, its length kept) or symmetric (mirrored), see object.setPointKind; a cusp's other handle stays",
                 ),
                 opt("straight", "bool", "true makes the segment a straight line"),
             ],
@@ -1610,6 +1607,27 @@ fn path_commands() -> Vec<CommandSpec> {
                     let (c1, c2) = given.unwrap_or((a.lerp(b, 1.0 / 3.0), a.lerp(b, 2.0 / 3.0)));
                     Some(Bezier { c1, c2 })
                 };
+                if let (Some(old), Some(new), true) = (c.curve(seg), curve, !c.kinds.is_empty()) {
+                    // A smooth or symmetric point's other handle follows the one moved.
+                    if old.c1.distance(new.c1) > 1e-6 {
+                        c.move_handle(seg, true, new.c1);
+                    }
+                    if old.c2.distance(new.c2) > 1e-6 {
+                        c.move_handle(seg, false, new.c2);
+                    }
+                    return Ok(Value::Null);
+                }
+                if straight {
+                    // No curve is left at a point whose both sides are straight: forget its kind.
+                    c.set_curve(seg, None);
+                    let n = c.points.len();
+                    for v in [seg, (seg + 1) % n] {
+                        if !c.is_curve_point(v) {
+                            c.set_kind(v, openstitch_design::PointKind::Cusp);
+                        }
+                    }
+                    return Ok(Value::Null);
+                }
                 c.set_curve(seg, curve);
                 Ok(Value::Null)
             },

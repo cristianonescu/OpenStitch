@@ -55,6 +55,7 @@ mod pattern_cmds;
 pub mod pes11_export;
 #[cfg(feature = "formats")]
 pub mod pes11_import;
+mod point_edit;
 pub mod preview;
 pub mod print;
 pub mod production;

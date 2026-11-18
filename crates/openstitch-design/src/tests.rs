@@ -903,3 +903,277 @@ fn join_short_stitches_keeps_short_corners_and_the_last_point() {
     assert_eq!(run[0], v2(0.0, 0.0));
     assert!(longest_short_run(&[run], 5.0) <= 1);
 }
+
+// MARK: point kinds (#1258)
+
+#[test]
+fn a_contour_without_kinds_reads_and_writes_as_before() {
+    let old =
+        r#"{"points":[{"x":0.0,"y":0.0},{"x":10.0,"y":0.0},{"x":10.0,"y":10.0}],"closed":true}"#;
+    let c: Contour = serde_json::from_str(old).expect("an older file's contour");
+    assert!(c.kinds.is_empty());
+    assert_eq!(c.kind(1), crate::PointKind::Unset);
+    let again = serde_json::to_string(&c).expect("json");
+    assert!(!again.contains("kinds"), "{again}");
+    // Storing no kind stores nothing; a kind is kept and read back.
+    let mut c = bezier_circle(v2(0.0, 0.0), 100.0);
+    c.set_kind(2, crate::PointKind::Unset);
+    assert!(c.kinds.is_empty());
+    c.set_kind(2, crate::PointKind::Symmetric);
+    let json = serde_json::to_string(&c).expect("json");
+    assert!(
+        json.contains(r#""kinds":["unset","unset","symmetric","unset"]"#),
+        "{json}"
+    );
+    let back: Contour = serde_json::from_str(&json).expect("back");
+    assert_eq!(back, c);
+    // A list of the wrong length is ignored, not misapplied.
+    let mut odd = c.clone();
+    odd.kinds.pop();
+    assert_eq!(odd.kind(2), crate::PointKind::Unset);
+}
+
+#[test]
+fn point_kinds_never_change_the_outline_on_their_own() {
+    let plain = bezier_circle(v2(0.0, 0.0), 100.0);
+    let mut tagged = plain.clone();
+    for i in 0..4 {
+        tagged.set_kind(i, crate::PointKind::Smooth);
+    }
+    assert_eq!(plain.path(), tagged.path());
+    assert_eq!(plain.curves, tagged.curves);
+}
+
+/// PE-DESIGN 11.50's own rectangle of the #1258 captures (mm; `a1-to-curve.pes`): bottom
+/// centre, bottom left, top left, top centre, top right, bottom right.
+fn capture_rectangle() -> Contour {
+    Contour::new(
+        vec![
+            v2(50.0, 70.5),
+            v2(30.0, 70.5),
+            v2(30.0, 30.5),
+            v2(50.0, 30.5),
+            v2(70.0, 30.5),
+            v2(70.0, 70.5),
+        ],
+        true,
+    )
+}
+
+fn near(a: Option<crate::Vec2>, x: f64, y: f64) -> bool {
+    a.is_some_and(|a| a.distance(v2(x, y)) < 0.006)
+}
+
+/// To Curve as measured on PE-DESIGN 11.50 (2026-11-18): the handles lie at
+/// `p ∓ (next − previous) / 4`, the point is smooth, its neighbours stay straight points.
+#[test]
+fn to_curve_places_the_handles_where_pe_design_does() {
+    // a1-to-curve.pes: the top left corner, arriving (25, 40.5), leaving (35, 20.5).
+    let mut c = capture_rectangle();
+    assert!(!c.is_curve_point(2));
+    assert!(c.make_curve(2));
+    let (arriving, leaving) = c.point_handles(2);
+    assert!(
+        near(arriving, 25.0, 40.5) && near(leaving, 35.0, 20.5),
+        "{arriving:?} {leaving:?}"
+    );
+    assert_eq!(c.kind(2), crate::PointKind::Smooth);
+    // Both sides at the corner are curves; the far ends have no handle of their own, so
+    // each side is drawn from the corner's handle alone (both control points on it).
+    let (before, after) = (
+        c.curve(1).expect("arriving side"),
+        c.curve(2).expect("leaving side"),
+    );
+    assert_eq!((before.c1, after.c2), (before.c2, after.c1));
+    assert!(c.borrows_handle(1, true) && c.borrows_handle(2, false));
+    assert!(c.owns_handle(1, false) && c.owns_handle(2, true));
+    assert!(c.curve(0).is_none() && c.curve(3).is_none());
+    assert!(c.is_curve_point(2) && !c.is_curve_point(1) && !c.is_curve_point(3));
+    assert!(!c.make_curve(2), "a curve point is left alone");
+    // The outline bends at once. PE-DESIGN saved this shape's bounds as 26.2 mm on the left
+    // and 23.0 mm at the top: the middle of each side, where its curve is furthest out.
+    let middle = |s: usize| {
+        let ((a, b), z) = (c.segment_ends(s), c.curve(s).expect("curve"));
+        (a + z.c1 * 3.0 + z.c2 * 3.0 + b) * 0.125
+    };
+    assert!((middle(1).x - 26.25).abs() < 1e-9 && (middle(2).y - 23.0).abs() < 1e-9);
+    // Moving the straight neighbour leaves the corner's handle (and its copy) where it is;
+    // moving the corner takes both along.
+    let mut moved = c.clone();
+    moved.move_point(1, v2(28.0, 72.0));
+    assert_eq!(moved.curve(1), c.curve(1));
+    moved.move_point(2, v2(31.0, 31.5));
+    let z = moved.curve(1).expect("curve");
+    assert_eq!((z.c1, z.c2), (v2(26.0, 41.5), v2(26.0, 41.5)));
+
+    // a8-two-to-curve.pes: two neighbouring corners at once, each from the straight outline.
+    let mut two = Contour::new(
+        vec![
+            v2(50.0, 70.5),
+            v2(30.0, 70.5),
+            v2(30.0, 30.5),
+            v2(70.0, 30.5),
+            v2(70.0, 70.5),
+        ],
+        true,
+    );
+    assert!(two.make_curve(2) && two.make_curve(3));
+    let (a2, l2) = two.point_handles(2);
+    let (a3, l3) = two.point_handles(3);
+    assert!(
+        near(a2, 20.0, 40.5) && near(l2, 40.0, 20.5),
+        "{a2:?} {l2:?}"
+    );
+    assert!(
+        near(a3, 60.0, 20.5) && near(l3, 80.0, 40.5),
+        "{a3:?} {l3:?}"
+    );
+
+    // b1-end-to-curve.pes: the first point of an open line; the line stays straight.
+    let mut line = Contour::new(vec![v2(32.5, 57.0), v2(62.0, 57.0), v2(62.0, 27.0)], false);
+    assert!(line.make_curve(0));
+    assert!(near(line.point_handles(0).1, 39.875, 57.0));
+    assert!(line.is_curve_point(0) && !line.is_curve_point(1));
+    assert!(
+        line.path()
+            .iter()
+            .all(|q| (q.y - 57.0).abs() < 1e-9 || q.x == 62.0)
+    );
+}
+
+/// The captures' sequence on the corner: drag a smooth point's handle, To Symmetry, drag,
+/// To Cusp, drag, To Straight (a2 … a5 of 2026-11-18).
+#[test]
+fn smooth_symmetric_and_cusp_points_follow_a_drag_as_pe_design_does() {
+    let mut c = capture_rectangle();
+    c.make_curve(2);
+    // a2-smooth-drag.pes: the leaving handle dragged; the arriving one turns, 11.18 mm long.
+    c.move_handle(2, true, v2(40.5, 15.5));
+    let (arriving, leaving) = c.point_handles(2);
+    assert!(
+        near(arriving, 23.59, 39.66) && near(leaving, 40.5, 15.5),
+        "{arriving:?}"
+    );
+    // a3-symmetry.pes: both handles at the mean length (14.75 mm), direction kept.
+    c.apply_kind(2, crate::PointKind::Symmetric);
+    let (arriving, leaving) = c.point_handles(2);
+    assert!(
+        near(arriving, 21.54, 42.58) && near(leaving, 38.46, 18.42),
+        "{arriving:?} {leaving:?}"
+    );
+    // a3-symmetry-drag.pes: the other handle mirrors the dragged one.
+    c.move_handle(2, true, v2(43.5, 13.0));
+    assert!(near(c.point_handles(2).0, 16.5, 48.0));
+    assert!(
+        c.borrows_handle(1, true),
+        "the straight neighbour's copy followed"
+    );
+    // a4-cusp.pes: To Cusp moves nothing; a4-cusp-drag.pes: nor does a drag move the other.
+    let before = c.curves.clone();
+    c.apply_kind(2, crate::PointKind::Cusp);
+    assert_eq!(c.curves, before);
+    c.move_handle(2, true, v2(49.0, 8.0));
+    let (arriving, leaving) = c.point_handles(2);
+    assert!(near(arriving, 16.5, 48.0) && near(leaving, 49.0, 8.0));
+    // a9-cusp-to-smooth.pes and a9-cusp-to-symmetry.pes, both from this cusp whose handles
+    // are not in line: onto the line parallel to the one between them, each keeping its
+    // length (22.10 and 29.45 mm), or both at the mean (25.776 mm).
+    let mut smooth = c.clone();
+    smooth.apply_kind(2, crate::PointKind::Smooth);
+    let (arriving, leaving) = smooth.point_handles(2);
+    assert!(
+        near(arriving, 30.0 - 13.9374, 30.5 + 17.1537)
+            && near(leaving, 30.0 + 18.5704, 30.5 - 22.8559),
+        "{arriving:?} {leaving:?}"
+    );
+    let mut symmetric = c.clone();
+    symmetric.apply_kind(2, crate::PointKind::Symmetric);
+    let (arriving, leaving) = symmetric.point_handles(2);
+    assert!(
+        near(arriving, 30.0 - 16.2539, 30.5 + 20.0048)
+            && near(leaving, 30.0 + 16.2539, 30.5 - 20.0048),
+        "{arriving:?} {leaving:?}"
+    );
+    // The arriving handle is the arriving side's: dragging it leaves the leaving one.
+    c.move_handle(1, false, v2(20.0, 40.0));
+    assert!(near(c.point_handles(2).1, 49.0, 8.0));
+    // a5-to-straight.pes: the rectangle is back.
+    c.make_straight(2);
+    assert_eq!(c, capture_rectangle());
+}
+
+/// To Straight next to a curve point (PE-DESIGN's circle, c2 of 2026-11-18): the point
+/// becomes a corner, its neighbours keep their own handles, so both sides still bend.
+#[test]
+fn to_straight_beside_curve_points_keeps_their_handles() {
+    let mut c = bezier_circle(v2(0.0, 0.0), 100.0);
+    let far = (
+        c.curve(3).expect("arriving").c1,
+        c.curve(0).expect("leaving").c2,
+    );
+    c.make_straight(0);
+    assert!(!c.is_curve_point(0) && c.is_curve_point(1) && c.is_curve_point(3));
+    let (arriving, leaving) = (
+        c.curve(3).expect("still a curve"),
+        c.curve(0).expect("still a curve"),
+    );
+    assert_eq!((arriving.c1, leaving.c2), far);
+    assert_eq!(
+        (arriving.c2, leaving.c1),
+        far,
+        "drawn from the neighbours' handles alone"
+    );
+    // And back: To Curve gives it PE's quarter handles again.
+    assert!(c.make_curve(0));
+    assert_eq!(c.kind(0), crate::PointKind::Smooth);
+}
+
+#[test]
+fn inserting_and_deleting_points_keeps_each_points_kind() {
+    let mut c = bezier_circle(v2(0.0, 0.0), 100.0);
+    c.set_kind(3, crate::PointKind::Symmetric);
+    let i = c.insert_point(0, 0.5);
+    assert_eq!(
+        c.kind(i),
+        crate::PointKind::Smooth,
+        "a point put on a curve"
+    );
+    assert_eq!(c.kind(4), crate::PointKind::Symmetric);
+    c.delete_point(0);
+    assert_eq!(c.kind(3), crate::PointKind::Symmetric);
+    assert_eq!(c.kinds.len(), c.points.len());
+    let moved = c.transformed(&Transform::translation(5.0, 0.0));
+    assert_eq!(moved.kinds, c.kinds);
+}
+
+#[test]
+fn split_at_point_opens_a_closed_outline_and_cuts_an_open_line() {
+    let mut ring = bezier_circle(v2(0.0, 0.0), 100.0);
+    ring.set_kind(1, crate::PointKind::Smooth);
+    let opened = ring.split_at(2).expect("closed");
+    assert_eq!(opened.len(), 1);
+    let o = &opened[0];
+    assert!(!o.closed);
+    assert_eq!(o.points.len(), 5);
+    assert_eq!(o.points[0], ring.points[2]);
+    assert_eq!(o.points[4], ring.points[2]);
+    assert_eq!(o.segment_count(), 4);
+    assert!(o.curves.iter().all(Option::is_some));
+    assert_eq!(o.path(), {
+        let mut p = ring.starting_at(ring.points[2]).path();
+        p.dedup();
+        p
+    });
+    assert_eq!(
+        o.kind(3),
+        crate::PointKind::Smooth,
+        "vertex 1, three steps on"
+    );
+
+    let line = Contour::new(vec![v2(0.0, 0.0), v2(30.0, 0.0), v2(30.0, 30.0)], false);
+    assert!(line.split_at(0).is_none() && line.split_at(2).is_none());
+    let halves = line.split_at(1).expect("inner point");
+    assert_eq!(halves[0].points, vec![v2(0.0, 0.0), v2(30.0, 0.0)]);
+    assert_eq!(halves[1].points, vec![v2(30.0, 0.0), v2(30.0, 30.0)]);
+    assert!(halves.iter().all(|h| !h.closed));
+}
