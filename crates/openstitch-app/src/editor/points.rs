@@ -138,9 +138,50 @@ pub fn handle_lines(c: &Contour) -> Vec<HandleLine> {
     out
 }
 
+/// The vertex a handle belongs to.
+pub fn handle_vertex(c: &Contour, h: &HandleLine) -> usize {
+    match h.control {
+        Control::Start => h.segment,
+        Control::End => (h.segment + 1) % c.points.len().max(1),
+    }
+}
+
+/// The curve handles of the vertices `selected` of `c`: PE-DESIGN shows a curve point's two
+/// handle lines only while the point is selected, and only those can be dragged.
+pub fn handle_lines_of(c: &Contour, selected: &[usize]) -> Vec<HandleLine> {
+    handle_lines(c)
+        .into_iter()
+        .filter(|h| selected.contains(&handle_vertex(c, h)))
+        .collect()
+}
+
 /// What of `o` lies under `p`: a vertex or handle within `radius`, the nearer winning (a vertex
 /// on a tie), else a segment within `tolerance`.
 pub fn point_at(o: &DesignObject, p: Vec2, radius: f64, tolerance: f64) -> Option<PointHit> {
+    point_at_with(o, p, radius, tolerance, |_, _, _| true)
+}
+
+/// [`point_at`] as the Point tool hits: only the handles of the selected vertices
+/// (`(contour, index)`) count, since no other handle shows.
+pub fn point_at_selected(
+    o: &DesignObject,
+    p: Vec2,
+    radius: f64,
+    tolerance: f64,
+    selected: &[(usize, usize)],
+) -> Option<PointHit> {
+    point_at_with(o, p, radius, tolerance, |ci, c, h| {
+        selected.contains(&(ci, handle_vertex(c, h)))
+    })
+}
+
+fn point_at_with(
+    o: &DesignObject,
+    p: Vec2,
+    radius: f64,
+    tolerance: f64,
+    shown: impl Fn(usize, &Contour, &HandleLine) -> bool,
+) -> Option<PointHit> {
     let mut best: Option<(f64, PointHit)> = None;
     let mut offer = |d: f64, hit: PointHit| {
         if d <= radius && best.is_none_or(|(bd, _)| d < bd) {
@@ -153,7 +194,7 @@ pub fn point_at(o: &DesignObject, p: Vec2, radius: f64, tolerance: f64) -> Optio
         }
     }
     for (ci, c) in o.contours.iter().enumerate() {
-        for h in handle_lines(c) {
+        for h in handle_lines(c).into_iter().filter(|h| shown(ci, c, h)) {
             offer(
                 h.at.distance(p),
                 PointHit::Handle {
@@ -325,8 +366,8 @@ pub fn point_actions_enabled(c: &Contour, selected: &[usize]) -> [bool; 7] {
     ]
 }
 
-/// Whether `c` can lose the vertices `selected` (as `object.deletePoint` checks): an open
-/// line keeps 2 points, a closed straight outline 3.
+/// Whether `c` can lose the vertices `selected` (as `object.deletePoint` checks): an outline
+/// keeps 2 points, open or closed, as PE-DESIGN's does.
 pub fn can_delete_points(c: &Contour, selected: &[usize]) -> bool {
     let mut order: Vec<usize> = selected
         .iter()
@@ -340,12 +381,7 @@ pub fn can_delete_points(c: &Contour, selected: &[usize]) -> bool {
     }
     let mut left = c.clone();
     for &i in order.iter().rev() {
-        let minimum = if left.closed && !left.has_curves() {
-            3
-        } else {
-            2
-        };
-        if left.points.len() <= minimum {
+        if left.points.len() <= 2 {
             return false;
         }
         left.delete_point(i);

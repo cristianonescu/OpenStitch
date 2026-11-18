@@ -4893,14 +4893,11 @@ Tests against the numbers above: design `to_curve_places_the_handles_where_pe_de
 
 **Not matched, and why:**
 
-- **Delete on a closed straight outline stops at three points** (PE-DESIGN goes on to two, a
-  shape that sews 2 stitches). The entry stays available as in PE-DESIGN and does nothing there;
-  `object.deletePoint` refuses with the reason. A closed two-point straight outline has no area
-  and no command here can make one.
-- **Split at Point on a shape sewn as a region only is refused** (it would leave nothing to
-  sew). PE-DESIGN's case with a region only was not captured; with line and region it drops the
-  region, as here.
-- **A click on the outline inserts a point in PE-DESIGN;** here a double-click does (unchanged).
+- Delete on a closed straight outline stopped at three points in the first version; it goes
+  down to two since #1260 (below).
+- Split at Point on a shape sewn as a region only was refused in the first version; since
+  #1260 it makes the shape a line (below).
+- A click on the outline inserts a point since #1260 (below); it was a double-click.
 - **Curves made before this change** (and by `object.setSegment`) have no stored kind: their
   points show To Smooth, To Symmetry and To Cusp all available, and are written to PES 0110 as
   `0x11` as before.
@@ -4908,3 +4905,85 @@ Tests against the numbers above: design `to_curve_places_the_handles_where_pe_de
   Close, dragging the twin points apart after a closed split, a drag box around points.
 - The drop-down entries reuse existing icons (`open_line`, `curve`, the Point tool's); no new
   icon was made.
+
+### Select Point: inserting, selecting, moving, Open and Close, 2026-11-18 (#1260)
+
+**Measured** on PE-DESIGN 11.50 the same day, second round (black-box: the screen and 7 more
+saved files, not in the repository).
+
+| what | PE-DESIGN 11.50 | file |
+|---|---|---|
+| One click on a side | Inserts a point there and selects it: a straight point on a straight side; on a curved side a smooth curve point, the curve split exactly (a click at t = 0.826 of a side from 50.1 to 70 mm with one handle at 58.85: the point at 65.1 mm, its handles at 58.59 and 66.47, the first point's handle drawn back to 57.33). The straight end of that side stays a straight point. | e5 |
+| Press and drag on a side | Inserts only; the point does not move. There is no segment drag. A right click on a side inserts nothing. | e3, e5 |
+| Selecting | Click a point; Ctrl+click adds; a click on a selected point keeps the selection; a drag box from empty space selects the points inside; a click on empty space clears. | screen |
+| Dragging one of several selected points | Moves all of them by the same offset. | e1 |
+| Arrow keys | Move the selected points 0.5 mm a press, in all four directions (ten presses right: 30.0 → 35.0 mm exactly; ten up, ten left, four down: −5.0 and −3.0 mm). With Shift or Ctrl held they do not move the points. | e2, e9 |
+| Alt + drag of an end point onto the line's other end | Connects the two ends: the open line becomes a closed shape, the two ends one point, with a fill as Close gives it. Owner's hand check, 2026-11-18 (the capture tool cannot hold Alt in a drag). | owner |
+| Delete key | Removes the selected points in one step; one Undo brings them back. | screen |
+| To Curve on a point in the middle of a straight side | Both handles on the side: the outline does not change (the same rule, point ∓ (next − previous) / 4). | e5 |
+| Right click on the shape, not on a point | The object's menu: Add Direction Line, Delete Direction Line (a sub-menu: Delete Selected Line, Delete Lines Not Selected), Reverse Direction Line, separator, Open, Close. Add and Reverse carry an icon, Delete Direction Line none. Delete Direction Line is always available; on an open line its two sub-menu entries are grey. Open line: Add and Reverse grey, Open grey, Close available. Closed shape with a region: Add, Reverse and Open available, Close grey. | screen |
+| Close | The open line becomes a closed shape through the same points and gets a region: Fill Stitch at direction 45 (1289 stitches against 310). | e7 |
+| Open | The closing side goes and the region is removed; the line is as before (310 stitches). | e8 |
+| An end point dragged onto the other end without Alt | Lies on it; the line stays open. | e6 |
+
+**Now:** OpenStitch does the same.
+
+- `object.insertPoint` inserts as above (`Contour::insert_point_edit`; the sewing code keeps
+  the exact split, `insert_point`). The Point tool inserts on one click and never drags a side.
+- A drag from empty space is a box over the points; a click there clears. Dragging one of several
+  selected points, and the arrow keys (0.5 mm; nothing with Shift or Ctrl held), are one
+  `object.movePoints`. Delete removes every selected point, down to two on any outline; at two
+  it stays available and does nothing.
+- A right click on the shape beside its points opens the object's menu with PE-DESIGN's entries
+  and greying. `object.closeOutline` adds Fill Stitch at 45° in the line's thread when the object
+  has no region (`region: false` leaves it out); `object.openOutline` removes the closing side
+  and the region.
+- The Point tool's hint line names these in our own words.
+- **Look.** Both menus are drawn as menu rows, not buttons: an icon column, the text
+  left-aligned, the whole row highlighted under the pointer, grey text for an unavailable
+  entry, PE-DESIGN's separators, opening at the pointer to the right of and below it. Split at
+  Point and Delete carry an icon, as do the three direction-line entries of the object's menu
+  (our own icons, the ribbon's; Add and Reverse Direction Line have one in the object's menu,
+  Delete Direction Line none, as in PE-DESIGN's); Delete Direction Line is always available
+  and opens PE-DESIGN's sub-menu, Delete Selected Line and Delete Lines Not Selected. What
+  those two do with direction lines present is not captured, so they are built from their
+  names: no direction line can be selected on the canvas here, so Delete Selected Line has
+  nothing to act on and stays grey, and Delete Lines Not Selected removes them all (back to
+  one straight direction); both are grey on a shape without direction lines. On the canvas every
+  point is a small hollow square and a selected point a filled black one; a selected curve
+  point shows its two handle lines, each ending in a small filled square, and no other handle
+  shows or can be grabbed. With the points showing and none selected, Edit Point, Delete Point
+  and Split at Point are all grey.
+- A new ellipse's four points are stored as smooth, as the points of PE-DESIGN's circle are
+  (To Smooth grey, a dragged handle turns the other); ellipses saved before keep independent
+  handles. Every one of the 16 rows of the menu table above is a test case
+  (`every_row_of_pe_designs_menu_table`, through `ui.pointMenu` and the ribbon).
+
+Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_makes_it`,
+`several_points_move_together_in_one_undo_step`,
+`close_adds_a_region_and_open_removes_it_as_pe_design_does`,
+`the_registry_says_what_the_1260_commands_store`; app
+`a_drag_box_selects_points_and_they_move_together`,
+`one_click_on_a_side_inserts_a_point_and_a_drag_there_does_not_move_it`,
+`a_right_click_beside_the_points_is_for_the_object_menu`,
+`the_object_menu_opens_and_closes_the_outline`.
+
+- Alt held while an end point of an open line is dropped on its other end closes the line as
+  `object.closeOutline` does, fill included, the two ends one point, in one undo step
+  (`alt_drops_an_end_point_on_another_end_point_and_connects_them`). An end dropped on another
+  line's end is not joined: that is Join Lines.
+
+**Not matched, and why:**
+
+- **By extension:** on a shape sewn as a region only (what OpenStitch's Rectangle and Ellipse
+  tools draw) Split at Point and Open are available as on any shape: the outline opens and
+  the region becomes line sewing, a running stitch in the region's thread, as
+  `object.regionToLine` gives it, in the same undo step. The result is what PE-DESIGN leaves
+  after a split on line and region: an open line, no region. PE-DESIGN's shape tools always
+  make a line, so it has no such case on its own shapes; it is not captured on an imported
+  region-only shape.
+- Shift or Ctrl held while dragging a point with the mouse is not captured; here Shift locks the
+  drag to an axis and Ctrl drags without snapping, as before.
+- The drag box selects the points of one outline of the shape (the one with the most points in
+  the box); PE-DESIGN's shapes in the captures had one outline.
+- The browser version is checked in part B of #1260.
