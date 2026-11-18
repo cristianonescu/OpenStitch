@@ -629,3 +629,64 @@ fn join_lines_keeps_each_points_kind() {
         );
     }
 }
+
+/// `object.setSegment {straight: true}` forgets the kind of a point left without a curve on
+/// either side, and stores none on a plain corner (review of #1263).
+#[test]
+fn setting_sides_straight_leaves_no_kind_behind() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = square(&mut s);
+    let plain = contour(&s, id).clone();
+    // A corner between straight sides: making a side "straight" again stores nothing.
+    run(
+        &mut s,
+        "object.setSegment",
+        json!({ "id": id, "segment": 0, "straight": true }),
+    );
+    assert_eq!(
+        *contour(&s, id),
+        plain,
+        "nothing stored: the same outline, the same file"
+    );
+    assert!(contour(&s, id).kinds.is_empty());
+    assert!(!contour(&s, id).is_curve_point(0) && !contour(&s, id).is_curve_point(1));
+    // A legacy curve set straight again: the same.
+    run(
+        &mut s,
+        "object.setSegment",
+        json!({ "id": id, "segment": 0 }),
+    );
+    run(
+        &mut s,
+        "object.setSegment",
+        json!({ "id": id, "segment": 0, "straight": true }),
+    );
+    assert_eq!(*contour(&s, id), plain);
+    // A smooth point: with one side straight it keeps its kind (a curve still arrives);
+    // with both sides straight it has none, and is a straight point that takes To Curve.
+    run(
+        &mut s,
+        "object.setPointKind",
+        json!({ "id": id, "index": 0, "kind": "curve" }),
+    );
+    assert_eq!(contour(&s, id).kind(0), PointKind::Smooth);
+    run(
+        &mut s,
+        "object.setSegment",
+        json!({ "id": id, "segment": 0, "straight": true }),
+    );
+    assert_eq!(contour(&s, id).kind(0), PointKind::Smooth);
+    run(
+        &mut s,
+        "object.setSegment",
+        json!({ "id": id, "segment": 3, "straight": true }),
+    );
+    assert_eq!(*contour(&s, id), plain);
+    assert!(!contour(&s, id).is_curve_point(0));
+    let r = run(
+        &mut s,
+        "object.setPointKind",
+        json!({ "id": id, "index": 0, "kind": "curve" }),
+    );
+    assert_eq!(r["changed"], 1, "To Curve is offered again");
+}

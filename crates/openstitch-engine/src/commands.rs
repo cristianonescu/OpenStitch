@@ -1622,8 +1622,12 @@ fn path_commands() -> Vec<CommandSpec> {
                     c.set_curve(seg, None);
                     let n = c.points.len();
                     for v in [seg, (seg + 1) % n] {
-                        if !c.is_curve_point(v) {
-                            c.set_kind(v, openstitch_design::PointKind::Cusp);
+                        let curved = [c.incoming(v), c.outgoing(v)]
+                            .into_iter()
+                            .flatten()
+                            .any(|side| c.curve(side).is_some());
+                        if !curved {
+                            c.set_kind(v, openstitch_design::PointKind::Unset);
                         }
                     }
                     return Ok(Value::Null);
