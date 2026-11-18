@@ -1028,16 +1028,36 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             }
         }
         EditPoint => {
-            // PE-DESIGN's Edit Point drop-down: two headings, greyed as the point menu is.
+            // PE-DESIGN's Edit Point drop-down: two headings, each a strong label on a shaded
+            // band across the menu, with its entries indented under it; the entries are
+            // greyed as the point menu's are.
             use openstitch_app::editor::ribbon::EDIT_POINT_MENU;
-            ui.label(egui::RichText::new(t("menu-point-line-type")).strong());
-            for a in &EDIT_POINT_MENU[..2] {
-                menu_item(app, ui, *a);
-            }
-            ui.separator();
-            ui.label(egui::RichText::new(t("menu-point-curve-type")).strong());
-            for a in &EDIT_POINT_MENU[2..] {
-                menu_item(app, ui, *a);
+            let heading = |ui: &mut egui::Ui, text: &str| {
+                let (rect, _) = ui.allocate_exact_size(
+                    egui::vec2(ui.available_width(), 20.0),
+                    egui::Sense::hover(),
+                );
+                let v = ui.visuals();
+                ui.painter().rect_filled(rect, 0.0, v.widgets.inactive.bg_fill);
+                ui.painter().text(
+                    egui::pos2(rect.left() + 6.0, rect.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    text,
+                    egui::TextStyle::Button.resolve(ui.style()),
+                    v.strong_text_color(),
+                );
+            };
+            for (title, entries) in [
+                ("menu-point-line-type", &EDIT_POINT_MENU[..2]),
+                ("menu-point-curve-type", &EDIT_POINT_MENU[2..]),
+            ] {
+                heading(ui, t(title));
+                for a in entries {
+                    ui.horizontal(|ui| {
+                        ui.add_space(14.0);
+                        menu_item(app, ui, *a);
+                    });
+                }
             }
         }
         RotateFlip => {
