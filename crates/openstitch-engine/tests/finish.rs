@@ -334,3 +334,137 @@ fn satin_o_s_8_and_a_start_where_pe_design_starts_them_with_its_one_step_tie_in(
         );
     }
 }
+
+/// A satin A's left foot, junction square and bar, from its needle points (0.1 mm from the box's
+/// top-left): the indices of each piece's crossings (stitch `i` runs from point `i - 1` to
+/// point `i`). A crossing is a stitch over 2.4 mm; a piece is a run of them, cut where they turn
+/// from level to upright. The foot is the piece that reaches the baseline left of the bar, the
+/// square the piece sewn next, the bar the first upright piece after it.
+fn satin_a_pieces(p: &[(f64, f64)]) -> [Vec<usize>; 3] {
+    let len = |i: usize| (p[i].0 - p[i - 1].0).hypot(p[i].1 - p[i - 1].1);
+    let upright = |i: usize| (p[i].1 - p[i - 1].1).abs() > (p[i].0 - p[i - 1].0).abs();
+    let mut pieces: Vec<Vec<usize>> = Vec::new();
+    let mut open = false;
+    for i in 1..p.len() {
+        if len(i) <= 24.0 {
+            open = false;
+            continue;
+        }
+        match pieces.last_mut() {
+            Some(piece) if open && piece.last().is_some_and(|&k| upright(k) == upright(i)) => {
+                piece.push(i);
+            }
+            _ => pieces.push(vec![i]),
+        }
+        open = true;
+    }
+    pieces.retain(|piece| piece.len() >= 6);
+    let bottom = p.iter().map(|q| q.1).fold(f64::MIN, f64::max);
+    let foot = pieces
+        .iter()
+        .position(|piece| {
+            piece.iter().all(|&i| p[i].0 < 70.0) && piece.iter().any(|&i| p[i].1 > bottom - 5.0)
+        })
+        .expect("a foot");
+    let bar = (foot + 2..pieces.len())
+        .find(|&k| upright(pieces[k][0]))
+        .expect("a bar");
+    [
+        pieces[foot].clone(),
+        pieces[foot + 1].clone(),
+        pieces[bar].clone(),
+    ]
+}
+
+#[test]
+fn satin_a_s_foot_and_square_are_cut_and_reached_as_pe_design_s() {
+    // stroke-satin-A (#938): PE-DESIGN 11.50 runs from the upper left leg down the leg's centre
+    // to the foot, sews the foot upwards from its inner corner (36 needle points, its stitches
+    // 8.5 degrees from level on the middle third), runs 3 stitches back up the centre and sews
+    // the junction square (18 points, from 1.9 mm above the bar's top edge) into the bar.
+    // OpenStitch walked round the foot's outline to the square (14 stitches), sewed the foot
+    // from its outer corner (32 points, 17 degrees) and started the square 0.4 mm below the
+    // bar's top corner (14 points).
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let file = root.join("compat/reference/text/stroke-satin-A.pes");
+    let pe =
+        openstitch_formats::pes::read(&std::fs::read(&file).expect("reference")).expect("a PES");
+    let pe = from_corner(&pe.stitches);
+    let dir = TempDir::new("satin-a-foot");
+    let mut s = Session::new(dir.path());
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "A", "font": "lato-bold", "size": 20, "x": 20, "y": 70, "fill": "Red"}),
+    );
+    let ours = from_corner(
+        &Compiler::for_design(s.design())
+            .compile(s.design())
+            .stitches,
+    );
+    // The mean angle from level (degrees) of the middle third of a piece's stitches.
+    let level = |p: &[(f64, f64)], piece: &[usize]| {
+        let third = &piece[piece.len() / 3..2 * piece.len() / 3];
+        third
+            .iter()
+            .map(|&i| {
+                let (dx, dy) = (p[i].0 - p[i - 1].0, p[i].1 - p[i - 1].1);
+                dy.abs().atan2(dx.abs()).to_degrees()
+            })
+            .sum::<f64>()
+            / third.len() as f64
+    };
+    let top = |p: &[(f64, f64)], piece: &[usize]| {
+        piece
+            .iter()
+            .flat_map(|&i| [p[i - 1].1, p[i].1])
+            .fold(f64::MAX, f64::min)
+    };
+    let [pe_foot, pe_square, pe_bar] = satin_a_pieces(&pe);
+    let [foot, square, bar] = satin_a_pieces(&ours);
+    // The reference itself, so a change of the measure shows here first.
+    assert_eq!((pe_foot.len(), pe_square.len()), (35, 17));
+    assert!(level(&pe, &pe_foot) < 10.0, "{}", level(&pe, &pe_foot));
+    assert_eq!(pe_square[0] - pe_foot[pe_foot.len() - 1], 5);
+    // The foot: PE-DESIGN's crossings within one pair, and as level on its middle third.
+    assert!(
+        foot.len().abs_diff(pe_foot.len()) <= 2,
+        "foot {} crossings, PE-DESIGN {}",
+        foot.len(),
+        pe_foot.len()
+    );
+    assert!(
+        level(&ours, &foot) <= 12.0,
+        "foot {} degrees",
+        level(&ours, &foot)
+    );
+    // The square: PE-DESIGN's crossings within one pair, starting above the bar's top edge
+    // within 0.8 mm of where PE-DESIGN's starts, and reached from the foot under the leg.
+    assert!(
+        square.len().abs_diff(pe_square.len()) <= 2,
+        "square {} crossings, PE-DESIGN {}",
+        square.len(),
+        pe_square.len()
+    );
+    let (above, pe_above) = (
+        top(&ours, &bar) - top(&ours, &square),
+        top(&pe, &pe_bar) - top(&pe, &pe_square),
+    );
+    assert!(
+        above >= 10.0 && pe_above - above <= 8.0,
+        "square starts {above} above the bar, PE-DESIGN's {pe_above}"
+    );
+    assert!(
+        square[0] - foot[foot.len() - 1] <= 5,
+        "{} stitches from the foot to the square",
+        square[0] - foot[foot.len() - 1]
+    );
+    // The letter: within 2 % of PE-DESIGN's needle points.
+    assert!(
+        (ours.len() as f64 - pe.len() as f64).abs() <= 0.02 * pe.len() as f64,
+        "{} needle points, PE-DESIGN {}",
+        ours.len(),
+        pe.len()
+    );
+}

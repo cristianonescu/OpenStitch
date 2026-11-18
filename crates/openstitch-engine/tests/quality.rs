@@ -1561,6 +1561,50 @@ fn short_stitches_over_the_shared_limit_are_found() {
     );
 }
 
+/// #1043 (from the AI-coverage review of #1085): a turned zigzag net steps along the outline
+/// where it cuts a rung and the diagonal back, down to 0.1 mm, as PE-DESIGN 11.50 does (round 13:
+/// 37 stitches under 0.3 mm in its 1,141 at 45°). Those steps stay far under `shortStitch`'s 160
+/// in 1,000, so a net with them is not reported.
+#[test]
+fn a_turned_zigzag_nets_steps_along_the_outline_are_not_short_stitch_findings() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "zigzagNetFill", "spacing": 5.0, "density": 2.25,
+            "patternWidth": 3.0, "underlay": true, "angle": 45}),
+    );
+    let st = openstitch_design::Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches;
+    let moves = st
+        .windows(2)
+        .filter(|w| w[0].command == Command::Stitch && w[1].command == Command::Stitch);
+    let short = moves
+        .clone()
+        .filter(|w| {
+            let d = (w[1].x - w[0].x).hypot(w[1].y - w[0].y);
+            d > 1e-6 && d < 3.0
+        })
+        .count();
+    let all = moves.count();
+    assert!(
+        short > 0,
+        "the net has steps under 0.3 mm along the outline"
+    );
+    assert!(
+        (short as f64) * 1000.0 / (all as f64) < 160.0,
+        "{short} in {all}"
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["shortStitch"]}));
+    assert!(found(&c, "shortStitch").is_none(), "{short} in {all}: {c}");
+}
+
 /// #866: `machine.setProfile {needles}` (1–15, whole) and the `moreColoursThanNeedles` note,
 /// which appears only with a needle count and counts as neither error nor warning.
 #[test]

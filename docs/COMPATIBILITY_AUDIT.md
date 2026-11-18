@@ -659,6 +659,36 @@ Line references are relative to `crates/`.
   starting there here gives 10 degrees but drops A to 279, because our square (13 crossings
   against 18) and foot (32 against 37) are shorter. Our leg rungs tilt about 23 degrees where
   PE-DESIGN's tilt 35, so the same corners cut less of the outer side.
+  Since 2026-11-17 (#938): PE-DESIGN's Convert to Blocks of A (stroke-blocks-A) shows the left
+  leg's two sides joined over the leg's whole length, the inner side straight across the bar's
+  mouth, and the leg cut along its own crossings through the bar's two corners; stroke-satin-A
+  shows how the pieces are reached: 5 stitches down the leg's centre to the foot, the foot sewn
+  upwards with each crossing started on the bar's side, 3 stitches back up the centre to the
+  square. OpenStitch now does the same on every straight column a stroke leaves (A, H, K, T):
+  the cut is the crossing through the corner (it was the one whose middle is level with it,
+  0.4 mm lower on A's upper cut), the far piece and the square are led to under the column
+  (the walk round A's foot took 15 stitches), the far piece's crossings start on the leaving
+  stroke's side, and each of the three pieces is spaced over its whole length (rounding down
+  within each 3 mm sample lost up to a pair of needle points per sample). Text under 6 mm keeps
+  its travel (by way of the centre each end of the run is half a stroke's width, 0.4 mm at
+  4 mm). Measured (ours before → after / PE-DESIGN): A 294 → 291 / 290; A's foot 31 → 35 / 35
+  crossings, 16.9 → 10.9 / 8.5 degrees from level on its middle third; its square 13 → 17 / 17
+  crossings, starting 1.1 → 1.4 / 1.9 mm above the bar's top edge (the rest is the left leg's
+  outer side starting 0.5 mm lower at the apex than PE-DESIGN's); foot to square 15 → 5 / 5
+  stitches; H at 40 mm 575 → 548 / 556; K 312 → 297 / 293; K at 8 mm 131 → 125 / 128; T 209 →
+  201 / 186; H at 10 mm 150 → 143 / 149 (its blocks 25, 24, 7, 24 and 51 needle points, as
+  PE-DESIGN's; PE-DESIGN adds a 5-point tie-off at the end and one more run stitch); fill H
+  503 → 484 / 483, fill A 473 → 464 / 479, fill T 333 → 329 / 312. A stem that turns into a
+  bowl is one bent column and keeps its travel and spacing (R 323 → 321, P
+  342 unchanged; no PE-DESIGN capture of either). Of the 241 text specs 193
+  change (text-fit-* and text-transform-* contain H): 168 closer to PE-DESIGN in needle
+  points, 23 farther, all within their tolerances
+  (`satin_a_s_foot_and_square_are_cut_and_reached_as_pe_design_s`,
+  `a_column_s_far_piece_and_square_are_reached_under_it_and_spaced_whole`). M at 8 mm has no
+  trim, as PE-DESIGN's; M at 20 mm none against PE-DESIGN's one. Measured per block, W at
+  8 mm's 8 extra needle points (163 / 155) are all in its middle V (#1064), and M at 8 mm's
+  11 missing (154 / 165) are PE-DESIGN's start (8), its fan at each stem's top (5 and 6) less
+  the middle V (ours 8 over).
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.
@@ -4613,3 +4643,52 @@ lines/mm in all gets one note naming both layers, with the same fields as a plai
 docs' Check Design screenshot (`examples/check-design.json`: 2 errors, 5 warnings, no gradient,
 blend or tartan) is unchanged.
 
+
+### Net travel along the outline, in PE-DESIGN's order, 2026-11-17 (#1043, #1071, #1163)
+
+**Measured:** PE-DESIGN 11.50's needle paths on round 13's zigzag nets (30 × 20 mm at nine
+Directions, 40 × 20 at 45° and 90°, 30 × 30 at 45°) and plain nets (net-switch-dir0, net-dir45,
+net-dir90), and round 15's 40 × 20 zigzag net at 90° without under sewing.
+
+**What PE-DESIGN does:**
+- **Zigzag net with under sewing:** it sews the line under every band along the Direction, then
+  those across, then the bands in the same order.
+- **Start of each family:** the line nearest the region's start (the bottom centre), then on to
+  the nearest line left. Into the next family the needle goes back by the start.
+- **Travel:** always along the outline, in 2 mm steps.
+- **No edge run** round the net.
+- **Plain net:** the same order, with no bands.
+
+**What OpenStitch did:** each line and its band in turn, the needle travelling along the net lines,
+after an edge run round the whole outline; the plain net's lines in one sweep.
+
+**Now:** the same order and travel as PE-DESIGN's.
+
+| capture | PE-DESIGN | OpenStitch |
+|---|---:|---:|
+| zigzag net 30 × 20 at 0 / 30 / 45 / 60 / 90° | 981 / 1,148 / 1,141 / 1,144 / 850 | 991 / 1,119 / 1,135 / 1,168 / 877 |
+| zigzag net 30 × 20 at 120 / 135 / 150 / 180° | 1,140 / 1,130 / 1,095 / 923 | 1,131 / 1,091 / 1,117 / 905 |
+| zigzag net 40 × 20 at 45 / 90°, 30 × 30 at 45° | 1,496 / 1,127 / 1,579 | 1,479 / 1,088 / 1,611 |
+| zigzag net 40 × 20 at 90°, no under sewing | 955 | 986 |
+| plain net 30 × 20 at 0 / 45 / 90° | 281 / 336 / 281 | 279 / 330 / 277 |
+
+All 16 are within 5 % (−3.5 % to +3.2 %).
+
+**Also in this change:**
+- **No crossing into the end-point travel.** The travel from a net's last needle point to the
+  region's end point could cut back across the last rung (the honeycomb on a circle turned 50° to
+  85°, 0.34 mm from the rung's end): the needle point between is left out, as inside the net.
+- **`travel` off** (beyond PE-DESIGN's captures) no longer walks the outline: the needle travels
+  under the bands only and jumps to a part the net's lines do not reach. It sewed the same as on.
+- **Density (#1163).** PE-DESIGN's Density of a zigzag net counts lines, a rung and the diagonal
+  back being two. Measured on its bands: rung to rung 0.4444 mm at Density 4.5 (round 13
+  zigzag-net-dir0, round 15 zigzag-net-circle40-w3p0) and 0.4252 mm at 4.7
+  (zigzag-net-circle40-w3p0-density-4p7), 2 / Density both times. OpenStitch stores rungs per mm
+  (2.25 by default) and keeps doing so; the inspector's Density field now shows and takes
+  PE-DESIGN's number (4.5), as PES version 11 holds it at body +368.
+
+**Left:**
+- On 40 × 20 at 90° PE-DESIGN laps the right and bottom edges twice between the band families, a
+  path not reproduced (−3.5 %).
+- Under sewing is off by default on an OpenStitch zigzag net and on in PE-DESIGN 11.50: a
+  30 × 20 mm net sews 906 stitches by default and 991 with under sewing, against PE-DESIGN's 981.

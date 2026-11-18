@@ -2216,6 +2216,13 @@ impl RegionSewing {
         Some(((height / 2.0).min(max), length))
     }
 
+    /// PE-DESIGN's lines per zigzag-net rung. A zigzag net's `density` is rungs per mm, a rung
+    /// straight across the band and the diagonal back; PE-DESIGN 11.50's Density counts both as
+    /// lines. Measured on its bands (#1163): rung to rung 0.4444 mm at Density 4.5 (round 13
+    /// zigzag-net-dir0, round 15 zigzag-net-circle40-w3p0) and 0.4252 mm at 4.7
+    /// (zigzag-net-circle40-w3p0-density-4p7), 2 / Density both times.
+    pub const ZIGZAG_NET_LINES_PER_RUNG: f64 = 2.0;
+
     pub fn new(kind: RegionType, thread: Thread) -> Self {
         RegionSewing {
             kind,
