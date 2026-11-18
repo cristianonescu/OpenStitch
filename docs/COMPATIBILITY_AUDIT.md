@@ -4963,4 +4963,13 @@ Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_mak
   drag to an axis and Ctrl drags without snapping, as before.
 - The drag box selects the points of one outline of the shape (the one with the most points in
   the box); PE-DESIGN's shapes in the captures had one outline.
-- The browser version is checked in part B of #1260.
+
+**In the browser:** the web editor runs the same editor code, so all of the above is there. The
+page test (`web/e2e/page.mjs`, CI job `web`: Chromium, Firefox and WebKit) checks what a browser
+could take away: a right-click on a point opens the editor's menu with the seven entries and the
+page's `contextmenu` event is cancelled (the browser's own menu stays shut), likewise beside the
+points for the object's menu; the arrow keys move the selected point 0.5 mm, do nothing with
+Shift, and do not scroll the page; Delete removes the point and the keyboard focus stays on the
+editor; Open runs through the ribbon command. A screenshot of each menu per browser is kept
+with the job's artifacts. `ui.pointMenu` reports each selected point's place in the window
+(`selected[].screen`), which is how the test finds where to click.

@@ -436,7 +436,8 @@ then style them in the next.
   (straight on a straight side, smooth on a curve). `object.openOutline` `{id}` removes a
   closed outline's closing side and its region; `object.closeOutline` `{id, region}` closes
   an open line and, unless `region: false`, gives it Fill Stitch at 45° when it has no
-  region (`ui.run openOutline` / `closeOutline`; `ui.pointMenu` lists them as `objectMenu`). Each is one undo step. In the window `ui.pointMenu`
+  region (`ui.run openOutline` / `closeOutline`; `ui.pointMenu` lists them as `objectMenu`, and
+  the selected points with their page and window positions as `selected`). Each is one undo step. In the window `ui.pointMenu`
   `{points, contour}` selects points as Ctrl+click does and reports the seven entries with
   what is greyed out; `{action}` runs one (`ui.run pointToCurve` and the other ribbon
   buttons do the same).

@@ -226,7 +226,33 @@ fn object_state(app: &EditorApp) -> Value {
 /// whether a separator sits above it and whether it is available for the selected points.
 pub fn state(app: &EditorApp) -> Value {
     let enabled = states(app);
+    // The selected points: index, position on the Design Page in mm, and where they are in
+    // the window (points from its top-left corner), so a script can click one.
+    let design = app.session.design();
+    let ctx = app.tool_context(design);
+    let selected: Vec<Value> = app
+        .tools
+        .selected_points(&ctx)
+        .iter()
+        .filter_map(|p| {
+            let at = *ctx.point_target()?.contours.get(p.contour)?.points.get(p.index)?;
+            let screen = app.viewport.map(|vp| vp.to_screen(at));
+            Some(json!({
+                "contour": p.contour,
+                "index": p.index,
+                "x": at.x / 10.0,
+                "y": at.y / 10.0,
+                "screen": screen.map(|s| [s.x, s.y]),
+            }))
+        })
+        .collect();
+    let point_count = ctx
+        .point_target()
+        .and_then(|o| o.contours.first())
+        .map(|c| c.points.len());
     json!({
+        "selected": selected,
+        "pointCount": point_count,
         "open": app.workspace.view.point_menu.as_ref().is_some_and(|m| !m.object),
         "objectMenuOpen": app.workspace.view.point_menu.as_ref().is_some_and(|m| m.object),
         "objectMenu": object_state(app),
@@ -327,6 +353,9 @@ mod tests {
         let s = app
             .ui_command("ui.pointMenu", Some(&json!({ "points": [0] })))
             .expect("select a point");
+        assert_eq!(s["pointCount"], 4);
+        assert_eq!(s["selected"][0]["index"], 0);
+        assert_eq!((&s["selected"][0]["x"], &s["selected"][0]["y"]), (&json!(10.0), &json!(10.0)));
         let entries = s["entries"].as_array().expect("entries");
         let row = |i: usize| {
             (

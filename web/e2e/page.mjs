@@ -15,8 +15,10 @@
 // reach the editor, not the browser (#834); the editor draws at 2 device pixels per CSS pixel
 // and works at a phone's width with touch (#834); a design left unsaved in a closed tab is
 // offered and restored in the next one from IndexedDB (#831); and with the page's storage
-// refused the editor still works on its defaults (#831). ONLY_BROWSER=Chromium (or Firefox,
-// WebKit) runs one browser.
+// refused the editor still works on its defaults (#831); and the Point tool's right-click
+// menus open in the editor while the browser's own menu stays shut, with the arrow keys and
+// Delete kept in the editor (#1260). ONLY_BROWSER=Chromium (or Firefox, WebKit) runs one
+// browser.
 import { createServer } from "node:http";
 import { mkdirSync, readFileSync } from "node:fs";
 import { basename, dirname, extname, join, normalize, resolve } from "node:path";
@@ -170,6 +172,123 @@ async function extraChecks(browser, type, label) {
         if (!taken.includes(chord)) throw new Error(`${chord} is not named as the browser's: ${JSON.stringify(taken)}`);
       }
       noErrors("keys", errors);
+    } finally {
+      await context.close();
+    }
+  }
+
+  // #1260: the Point tool in the browser. A right-click on a point opens the editor's own
+  // menu and the browser's stays shut (the page's contextmenu event is cancelled); the arrow
+  // keys move the selected point 0.5 mm and do not scroll the page; Delete removes the point
+  // and the keyboard stays with the editor; a right-click beside the points opens the
+  // object's menu, whose Open is the engine's.
+  console.log(`${label}: the Point tool's menus, arrow keys and Delete stay in the editor`);
+  {
+    const context = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+    try {
+      const { page, errors } = await editorPage(context);
+      const ok = async (request) => {
+        const r = await run(page, request);
+        if (!r.ok) throw new Error(`${request.command}: ${JSON.stringify(r).slice(0, 300)}`);
+        return r.result;
+      };
+      const menu = () => ok({ command: "ui.pointMenu" });
+      await ok({ command: "ui.gettingStarted", params: { cards: "dismiss" } });
+      const made = await ok({ command: "shape.rectangle", params: { x: 20, y: 20, width: 40, height: 30, fill: "#2e8b57", outline: "#203040" } });
+      await ok({ command: "ui.select", params: { ids: [made.id] } });
+      await ok({ command: "ui.zoom", params: { fit: "page" } });
+      const onScreen = async (index) => {
+        await ok({ command: "ui.pointMenu", params: { points: [index] } });
+        await page.waitForFunction(
+          () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.[0]?.screen != null,
+          null,
+          { timeout: 10_000 },
+        );
+        return (await menu()).selected[0].screen;
+      };
+      // The opposite corner first, to know where the inside of the shape is on screen.
+      const far = await onScreen(2);
+      await onScreen(0);
+      const start = await menu();
+      if (start.pointCount !== 4 || start.open) throw new Error(`point tool: ${JSON.stringify(start).slice(0, 300)}`);
+      const box = await page.locator("#openstitch").boundingBox();
+      const [sx, sy] = start.selected[0].screen;
+      const at = [box.x + sx, box.y + sy];
+      await page.evaluate(() => {
+        window.__menus = [];
+        window.__keys = [];
+        window.addEventListener("contextmenu", (e) => window.__menus.push(e), true);
+        window.addEventListener("keydown", (e) => window.__keys.push(e), true);
+        document.getElementById("openstitch").focus();
+      });
+      const scroll = () => page.evaluate(() => [window.scrollX, window.scrollY, document.activeElement?.id ?? ""]);
+      const before = await scroll();
+      // Right-click on the point: our menu, with PE-DESIGN's seven entries, not the browser's.
+      await page.mouse.click(at[0], at[1], { button: "right" });
+      await page.waitForFunction(() => window.openstitch.run({ command: "ui.pointMenu" }).result?.open === true, null, { timeout: 10_000 });
+      const shown = await menu();
+      const labels = shown.entries.map((e) => `${e.label}${e.enabled ? "" : " (grey)"}`).join(", ");
+      const want = "To Straight (grey), To Curve, To Smooth (grey), To Symmetry (grey), To Cusp (grey), Split at Point, Delete";
+      if (labels !== want) throw new Error(`point menu: ${labels}`);
+      const menus = await page.evaluate(() => window.__menus.map((e) => e.defaultPrevented));
+      if (menus.length === 0 || menus.some((prevented) => !prevented)) {
+        throw new Error(`the browser's own menu was not held back: ${JSON.stringify(menus)}`);
+      }
+      if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-point-menu.png`) });
+      // An entry of the menu, as a click in it runs it; the menu closes.
+      const curved = await ok({ command: "ui.pointMenu", params: { action: "toCurve" } });
+      if (curved.open || curved.entries[1].enabled || !curved.entries[0].enabled) {
+        throw new Error(`after To Curve: ${JSON.stringify(curved.entries).slice(0, 300)}`);
+      }
+      // Arrow keys: 0.5 mm a press, in the editor; the page does not scroll.
+      const x0 = curved.selected[0].x;
+      await page.evaluate(() => document.getElementById("openstitch").focus());
+      for (const key of ["ArrowRight", "ArrowRight", "ArrowDown"]) {
+        await page.keyboard.press(key);
+        await page.waitForTimeout(150);
+      }
+      await page.waitForFunction(
+        (x) => Math.abs((window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.[0]?.x ?? 0) - (x + 1)) < 1e-6,
+        x0,
+        { timeout: 10_000 },
+      );
+      const moved = (await menu()).selected[0];
+      if (Math.abs(moved.y - (curved.selected[0].y + 0.5)) > 1e-6) throw new Error(`ArrowDown: ${JSON.stringify(moved)}`);
+      // With Shift the arrows leave the points where they are (PE-DESIGN's).
+      await page.keyboard.press("Shift+ArrowRight");
+      await page.waitForTimeout(300);
+      if (Math.abs((await menu()).selected[0].x - moved.x) > 1e-6) throw new Error("Shift+ArrowRight moved the point");
+      // Delete: the point goes, the keyboard stays with the editor.
+      await page.keyboard.press("Delete");
+      await page.waitForFunction(() => window.openstitch.run({ command: "ui.pointMenu" }).result?.pointCount === 3, null, { timeout: 10_000 });
+      const keys = await page.evaluate(() => window.__keys.map((e) => [e.key, e.defaultPrevented]));
+      for (const key of ["ArrowRight", "ArrowDown", "Delete"]) {
+        if (!keys.some(([k, prevented]) => k === key && prevented)) {
+          throw new Error(`${key} was left to the browser: ${JSON.stringify(keys)}`);
+        }
+      }
+      const after = await scroll();
+      if (after[0] !== before[0] || after[1] !== before[1]) throw new Error(`the page scrolled: ${before} -> ${after}`);
+      if (after[2] !== "openstitch") throw new Error(`the keyboard left the editor: focus is on "${after[2]}"`);
+      // Beside the points, on the shape: the object's menu; its Open through the ribbon command.
+      // Four fifths of the way to the opposite corner: inside the triangle that is left.
+      const inside = [at[0] + (far[0] - sx) * 0.8, at[1] + (far[1] - sy) * 0.8];
+      await page.mouse.click(inside[0], inside[1], { button: "right" });
+      await page.waitForFunction(() => window.openstitch.run({ command: "ui.pointMenu" }).result?.objectMenuOpen === true, null, { timeout: 10_000 });
+      const object = await menu();
+      const objectLabels = object.objectMenu.map((e) => e.label).join(", ");
+      if (objectLabels !== "Add Direction Line, Delete Direction Line, Reverse Direction Line, Open, Close") {
+        throw new Error(`object menu: ${objectLabels}`);
+      }
+      if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-object-menu.png`) });
+      const menus2 = await page.evaluate(() => window.__menus.map((e) => e.defaultPrevented));
+      if (menus2.length < 2 || menus2.some((prevented) => !prevented)) {
+        throw new Error(`the browser's own menu was not held back: ${JSON.stringify(menus2)}`);
+      }
+      await ok({ command: "ui.run", params: { action: "openOutline" } });
+      const opened = (await ok({ command: "object.list" })).find((o) => o.id === made.id);
+      if (!opened || opened.region) throw new Error(`Open: ${JSON.stringify(opened).slice(0, 300)}`);
+      noErrors("point tool", errors);
     } finally {
       await context.close();
     }
