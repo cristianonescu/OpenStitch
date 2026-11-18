@@ -427,14 +427,16 @@ then style them in the next.
   make it a curve first. The kind is saved with the design and only changes editing:
   afterwards `object.setSegment` `{curve}` moves a smooth or symmetric point's other handle
   with the one you give. `object.splitAtPoint` `{id, contour, index}` is Split at Point: a
-  closed outline opens there (a region on it is switched off, its line stays; refused when
-  there is no line sewing), an open line is cut in two objects at an inner point (answers
+  closed outline opens there (a region on it is removed and its line stays; a shape sewn as
+  a region only becomes a running-stitch line in the region's thread, `regionToLine` in the
+  answer), an open line is cut in two objects at an inner point (answers
   `ids`; refused at its ends). `object.deletePoint` `{index | indexes}` is Delete, refused
   when the outline would keep fewer than two points (a closed outline goes down to two too).
   Move a point with `object.setPoint`, several by one offset with `object.movePoints`
   `{indexes, dx, dy}` (the editor's arrow keys: 0.5 mm), add one with `object.insertPoint`
   (straight on a straight side, smooth on a curve). `object.openOutline` `{id}` removes a
-  closed outline's closing side and its region; `object.closeOutline` `{id, region}` closes
+  closed outline's closing side and its region (a region-only shape becomes a line, as with
+  Split at Point); `object.closeOutline` `{id, region}` closes
   an open line and, unless `region: false`, gives it Fill Stitch at 45° when it has no
   region (`ui.run openOutline` / `closeOutline`; `ui.pointMenu` lists them as `objectMenu`, and
   the selected points with their page and window positions as `selected`). Each is one undo step. In the window `ui.pointMenu`

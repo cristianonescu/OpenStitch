@@ -139,8 +139,10 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         return;
     };
     let mut chosen = None;
+    // No fade-in: the menu is opaque from its first frame, as the ribbon's menus are.
     let r = egui::Area::new(egui::Id::unique("point-context-menu"))
         .fixed_pos(m.at)
+        .fade_in(false)
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
             egui::Frame::menu(ui.style()).show(ui, |ui| {
@@ -178,6 +180,7 @@ fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
     let mut chosen = false;
     let r = egui::Area::new(egui::Id::unique("point-object-menu"))
         .fixed_pos(m.at)
+        .fade_in(false)
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
             egui::Frame::menu(ui.style()).show(ui, |ui| {
@@ -189,6 +192,7 @@ fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
                     let enabled = crate::ribbon::enabled(app, a);
                     if ui
                         .add_enabled(enabled, egui::Button::new(a.info().label))
+                        .on_disabled_hover_text(a.info().tip)
                         .clicked()
                     {
                         crate::ribbon::run(app, a, ui.ctx());
@@ -477,6 +481,78 @@ mod tests {
         app.undo();
         let o = &app.session.design().objects[0];
         assert!(o.contours[0].closed && o.region.is_some(), "one Undo each");
+    }
+
+    /// PE-DESIGN 11.50's object menu, read from its screen on 2026-11-18 (results of the
+    /// second capture round): on a closed shape with a region Add and Reverse Direction Line
+    /// and Open are available and Close is grey; on an open line Add and Reverse Direction
+    /// Line and Open are grey and Close is available. A shape sewn as a region only (what the
+    /// Rectangle tool draws) has the same menu: Open and Split at Point make it a line.
+    #[test]
+    fn the_object_menu_is_greyed_as_pe_designs_also_on_a_region_only_shape() {
+        let states = |app: &mut EditorApp| {
+            let s = app.ui_command("ui.pointMenu", None).expect("state");
+            s["objectMenu"]
+                .as_array()
+                .expect("objectMenu")
+                .iter()
+                .map(|e| (e["key"].as_str().expect("key").to_string(), e["enabled"] == true))
+                .collect::<Vec<_>>()
+        };
+        let table = |on: [bool; 5]| {
+            ["addDirection", "deleteDirection", "reverseDirection", "openOutline", "closeOutline"]
+                .into_iter()
+                .map(str::to_string)
+                .zip(on)
+                .collect::<Vec<_>>()
+        };
+        // Closed, region and line.
+        let (mut app, _) = with_rectangle();
+        assert_eq!(states(&mut app), table([true, true, true, true, false]));
+        // The open line it becomes.
+        app.ui_command("ui.run", Some(&json!({ "action": "openOutline" })))
+            .expect("Open");
+        assert_eq!(states(&mut app), table([false, false, false, false, true]));
+
+        // Closed, sewn as a region only: the same menu, and nothing is refused.
+        let region_only = || {
+            let mut app = EditorApp::new(Launch::default());
+            let id = app
+                .execute(&CommandRequest::new(
+                    "shape.rectangle",
+                    json!({ "x": 10, "y": 10, "width": 20, "height": 10 }),
+                ))
+                .expect("rectangle")["id"]
+                .as_u64()
+                .expect("id");
+            app.selection = BTreeSet::from([id]);
+            assert!(app.session.design().objects[0].line.is_none());
+            app
+        };
+        let mut app = region_only();
+        assert_eq!(states(&mut app), table([true, true, true, true, false]));
+        let thread = app.session.design().objects[0].region.as_ref().expect("region").thread.clone();
+        app.ui_command("ui.run", Some(&json!({ "action": "openOutline" })))
+            .expect("Open");
+        let o = app.session.design().objects[0].clone();
+        assert!(!o.contours[0].closed && o.region.is_none());
+        assert_eq!(o.line.as_ref().map(|l| &l.thread), Some(&thread), "a line in the region's thread");
+        app.undo();
+        let o = &app.session.design().objects[0];
+        assert!(o.contours[0].closed && o.region.is_some() && o.line.is_none(), "one Undo");
+        // Split at Point is available on its corner and does the same.
+        let mut app = region_only();
+        let s = app
+            .ui_command("ui.pointMenu", Some(&json!({ "points": [0] })))
+            .expect("select a point");
+        assert_eq!(s["entries"][5]["enabled"], true, "Split at Point");
+        assert!(enabled(&app, Action::SplitAtPoint));
+        app.ui_command("ui.pointMenu", Some(&json!({ "action": "splitAtPoint" })))
+            .expect("Split at Point");
+        let o = &app.session.design().objects[0];
+        assert!(!o.contours[0].closed && o.region.is_none() && o.line.is_some());
+        assert!(Action::OpenOutline.info().tip.contains("running-stitch line"));
+        assert!(Action::SplitAtPoint.info().tip.contains("running-stitch line"));
     }
 
     /// Split at Point on a stitch pattern still splits it at the selected needle point

@@ -4895,9 +4895,8 @@ Tests against the numbers above: design `to_curve_places_the_handles_where_pe_de
 
 - Delete on a closed straight outline stopped at three points in the first version; it goes
   down to two since #1260 (below).
-- **Split at Point on a shape sewn as a region only is refused** (it would leave nothing to
-  sew). PE-DESIGN's case with a region only was not captured; with line and region it drops the
-  region, as here.
+- Split at Point on a shape sewn as a region only was refused in the first version; since
+  #1260 it makes the shape a line (below).
 - A click on the outline inserts a point since #1260 (below); it was a double-click.
 - **Curves made before this change** (and by `object.setSegment`) have no stored kind: their
   points show To Smooth, To Symmetry and To Cusp all available, and are written to PES 0110 as
@@ -4957,8 +4956,13 @@ Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_mak
 
 **Not matched, and why:**
 
-- Split at Point and Open on a shape sewn as a region only are refused (nothing would be left to
-  sew); PE-DESIGN's behaviour there is not captured.
+- **By extension:** on a shape sewn as a region only (what OpenStitch's Rectangle and Ellipse
+  tools draw) Split at Point and Open are available as on any shape: the outline opens and
+  the region becomes line sewing, a running stitch in the region's thread, as
+  `object.regionToLine` gives it, in the same undo step. The result is what PE-DESIGN leaves
+  after a split on line and region: an open line, no region. PE-DESIGN's shape tools always
+  make a line, so it has no such case on its own shapes; it is not captured on an imported
+  region-only shape.
 - Shift or Ctrl held while dragging a point with the mouse is not captured; here Shift locks the
   drag to an axis and Ctrl drags without snapping, as before.
 - The drag box selects the points of one outline of the shape (the one with the most points in
