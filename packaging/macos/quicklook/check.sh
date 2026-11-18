@@ -10,7 +10,9 @@
 # 3. With QUICKLOOK_REGISTER=1 (CI only: it registers the extension with the system): pluginkit
 #    must list it, then macOS is asked for the design's thumbnail as Finder asks
 #    (QLThumbnailGenerator, `openstitch-quicklook-check --system`). No thumbnail within
-#    QUICKLOOK_TIMEOUT seconds (default 60), or an error, fails the check.
+#    QUICKLOOK_TIMEOUT seconds (default 60) fails the check. An error from Quick Look is asked
+#    again until that time has passed (#1249: a just-registered extension is not always known
+#    to the thumbnail service at once); a hang fails at once.
 #    Never set this on someone's own Mac (docs/DISTRIBUTION.md).
 set -eu
 
@@ -70,7 +72,33 @@ if [ "${QUICKLOOK_REGISTER:-0}" = 1 ]; then
     pluginkit -m -v -i io.github.cristianonescu.openstitch.thumbnail | tee "$work/plugins"
     grep -q io.github.cristianonescu.openstitch.thumbnail "$work/plugins" || {
         echo "pluginkit does not list the extension" >&2; exit 1; }
-    "$check" --system "${QUICKLOOK_TIMEOUT:-60}" "$work/design.pes" "$work/ql.png" 256
+    # Right after `pluginkit -a` the thumbnail service does not always know the extension: on
+    # CI it answered "Could not generate a thumbnail" (QLThumbnailErrorDomain 102) within
+    # 0.2 to 0.35 s on some runs and drew the design on others, with nothing changed in between
+    # (#1249). So an error is asked again, every 3 s, until QUICKLOOK_TIMEOUT has passed. The
+    # thumbnail itself is still required, and no answer at all (a hang, exit 3) fails at once.
+    limit=${QUICKLOOK_TIMEOUT:-60}
+    began=$(date +%s)
+    asked=0
+    while :; do
+        left=$((limit - ($(date +%s) - began)))
+        if [ "$left" -lt 1 ]; then
+            echo "Quick Look drew no thumbnail within $limit s (asked $asked times)" >&2
+            exit 1
+        fi
+        asked=$((asked + 1))
+        code=0
+        "$check" --system "$left" "$work/design.pes" "$work/ql.png" 256 2> "$work/ql.err" || code=$?
+        if [ "$code" = 0 ]; then
+            break
+        fi
+        echo "Quick Look, asked $asked times: $(cat "$work/ql.err")" >&2
+        if [ "$code" = 3 ]; then
+            exit 3
+        fi
+        sleep 3
+    done
+    echo "Quick Look answered after being asked $asked times"
     sips -g pixelWidth -g pixelHeight "$work/ql.png"
     echo "Quick Look drew the thumbnail through the extension"
 fi
