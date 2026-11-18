@@ -441,7 +441,8 @@ then style them in the next.
   region; two ends lying on each other (within 0.05 mm) become one point. A new
   `shape.ellipse` has four smooth points: moving one handle with `object.setSegment` turns
   the other. (`ui.run openOutline` / `closeOutline`; `ui.pointMenu` lists them as `objectMenu`, and
-  the selected points with their page and window positions as `selected`). Each is one undo step. In the window `ui.pointMenu`
+  the selected points with their page and window positions as `selected`, and the status
+  bar's hint for that selection as `hint`). Each is one undo step. In the window `ui.pointMenu`
   `{points, contour}` selects points as Ctrl+click does and reports the seven entries with
   what is greyed out; `{action}` runs one (`ui.run pointToCurve` and the other ribbon
   buttons do the same).
