@@ -139,14 +139,39 @@ pub fn entry_icon(a: PointAction) -> Option<Action> {
     }
 }
 
-/// The icon in front of an object-menu entry: the three direction-line entries have one, as
-/// in PE-DESIGN's menu; Open and Close have none.
+/// The icon in front of an object-menu entry: Add Direction Line and Reverse Direction Line
+/// have one, as in PE-DESIGN's menu; Delete Direction Line, Open and Close have none.
 pub fn object_entry_icon(a: Action) -> Option<Action> {
-    matches!(
-        a,
-        Action::AddDirectionLine | Action::DeleteDirectionLine | Action::ReverseDirectionLine
-    )
-    .then_some(a)
+    matches!(a, Action::AddDirectionLine | Action::ReverseDirectionLine).then_some(a)
+}
+
+/// Whether an entry of the object's menu is available. As its ribbon command is, except
+/// Delete Direction Line: in PE-DESIGN's menu it is always available (it only opens the
+/// sub-menu, whose entries are greyed on their own).
+pub fn object_entry_enabled(app: &EditorApp, a: Action) -> bool {
+    a == Action::DeleteDirectionLine || crate::ribbon::enabled(app, a)
+}
+
+/// The Delete Direction Line sub-menu, PE-DESIGN's two entries: (key, text id, available).
+/// Built from their names (what they do with lines present is not captured): Delete Selected
+/// Line removes the selected direction lines, and no direction line can be selected on the
+/// canvas here, so it has nothing to act on; Delete Lines Not Selected removes the others,
+/// which is all of them: the shape goes back to one straight sewing direction
+/// (`object.setDirectionLines` with none). Both are grey on a shape without direction lines.
+pub fn direction_submenu(app: &EditorApp) -> [(&'static str, &'static str, bool); 2] {
+    let ctx = app.tool_context(app.session.design());
+    let has_lines = ctx
+        .point_target()
+        .and_then(|o| o.region.as_ref())
+        .is_some_and(|r| r.direction_curve.is_some() || !r.direction_lines.is_empty());
+    [
+        ("deleteSelectedLine", "menu-point-delete-selected-line", false),
+        (
+            "deleteLinesNotSelected",
+            "menu-point-delete-lines-not-selected",
+            has_lines && crate::ribbon::enabled(app, Action::DeleteDirectionLine),
+        ),
+    ]
 }
 
 /// Width of the icon column at the left of a menu row, in points.
@@ -294,7 +319,7 @@ fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
             if a == Action::OpenOutline {
                 rule(ui);
             }
-            let enabled = crate::ribbon::enabled(app, a);
+            let enabled = object_entry_enabled(app, a);
             let submenu = a == Action::DeleteDirectionLine;
             let response = row(ui, object_entry_icon(a), a.info().label, enabled, submenu);
             if submenu {
@@ -314,13 +339,15 @@ fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
             }
         }
     });
-    // The sub-menu: the one thing Delete Direction Line deletes here, the shape's direction
-    // lines as a whole (back to a straight sewing direction).
+    // The sub-menu, PE-DESIGN's two entries (see [`direction_submenu`]).
     let mut over_sub = false;
-    if let Some(at) = sub_at.filter(|_| crate::ribbon::enabled(app, Action::DeleteDirectionLine)) {
+    if let Some(at) = sub_at {
+        let entries = direction_submenu(app);
         let sub = panel(ctx, "point-object-submenu", at, 200.0, |ui| {
-            if row(ui, None, t("menu-point-all-direction-lines"), true, false).clicked() {
-                chosen = Some(Action::DeleteDirectionLine);
+            for (_, text, enabled) in entries {
+                if row(ui, None, t(text), enabled, false).clicked() {
+                    chosen = Some(Action::DeleteDirectionLine);
+                }
             }
         });
         over_sub = sub.response.contains_pointer();
@@ -348,9 +375,14 @@ fn object_state(app: &EditorApp) -> Value {
                 "key": a.info().key,
                 "label": a.info().label,
                 "separatorBefore": a == Action::OpenOutline,
-                "enabled": crate::ribbon::enabled(app, a),
+                "enabled": object_entry_enabled(app, a),
                 "icon": object_entry_icon(a).is_some(),
-                "submenu": a == Action::DeleteDirectionLine,
+                "submenu": (a == Action::DeleteDirectionLine).then(|| {
+                    direction_submenu(app)
+                        .into_iter()
+                        .map(|(key, text, enabled)| json!({ "key": key, "label": t(text), "enabled": enabled }))
+                        .collect::<Vec<_>>()
+                }),
             }))
             .collect::<Vec<_>>()
     )
@@ -723,11 +755,38 @@ mod tests {
             .as_array()
             .expect("objectMenu")
             .iter()
-            .map(|e| (e["icon"] == true, e["submenu"] == true))
+            .map(|e| (e["icon"] == true, e["submenu"].is_array()))
             .collect();
         assert_eq!(
             object,
-            [(true, false), (true, true), (true, false), (false, false), (false, false)]
+            [(true, false), (false, true), (true, false), (false, false), (false, false)]
+        );
+        // The sub-menu: PE-DESIGN's two entries; both grey on a shape without direction lines.
+        let sub: Vec<(&str, bool)> = s["objectMenu"][1]["submenu"]
+            .as_array()
+            .expect("submenu")
+            .iter()
+            .map(|e| (e["label"].as_str().expect("label"), e["enabled"] == true))
+            .collect();
+        assert_eq!(sub, [("Delete Selected Line", false), ("Delete Lines Not Selected", false)]);
+        // With direction lines on the shape, Delete Lines Not Selected removes them all (none
+        // can be selected here), one undo step; Delete Selected Line has nothing to act on.
+        app.execute(&CommandRequest::new(
+            "object.setDirectionLines",
+            json!({ "id": 1, "lines": [[[12, 12], [12, 18]], [[28, 12], [28, 18]]] }),
+        ))
+        .expect("direction lines");
+        let sub = direction_submenu(&app);
+        assert_eq!((sub[0].2, sub[1].2), (false, true));
+        crate::ribbon::run(&mut app, Action::DeleteDirectionLine, &egui::Context::default());
+        let region = app.session.design().objects[0].region.clone().expect("region");
+        assert!(region.direction_lines.is_empty() && region.direction_curve.is_none());
+        assert!(!direction_submenu(&app)[1].2);
+        app.undo();
+        assert_eq!(
+            app.session.design().objects[0].region.as_ref().map(|r| r.direction_lines.len()),
+            Some(2),
+            "one Undo"
         );
     }
 
@@ -781,9 +840,10 @@ mod tests {
     }
 
     /// PE-DESIGN 11.50's object menu, read from its screen on 2026-11-18 (results of the
-    /// second capture round): on a closed shape with a region Add and Reverse Direction Line
-    /// and Open are available and Close is grey; on an open line Add and Reverse Direction
-    /// Line and Open are grey and Close is available. A shape sewn as a region only (what the
+    /// second capture round, corrected the same evening): on a closed shape with a region Add,
+    /// Delete and Reverse Direction Line and Open are available and Close is grey; on an open
+    /// line Add and Reverse Direction Line and Open are grey, Delete Direction Line (which
+    /// only opens its sub-menu) and Close are available. A shape sewn as a region only (what the
     /// Rectangle tool draws) has the same menu: Open and Split at Point make it a line.
     #[test]
     fn the_object_menu_is_greyed_as_pe_designs_also_on_a_region_only_shape() {
@@ -809,7 +869,7 @@ mod tests {
         // The open line it becomes.
         app.ui_command("ui.run", Some(&json!({ "action": "openOutline" })))
             .expect("Open");
-        assert_eq!(states(&mut app), table([false, false, false, false, true]));
+        assert_eq!(states(&mut app), table([false, true, false, false, true]));
 
         // Closed, sewn as a region only: the same menu, and nothing is refused.
         let region_only = || {

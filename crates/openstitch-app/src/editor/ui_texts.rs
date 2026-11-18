@@ -104,7 +104,11 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "Type a length, for example 12.5, 12.5 mm or 1/2\"",
     ),
     ("ui-clear-selected-guide", "Clear Selected Guide"),
-    ("menu-point-all-direction-lines", "All Direction Lines"),
+    ("menu-point-delete-selected-line", "Delete Selected Line"),
+    (
+        "menu-point-delete-lines-not-selected",
+        "Delete Lines Not Selected",
+    ),
     ("menu-point-line-type", "Line Type"),
     ("menu-point-curve-type", "Curve Type"),
     ("menu-point-to-straight", "To Straight"),
