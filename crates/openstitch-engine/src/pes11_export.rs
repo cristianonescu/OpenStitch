@@ -11,12 +11,13 @@ use openstitch_design::text::{
     self, Spread, TextAlign, TextDirection, TextMetrics, TextSpec, VAlign,
 };
 use openstitch_design::{
-    Contour, Design, DesignObject, LineSewing, LineType, ObjectKind, Rect, RegionSewing,
+    Contour, Design, DesignObject, LineSewing, LineType, ObjectKind, PointKind, Rect, RegionSewing,
     RegionType, RunningStitchPath, Transform,
 };
 use openstitch_formats::pes11::{
-    CustomPage, Envelope, Fit, HoopPage, KIND_CURVE_AFTER, KIND_CURVE_BEFORE, Letter, Objects,
-    PAGE_ORIGIN, PesPattern, PesStamp, RegionSewType, Shape, StitchGroup, Text, Vertex,
+    CustomPage, Envelope, Fit, HoopPage, KIND_CURVE_AFTER, KIND_CURVE_BEFORE, KIND_CUSP,
+    KIND_SYMMETRIC, Letter, Objects, PAGE_ORIGIN, PesPattern, PesStamp, RegionSewType, Shape,
+    StitchGroup, Text, Vertex,
 };
 
 /// PE-DESIGN's lines per OpenStitch zigzag-net rung: a rung across and the diagonal back
@@ -1387,7 +1388,7 @@ fn file_xy(p: openstitch_design::Vec2) -> (f32, f32) {
 }
 
 /// The contour's vertices with the Bézier handles of the segments before and after each.
-fn vertices(c: &Contour) -> Vec<Vertex> {
+pub(crate) fn vertices(c: &Contour) -> Vec<Vertex> {
     let n = c.points.len();
     (0..n)
         .map(|i| {
@@ -1401,6 +1402,14 @@ fn vertices(c: &Contour) -> Vec<Vertex> {
             } else {
                 None
             };
+            // A straight point beside a curve point only borrows that point's handle
+            // (#1258): PE-DESIGN writes no curve bit and no handle for it on that side. A
+            // design without point kinds borrows nowhere, so it is written as it always was.
+            let before = before.filter(|_| {
+                let s = if i > 0 { i - 1 } else { n - 1 };
+                !c.borrows_handle(s, false)
+            });
+            let after = after.filter(|_| !c.borrows_handle(i, true));
             let mut kind = 0;
             let mut handles = [(0.0, 0.0); 2];
             if let Some(b) = before {
@@ -1410,6 +1419,15 @@ fn vertices(c: &Contour) -> Vec<Vertex> {
             if let Some(a) = after {
                 kind |= KIND_CURVE_AFTER;
                 handles[1] = file_xy(a.c1);
+            }
+            // A curve point's kind (#1258): PE-DESIGN's smooth is the two curve bits alone,
+            // as a point without a stored kind has always been written.
+            if kind == KIND_CURVE_BEFORE | KIND_CURVE_AFTER {
+                kind |= match c.kind(i) {
+                    PointKind::Symmetric => KIND_SYMMETRIC,
+                    PointKind::Cusp => KIND_CUSP,
+                    PointKind::Smooth | PointKind::Unset => 0,
+                };
             }
             Vertex {
                 x,

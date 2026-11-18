@@ -520,9 +520,15 @@ the first vertex (r11). The segment and `t` fields vary between files of the sam
 
 Each vertex is 28 bytes: x, y, the handle of the segment arriving at the vertex, the handle of
 the segment leaving it (6 × f32), then a u32 kind: bit `0x10` the arriving segment is a curve,
-bit `0x01` the leaving one is (0 a corner between straight segments, `0x11` a smooth curve point;
-`0x08` is also set on the freehand tool's cusps). A straight segment's handle is `(0, 0)` (the
-open line r11 repeats the vertex instead, and o-rounded-rect keeps a stale handle after a curve).
+bit `0x01` the leaving one is. PE-DESIGN keeps the kind per point (Select Point's menu, #1258,
+captures of 2026-11-18): 0 a straight point, `0x11` a smooth curve point (To Curve, a circle's
+points), `0x15` a symmetric one (bit `0x04`, To Symmetry), `0x19` a cusp (bit `0x08`, To Cusp and
+the freehand tool's corners). A side is a curve when either of its ends is a curve point; between
+a curve point and a straight point both control points sit at the curve point's handle (the
+bounds PE-DESIGN saves fit that cubic: a corner at (30, 30.5) mm with handles (25, 40.5) and
+(35, 20.5) has bounds from 26.2 and 23.0 mm). A straight point's handle is `(0, 0)` (the
+open line r11 repeats the vertex instead; o-rounded-rect and a point after To Straight keep a
+stale handle, which is not used). To Curve places the handles at point ∓ (next − previous) / 4.
 A rectangle starts in the middle of its bottom edge and runs round the corners; an ellipse is
 four smooth vertices whose handles lie 0.5523 × the radius along the tangent. The record ends
 after its last vertex.

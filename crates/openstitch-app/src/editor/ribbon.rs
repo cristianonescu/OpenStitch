@@ -251,9 +251,14 @@ actions! {
     AddDirectionLine => "addDirection", "Add Direction Line", "Draw a curved sewing direction across the region.", None, Some("object.setDirectionCurve"), true;
     DeleteDirectionLine => "deleteDirection", "Delete Direction Line", "Back to a straight sewing direction.", None, Some("object.setDirectionLines"), true;
     ReverseDirectionLine => "reverseDirection", "Reverse Direction Line", "Sew the direction line the other way.", None, Some("object.reverseDirection"), true;
-    EditPoint => "editPoint", "Edit Point", "Move the points of the outline.", Some("A"), Some("object.setPoint"), true;
-    DeletePoint => "deletePoint", "Delete Point", "Delete the selected point.", Some("Delete"), Some("object.deletePoint"), true;
-    SplitAtPoint => "splitAtPoint", "Split at Point", "Split the stitch pattern at the selected needle point.", None, Some("stitches.splitAt"), true;
+    EditPoint => "editPoint", "Edit Point", "Change the selected points of the outline: Line Type (To Straight, To Curve) and Curve Type (To Smooth, To Symmetry, To Cusp). Select points with the Point tool (Point Edit, A); Ctrl+click adds one. A right-click on a point opens the same entries with Split at Point and Delete.", None, Some("object.setPointKind"), true;
+    DeletePoint => "deletePoint", "Delete Point", "Delete the selected points.", Some("Delete"), Some("object.deletePoint"), true;
+    SplitAtPoint => "splitAtPoint", "Split at Point", "Open a closed outline at the selected point, or cut an open line in two there (not at its ends). On a stitch pattern: split it at the selected needle point.", None, Some("object.splitAtPoint"), true;
+    PointToStraight => "pointToStraight", "To Straight", "Make the selected points straight points: they lose their handles. A side to another straight point becomes a straight line; a side to a curve point still bends from that point's handle.", None, Some("object.setPointKind"), true;
+    PointToCurve => "pointToCurve", "To Curve", "Make the selected straight points smooth curve points: each gets two handles in line, a quarter of the way to its neighbours on either side, and the outline bends at once, as in PE-DESIGN. Drag a handle to shape the curve.", None, Some("object.setPointKind"), true;
+    PointToSmooth => "pointToSmooth", "To Smooth", "Keep the two handles of the selected curve points on one line: dragging one turns the other, each keeps its length.", None, Some("object.setPointKind"), true;
+    PointToSymmetry => "pointToSymmetry", "To Symmetry", "Keep the two handles of the selected curve points on one line at the same length: dragging one mirrors the other.", None, Some("object.setPointKind"), true;
+    PointToCusp => "pointToCusp", "To Cusp", "Let the two handles of the selected curve points move independently.", None, Some("object.setPointKind"), true;
     ConvertRegionToLine => "regionToLine", "Convert Region to Line", "Sew the outline with a running stitch in the region's colour.", None, Some("object.regionToLine"), true;
     OffsetLines => "offsetLines", "Create Offset Lines", "Lines inside or outside the outline.", None, Some("shape.offsetLines"), true;
     FloralPattern => "floral", "Create Floral Pattern", "A floral pattern inside the outline.", None, Some("shape.floral"), true;
@@ -288,6 +293,7 @@ impl Action {
                 | ShapesTools
                 | OtherZoom
                 | Arrange
+                | EditPoint
                 | Align
                 | SelectSame
                 | RotateFlip
@@ -355,7 +361,7 @@ impl Action {
         use Action::*;
         Some(match self {
             SelectTool => Tool::Select,
-            PointTool | EditPoint => Tool::Point,
+            PointTool => Tool::Point,
             Rectangle => Tool::Rectangle,
             Ellipse => Tool::Ellipse,
             ClosedStraight => Tool::Polygon,
@@ -723,10 +729,13 @@ const SHAPES: &[Group] = &[
                 A::DeleteDirectionLine,
                 A::ReverseDirectionLine,
             ]),
-            Small(&[A::EditPoint, A::DeletePoint, A::SplitAtPoint]),
             Small(&[A::DeriveSkeleton, A::SmoothShape, A::SmoothTolerance]),
             Small(&[A::ShapeEffects, A::ShapeBuilder, A::LineGap]),
         ],
+    },
+    Group {
+        name: "Edit Point",
+        items: &[Small(&[A::EditPoint, A::DeletePoint, A::SplitAtPoint])],
     },
     COLORS,
     Group {
@@ -798,6 +807,15 @@ pub const APPLICATION_MENU: [Action; 12] = [
 /// Commands inside the Application menu's Print and Sew Embroidery lists (beyond PE-DESIGN,
 /// #452, #507, #513).
 pub const SUBMENU_ACTIONS: [Action; 3] = [A::JobSheet, A::TestSwatches, A::FloppyImage];
+
+/// The Edit Point drop-down (Shapes ▸ Edit Point), PE-DESIGN's: Line Type, then Curve Type.
+pub const EDIT_POINT_MENU: [Action; 5] = [
+    A::PointToStraight,
+    A::PointToCurve,
+    A::PointToSmooth,
+    A::PointToSymmetry,
+    A::PointToCusp,
+];
 
 /// The Option button: other applications and settings.
 pub const OPTION_MENU: [Action; 6] = [
@@ -1033,6 +1051,7 @@ mod tests {
                 || APPLICATION_MENU.contains(&a)
                 || OPTION_MENU.contains(&a)
                 || SUBMENU_ACTIONS.contains(&a)
+                || EDIT_POINT_MENU.contains(&a)
                 || help.contains(&a)
                 || ALIGN_MENU.contains(&a)
                 || SELECT_SAME_MENU.contains(&a)

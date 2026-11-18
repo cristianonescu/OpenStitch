@@ -480,6 +480,31 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         )],
     },
     UiCommand {
+        id: "ui.pointMenu",
+        summary: "The Select Point tool's right-click menu on a point (#1258): its seven entries in order (toStraight, toCurve, toSmooth, toSymmetry, toCusp, splitAtPoint, deletePoint), each with its text, whether a separator sits above it and whether it is available for the selected points, and whether the menu is open. points (with contour) selects those vertices of the one selected shape with the Point tool, as clicks and Ctrl+clicks do; action runs an entry on the selected points as a click in the menu does (one undo step) and is refused when the entry is greyed out. The engine commands object.setPointKind, object.splitAtPoint and object.deletePoint do the same without the window",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "points",
+                "[int]",
+                false,
+                "Select these vertices (switches to the Point tool; needs exactly one shape selected)",
+            ),
+            p(
+                "contour",
+                "int",
+                false,
+                "The contour the points are on (default 0)",
+            ),
+            p(
+                "action",
+                "toStraight|toCurve|toSmooth|toSymmetry|toCusp|splitAtPoint|deletePoint",
+                false,
+                "Run this entry on the selected points",
+            ),
+        ],
+    },
+    UiCommand {
         id: "ui.guides",
         summary: "The guidelines as the canvas shows them (#799): each one's index, position (mm from the ruler origin, as its label reads) and label, whether they show, are locked and snap, the selected one and an open Set Position… dialog. orientation + index select one as a click does; then position (a length as typed in Set Position…: 12.5, \"12.5 mm\", \"1/2\\\"\"; from the ruler origin), turn (Alt-click) or delete (the Delete key) act on it, one undo step each; newGuide {orientation, position} is New Guide… (from the ruler origin). It also gives the guideline colour and an open right-click menu. Engine commands view.* do the same in page coordinates",
         effect: Effect::Edit,

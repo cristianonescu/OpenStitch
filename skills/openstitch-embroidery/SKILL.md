@@ -415,6 +415,26 @@ then style them in the next.
   and groups (copies along a line, a monogram) into separate objects; every piece keeps the
   whole's sewing attributes and thread and sews where the whole did. Each is one undo step;
   Ctrl+J and Ctrl+Shift+K in the editor (`ui.run joinLines` / `ui.run breakApart`).
+- Points of an outline (the Select Point tool's right-click menu): `object.setPointKind`
+  `{id, contour, index | indexes, kind}` is To Straight (`straight`: the point loses its
+  handles; a side to another straight point becomes a straight line, a side to a curve point
+  still bends from that point's handle), To Curve (`curve`, on a straight point: it becomes a
+  smooth curve point with handles at point ∓ (next − previous) / 4, as PE-DESIGN places
+  them, so both sides at it bend at once; a point in the middle of a straight side keeps
+  the outline), To Smooth (`smooth`: the two handles on
+  one line, each keeps its length), To Symmetry (`symmetric`: on one line at the same length)
+  and To Cusp (`cusp`: independent handles). The last three are refused on a straight point:
+  make it a curve first. The kind is saved with the design and only changes editing:
+  afterwards `object.setSegment` `{curve}` moves a smooth or symmetric point's other handle
+  with the one you give. `object.splitAtPoint` `{id, contour, index}` is Split at Point: a
+  closed outline opens there (a region on it is switched off, its line stays; refused when
+  there is no line sewing), an open line is cut in two objects at an inner point (answers
+  `ids`; refused at its ends). `object.deletePoint` `{index | indexes}` is Delete, refused
+  whole when the outline would keep too few points. Move a point with `object.setPoint`, add
+  one with `object.insertPoint`. Each is one undo step. In the window `ui.pointMenu`
+  `{points, contour}` selects points as Ctrl+click does and reports the seven entries with
+  what is greyed out; `{action}` runs one (`ui.run pointToCurve` and the other ribbon
+  buttons do the same).
 - Clean up: `shape.simplify` `{ids, tolerance: 0.2}` removes nodes within a tolerance (mm; a
   Manual Punch column loses one direction line per call; `ui.run smoothShape` uses the
   `smoothTolerance` setting), and `stitches.smooth`

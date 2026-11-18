@@ -126,6 +126,8 @@ mod palette;
 mod pes_compat;
 #[path = "pes_resave.rs"]
 mod pes_resave;
+#[path = "point_menu.rs"]
+mod point_menu;
 #[path = "print.rs"]
 mod print;
 #[path = "production.rs"]

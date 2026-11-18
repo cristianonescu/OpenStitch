@@ -9,6 +9,13 @@ Pick **Rectangle** (or press R) and drag on the white Design Page. OpenStitch fi
 with stitches at once. Circles, open and closed lines and curves sit beside the rectangle on the
 **Home** tab. Click a shape to select it; drag its handles to resize or turn it.
 
+To change the outline itself, pick **Point Edit** (or press A): the shape shows its points. Drag
+a point to move it, double-click the outline to add one. Right-click a point for its menu: **To
+Curve** rounds a corner and gives it two handles to drag, **To Straight** makes it a corner
+again; **To Smooth**, **To Symmetry** and **To Cusp** choose how the two handles follow each
+other; **Split at Point** opens the outline there and **Delete** removes the point. Ctrl+click
+selects several points. The same commands are on the **Shapes** tab under **Edit Point**.
+
 ## Add lettering
 
 Open **Text ▸ Text…**, type a word, pick a font and a height, and place it on the page. Change

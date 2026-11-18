@@ -351,11 +351,11 @@ Behaviour follows the guide's pages
 | Edit Outline | Add Direction Line |  | `Action::AddDirectionLine` | `object.setDirectionCurve` | yes |
 | Edit Outline | Delete Direction Line |  | `Action::DeleteDirectionLine` | `object.setDirectionLines` | yes |
 | Edit Outline | Reverse Direction Line |  | `Action::ReverseDirectionLine` | `object.reverseDirection` | yes |
-| Edit Outline | Edit Point | `A` | `Action::EditPoint` | `object.setPoint` | yes |
+| Edit Point | Edit Point ▾ (Line Type: To Straight, To Curve; Curve Type: To Smooth, To Symmetry, To Cusp; greyed as PE-DESIGN 11.50 greys them, #1258; the same entries with Split at Point and Delete open on a right-click on a point) |  | `Action::EditPoint`, `Action::PointToStraight`, `Action::PointToCurve`, `Action::PointToSmooth`, `Action::PointToSymmetry`, `Action::PointToCusp` | `object.setPointKind` | yes |
 | Edit Outline | Edit Point on a satin line (beyond PE-DESIGN, #700): each width key shows a handle at both edges; drag one to set that side, double-click the line to add a key, click a handle and press Delete to remove the key |  | `Action::EditPoint` | `object.setWidthKey`, `object.deleteWidthKey` | yes |
 | Edit Outline | Edit Point on a Manual Punch column (beyond PE-DESIGN, #525): the rungs are shown instead of the outline; drag an end, double-click a side to add a rung, click an end and press Delete to remove it |  | `Action::EditPoint` | `object.moveRung`, `object.insertRung`, `object.deleteRung` | yes |
-| Edit Outline | Delete Point | `Delete` | `Action::DeletePoint` | `object.deletePoint` | yes |
-| Edit Outline | Split at Point |  | `Action::SplitAtPoint` | `stitches.splitAt` | yes |
+| Edit Point | Delete Point | `Delete` | `Action::DeletePoint` | `object.deletePoint` | yes |
+| Edit Point | Split at Point (an outline at the selected point; a stitch pattern at the selected needle point) |  | `Action::SplitAtPoint` | `object.splitAtPoint`, `stitches.splitAt` | yes |
 | Edit Outline | Satin Skeleton from Shape |  | `Action::DeriveSkeleton` | `object.deriveSkeleton` | yes |
 | Edit Outline | Smooth Shape (beyond PE-DESIGN, #478) |  | `Action::SmoothShape` | `shape.simplify` | yes |
 | Edit Outline | Smooth tolerance (beyond PE-DESIGN, #478) |  | `Action::SmoothTolerance` | `shape.simplify` (`tolerance`) | yes |

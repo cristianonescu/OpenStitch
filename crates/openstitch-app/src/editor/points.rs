@@ -110,24 +110,29 @@ pub fn nearest_segment(c: &Contour, p: Vec2) -> Option<(usize, f64, f64)> {
         .min_by(|a, b| a.2.total_cmp(&b.2))
 }
 
-/// The curve handles of `c`, two per curved segment.
+/// The curve handles of `c`: two per curved segment, less those a straight point borrows.
 pub fn handle_lines(c: &Contour) -> Vec<HandleLine> {
     let mut out = Vec::new();
     for i in 0..c.segment_count() {
         if let Some(z) = c.curve(i) {
             let (a, b) = c.segment_ends(i);
-            out.push(HandleLine {
-                segment: i,
-                control: Control::Start,
-                anchor: a,
-                at: z.c1,
-            });
-            out.push(HandleLine {
-                segment: i,
-                control: Control::End,
-                anchor: b,
-                at: z.c2,
-            });
+            // A straight point beside a curve point has no handle (PE-DESIGN shows none).
+            if !c.borrows_handle(i, true) {
+                out.push(HandleLine {
+                    segment: i,
+                    control: Control::Start,
+                    anchor: a,
+                    at: z.c1,
+                });
+            }
+            if !c.borrows_handle(i, false) {
+                out.push(HandleLine {
+                    segment: i,
+                    control: Control::End,
+                    anchor: b,
+                    at: z.c2,
+                });
+            }
         }
     }
     out
@@ -178,39 +183,16 @@ pub fn point_at(o: &DesignObject, p: Vec2, radius: f64, tolerance: f64) -> Optio
 /// `c` with vertex `index` moved to `to`, its handles following (as `object.setPoint` does).
 pub fn with_vertex(c: &Contour, index: usize, to: Vec2) -> Contour {
     let mut c = c.clone();
-    let delta = to - c.points[index];
-    c.points[index] = to;
-    let segs = c.segment_count();
-    let incoming = if index > 0 {
-        Some(index - 1)
-    } else if c.closed && segs > 0 {
-        Some(segs - 1)
-    } else {
-        None
-    };
-    if let Some(mut z) = (index < segs).then(|| c.curve(index)).flatten() {
-        z.c1 = z.c1 + delta;
-        c.set_curve(index, Some(z));
-    }
-    if let Some(i) = incoming
-        && let Some(mut z) = c.curve(i)
-    {
-        z.c2 = z.c2 + delta;
-        c.set_curve(i, Some(z));
-    }
+    c.move_point(index, to);
     c
 }
 
 /// `c` with one control point of curved segment `segment` moved to `to`.
+/// The other handle at that vertex follows when the point is smooth or symmetric, as
+/// `object.setSegment` moves it.
 pub fn with_control(c: &Contour, segment: usize, control: Control, to: Vec2) -> Contour {
     let mut c = c.clone();
-    if let Some(mut z) = c.curve(segment) {
-        match control {
-            Control::Start => z.c1 = to,
-            Control::End => z.c2 = to,
-        }
-        c.set_curve(segment, Some(z));
-    }
+    c.move_handle(segment, control == Control::Start, to);
     c
 }
 
@@ -237,4 +219,136 @@ pub fn smooth_curve(c: &Contour, i: usize) -> Bezier {
         c1: a + ta * (1.0 / 3.0),
         c2: b - tb * (1.0 / 3.0),
     }
+}
+
+// MARK: the point menu (#1258)
+
+/// One entry of the Select Point tool's right-click menu, PE-DESIGN's seven.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PointAction {
+    ToStraight,
+    ToCurve,
+    ToSmooth,
+    ToSymmetry,
+    ToCusp,
+    Split,
+    Delete,
+}
+
+impl PointAction {
+    /// The menu's entries in PE-DESIGN's order.
+    pub const MENU: [PointAction; 7] = [
+        PointAction::ToStraight,
+        PointAction::ToCurve,
+        PointAction::ToSmooth,
+        PointAction::ToSymmetry,
+        PointAction::ToCusp,
+        PointAction::Split,
+        PointAction::Delete,
+    ];
+
+    /// Whether PE-DESIGN's menu has a separator above this entry.
+    pub fn separator_before(self) -> bool {
+        matches!(
+            self,
+            PointAction::ToSmooth | PointAction::Split | PointAction::Delete
+        )
+    }
+
+    /// The entry's stable key (`ui.state`, scripts, tests).
+    pub fn key(self) -> &'static str {
+        match self {
+            PointAction::ToStraight => "toStraight",
+            PointAction::ToCurve => "toCurve",
+            PointAction::ToSmooth => "toSmooth",
+            PointAction::ToSymmetry => "toSymmetry",
+            PointAction::ToCusp => "toCusp",
+            PointAction::Split => "splitAtPoint",
+            PointAction::Delete => "deletePoint",
+        }
+    }
+
+    /// The `kind` this entry gives `object.setPointKind`; `None` for Split and Delete.
+    pub fn kind(self) -> Option<&'static str> {
+        match self {
+            PointAction::ToStraight => Some("straight"),
+            PointAction::ToCurve => Some("curve"),
+            PointAction::ToSmooth => Some("smooth"),
+            PointAction::ToSymmetry => Some("symmetric"),
+            PointAction::ToCusp => Some("cusp"),
+            PointAction::Split | PointAction::Delete => None,
+        }
+    }
+}
+
+/// Which menu entries are available for the vertices `selected` of `c`, in
+/// [`PointAction::MENU`] order; the menu and the ribbon's Edit Point drop-down share it. The
+/// rule is PE-DESIGN 11.50's, read from its menu on 2026-11-18 (docs/COMPATIBILITY_AUDIT.md,
+/// #1258):
+///
+/// - To Straight: one of the points is a curve point. To Curve: one of them is a straight
+///   point (a mixed selection offers both).
+/// - To Smooth, To Symmetry, To Cusp: one of the points is a curve point with a side on
+///   either hand (not the end of an open line) that is not already of that kind.
+/// - Split at Point: exactly one point, and not an end of an open line.
+/// - Delete: always, with a point selected; where the outline cannot lose a point it does
+///   nothing (see [`can_delete_points`]).
+pub fn point_actions_enabled(c: &Contour, selected: &[usize]) -> [bool; 7] {
+    use openstitch_design::PointKind;
+    let valid: Vec<usize> = selected
+        .iter()
+        .copied()
+        .filter(|&i| i < c.points.len())
+        .collect();
+    if valid.is_empty() {
+        return [false; 7];
+    }
+    let any_curve = valid.iter().any(|&i| c.is_curve_point(i));
+    let any_straight = valid.iter().any(|&i| !c.is_curve_point(i));
+    let to_kind = |k: PointKind| {
+        valid.iter().any(|&i| {
+            c.is_curve_point(i)
+                && c.incoming(i).is_some()
+                && c.outgoing(i).is_some()
+                && c.kind(i) != k
+        })
+    };
+    let split = valid.len() == 1 && c.split_at(valid[0]).is_some();
+    [
+        any_curve,
+        any_straight,
+        to_kind(PointKind::Smooth),
+        to_kind(PointKind::Symmetric),
+        to_kind(PointKind::Cusp),
+        split,
+        true,
+    ]
+}
+
+/// Whether `c` can lose the vertices `selected` (as `object.deletePoint` checks): an open
+/// line keeps 2 points, a closed straight outline 3.
+pub fn can_delete_points(c: &Contour, selected: &[usize]) -> bool {
+    let mut order: Vec<usize> = selected
+        .iter()
+        .copied()
+        .filter(|&i| i < c.points.len())
+        .collect();
+    order.sort_unstable();
+    order.dedup();
+    if order.is_empty() {
+        return false;
+    }
+    let mut left = c.clone();
+    for &i in order.iter().rev() {
+        let minimum = if left.closed && !left.has_curves() {
+            3
+        } else {
+            2
+        };
+        if left.points.len() <= minimum {
+            return false;
+        }
+        left.delete_point(i);
+    }
+    true
 }

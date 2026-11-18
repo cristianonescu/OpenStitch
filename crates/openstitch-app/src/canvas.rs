@@ -121,6 +121,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     app.viewport = Some(vp);
     if !app.ui.pan
         && !crate::view_ui::guide_pointer(app, ui, &response, rect, &vp)
+        && !crate::point_menu_ui::pointer(app, &response, &vp)
         && !crate::zoom_ui::pointer(app, &response, rect, vp)
     {
         pointer(app, ui, &response, vp);
@@ -900,7 +901,8 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
             handle(at);
         }
         for (i, &p) in c.points.iter().enumerate() {
-            let selected = overlay.selected == Some((ci, i));
+            let selected =
+                overlay.selected == Some((ci, i)) || overlay.also.contains(&(ci, i));
             let s = SelectionHandles::RADIUS as f32 * 0.8;
             painter.rect(
                 egui::Rect::from_center_size(pos(vp.to_screen(p)), egui::vec2(2.0 * s, 2.0 * s)),

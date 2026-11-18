@@ -121,6 +121,8 @@ fn reverse_contour(c: &Contour) -> Contour {
             .map(|i| c.curve(i).map(|b| Bezier { c1: b.c2, c2: b.c1 }))
             .collect();
     }
+    // Each point keeps its kind (#1258).
+    out.store_kinds(c.kinds_or_default().into_iter().rev().collect());
     out
 }
 
@@ -193,8 +195,17 @@ fn chain(p: &Params, a: Part, b: Part) -> Result<Part, CommandError> {
             if pts.is_empty() {
                 return Ok(Part::Line(a));
             }
+            // Each point keeps its kind (#1258); a shared joint keeps the first line's.
+            let kinds: Vec<_> = a
+                .kinds_or_default()
+                .into_iter()
+                .chain(b.kinds_or_default().into_iter().skip(skip))
+                .collect();
             extend::path(&a, End::End, pts, &curves)
-                .map(Part::Line)
+                .map(|mut joined| {
+                    joined.store_kinds(kinds);
+                    Part::Line(joined)
+                })
                 .ok_or_else(|| p.failed("cannot join these lines"))
         }
         (Part::Skeleton(a), Part::Skeleton(b)) => {
