@@ -1700,3 +1700,55 @@ AGPL-3.0-or-later).
 No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
 New "Planned (beyond PE-DESIGN)" row in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
 PE-DESIGN): a monogram edited live on the design, with picture choices for its style and frame.
+
+### 2026-11-18 scan
+
+Period checked: 2026-11-17 to 2026-11-18.
+
+**Commercial products.** No material release or feature announcement in the period.
+Checked: Wilcom blog (newest post still the staff appointment of 2026-11-11) and Hatch blog (one
+new post, 2026-11-17, a customer story about its cross stitch add-on: not a release); BERNINA,
+mySewnet, Embrilliance, Janome Artistic Digitizer, Floriani Total Control U and SewWhat-Pro (one
+search, no dated release found); Tajima DG by Pulse (DG17.5, 17.5.1.8445, unchanged); Embird
+(the "what is new" page still headlines Embird 2026 without a date); Ink/Stitch (newest post
+still v3.3.0 of 2026-07-31); PE-DESIGN 11 one-click update history (11.50 of September 2026
+still the newest).
+Sources: https://wilcom.com/resources/blog, https://hatchembroidery.com/resources/blog,
+https://inkstitch.org/news, https://www.embird.net/what-is-new/,
+https://cloud.pulsemicro.com/Download,
+https://support.brother.com/g/s/hf/ped_info/ped11/one_click_update/en/ped11update_info.html.
+
+#### Open-source projects
+
+Ideas only, read from a pull request description, commit titles and the project's own notes; no
+code may be copied, ported or paraphrased (Roidery is Apache-2.0 / MIT, but the project rule
+still applies; Morale, openhoop, filum and myembro are GPL-3.0; lb2002/openstitch is
+AGPL-3.0-or-later).
+
+- **vomitselfie/Morale**, **alexandra03/threadspool**, **bastanja/stitch_generator**,
+  **EvenDog/openhoop** (still 0.14.0 of 2026-11-17), **benkl/filum** (still 0.2.2 of
+  2026-11-14), **lb2002/openstitch** (the other project that shares OpenStitch's name) and
+  **linker2k/myembro** (still v0.4.0-beta.11): no commits or releases since 2026-11-17.
+- **lork-fork/Roidery** (Apache-2.0 / MIT; no releases; its first pull request, "R5.0", merged
+  into main on 2026-11-17, the activity the 2026-11-17 scan saw before the merge).
+  - A new object joins its colour in the sewing order. When an object is made in a colour the
+    design already sews, it is placed with that colour's objects instead of at the end, unless
+    something sewn in between overlaps it (then it stays on top, at the end). It happens in
+    the same undo step as making the object and can be switched off for the design. OpenStitch
+    gets the same order only afterwards, through Optimise (`order.optimize`) or Sort by colour
+    (`order.byColor`); a new object always goes last, so a design drawn colour by colour out
+    of order gains a thread change per object until the user optimises: new idea, issue draft
+    sent to the coordinator (new row).
+  - Already in OpenStitch or tracked, no issue: a satin fill worked out from the outline alone,
+    the shape cut into columns and the stitches turning along them (auto-direction satin
+    regions along a derived skeleton, and one column per arm for branching shapes, #526; B4);
+    objects that reach past the hoop marked on the design (Check Design's `outsideHoop`).
+  - Not material: renaming its rail-based satin, and a tidier settings panel.
+  - Its satin fill comes from another open-source project, StitchFoundry/StitchFoundry
+    (Apache-2.0 per GitHub; v0.14.0 of 2026-11-05, pushed 2026-11-18), which is not on this
+    scan's list and has not been surveyed here.
+  https://github.com/lork-fork/Roidery/pull/1 (single source)
+
+No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
+New "Planned (beyond PE-DESIGN)" row in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
+PE-DESIGN): a new object placed with its colour in the sewing order.

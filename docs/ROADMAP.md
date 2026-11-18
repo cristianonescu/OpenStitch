@@ -820,6 +820,11 @@ monogram edited live on the design, the Monogram window filled from the selected
 each change rebuilt in place at once, with the style and frame choices shown as small pictures
 of the user's own letters (issue draft sent to the coordinator), an idea for Future.
 
+From the competitor scan of 2026-11-18 (same document, Updates; Roidery, concepts only): a new
+object placed with its thread colour in the sewing order instead of last, unless an object sewn
+in between overlaps it, as a design setting that is off by default (issue draft sent to the
+coordinator), an idea for Future.
+
 Deferred: shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
 rework and an intelligent multi-hoop split with editable lines (VP3, TAP, TBF, U01, DSB, DSZ,
