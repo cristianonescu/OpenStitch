@@ -65,7 +65,7 @@
       "evidence": "PE-DESIGN 11.50 reference: needle points of the satin letter",
       "reference": {
         "tolerance": {
-          "percent": 25.0
+          "percent": 3.0
         }
       }
     },
