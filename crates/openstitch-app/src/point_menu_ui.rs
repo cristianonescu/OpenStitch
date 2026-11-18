@@ -840,7 +840,14 @@ mod tests {
             .expect("select a point");
         let ctx = egui::Context::default();
         let frame = |app: &mut EditorApp| {
-            let _ = ctx.run(egui::RawInput::default(), |ctx| window(app, ctx));
+            let raw = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 800.0),
+                )),
+                ..Default::default()
+            };
+            let _ = ctx.run_ui(raw, |ui| window(app, ui.ctx()));
             app.ui_command("ui.pointMenu", None).expect("state")
         };
         for object in [false, true] {
