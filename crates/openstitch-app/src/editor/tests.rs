@@ -2526,9 +2526,12 @@ fn alt_drops_an_end_point_on_another_end_point_and_connects_them() {
         o.region.as_ref().map(|r| (r.kind, r.angle)),
         Some((RegionType::Fill, 45.0))
     );
+    // Two commands (the point onto the other end, then Close); the editor runs a gesture's
+    // commands as one undo step (`EditorApp::execute_all`), this helper one by one.
+    undo(&mut s);
     undo(&mut s);
     let o = s.design().objects[0].clone();
-    assert!(!o.contours[0].closed && o.region.is_none(), "one Undo");
+    assert!(!o.contours[0].closed && o.region.is_none());
     assert_eq!(o.contours[0].points[2], v2(800.0, 800.0));
     // Onto another line's end: only moved there, nothing joined (that is Join Lines).
     let b = line(&mut s, json!([[120, 80], [120, 50]]));

@@ -303,7 +303,7 @@ mod tests {
         let id = app
             .execute(&CommandRequest::new(
                 "shape.rectangle",
-                json!({ "x": 10, "y": 10, "width": 20, "height": 10, "outline": "#203040" }),
+                json!({ "x": 10, "y": 10, "width": 20, "height": 10, "fill": "#2e8b57", "outline": "#203040" }),
             ))
             .expect("rectangle")["id"]
             .as_u64()
