@@ -2090,15 +2090,15 @@ impl EditorApp {
             };
             for (mods, step) in [(Modifiers::SHIFT, base * 10.0), (Modifiers::NONE, base)] {
                 if take(KeyboardShortcut::new(mods, key)) && !self.refuse_locked() {
-                    // With points selected the arrows move the points, 0.5 mm a press as
-                    // PE-DESIGN's do (#1260; Shift: 5 mm).
-                    let points = crate::point_menu_ui::POINT_NUDGE
-                        * if mods == Modifiers::SHIFT { 10.0 } else { 1.0 };
+                    // With points selected the arrows move the points, 0.5 mm a press, and
+                    // do nothing with Shift held, as PE-DESIGN's (#1260, capture e9).
+                    let points = crate::point_menu_ui::POINT_NUDGE;
+                    let plain = mods == Modifiers::NONE;
                     let mut moved = false;
                     self.with_tools(|tools, ctx| {
                         let effects = tools.nudge_points(dx * points, dy * points, ctx);
                         moved = effects.is_some();
-                        effects.unwrap_or_default()
+                        effects.filter(|_| plain).unwrap_or_default()
                     });
                     if !moved {
                         self.on_selection(|s| CommandRequest::move_by(s, dx * step, dy * step));

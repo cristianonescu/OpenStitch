@@ -689,6 +689,32 @@ Line references are relative to `crates/`.
   8 mm's 8 extra needle points (163 / 155) are all in its middle V (#1064), and M at 8 mm's
   11 missing (154 / 165) are PE-DESIGN's start (8), its fan at each stem's top (5 and 6) less
   the middle V (ours 8 over).
+  Since 2026-11-18 (#1064, part): W's two inner arms are one block over the apex, as
+  PE-DESIGN's. No Convert to Blocks capture of M or W exists, so the block was read from the
+  stitch references: stroke-satin-M-8's middle block is one column through the notch, its
+  outer side the V's lower outline and its inner side the upper one, joined at equal fractions
+  of their lengths (its crossings stand at 44 to 54 degrees). The middle one of three corners
+  along an open stroke whose four pieces are slanted and lean opposite ways in turn (W, w) is
+  no longer cut; the column's sides are ordered along the outline contour (ordered by their
+  place along the centre line, the apex's points fell on both arms in turn and the outer side
+  ran back and forth over it) and joined by length. Needle points (PE-DESIGN / before / after):
+  W's middle block 154 / 74 + 98 / 152 and W 363 / 382 / 361; at 8 mm the block 62 / 32 + 42 /
+  64 and W 155 / 163 / 146. At 8 mm the 9 still missing are PE-DESIGN's foot tip sewn as a
+  second pass on the arm that runs on into its foot (40 + 12 against our 45) and its runs (8
+  against 3): #939; main's 163 came from the two arms overlapping in the middle. At 20 mm the
+  total agrees partly by compensation (our stopped arm 102 against 78, our run-on arm 98
+  against 94 + 14). OpenStitch's W is the mirror of PE-DESIGN's: ours runs the arms that fall
+  to the right on into the feet (the rule taken from V and A, #446), so its block is the right
+  foot and the two inner arms, where PE-DESIGN's is the left foot and the two inner arms;
+  which arm owns each foot is #939's question. Lowercase w (no capture): 285 → 266 at 20 mm,
+  116 → 120 at 8 mm. Fill text takes the same block and sides (no fill capture of W): fill W
+  737 → 727 and 211 → 206, fill w 470 → 454 and 146 → 143, fill M and V unchanged. Nothing
+  else changes: of 248 samples (every letter and digit, Lato Bold
+  and Pacifico, 20 and 8 mm) only W and w, and of the 241 text specs only those two; M, N and V
+  are byte-identical. M's middle V stays two blocks: as one column M falls from 367 to 349
+  against 374 until the fan at each stem's top is sewn too (#940). `stroke-satin-w` is held to
+  3 % (`w_s_inner_arms_are_one_column_through_the_apex`,
+  `satin_w_s_inner_arms_are_one_block_of_pe_design_s_size`).
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.
@@ -4737,6 +4763,47 @@ sewn before the bands.
 loads with it off and sews as it did. A region without the field does not load, as before. No
 `.osd` version step.
 
+### Satin on Closed Straight Line shapes: the U and the 120° band, 2026-11-18 (#1154)
+
+**Measured** on `compat/reference` (needle points; the U by part: right leg / left leg / bar).
+
+| shape | PE-DESIGN 11.50 | before | now |
+|---|---:|---:|---:|
+| `region-travel-u-satin` | 466 = 153 / 142 / 171 | 492 = 153 / 157 / 182 | 461 = 151 / 141 / 169 |
+| `satin-auto-bend-120`, `-nohalf` | 161 | 171 | 159 |
+| the band's mean stitch, Half Stitch on / off | 4.61 / 4.78 mm | 4.77 / 4.99 mm | 4.61 / 4.78 mm |
+
+**What PE-DESIGN does, and OpenStitch now too:**
+- **Under sewing on an inner edge.** A row lying on an inner edge of the under-sewing outline is
+  sewn on the side it is reached from: the U's row at x = 21 mm, reached from the leg, runs the
+  leg's length; the one at x = 9 mm, reached from the bar, only the bar part. The rows after it
+  then end beside the start point. OpenStitch sewed both the leg's length and walked 15 needle
+  points up the left edge.
+- **The section that holds the end point.** Entered from that point's side (the U's bar after
+  its left leg), its rows each end away from the point. PE-DESIGN starts the section on its own
+  first row (9.8 mm), sews the next one lattice line on (9.6 mm) and every other line from
+  there (9.1 … 0.2 mm), then steps up the far edge and sews the edge's own row back onto the
+  start point. OpenStitch sewed 9.8, 9.3 … 0.0 mm and walked 30 mm back.
+- **Round a bend of more than 100°** (Auto direction; the bends OpenStitch rebuilds on the outer edge) the spacing is kept across the leaning
+  rung at its outer end, so the outer needle points lie spacing / cos(lean) apart: 0.67 mm on
+  the legs, 0.94 mm at 45° and 1.3 mm at the 120° band's corner. OpenStitch kept 0.67 mm along
+  the edge all the way round.
+
+**Kept as it was:** a text's letters (no capture shows a letter's end or bend), columns of one
+section, and bends up to 100° (PE-DESIGN's 30° to 90° references keep their lattice).
+
+**Left:**
+- The U's right leg is 151 against 153. Its earlier 153 = 153 was two differences cancelling: a
+  top row at 10.2 mm counted in the leg (now at 10.0, as PE-DESIGN's), and under-sewing rows
+  one stitch short.
+- **Satin under sewing rows, not changed here:** PE-DESIGN steps the needle points 1.2 mm from
+  row to row on its 4 mm stitch (30 %), starting 2.0 mm in, so a 28 mm row has 8 stitches;
+  OpenStitch steps a third (1.33 mm) from 0, and has 7 on most rows. PE-DESIGN's second pass
+  along the first edge steps 2.33 mm, OpenStitch's 2.0 mm. Changing it moves every satin with
+  under sewing.
+- The 120° band's longest crossing is 9.78 mm against PE-DESIGN's 9.63 mm with Half Stitch
+  (9.71 before; without Half Stitch 10.03, so that one moved closer).
+
 ### Select Point: the right-click menu on a point, 2026-11-18 (#1258)
 
 **Measured** on PE-DESIGN 11.50 (black-box: its menu read from the screen, the geometry from 22
@@ -4851,7 +4918,8 @@ saved files, not in the repository).
 | Press and drag on a side | Inserts only; the point does not move. There is no segment drag. A right click on a side inserts nothing. | e3, e5 |
 | Selecting | Click a point; Ctrl+click adds; a click on a selected point keeps the selection; a drag box from empty space selects the points inside; a click on empty space clears. | screen |
 | Dragging one of several selected points | Moves all of them by the same offset. | e1 |
-| Arrow keys | Move the selected points 0.5 mm a press (ten presses: 30.0 → 35.0 mm exactly). Only Right was pressed. | e2 |
+| Arrow keys | Move the selected points 0.5 mm a press, in all four directions (ten presses right: 30.0 → 35.0 mm exactly; ten up, ten left, four down: −5.0 and −3.0 mm). With Shift or Ctrl held they do not move the points. | e2, e9 |
+| Alt + drag of an end point onto the line's other end | Connects the two ends: the open line becomes a closed shape, the two ends one point, with a fill as Close gives it. Owner's hand check, 2026-11-18 (the capture tool cannot hold Alt in a drag). | owner |
 | Delete key | Removes the selected points in one step; one Undo brings them back. | screen |
 | To Curve on a point in the middle of a straight side | Both handles on the side: the outline does not change (the same rule, point ∓ (next − previous) / 4). | e5 |
 | Right click on the shape, not on a point | The object's menu: Add Direction Line, Delete Direction Line, Reverse Direction Line, separator, Open, Close. Open line: only Close is available of the last two, Add and Reverse grey. Closed shape: Add, Reverse and Open available, Close grey. | screen |
@@ -4864,7 +4932,7 @@ saved files, not in the repository).
 - `object.insertPoint` inserts as above (`Contour::insert_point_edit`; the sewing code keeps
   the exact split, `insert_point`). The Point tool inserts on one click and never drags a side.
 - A drag from empty space is a box over the points; a click there clears. Dragging one of several
-  selected points, and the arrow keys (0.5 mm; Shift: 5 mm, our addition), are one
+  selected points, and the arrow keys (0.5 mm; nothing with Shift or Ctrl held), are one
   `object.movePoints`. Delete removes every selected point, down to two on any outline; at two
   it stays available and does nothing.
 - A right click on the shape beside its points opens the object's menu with PE-DESIGN's entries
@@ -4882,19 +4950,17 @@ Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_mak
 `a_right_click_beside_the_points_is_for_the_object_menu`,
 `the_object_menu_opens_and_closes_the_outline`.
 
-**By extension, not captured:** Alt held while an end point of an open line is dropped on another
-end point connects them: the same line's other end closes the line (as Close does), another
-line's end joins the two lines into one object (as Join Lines does), one undo step
-(`alt_drops_an_end_point_on_another_end_point_and_connects_them`). PE-DESIGN shows a hint for
-this when an end point is selected; the gesture itself could not be captured.
+- Alt held while an end point of an open line is dropped on its other end closes the line as
+  `object.closeOutline` does, fill included, the two ends one point, in one undo step
+  (`alt_drops_an_end_point_on_another_end_point_and_connects_them`). An end dropped on another
+  line's end is not joined: that is Join Lines.
 
 **Not matched, and why:**
 
 - Split at Point and Open on a shape sewn as a region only are refused (nothing would be left to
   sew); PE-DESIGN's behaviour there is not captured.
-- Up, Down and Left arrows, and Shift or Ctrl while dragging a point, are not captured; here the
-  arrows all step 0.5 mm, Shift locks a drag to an axis and Ctrl drags without snapping, as
-  before.
+- Shift or Ctrl held while dragging a point with the mouse is not captured; here Shift locks the
+  drag to an axis and Ctrl drags without snapping, as before.
 - The drag box selects the points of one outline of the shape (the one with the most points in
   the box); PE-DESIGN's shapes in the captures had one outline.
 - The browser version is checked in part B of #1260.

@@ -2465,8 +2465,9 @@ fn a_right_click_beside_the_points_is_for_the_object_menu() {
     );
 }
 
-/// Alt held while an end point is dropped on another end point connects them: the same line
-/// is closed, another line is joined (built from PE-DESIGN's hint text; not captured).
+/// Alt held while an end point of an open line is dropped on its other end connects the two
+/// ends: the line is closed as Close closes it, with its fill, the two ends one point (the
+/// owner's hand check of PE-DESIGN, 2026-11-18). Another line's end is not joined that way.
 #[test]
 fn alt_drops_an_end_point_on_another_end_point_and_connects_them() {
     let mut s = session();
@@ -2507,7 +2508,7 @@ fn alt_drops_an_end_point_on_another_end_point_and_connects_them() {
     );
     assert!(!s.design().objects[0].contours[0].closed);
     undo(&mut s);
-    // With Alt: closed, the doubled end one point, in one Undo.
+    // With Alt: closed, the doubled end one point, filled as Close fills it, in one Undo.
     let sel = alt_drag(
         &mut t,
         &mut s,
@@ -2516,12 +2517,20 @@ fn alt_drops_an_end_point_on_another_end_point_and_connects_them() {
         v2(501.0, 501.0),
         true,
     );
-    let c = s.design().objects[0].contours[0].clone();
-    assert!(c.closed && c.points.len() == 2, "{c:?}");
+    let o = s.design().objects[0].clone();
+    assert!(
+        o.contours[0].closed && o.contours[0].points.len() == 2,
+        "{o:?}"
+    );
+    assert_eq!(
+        o.region.as_ref().map(|r| (r.kind, r.angle)),
+        Some((RegionType::Fill, 45.0))
+    );
     undo(&mut s);
-    let c = s.design().objects[0].contours[0].clone();
-    assert!(!c.closed && c.points[2] == v2(800.0, 800.0), "one Undo");
-    // Onto another line's end: one object.
+    let o = s.design().objects[0].clone();
+    assert!(!o.contours[0].closed && o.region.is_none(), "one Undo");
+    assert_eq!(o.contours[0].points[2], v2(800.0, 800.0));
+    // Onto another line's end: only moved there, nothing joined (that is Join Lines).
     let b = line(&mut s, json!([[120, 80], [120, 50]]));
     let sel = alt_drag(
         &mut t,
@@ -2531,8 +2540,11 @@ fn alt_drops_an_end_point_on_another_end_point_and_connects_them() {
         v2(1199.0, 801.0),
         true,
     );
-    assert_eq!(s.design().objects.len(), 1, "joined");
-    assert_eq!(s.design().objects[0].contours[0].points.len(), 4);
-    assert!(s.design().index_of(b).is_none());
+    assert_eq!(s.design().objects.len(), 2);
+    assert!(s.design().index_of(b).is_some());
+    assert_eq!(
+        s.design().objects[0].contours[0].points[2],
+        v2(1199.0, 801.0)
+    );
     let _ = sel;
 }

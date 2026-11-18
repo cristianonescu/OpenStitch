@@ -1098,25 +1098,20 @@ impl ToolController {
                             "object.setPoint",
                             json!({ "id": point.id, "contour": point.contour, "index": point.index, "x": mm(v.x), "y": mm(v.y) }),
                         )];
-                        // Alt held on release: an end point dropped on another end point is
-                        // connected to it (the same line is closed, another line joined).
+                        // Alt held on release: an end point dropped on the line's other end is
+                        // connected to it: the line is closed as Close closes it, the two ends
+                        // one point.
                         if e.alt
-                            && let Some((to, join)) = self.connect_target(point, v, ctx)
+                            && let Some(to) = self.connect_target(point, v, ctx)
                         {
                             requests[0] = CommandRequest::new(
                                 "object.setPoint",
                                 json!({ "id": point.id, "contour": point.contour, "index": point.index, "x": mm(to.x), "y": mm(to.y) }),
                             );
-                            requests.push(match join {
-                                Some(other) => CommandRequest::new(
-                                    "shape.joinLines",
-                                    json!({ "ids": [point.id, other], "tolerance": 0.1 }),
-                                ),
-                                None => CommandRequest::new(
-                                    "object.closeOutline",
-                                    json!({ "id": point.id, "contour": point.contour }),
-                                ),
-                            });
+                            requests.push(CommandRequest::new(
+                                "object.closeOutline",
+                                json!({ "id": point.id, "contour": point.contour }),
+                            ));
                             self.point = None;
                             self.more_points.clear();
                         }
@@ -1148,43 +1143,26 @@ impl ToolController {
         }
     }
 
-    /// Where an end point of an open line dropped at `at` connects: the position of another
-    /// end point within the point radius, and the other line's object when it is not the
-    /// same line's other end. `None` when `point` is not an end of an open one-outline line
-    /// or no end point is near.
-    fn connect_target(
-        &self,
-        point: PointRef,
-        at: Vec2,
-        ctx: &ToolContext,
-    ) -> Option<(Vec2, Option<u64>)> {
-        let ends = |o: &DesignObject| match o.contours.as_slice() {
-            [c] if !c.closed && c.points.len() >= 2 => {
-                Some((c.points[0], c.points[c.points.len() - 1]))
-            }
-            _ => None,
-        };
+    /// Where an end point of an open line dropped at `at` with Alt held connects: the
+    /// line's other end, when it is within the point radius (the owner's hand check of
+    /// PE-DESIGN, 2026-11-18: Alt + drag connects the two ends of a shape that has two ends).
+    /// `None` when `point` is not an end of an open one-outline line of three points or more,
+    /// or the other end is not near.
+    fn connect_target(&self, point: PointRef, at: Vec2, ctx: &ToolContext) -> Option<Vec2> {
         let own = ctx.point_target().filter(|o| o.id == point.id)?;
-        let (first, last) = ends(own)?;
-        let n = own.contours[0].points.len();
+        let [c] = own.contours.as_slice() else {
+            return None;
+        };
+        let n = c.points.len();
+        if c.closed || n < 3 {
+            return None;
+        }
         let other_end = match point.index {
-            0 => last,
-            i if i + 1 == n => first,
+            0 => c.points[n - 1],
+            i if i + 1 == n => c.points[0],
             _ => return None,
         };
-        let near = |q: Vec2| q.distance(at) <= ctx.point_radius();
-        if n > 2 && near(other_end) {
-            return Some((other_end, None));
-        }
-        ctx.design
-            .objects
-            .iter()
-            .filter(|o| o.id != own.id && o.kind == ObjectKind::Shape && o.visible && !o.locked)
-            .filter_map(|o| ends(o).map(|e| (o.id, e)))
-            .flat_map(|(id, (a, b))| [(id, a), (id, b)])
-            .filter(|(_, q)| near(*q))
-            .min_by(|x, y| x.1.distance(at).total_cmp(&y.1.distance(at)))
-            .map(|(id, q)| (q, Some(id)))
+        (other_end.distance(at) <= ctx.point_radius()).then_some(other_end)
     }
 
     /// Arrow keys with the Point tool: moves the selected vertices by (`dx`, `dy`) (0.1 mm
