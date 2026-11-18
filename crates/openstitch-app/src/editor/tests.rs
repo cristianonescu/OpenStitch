@@ -2335,3 +2335,41 @@ fn split_at_point_and_delete_from_the_menu() {
     undo(&mut s);
     assert_eq!(s.design().objects.len(), before, "one Undo");
 }
+
+/// The screen tips of To Curve and To Straight (also what `ui.actions` hands the Assistant)
+/// say what the commands do: To Curve bends the outline at once, To Straight leaves a side
+/// to a curve point bent (#1258 review).
+#[test]
+fn the_point_kind_tips_describe_what_the_commands_do() {
+    use super::ribbon::Action;
+    let mut s = session();
+    let id = rect_design(&mut s);
+    let before = s.design().objects[0].contours[0].path();
+    run(
+        &mut s,
+        &CommandRequest::new(
+            "object.setPointKind",
+            json!({ "id": id, "index": 0, "kind": "curve" }),
+        ),
+    );
+    assert_ne!(
+        s.design().objects[0].contours[0].path(),
+        before,
+        "To Curve bends the outline"
+    );
+    let curve = Action::PointToCurve.info().tip;
+    assert!(
+        curve.contains("bends at once") && curve.contains("smooth"),
+        "{curve}"
+    );
+    assert!(
+        !curve.contains("does not move") && !curve.contains("nothing moves"),
+        "{curve}"
+    );
+    let straight = Action::PointToStraight.info().tip;
+    assert!(
+        straight.contains("still bends") && straight.contains("lose their handles"),
+        "{straight}"
+    );
+    assert!(!straight.contains("both sides"), "{straight}");
+}

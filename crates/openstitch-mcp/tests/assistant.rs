@@ -885,6 +885,29 @@ fn skill_reference_lists_and_returns_the_bundled_files() {
     editor.finish();
 }
 
+/// The skill describes To Curve and To Straight as the commands behave (#1258; an earlier
+/// text said To Curve moved nothing and To Straight straightened both sides always).
+#[test]
+fn the_skill_describes_to_curve_and_to_straight_as_they_behave() {
+    let (_, skill) = openstitch_mcp::skills::FILES
+        .iter()
+        .find(|(name, _)| name.ends_with("SKILL.md"))
+        .expect("SKILL.md");
+    let at = skill.find("object.setPointKind").expect("the point kinds");
+    let bullet: String = skill[at..].chars().take(1200).collect();
+    for words in [
+        "(next − previous) / 4",
+        "bend at once",
+        "loses its",
+        "still bends from that point's handle",
+    ] {
+        assert!(bullet.contains(words), "the skill says {words:?}: {bullet}");
+    }
+    for wrong in ["nothing moves", "two thirds", "both sides at the point"] {
+        assert!(!bullet.contains(wrong), "the skill still says {wrong:?}");
+    }
+}
+
 #[test]
 fn every_command_the_skill_names_exists() {
     let session = Session::new(".");

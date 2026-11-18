@@ -416,9 +416,12 @@ then style them in the next.
   whole's sewing attributes and thread and sews where the whole did. Each is one undo step;
   Ctrl+J and Ctrl+Shift+K in the editor (`ui.run joinLines` / `ui.run breakApart`).
 - Points of an outline (the Select Point tool's right-click menu): `object.setPointKind`
-  `{id, contour, index | indexes, kind}` is To Straight (`straight`: both sides at the point
-  become straight), To Curve (`curve`: its straight sides become curves with handles at one
-  and two thirds of each side, so nothing moves yet), To Smooth (`smooth`: the two handles on
+  `{id, contour, index | indexes, kind}` is To Straight (`straight`: the point loses its
+  handles; a side to another straight point becomes a straight line, a side to a curve point
+  still bends from that point's handle), To Curve (`curve`, on a straight point: it becomes a
+  smooth curve point with handles at point ∓ (next − previous) / 4, as PE-DESIGN places
+  them, so both sides at it bend at once; a point in the middle of a straight side keeps
+  the outline), To Smooth (`smooth`: the two handles on
   one line, each keeps its length), To Symmetry (`symmetric`: on one line at the same length)
   and To Cusp (`cusp`: independent handles). The last three are refused on a straight point:
   make it a curve first. The kind is saved with the design and only changes editing:
