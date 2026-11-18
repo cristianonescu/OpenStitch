@@ -255,13 +255,14 @@ fn several_points_change_in_one_undo_step() {
         .contains("0...3")
     );
 
-    // Delete: two corners at once would leave a 2-point closed straight outline; refused whole.
+    // Delete goes down to two points on a closed outline, as PE-DESIGN's (#1260); below
+    // that it is refused whole.
     let e = fails(
         &mut s,
         "object.deletePoint",
-        json!({ "id": id, "indexes": [0, 1] }),
+        json!({ "id": id, "indexes": [0, 1, 2] }),
     );
-    assert!(e.contains("at least 3"), "{e}");
+    assert!(e.contains("at least 2"), "{e}");
     assert_eq!(contour(&s, id).points.len(), 4, "nothing was deleted");
     run(
         &mut s,
@@ -279,6 +280,22 @@ fn several_points_change_in_one_undo_step() {
     );
     undo(&mut s);
     assert_eq!(contour(&s, id).points.len(), 5, "one undo step");
+    undo(&mut s);
+    run(
+        &mut s,
+        "object.deletePoint",
+        json!({ "id": id, "indexes": [2, 3] }),
+    );
+    let c = contour(&s, id);
+    assert!(c.closed && c.points == vec![v2(0.0, 0.0), v2(400.0, 0.0)]);
+    // A two-point closed outline still compiles (PE-DESIGN sews its side there and back).
+    let _ = stitches(&s);
+    let e = fails(
+        &mut s,
+        "object.deletePoint",
+        json!({ "id": id, "index": 0 }),
+    );
+    assert!(e.contains("at least 2"), "{e}");
 }
 
 #[test]
@@ -292,7 +309,7 @@ fn split_at_point_opens_a_closed_outline_and_cuts_an_open_line_in_two() {
     );
     assert_eq!(
         r,
-        json!({ "ids": [id], "opened": true, "regionOff": false })
+        json!({ "ids": [id], "opened": true, "regionOff": false, "regionToLine": false })
     );
     let c = contour(&s, id);
     assert!(!c.closed);
@@ -370,7 +387,8 @@ fn opening_the_outline_of_a_region() {
     );
     assert_eq!(r["regionOff"], true);
     assert!(object(&s, both).region.is_none() && object(&s, both).line.is_some());
-    // Region only: refused, nothing changes.
+    // Region only: the region becomes line sewing in its thread, a running stitch, as
+    // object.regionToLine gives it; one undo step.
     let only = run(
         &mut s,
         "shape.rectangle",
@@ -378,15 +396,44 @@ fn opening_the_outline_of_a_region() {
     )["id"]
         .as_u64()
         .expect("id");
-    if object(&s, only).line.is_none() {
-        let e = fails(
-            &mut s,
-            "object.splitAtPoint",
-            json!({ "id": only, "index": 0 }),
-        );
-        assert!(e.contains("nothing to sew"), "{e}");
-        assert!(contour(&s, only).closed);
-    }
+    assert!(object(&s, only).line.is_none());
+    let thread = object(&s, only)
+        .region
+        .as_ref()
+        .expect("region")
+        .thread
+        .clone();
+    let r = run(
+        &mut s,
+        "object.splitAtPoint",
+        json!({ "id": only, "index": 0 }),
+    );
+    assert_eq!(
+        (&r["regionOff"], &r["regionToLine"]),
+        (&json!(true), &json!(true))
+    );
+    let o = object(&s, only);
+    assert!(!o.contours[0].closed && o.region.is_none());
+    let line = o.line.as_ref().expect("line sewing");
+    assert_eq!(
+        (line.kind, &line.thread),
+        (openstitch_design::LineType::Running, &thread)
+    );
+    undo(&mut s);
+    let o = object(&s, only);
+    assert!(
+        o.contours[0].closed && o.region.is_some() && o.line.is_none(),
+        "one undo step"
+    );
+    // Open does the same.
+    let r = run(&mut s, "object.openOutline", json!({ "id": only }));
+    assert_eq!(
+        r,
+        json!({ "id": only, "regionOff": true, "regionToLine": true })
+    );
+    let o = object(&s, only);
+    assert!(!o.contours[0].closed && o.region.is_none() && o.line.is_some());
+    assert!(!stitches(&s).is_empty());
 }
 
 /// #1258's rule: a command says what it stores, read from the registry as a model reads it.
@@ -447,7 +494,9 @@ fn the_registry_says_what_each_point_command_stores() {
     for words in [
         "closed outline is opened",
         "region",
-        "switched off",
+        "is removed",
+        "region only gets line sewing",
+        "regionToLine",
         "two objects",
         "new id",
         "first and last point",
@@ -477,8 +526,7 @@ fn the_registry_says_what_each_point_command_stores() {
 }
 
 /// Point kinds change editing, not sewing: every example design compiles to the same
-/// stitches with a kind stored on each of its points, and saves without a `kinds` key until
-/// one is stored.
+/// stitches with a kind stored on each of its points, and the kinds are saved.
 #[test]
 fn example_designs_sew_the_same_stitches_whatever_kinds_their_points_have() {
     let examples = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
@@ -530,12 +578,6 @@ fn example_designs_sew_the_same_stitches_whatever_kinds_their_points_have() {
         if d.objects.iter().all(|o| o.contours.is_empty()) {
             continue;
         }
-        let saved = openstitch_design::project::encode(&d).expect("encode");
-        assert!(
-            !String::from_utf8_lossy(&saved).contains("\"kinds\""),
-            "{}: no kinds until one is stored",
-            path.display()
-        );
         let before = Compiler::for_design(&d).compile(&d).stitches;
         for o in &mut d.objects {
             for c in &mut o.contours {
@@ -689,4 +731,309 @@ fn setting_sides_straight_leaves_no_kind_behind() {
         json!({ "id": id, "index": 0, "kind": "curve" }),
     );
     assert_eq!(r["changed"], 1, "To Curve is offered again");
+}
+
+// MARK: #1260, the rest of the Select Point tool
+
+/// One click on a side (#1260, capture e5): a straight point on a straight side; on a curve
+/// an exact split whose new point is smooth, and a straight end stays a straight point.
+#[test]
+fn a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_makes_it() {
+    let mut s = Session::new(std::env::temp_dir());
+    // PE-DESIGN's top side of e5: (35, 30.5) … (70, 30.5) with a point at 50.1 made a curve
+    // point (handles ∓8.75 mm on the side).
+    let id = run(
+        &mut s,
+        "shape.polygon",
+        json!({ "points": [[35, 30.5], [50.1, 30.5], [70, 30.5]], "closed": false, "outline": "#203040" }),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let r = run(
+        &mut s,
+        "object.insertPoint",
+        json!({ "id": id, "segment": 0, "t": 0.5 }),
+    );
+    assert_eq!(r["index"], 1);
+    assert_eq!(contour(&s, id).kind(1), PointKind::Unset);
+    assert!(!contour(&s, id).is_curve_point(1) && contour(&s, id).curves.is_empty());
+    undo(&mut s);
+    run(
+        &mut s,
+        "object.setPointKind",
+        json!({ "id": id, "index": 1, "kind": "curve" }),
+    );
+    let (a, l) = contour(&s, id).point_handles(1);
+    assert!(
+        a.expect("a").distance(v2(413.5, 305.0)) < 1e-6
+            && l.expect("l").distance(v2(588.5, 305.0)) < 1e-6
+    );
+    // PE-DESIGN's click landed at t = 0.826 of the curved piece: the new point at 65.1 mm
+    // with handles at 58.59 and 66.47, the curve point's handle drawn back to 57.33.
+    let r = run(
+        &mut s,
+        "object.insertPoint",
+        json!({ "id": id, "segment": 1, "t": 0.826 }),
+    );
+    assert_eq!(r["index"], 2);
+    let c = contour(&s, id);
+    assert!(
+        (c.points[2].x - 651.0).abs() < 0.3 && (c.points[2].y - 305.0).abs() < 1e-9,
+        "{:?}",
+        c.points[2]
+    );
+    assert_eq!(c.kind(2), PointKind::Smooth);
+    let (a, l) = c.point_handles(2);
+    assert!(
+        (a.expect("a").x - 585.9).abs() < 0.3 && (l.expect("l").x - 664.7).abs() < 0.3,
+        "{a:?} {l:?}"
+    );
+    assert!((c.point_handles(1).1.expect("leaving").x - 573.3).abs() < 0.3);
+    assert_eq!(
+        c.kind(1),
+        PointKind::Smooth,
+        "the curve point keeps its kind"
+    );
+    assert!(
+        !c.is_curve_point(3),
+        "the straight end stays a straight point"
+    );
+    assert!(c.borrows_handle(2, false));
+    undo(&mut s);
+    assert_eq!(contour(&s, id).points.len(), 3, "one undo step");
+}
+
+/// Dragging one of several selected points, and the arrow keys (#1260, captures e1, e2):
+/// `object.movePoints`. Ten presses of 0.5 mm move PE-DESIGN's corner exactly 5.0 mm.
+#[test]
+fn several_points_move_together_in_one_undo_step() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = square(&mut s);
+    for _ in 0..10 {
+        run(
+            &mut s,
+            "object.movePoints",
+            json!({ "id": id, "index": 0, "dx": 0.5, "dy": 0 }),
+        );
+    }
+    assert_eq!(contour(&s, id).points[0], v2(50.0, 0.0));
+    let r = run(
+        &mut s,
+        "object.movePoints",
+        json!({ "id": id, "indexes": [3, 2], "dx": -5, "dy": 5 }),
+    );
+    assert_eq!(r["moved"], 2);
+    let c = contour(&s, id);
+    assert_eq!(
+        (c.points[2], c.points[3]),
+        (v2(350.0, 450.0), v2(-50.0, 450.0))
+    );
+    assert_eq!(c.points[1], v2(400.0, 0.0));
+    undo(&mut s);
+    assert_eq!(
+        contour(&s, id).points[2],
+        v2(400.0, 400.0),
+        "one undo step for both"
+    );
+    // A curve point takes its handles (and the copy its straight neighbour borrows) along.
+    run(
+        &mut s,
+        "object.setPointKind",
+        json!({ "id": id, "index": 2, "kind": "curve" }),
+    );
+    let before = contour(&s, id).point_handles(2);
+    run(
+        &mut s,
+        "object.movePoints",
+        json!({ "id": id, "indexes": [2], "dx": 1, "dy": 1 }),
+    );
+    let after = contour(&s, id).point_handles(2);
+    let d = v2(10.0, 10.0);
+    assert_eq!(after, (before.0.map(|h| h + d), before.1.map(|h| h + d)));
+    assert!(contour(&s, id).borrows_handle(2, false) && contour(&s, id).borrows_handle(1, true));
+    assert!(
+        fails(
+            &mut s,
+            "object.movePoints",
+            json!({ "id": id, "indexes": [9], "dx": 1, "dy": 1 })
+        )
+        .contains("0...3")
+    );
+}
+
+/// The object menu's Close and Open (#1260, captures e7, e8): Close makes the open line a
+/// closed shape and gives it a region, Fill Stitch at 45°; Open removes the closing side and
+/// the region.
+#[test]
+fn close_adds_a_region_and_open_removes_it_as_pe_design_does() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = open_line(&mut s);
+    assert!(object(&s, id).region.is_none());
+    let before = stitches(&s).len();
+    let e = fails(&mut s, "object.openOutline", json!({ "id": id }));
+    assert!(e.contains("open already"), "{e}");
+    let r = run(&mut s, "object.closeOutline", json!({ "id": id }));
+    assert_eq!(r, json!({ "id": id, "regionAdded": true }));
+    let o = object(&s, id);
+    assert!(o.contours[0].closed && o.contours[0].points.len() == 3);
+    let region = o.region.as_ref().expect("a region");
+    assert_eq!(
+        (region.kind, region.angle),
+        (openstitch_design::RegionType::Fill, 45.0)
+    );
+    assert_eq!(Some(&region.thread), o.line.as_ref().map(|l| &l.thread));
+    assert!(stitches(&s).len() > 2 * before, "the triangle is filled");
+    let e = fails(&mut s, "object.closeOutline", json!({ "id": id }));
+    assert!(e.contains("closed already"), "{e}");
+    let r = run(&mut s, "object.openOutline", json!({ "id": id }));
+    assert_eq!(
+        r,
+        json!({ "id": id, "regionOff": true, "regionToLine": false })
+    );
+    let o = object(&s, id);
+    assert!(!o.contours[0].closed && o.region.is_none() && o.line.is_some());
+    assert_eq!(
+        o.contours[0].points,
+        vec![v2(0.0, 0.0), v2(300.0, 0.0), v2(300.0, 300.0)]
+    );
+    assert_eq!(stitches(&s).len(), before, "the line as it was");
+    undo(&mut s);
+    assert!(object(&s, id).region.is_some(), "one undo step");
+    undo(&mut s);
+    // Without a region, and with ends that lie on each other.
+    run(
+        &mut s,
+        "object.setPoint",
+        json!({ "id": id, "index": 2, "x": 0, "y": 0 }),
+    );
+    let r = run(
+        &mut s,
+        "object.closeOutline",
+        json!({ "id": id, "region": false }),
+    );
+    assert_eq!(r["regionAdded"], false);
+    let o = object(&s, id);
+    assert!(o.region.is_none() && o.contours[0].closed);
+    assert_eq!(
+        o.contours[0].points.len(),
+        2,
+        "the doubled end is one point"
+    );
+}
+
+#[test]
+fn the_registry_says_what_the_1260_commands_store() {
+    let s = Session::new(std::env::temp_dir());
+    let commands = s.commands();
+    let summary = |id: &str| {
+        commands
+            .iter()
+            .find(|c| c.id == id)
+            .unwrap_or_else(|| panic!("{id} is registered"))
+            .summary
+    };
+    for words in [
+        "closing side",
+        "removed",
+        "regionOff",
+        "region only gets line sewing",
+        "running stitch in the region's thread",
+        "regionToLine",
+        "One undo step",
+    ] {
+        assert!(
+            summary("object.openOutline").contains(words),
+            "open: {words}"
+        );
+    }
+    for words in [
+        "straight closing side",
+        "Fill Stitch at the default direction of 45 degrees",
+        "regionAdded",
+        "'region: false'",
+        "become one point",
+        "One undo step",
+    ] {
+        assert!(
+            summary("object.closeOutline").contains(words),
+            "close: {words}"
+        );
+    }
+    for words in [
+        "same offset",
+        "0.5 mm",
+        "own curve handles",
+        "One undo step",
+    ] {
+        assert!(
+            summary("object.movePoints").contains(words),
+            "move: {words}"
+        );
+    }
+    for words in [
+        "one click",
+        "straight point on a straight side",
+        "stored as smooth",
+    ] {
+        assert!(
+            summary("object.insertPoint").contains(words),
+            "insert: {words}"
+        );
+    }
+    assert!(summary("object.deletePoint").contains("keeps 2 points, open or closed"));
+    let dx = commands
+        .iter()
+        .find(|c| c.id == "object.movePoints")
+        .and_then(|c| c.params.iter().find(|p| p.name == "dx"))
+        .expect("dx");
+    assert!(dx.summary.contains("old ones plus this"));
+}
+
+/// A new ellipse's four points are smooth curve points, as the points of PE-DESIGN's circle
+/// are (kind 0x11, capture c0): a dragged handle turns the other. Its stitches and its PES
+/// vertices are what they were before kinds existed.
+#[test]
+fn a_new_ellipse_has_smooth_points_as_pe_designs_circle() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = run(
+        &mut s,
+        "shape.ellipse",
+        json!({ "cx": 50, "cy": 50, "rx": 20, "outline": "#203040" }),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let c = contour(&s, id).clone();
+    assert_eq!(c.points.len(), 4);
+    assert!((0..4).all(|i| c.kind(i) == PointKind::Smooth && c.is_curve_point(i)));
+    // The kinds change nothing that is sewn.
+    let mut plain = s.design().clone();
+    for o in &mut plain.objects {
+        for c in &mut o.contours {
+            c.kinds.clear();
+        }
+    }
+    assert!(
+        Compiler::for_design(&plain).compile(&plain).stitches == stitches(&s),
+        "the same stitches with and without the kinds"
+    );
+    // Dragging the leaving handle of point 0 turns its arriving handle.
+    let (a, l) = c.point_handles(0);
+    let (a, l) = (a.expect("a") - c.points[0], l.expect("l") - c.points[0]);
+    let to = c.points[0] + v2(l.y, -l.x);
+    drag_leaving(&mut s, id, 0, [to.x / 10.0, to.y / 10.0]);
+    let c2 = contour(&s, id);
+    let a2 = c2.point_handles(0).0.expect("a") - c2.points[0];
+    assert!(
+        (a2.length() - a.length()).abs() < 1e-6,
+        "its length is kept"
+    );
+    assert!(
+        (a2.x * l.x + a2.y * l.y).abs() < 1e-6,
+        "turned a quarter with the dragged one"
+    );
+    assert!(
+        s.commands()
+            .iter()
+            .any(|c| c.id == "shape.ellipse" && c.summary.contains("stored as smooth"))
+    );
 }

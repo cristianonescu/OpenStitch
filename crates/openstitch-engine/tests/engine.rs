@@ -878,7 +878,8 @@ fn path_and_point_commands_reject_bad_input() {
         );
         assert_eq!(s.design(), &before, "{id} changed the design");
     }
-    // A closed contour keeps at least three vertices.
+    // An outline keeps at least two vertices, closed too (PE-DESIGN's Delete, #1260).
+    run(&mut s, "object.deletePoint", json!({"id": 1, "index": 0}));
     run(&mut s, "object.deletePoint", json!({"id": 1, "index": 0}));
     assert!(
         s.execute("object.deletePoint", Some(&json!({"id": 1, "index": 0})))

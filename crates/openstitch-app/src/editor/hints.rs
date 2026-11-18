@@ -49,7 +49,7 @@ pub fn table(tool: Tool) -> (&'static str, [Option<&'static str>; 3]) {
             [None, FREE, None],
         ),
         Tool::Point => (
-            "Drag points or handles · double-click an edge to add a point · Delete removes it · C curve / S straight under the pointer · on a text: click a character, drag it, its top handle turns it, the others resize it",
+            "Click the outline to add a point · drag points or handles; Ctrl+click or a drag box selects several, which move together · arrow keys move them 0.5 mm · right-click a point for its menu, the shape for Open and Close · Delete removes the selected points · hold Alt and drop an end point of an open line on its other end to close it · C curve / S straight under the pointer · on a text: click a character, drag it, its top handle turns it, the others resize it",
             [None, FREE, None],
         ),
         Tool::Pen => (

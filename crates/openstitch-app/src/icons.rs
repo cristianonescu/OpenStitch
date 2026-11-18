@@ -501,6 +501,8 @@ fn glyph(a: Action) -> Glyph {
         DeleteDirectionLine => G::Own("dir_delete"),
         ReverseDirectionLine => G::Own("dir_reverse"),
         DeletePoint => G::Own("point_delete"),
+        OpenOutline => G::OpenLine,
+        CloseOutline => G::Polygon,
         PointToStraight => G::OpenLine,
         PointToCurve => G::Curve,
         PointToSmooth | PointToSymmetry | PointToCusp => G::PointEdit,

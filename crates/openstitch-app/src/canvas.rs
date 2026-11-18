@@ -4,7 +4,6 @@
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, CornerRadius, Pos2, Sense, Shape, Stroke, StrokeKind};
 use openstitch_app::editor::hit::bounds_of;
-use openstitch_app::editor::points::handle_lines;
 use openstitch_app::editor::{
     Handle, Phase, PointerEvent, ScreenRect, SelectionHandles, ToolPreview, Viewport,
 };
@@ -895,24 +894,33 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
             Stroke::new(1.5, crate::theme::accent()),
             None,
         );
-        for h in handle_lines(c) {
+        // As PE-DESIGN's Select Point draws them (#1260): every point a small hollow square,
+        // a selected point a filled black one, and a selected curve point its two handle
+        // lines, each ending in a small filled square. Other points' handles do not show.
+        let chosen: Vec<usize> = overlay
+            .selected
+            .iter()
+            .chain(&overlay.also)
+            .filter(|(k, _)| *k == ci)
+            .map(|(_, i)| *i)
+            .collect();
+        let ink = Color32::from_gray(16);
+        for h in openstitch_app::editor::points::handle_lines_of(c, &chosen) {
             let (a, at) = (pos(vp.to_screen(h.anchor)), pos(vp.to_screen(h.at)));
-            painter.line_segment([a, at], handle_stroke);
-            handle(at);
+            painter.line_segment([a, at], Stroke::new(1.0, ink));
+            painter.rect_filled(
+                egui::Rect::from_center_size(at, egui::vec2(5.0, 5.0)),
+                CornerRadius::ZERO,
+                ink,
+            );
         }
         for (i, &p) in c.points.iter().enumerate() {
-            let selected =
-                overlay.selected == Some((ci, i)) || overlay.also.contains(&(ci, i));
-            let s = SelectionHandles::RADIUS as f32 * 0.8;
+            let selected = chosen.contains(&i);
             painter.rect(
-                egui::Rect::from_center_size(pos(vp.to_screen(p)), egui::vec2(2.0 * s, 2.0 * s)),
+                egui::Rect::from_center_size(pos(vp.to_screen(p)), egui::vec2(7.0, 7.0)),
                 CornerRadius::ZERO,
-                if selected {
-                    crate::theme::accent()
-                } else {
-                    Color32::WHITE
-                },
-                Stroke::new(1.5, crate::theme::accent()),
+                if selected { ink } else { Color32::WHITE },
+                Stroke::new(1.0, ink),
                 StrokeKind::Middle,
             );
         }

@@ -858,6 +858,15 @@ fn point_tool_drags_handle_and_selects_shapes() {
     // No target yet: clicking a shape selects it.
     let sel = click_at(&mut t, &mut s, BTreeSet::new(), v2(200.0, 150.0), 1);
     assert_eq!(sel, BTreeSet::from([id]));
+    // A handle shows, and can be dragged, once its point is selected (PE-DESIGN's, #1260):
+    // before that a press there is a press on empty space.
+    drag(&mut t, &mut s, sel, v2(250.0, 50.0), v2(260.0, 20.0), false);
+    assert_eq!(
+        *s.design(),
+        before,
+        "an unselected point's handle is not there"
+    );
+    let sel = click_at(&mut t, &mut s, BTreeSet::from([id]), v2(300.0, 100.0), 1);
     let sel = drag(&mut t, &mut s, sel, v2(250.0, 50.0), v2(260.0, 20.0), false);
     let z = s.design().objects[0].contours[0].curve(0).expect("curve");
     assert_eq!(z.c2, v2(260.0, 20.0));
@@ -882,9 +891,10 @@ fn point_tool_double_click_inserts_and_delete_removes() {
     let sel = click_at(&mut t, &mut s, sel, apex + v2(0.0, 1.0), 1);
     assert_eq!(
         s.design().objects[0].contours[0].points.len(),
-        4,
-        "single click inserts nothing"
+        5,
+        "one click inserts a point, as PE-DESIGN's Select Point does"
     );
+    // The second click of a double-click lands on the new point and adds nothing.
     let sel = click_at(&mut t, &mut s, sel, apex + v2(0.0, 1.0), 2);
     let c = s.design().objects[0].contours[0].clone();
     assert_eq!(c.points.len(), 5);
@@ -2003,6 +2013,19 @@ fn a_two_mm_candlewick_is_kept_by_a_set_line_without_width() {
 
 // MARK: the point menu (#1258)
 
+/// The rectangle of [`rect_design`] with line sewing as well as its fill, as PE-DESIGN's
+/// capture shapes had: a shape sewn as a region only greys Split at Point and Open.
+fn outlined_rect(s: &mut Session) -> u64 {
+    let r = run(
+        s,
+        &CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 10, "y": 10, "width": 20, "height": 10, "fill": "#2e8b57", "outline": "#203040" }),
+        ),
+    );
+    r["id"].as_u64().expect("id")
+}
+
 /// The menu's entries for the selected points, as `(key, enabled)` in menu order.
 fn menu(t: &ToolController, s: &Session, sel: &BTreeSet<u64>) -> Vec<(&'static str, bool)> {
     use super::points::PointAction;
@@ -2061,7 +2084,7 @@ fn the_point_menu_has_pe_designs_entries_in_order_with_its_separators() {
 fn a_right_click_on_a_straight_corner_offers_what_pe_design_offers() {
     use super::points::PointAction as P;
     let mut s = session();
-    let id = rect_design(&mut s);
+    let id = outlined_rect(&mut s);
     let mut t = ToolController::default();
     t.set_tool(Tool::Point);
     let sel = BTreeSet::from([id]);
@@ -2210,7 +2233,7 @@ fn the_end_of_an_open_line_offers_what_pe_design_offers() {
 fn ctrl_click_selects_several_points_and_the_menu_acts_on_all() {
     use super::points::PointAction as P;
     let mut s = session();
-    let id = rect_design(&mut s);
+    let id = outlined_rect(&mut s);
     let mut t = ToolController::default();
     t.set_tool(Tool::Point);
     let sel = BTreeSet::from([id]);
@@ -2237,17 +2260,23 @@ fn ctrl_click_selects_several_points_and_the_menu_acts_on_all() {
         (overlay.selected, overlay.also),
         (Some((0, 2)), vec![(0, 0)])
     );
-    // Split at Point needs one point. Delete stays available, as PE-DESIGN's does, and does
-    // nothing where the outline would keep too few points (two of four corners here).
+    // Split at Point needs one point. Delete stays available, as PE-DESIGN's does, and
+    // removes both selected points in one step (#1260).
     let m = menu(&t, &s, &sel);
     assert_eq!(
         (m[5], m[6]),
         (("splitAtPoint", false), ("deletePoint", true))
     );
-    assert_eq!(choose(&mut t, &mut s, &sel, P::Delete), 0);
-    assert_eq!(s.design().objects[0].contours[0].points.len(), 4);
+    assert_eq!(choose(&mut t, &mut s, &sel, P::Delete), 1);
+    assert_eq!(s.design().objects[0].contours[0].points.len(), 2);
+    undo(&mut s);
+    assert_eq!(
+        s.design().objects[0].contours[0].points.len(),
+        4,
+        "one Undo"
+    );
     let design = s.design().clone();
-    assert_eq!(t.selected_points(&ctx(&design, &sel)).len(), 2);
+    assert!(t.select_points(0, &[2, 0], &ctx(&design, &sel)));
     assert_eq!(
         choose(&mut t, &mut s, &sel, P::ToCurve),
         1,
@@ -2293,7 +2322,7 @@ fn ctrl_click_selects_several_points_and_the_menu_acts_on_all() {
 fn split_at_point_and_delete_from_the_menu() {
     use super::points::PointAction as P;
     let mut s = session();
-    let id = rect_design(&mut s);
+    let id = outlined_rect(&mut s);
     let mut t = ToolController::default();
     t.set_tool(Tool::Point);
     let sel = BTreeSet::from([id]);
@@ -2306,11 +2335,17 @@ fn split_at_point_and_delete_from_the_menu() {
         t.point_actions(&ctx(&design, &sel)).is_none(),
         "selection cleared"
     );
-    // A triangle's corner: Delete is shown as available and does nothing.
+    // Delete goes on down to two points, as PE-DESIGN's; there it is still shown as
+    // available and does nothing.
     assert!(t.select_point_at(v2(300.0, 100.0), &ctx(&design, &sel)));
+    assert_eq!(choose(&mut t, &mut s, &sel, P::Delete), 1);
+    assert_eq!(s.design().objects[0].contours[0].points.len(), 2);
+    let design = s.design().clone();
+    assert!(t.select_point_at(v2(300.0, 200.0), &ctx(&design, &sel)));
     assert_eq!(menu(&t, &s, &sel)[6], ("deletePoint", true));
     assert_eq!(choose(&mut t, &mut s, &sel, P::Delete), 0);
-    assert_eq!(s.design().objects[0].contours[0].points.len(), 3);
+    assert_eq!(s.design().objects[0].contours[0].points.len(), 2);
+    undo(&mut s);
     undo(&mut s);
 
     // An open line: Split at Point is greyed out on its ends, available in between.
@@ -2336,40 +2371,234 @@ fn split_at_point_and_delete_from_the_menu() {
     assert_eq!(s.design().objects.len(), before, "one Undo");
 }
 
-/// The screen tips of To Curve and To Straight (also what `ui.actions` hands the Assistant)
-/// say what the commands do: To Curve bends the outline at once, To Straight leaves a side
-/// to a curve point bent (#1258 review).
+// MARK: #1260, the rest of the Select Point tool
+
+/// A drag from empty space is a box over the points; a click on empty space clears the
+/// selection; dragging one of several selected points moves them all (PE-DESIGN 11.50,
+/// captures of 2026-11-18, round 2).
 #[test]
-fn the_point_kind_tips_describe_what_the_commands_do() {
-    use super::ribbon::Action;
+fn a_drag_box_selects_points_and_they_move_together() {
+    let mut s = session();
+    let id = outlined_rect(&mut s);
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    // A box round the two top corners, from outside the shape.
+    let sel = drag(&mut t, &mut s, sel, v2(80.0, 80.0), v2(320.0, 120.0), false);
+    assert_eq!(sel, BTreeSet::from([id]), "the shape stays selected");
+    let design = s.design().clone();
+    let mut picked: Vec<_> = t
+        .selected_points(&ctx(&design, &sel))
+        .iter()
+        .map(|p| p.index)
+        .collect();
+    picked.sort_unstable();
+    assert_eq!(picked, [0, 1]);
+    assert!(t.preview().is_none(), "the box is gone");
+    // Dragging one of them moves both: one command, one Undo.
+    let before = s.design().clone();
+    let sel = drag(&mut t, &mut s, sel, v2(100.0, 100.0), v2(80.0, 60.0), false);
+    let c = s.design().objects[0].contours[0].clone();
+    assert_eq!(
+        (c.points[0], c.points[1]),
+        (v2(80.0, 60.0), v2(280.0, 60.0))
+    );
+    assert_eq!(
+        (c.points[2], c.points[3]),
+        (v2(300.0, 200.0), v2(100.0, 200.0))
+    );
+    // An arrow key moves the selected points (0.5 mm on PE-DESIGN).
+    let design = s.design().clone();
+    let effects = t
+        .nudge_points(5.0, 0.0, &ctx(&design, &sel))
+        .expect("points selected");
+    let sel = apply(&mut s, effects, sel);
+    assert_eq!(s.design().objects[0].contours[0].points[1], v2(285.0, 60.0));
+    undo(&mut s);
+    undo(&mut s);
+    assert_eq!(*s.design(), before, "one Undo each");
+    // A click on empty space clears the selection, points and shape.
+    let sel = click_at(&mut t, &mut s, sel, v2(600.0, 600.0), 1);
+    assert!(sel.is_empty());
+    let design = s.design().clone();
+    assert!(t.selected_points(&ctx(&design, &sel)).is_empty());
+    assert!(t.nudge_points(5.0, 0.0, &ctx(&design, &sel)).is_none());
+}
+
+/// One click on a side inserts a point and selects it; pressing and dragging there inserts
+/// only (PE-DESIGN has no segment drag).
+#[test]
+fn one_click_on_a_side_inserts_a_point_and_a_drag_there_does_not_move_it() {
+    let mut s = session();
+    let id = outlined_rect(&mut s);
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let sel = drag(
+        &mut t,
+        &mut s,
+        sel,
+        v2(200.0, 100.0),
+        v2(200.0, 60.0),
+        false,
+    );
+    let c = s.design().objects[0].contours[0].clone();
+    assert_eq!(c.points.len(), 5);
+    assert_eq!(
+        c.points[1],
+        v2(200.0, 100.0),
+        "inserted where pressed, not moved"
+    );
+    let design = s.design().clone();
+    assert_eq!(
+        t.selected_point(&ctx(&design, &sel)).map(|p| p.index),
+        Some(1)
+    );
+    undo(&mut s);
+    assert_eq!(
+        s.design().objects[0].contours[0].points.len(),
+        4,
+        "one Undo"
+    );
+}
+
+/// A right-click on the shape, not on a point, opens the object's menu; on a point, the
+/// point's.
+#[test]
+fn a_right_click_beside_the_points_is_for_the_object_menu() {
+    let mut s = session();
+    let id = outlined_rect(&mut s);
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let design = s.design().clone();
+    let c = ctx(&design, &sel);
+    assert!(t.object_menu_at(v2(200.0, 100.0), &c), "on a side");
+    assert!(t.object_menu_at(v2(200.0, 150.0), &c), "inside the shape");
+    assert!(
+        !t.object_menu_at(v2(100.0, 100.0), &c),
+        "a point has its own menu"
+    );
+    assert!(!t.object_menu_at(v2(600.0, 600.0), &c), "empty space");
+    assert_eq!(
+        s.design().objects[0].contours[0].points.len(),
+        4,
+        "no point inserted"
+    );
+}
+
+/// Alt held while an end point of an open line is dropped on its other end connects the two
+/// ends: the line is closed as Close closes it, with its fill, the two ends one point (the
+/// owner's hand check of PE-DESIGN, 2026-11-18). Another line's end is not joined that way.
+#[test]
+fn alt_drops_an_end_point_on_another_end_point_and_connects_them() {
+    let mut s = session();
+    let line = |s: &mut Session, points: serde_json::Value| {
+        run(
+            s,
+            &CommandRequest::new(
+                "shape.polygon",
+                json!({ "points": points, "closed": false, "outline": "#203040" }),
+            ),
+        )["id"]
+            .as_u64()
+            .expect("id")
+    };
+    let a = line(&mut s, json!([[50, 50], [80, 50], [80, 80]]));
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([a]);
+    let alt_drag = |t: &mut ToolController, s: &mut Session, sel: BTreeSet<u64>, from, to, alt| {
+        let mut sel = sel;
+        for (phase, p) in [(Phase::Down, from), (Phase::Dragged, to), (Phase::Up, to)] {
+            let mut e = PointerEvent::new(phase, p);
+            e.alt = alt;
+            let design = s.design().clone();
+            let effects = t.handle(e, &ctx(&design, &sel));
+            sel = apply(s, effects, sel);
+        }
+        sel
+    };
+    // Without Alt the end only lies on the other end (PE-DESIGN, capture e6).
+    let sel = alt_drag(
+        &mut t,
+        &mut s,
+        sel,
+        v2(800.0, 800.0),
+        v2(501.0, 501.0),
+        false,
+    );
+    assert!(!s.design().objects[0].contours[0].closed);
+    undo(&mut s);
+    // With Alt: closed, the doubled end one point, filled as Close fills it, in one Undo.
+    let sel = alt_drag(
+        &mut t,
+        &mut s,
+        sel,
+        v2(800.0, 800.0),
+        v2(501.0, 501.0),
+        true,
+    );
+    let o = s.design().objects[0].clone();
+    assert!(
+        o.contours[0].closed && o.contours[0].points.len() == 2,
+        "{o:?}"
+    );
+    assert_eq!(
+        o.region.as_ref().map(|r| (r.kind, r.angle)),
+        Some((RegionType::Fill, 45.0))
+    );
+    // Two commands (the point onto the other end, then Close); the editor runs a gesture's
+    // commands as one undo step (`EditorApp::execute_all`), this helper one by one.
+    undo(&mut s);
+    undo(&mut s);
+    let o = s.design().objects[0].clone();
+    assert!(!o.contours[0].closed && o.region.is_none());
+    assert_eq!(o.contours[0].points[2], v2(800.0, 800.0));
+    // Onto another line's end: only moved there, nothing joined (that is Join Lines).
+    let b = line(&mut s, json!([[120, 80], [120, 50]]));
+    let sel = alt_drag(
+        &mut t,
+        &mut s,
+        sel,
+        v2(800.0, 800.0),
+        v2(1199.0, 801.0),
+        true,
+    );
+    assert_eq!(s.design().objects.len(), 2);
+    assert!(s.design().index_of(b).is_some());
+    assert_eq!(
+        s.design().objects[0].contours[0].points[2],
+        v2(1199.0, 801.0)
+    );
+    let _ = sel;
+}
+
+/// Split at Point on a closed shape sewn as a region only (what the Rectangle tool draws) is
+/// available like on any corner: the outline opens and the region becomes a line.
+#[test]
+fn split_at_point_makes_a_region_only_shape_a_line() {
+    use super::points::PointAction as P;
     let mut s = session();
     let id = rect_design(&mut s);
-    let before = s.design().objects[0].contours[0].path();
-    run(
-        &mut s,
-        &CommandRequest::new(
-            "object.setPointKind",
-            json!({ "id": id, "index": 0, "kind": "curve" }),
-        ),
+    assert!(s.design().objects[0].line.is_none());
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let design = s.design().clone();
+    assert!(t.select_point_at(v2(100.0, 100.0), &ctx(&design, &sel)));
+    let m = menu(&t, &s, &sel);
+    assert_eq!(
+        (m[1], m[5], m[6]),
+        (
+            ("toCurve", true),
+            ("splitAtPoint", true),
+            ("deletePoint", true)
+        )
     );
-    assert_ne!(
-        s.design().objects[0].contours[0].path(),
-        before,
-        "To Curve bends the outline"
-    );
-    let curve = Action::PointToCurve.info().tip;
-    assert!(
-        curve.contains("bends at once") && curve.contains("smooth"),
-        "{curve}"
-    );
-    assert!(
-        !curve.contains("does not move") && !curve.contains("nothing moves"),
-        "{curve}"
-    );
-    let straight = Action::PointToStraight.info().tip;
-    assert!(
-        straight.contains("still bends") && straight.contains("lose their handles"),
-        "{straight}"
-    );
-    assert!(!straight.contains("both sides"), "{straight}");
+    assert_eq!(choose(&mut t, &mut s, &sel, P::Split), 1);
+    let o = &s.design().objects[0];
+    assert!(!o.contours[0].closed && o.region.is_none() && o.line.is_some());
+    undo(&mut s);
+    assert!(s.design().objects[0].contours[0].closed, "one Undo");
 }

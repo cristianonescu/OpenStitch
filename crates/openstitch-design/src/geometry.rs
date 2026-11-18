@@ -559,6 +559,55 @@ impl Contour {
         }
     }
 
+    /// Inserts a vertex on segment `i` as the Select Point tool does (PE-DESIGN 11.50, #1260
+    /// captures e5): a straight point on a straight side; on a curve an exact split whose new
+    /// point is smooth. An end of the side that was a straight point (it borrowed the other
+    /// end's handle) stays one: its piece is drawn from the new point's handle alone, so that
+    /// piece moves a little, where [`Contour::insert_point`] keeps the curve exactly and
+    /// would hand that end a handle of its own. Returns the new vertex index.
+    pub fn insert_point_edit(&mut self, i: usize, t: f64) -> usize {
+        let (start_borrows, end_borrows) =
+            (self.borrows_handle(i, true), self.borrows_handle(i, false));
+        let at = self.insert_point(i, t);
+        if start_borrows && let Some(z) = self.curve(i) {
+            self.set_curve(i, Some(Bezier { c1: z.c2, c2: z.c2 }));
+        }
+        if end_borrows && let Some(z) = self.curve(at) {
+            self.set_curve(at, Some(Bezier { c1: z.c1, c2: z.c1 }));
+        }
+        at
+    }
+
+    /// Open (the object menu's): a closed contour loses its closing side, from the last
+    /// vertex to the first, and is an open line through the same points. False when it was
+    /// open already.
+    pub fn open_up(&mut self) -> bool {
+        if !self.closed {
+            return false;
+        }
+        let closing = self.segment_count().saturating_sub(1);
+        self.set_curve(closing, None);
+        self.closed = false;
+        self.curves.truncate(self.segment_count());
+        if !self.has_curves() {
+            self.curves.clear();
+        }
+        true
+    }
+
+    /// Close (the object menu's): an open contour gets a straight closing side from its last
+    /// vertex to its first. False when it was closed already or has fewer than two points.
+    pub fn close_up(&mut self) -> bool {
+        if self.closed || self.points.len() < 2 {
+            return false;
+        }
+        self.closed = true;
+        if self.has_curves() {
+            self.curves.resize(self.segment_count(), None);
+        }
+        true
+    }
+
     /// Split at Point. A closed contour opens at vertex `i`: one open contour that starts and
     /// ends there. An open contour splits at an inner vertex into two that share it. `None`
     /// at the ends of an open contour, where there is nothing to split.

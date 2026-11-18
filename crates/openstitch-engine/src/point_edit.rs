@@ -62,7 +62,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.splitAtPoint",
-            "Split an outline at a vertex (Select Point's Split at Point). A closed outline is opened there: it becomes one open line that starts and ends at the point, and a region on an object left with no closed outline is switched off (its line sewing stays; refused when the object has no line sewing). An open line is cut at an inner vertex into two objects that both keep the point: the first keeps the id, the second gets a new id right after it in the sewing order with the same attributes. Refused at the first and last point of an open line. One undo step",
+            "Split an outline at a vertex (Select Point's Split at Point). A closed outline is opened there: it becomes one open line that starts and ends at the point, and a region on an object left with no closed outline is removed, as PE-DESIGN removes it; the line sewing stays. An object sewn as a region only gets line sewing in its place, a running stitch in the region's thread, as object.regionToLine gives it (the answer's regionToLine says so; by extension: PE-DESIGN's own shapes always have a line). An open line is cut at an inner vertex into two objects that both keep the point: the first keeps the id, the second gets a new id right after it in the sewing order with the same attributes. Refused at the first and last point of an open line. One undo step",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),
@@ -70,6 +70,46 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                 req("index", "int", "Vertex index"),
             ],
             split_at_point,
+        ),
+        spec(
+            "object.movePoints",
+            "Move several vertices of one outline by the same offset, as dragging one of several selected points or pressing an arrow key with the Point tool does (PE-DESIGN's arrow keys move the selected points 0.5 mm). Each point's own curve handles move with it; a straight point beside a curve point has none. One undo step",
+            Effect::Edit,
+            vec![
+                req("id", "int", "Shape object"),
+                CONTOUR,
+                opt("index", "int", "Vertex index (or 'indexes')"),
+                INDEXES,
+                req(
+                    "dx",
+                    "mm",
+                    "Offset to the right; the stored positions are the old ones plus this",
+                ),
+                req("dy", "mm", "Offset downwards"),
+            ],
+            move_points,
+        ),
+        spec(
+            "object.openOutline",
+            "Open a closed outline (the Point tool's object menu, Open): its closing side, from the last vertex to the first, is removed and it becomes an open line through the same points. A region on an object left with no closed outline is removed, as PE-DESIGN removes it (the answer's regionOff says so); the line sewing stays. An object sewn as a region only gets line sewing in its place, a running stitch in the region's thread, as object.regionToLine gives it (regionToLine in the answer). Refused on an open outline. One undo step",
+            Effect::Edit,
+            vec![req("id", "int", "Shape object"), CONTOUR],
+            open_outline,
+        ),
+        spec(
+            "object.closeOutline",
+            "Close an open line (the Point tool's object menu, Close): a straight closing side joins its last vertex to its first. An object without region sewing gets one, as PE-DESIGN gives it: Fill Stitch at the default direction of 45 degrees in the line's thread (the answer's regionAdded says so); 'region: false' leaves it a closed line only. Ends that lie on each other (within 0.05 mm) become one point. Refused on a closed outline. One undo step",
+            Effect::Edit,
+            vec![
+                req("id", "int", "Shape object"),
+                CONTOUR,
+                opt(
+                    "region",
+                    "bool",
+                    "false: do not add region sewing (default true: added as Fill Stitch at 45 degrees when the object has none)",
+                ),
+            ],
+            close_outline,
         ),
     ]
 }
@@ -111,6 +151,95 @@ fn set_point_kind(s: &mut EngineState, p: &Params) -> Result<Value, CommandError
     Ok(json!({ "changed": changed }))
 }
 
+fn move_points(s: &mut EngineState, p: &Params) -> Result<Value, CommandError> {
+    let dx = p.req("dx", -5000.0, 5000.0)? * crate::commands::MM;
+    let dy = p.req("dy", -5000.0, 5000.0)? * crate::commands::MM;
+    let c = contour_mut(s, p)?;
+    let at = point_indexes(p, c)?;
+    for &i in &at {
+        let to = c.points[i] + openstitch_design::v2(dx, dy);
+        c.move_point(i, to);
+    }
+    Ok(json!({ "moved": at.len() }))
+}
+
+/// After an outline of object `i` was opened: with no closed outline left its region is
+/// removed, and an object that was sewn as a region only is sewn as a line instead, a running
+/// stitch in the region's thread (what `object.regionToLine` does). Returns (region removed,
+/// turned into line sewing).
+fn region_after_opening(s: &mut EngineState, i: usize) -> (bool, bool) {
+    let o = &mut s.design.objects[i];
+    if o.contours.iter().any(|c| c.closed) {
+        return (false, false);
+    }
+    let Some(region) = o.region.take() else {
+        return (false, false);
+    };
+    let to_line = o.line.is_none();
+    if to_line {
+        o.line = Some(openstitch_design::LineSewing::new(
+            openstitch_design::LineType::Running,
+            region.thread,
+        ));
+    }
+    (true, to_line)
+}
+
+/// The object and contour indexes `id` / `contour` name (after [`contour_mut`] checked them).
+fn place(s: &mut EngineState, p: &Params) -> Result<(usize, usize), CommandError> {
+    contour_mut(s, p)?;
+    let id = p.int("id", None, 0, i64::MAX)? as u64;
+    let i = s
+        .design
+        .index_of(id)
+        .ok_or_else(|| p.not_found(format!("object {id}")))?;
+    Ok((i, p.int("contour", Some(0), 0, i64::MAX)? as usize))
+}
+
+fn open_outline(s: &mut EngineState, p: &Params) -> Result<Value, CommandError> {
+    let (i, ci) = place(s, p)?;
+    let o = &s.design.objects[i];
+    let id = o.id;
+    if !o.contours[ci].closed {
+        return Err(p.failed(format!("object {id}'s outline is open already")));
+    }
+    s.design.objects[i].contours[ci].open_up();
+    let (region_off, to_line) = region_after_opening(s, i);
+    Ok(json!({ "id": id, "regionOff": region_off, "regionToLine": to_line }))
+}
+
+fn close_outline(s: &mut EngineState, p: &Params) -> Result<Value, CommandError> {
+    let with_region = p.bool("region", Some(true))?;
+    let (i, ci) = place(s, p)?;
+    let o = &mut s.design.objects[i];
+    let id = o.id;
+    let c = &mut o.contours[ci];
+    if c.closed {
+        return Err(p.failed(format!("object {id}'s outline is closed already")));
+    }
+    // Ends dropped on each other are one point (0.5 units = 0.05 mm).
+    let n = c.points.len();
+    if n > 2 && c.points[0].distance(c.points[n - 1]) <= 0.5 {
+        c.delete_point(n - 1);
+    }
+    if !c.close_up() {
+        return Err(p.failed("an outline needs two points to be closed"));
+    }
+    let mut region_added = false;
+    if with_region && o.region.is_none() {
+        let thread = o
+            .line
+            .as_ref()
+            .map_or_else(crate::commands::default_fill, |l| l.thread.clone());
+        o.region = Some(openstitch_design::RegionSewing::new(
+            openstitch_design::RegionType::Fill,
+            thread,
+        ));
+        region_added = true;
+    }
+    Ok(json!({ "id": id, "regionAdded": region_added }))
+}
+
 fn split_at_point(s: &mut EngineState, p: &Params) -> Result<Value, CommandError> {
     let (ci, index, pieces) = {
         let c = contour_mut(s, p)?;
@@ -131,24 +260,12 @@ fn split_at_point(s: &mut EngineState, p: &Params) -> Result<Value, CommandError
     match pieces.next() {
         // A closed outline opened at the point.
         None => {
-            let o = &s.design.objects[i];
-            let still_closed = o
-                .contours
-                .iter()
-                .enumerate()
-                .any(|(k, c)| k != ci && c.closed);
-            if !still_closed && o.region.is_some() && o.line.is_none() {
-                return Err(p.failed(format!(
-                    "object {id} is sewn as a region only; opening its outline at point {index} would leave nothing to sew (give it line sewing first)"
-                )));
-            }
-            let o = &mut s.design.objects[i];
-            o.contours[ci] = first;
-            let mut region_off = false;
-            if !still_closed && o.region.take().is_some() {
-                region_off = true;
-            }
-            Ok(json!({ "ids": [id], "opened": true, "regionOff": region_off }))
+            s.design.objects[i].contours[ci] = first;
+            let (region_off, to_line) = region_after_opening(s, i);
+            let _ = index;
+            Ok(
+                json!({ "ids": [id], "opened": true, "regionOff": region_off, "regionToLine": to_line }),
+            )
         }
         // An open line cut in two.
         Some(second) => {
@@ -160,7 +277,9 @@ fn split_at_point(s: &mut EngineState, p: &Params) -> Result<Value, CommandError
             let new_id = tail.id;
             s.design.objects[i].contours[ci] = first;
             s.design.objects.insert(i + 1, tail);
-            Ok(json!({ "ids": [id, new_id], "opened": false, "regionOff": false }))
+            Ok(
+                json!({ "ids": [id, new_id], "opened": false, "regionOff": false, "regionToLine": false }),
+            )
         }
     }
 }

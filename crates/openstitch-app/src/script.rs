@@ -3,7 +3,7 @@
 //! for checking a build on a platform without clicking).
 //!
 //! Steps are separated by `;`, coordinates are model millimetres on the Design Page:
-//! `drag:x1,y1,x2,y2` · `click:x,y` · `sclick:x,y` (window points, for panels and menus) · `dclick:x,y` · `move:x,y` · `type:r` (text, e.g. tool
+//! `drag:x1,y1,x2,y2` · `click:x,y` · `rclick:x,y` (the right button: context menus) · `sclick:x,y` (window points, for panels and menus) · `dclick:x,y` · `move:x,y` · `type:r` (text, e.g. tool
 //! shortcuts) · `key:Enter` · `wait:N` (frames) · `drop:PATH` (a file dropped onto the window) ·
 //! `close:0` (the window's close request, as the X button sends it). Prefix `shift+` / `cmd+` to hold modifiers, e.g. `shift+drag:…`,
 //! `cmd+key:Z`.
@@ -19,6 +19,8 @@ use std::sync::Arc;
 pub enum Action {
     Drag(Vec2, Vec2),
     Click(Vec2),
+    /// A click with the right button (the Point tool's menus, the guideline menus).
+    RightClick(Vec2),
     DoubleClick(Vec2),
     Move(Vec2),
     /// Click at a window position in points (panels, menus, popups).
@@ -80,6 +82,7 @@ pub fn parse(script: &str) -> Result<Vec<Step>, String> {
                     Action::Drag(p[0], p[1])
                 }
                 "click" => Action::Click(point(arg, 1)?[0]),
+                "rclick" => Action::RightClick(point(arg, 1)?[0]),
                 "dclick" => Action::DoubleClick(point(arg, 1)?[0]),
                 "move" => Action::Move(point(arg, 1)?[0]),
                 "sclick" => {
@@ -130,6 +133,20 @@ pub fn frames(step: &Step, vp: &Viewport) -> Vec<Vec<Event>> {
             vec![button(*p, true)],
             vec![button(*p, false)],
         ],
+        Action::RightClick(p) => {
+            let b = |pressed| Event::PointerButton {
+                pos: at(*p),
+                button: PointerButton::Secondary,
+                pressed,
+                modifiers: m,
+            };
+            vec![
+                vec![Event::PointerMoved(at(*p))],
+                vec![b(true)],
+                vec![b(false)],
+                Vec::new(),
+            ]
+        }
         Action::DoubleClick(p) => vec![
             vec![Event::PointerMoved(at(*p))],
             vec![button(*p, true)],
@@ -277,6 +294,19 @@ mod tests {
             parse("sclick:100,20").expect("ok")[0].action,
             Action::ScreenClick(100.0, 20.0)
         );
+        assert_eq!(
+            parse("rclick:10,20").expect("ok")[0].action,
+            Action::RightClick(v2(100.0, 200.0))
+        );
+        let right = frames(&parse("rclick:10,20").expect("ok")[0], &Viewport::default());
+        assert!(matches!(
+            right[1][0],
+            Event::PointerButton {
+                button: PointerButton::Secondary,
+                pressed: true,
+                ..
+            }
+        ));
         assert!(parse("drag:1,2,3").is_err());
         assert!(parse("hover:1,2").is_err());
         assert!(parse("ctrl+click:1,2").is_err());
