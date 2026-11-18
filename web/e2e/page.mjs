@@ -20,6 +20,7 @@
 // Delete kept in the editor (#1260). ONLY_BROWSER=Chromium (or Firefox, WebKit) runs one
 // browser.
 import { createServer } from "node:http";
+import { inflateSync } from "node:zlib";
 import { mkdirSync, readFileSync } from "node:fs";
 import { basename, dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -71,6 +72,44 @@ const started = async (page) => {
   return page.evaluate(() => document.getElementById("message")?.textContent ?? "");
 };
 
+
+// A PNG as Playwright's screenshots are (8 bits a channel, RGB or RGBA, not interlaced):
+// its size and a reader of one pixel's [r, g, b].
+const png = (buffer) => {
+  const width = buffer.readUInt32BE(16);
+  const height = buffer.readUInt32BE(20);
+  const channels = buffer[25] === 6 ? 4 : 3;
+  if (buffer[24] !== 8 || (buffer[25] !== 6 && buffer[25] !== 2) || buffer[28] !== 0) throw new Error("a PNG of a kind this test does not read");
+  const parts = [];
+  for (let at = 8; at < buffer.length; ) {
+    const length = buffer.readUInt32BE(at);
+    if (buffer.toString("latin1", at + 4, at + 8) === "IDAT") parts.push(buffer.subarray(at + 8, at + 8 + length));
+    at += 12 + length;
+  }
+  const raw = inflateSync(Buffer.concat(parts));
+  const stride = width * channels;
+  const rows = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[y * (stride + 1)];
+    for (let x = 0; x < stride; x += 1) {
+      const value = raw[y * (stride + 1) + 1 + x];
+      const left = x >= channels ? rows[y * stride + x - channels] : 0;
+      const up = y > 0 ? rows[(y - 1) * stride + x] : 0;
+      const upLeft = y > 0 && x >= channels ? rows[(y - 1) * stride + x - channels] : 0;
+      let predicted = 0;
+      if (filter === 1) predicted = left;
+      else if (filter === 2) predicted = up;
+      else if (filter === 3) predicted = (left + up) >> 1;
+      else if (filter === 4) {
+        const p = left + up - upLeft;
+        const [a, b, c] = [Math.abs(p - left), Math.abs(p - up), Math.abs(p - upLeft)];
+        predicted = a <= b && a <= c ? left : b <= c ? up : upLeft;
+      }
+      rows[y * stride + x] = (value + predicted) & 255;
+    }
+  }
+  return { width, height, pixel: (x, y) => [rows[y * stride + x * channels], rows[y * stride + x * channels + 1], rows[y * stride + x * channels + 2]] };
+};
 
 // A new page in `context` with its page errors collected; it waits until the editor has started.
 const editorPage = async (context) => {
@@ -209,6 +248,34 @@ async function extraChecks(browser, type, label) {
         }
       };
       const pointX = () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.[0]?.x ?? null;
+      // A menu that reports open has to be ON SCREEN before it is photographed: ui.pointMenu
+      // gives the rectangle its panel was painted in (null while it is only measured) and the
+      // panel's colour; a screenshot of that rectangle must then be mostly that colour (the
+      // canvas under it is the page, its grid and the shape's stitches). Polled, because the
+      // browser shows a frame a moment after the editor has drawn it.
+      const painted = async (step) => {
+        await until(`${step}: the menu is drawn`, () => window.openstitch.run({ command: "ui.pointMenu" }).result?.menuRect != null);
+        const { menuRect: r, menuFill } = await menu();
+        const fill = [1, 3, 5].map((i) => parseInt(menuFill.slice(i, i + 2), 16));
+        const clip = { x: Math.round(box.x + r[0]) + 2, y: Math.round(box.y + r[1]) + 2, width: Math.round(r[2]) - 4, height: Math.round(r[3]) - 4 };
+        let share = 0;
+        for (let attempt = 0; attempt < 40; attempt += 1) {
+            const { width, height, pixel } = png(await page.screenshot({ clip }));
+            let same = 0;
+            let all = 0;
+            for (let y = 0; y < height; y += 3) {
+              for (let x = 0; x < width; x += 3) {
+                const p = pixel(x, y);
+                all += 1;
+                if (Math.abs(p[0] - fill[0]) <= 8 && Math.abs(p[1] - fill[1]) <= 8 && Math.abs(p[2] - fill[2]) <= 8) same += 1;
+              }
+            }
+            share = same / all;
+            if (share >= 0.6) return;
+            await page.waitForTimeout(250);
+        }
+        throw new Error(`point tool, ${step}: the menu reports it was drawn at ${JSON.stringify(r)} but only ${Math.round(share * 100)} % of that rectangle has its panel colour ${menuFill}: it is not on screen`);
+      };
       await ok({ command: "ui.gettingStarted", params: { cards: "dismiss" } });
       const made = await ok({ command: "shape.rectangle", params: { x: 20, y: 20, width: 40, height: 30, fill: "#2e8b57", outline: "#203040" } });
       await ok({ command: "ui.select", params: { ids: [made.id] } });
@@ -289,6 +356,7 @@ async function extraChecks(browser, type, label) {
       if (menus.length === 0 || menus.some((prevented) => !prevented)) {
         throw new Error(`the browser's own menu was not held back: ${JSON.stringify(menus)}`);
       }
+      await painted("the point menu");
       if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-point-menu.png`) });
       // An entry of the menu, as a click in it runs it; the menu closes.
       const curved = await ok({ command: "ui.pointMenu", params: { action: "toCurve" } });
@@ -349,6 +417,7 @@ async function extraChecks(browser, type, label) {
       if (objectLabels !== "Add Direction Line, Delete Direction Line, Reverse Direction Line, Open, Close") {
         throw new Error(`object menu: ${objectLabels}`);
       }
+      await painted("the object menu");
       if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-object-menu.png`) });
       const menus2 = await page.evaluate(() => window.__menus.map((e) => e.defaultPrevented));
       if (menus2.length < 2 || menus2.some((prevented) => !prevented)) {
