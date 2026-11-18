@@ -20,6 +20,8 @@ pub struct PointMenu {
     fresh: bool,
     /// The object's menu (a right-click on the shape, not on a point).
     object: bool,
+    /// The object's menu: the Delete Direction Line sub-menu is open.
+    sub: bool,
 }
 
 /// What an arrow key moves the selected points by, 0.1 mm units: 0.5 mm, PE-DESIGN 11.50's
@@ -122,8 +124,125 @@ pub fn pointer(app: &mut EditorApp, response: &egui::Response, vp: &Viewport) ->
         at,
         fresh: true,
         object,
+        sub: false,
     });
     hit || object
+}
+
+/// The icon in front of a point-menu entry: PE-DESIGN's menu has one on Split at Point and on
+/// Delete (ours are the ribbon's own icons for those commands).
+pub fn entry_icon(a: PointAction) -> Option<Action> {
+    match a {
+        PointAction::Split => Some(Action::SplitAtPoint),
+        PointAction::Delete => Some(Action::DeletePoint),
+        _ => None,
+    }
+}
+
+/// The icon in front of an object-menu entry: the three direction-line entries have one, as
+/// in PE-DESIGN's menu; Open and Close have none.
+pub fn object_entry_icon(a: Action) -> Option<Action> {
+    matches!(
+        a,
+        Action::AddDirectionLine | Action::DeleteDirectionLine | Action::ReverseDirectionLine
+    )
+    .then_some(a)
+}
+
+/// Width of the icon column at the left of a menu row, in points.
+const GUTTER: f32 = 24.0;
+/// Height of a menu row.
+const ROW: f32 = 22.0;
+
+/// One row of a context menu, drawn as a menu row and not as a button: an icon column, the
+/// text left-aligned after it, the whole row highlighted under the pointer, grey text when
+/// the entry is unavailable, and a marker at the right edge when it opens a sub-menu.
+fn row(
+    ui: &mut egui::Ui,
+    icon: Option<Action>,
+    text: &str,
+    enabled: bool,
+    submenu: bool,
+) -> egui::Response {
+    let width = ui.available_width();
+    let sense = if enabled {
+        egui::Sense::click()
+    } else {
+        egui::Sense::hover()
+    };
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, ROW), sense);
+    if ui.is_rect_visible(rect) {
+        let v = ui.visuals();
+        let lit = enabled && response.hovered();
+        if lit {
+            ui.painter().rect_filled(rect, 3.0, v.selection.bg_fill);
+        }
+        let fg = if !enabled {
+            v.weak_text_color()
+        } else if lit {
+            v.selection.stroke.color
+        } else {
+            v.text_color()
+        };
+        if let Some(a) = icon {
+            let r = egui::Rect::from_center_size(
+                egui::pos2(rect.left() + GUTTER / 2.0, rect.center().y),
+                egui::vec2(16.0, 16.0),
+            );
+            crate::icons::paint(ui.painter(), r, a, fg, enabled);
+        }
+        let font = egui::TextStyle::Button.resolve(ui.style());
+        ui.painter().text(
+            egui::pos2(rect.left() + GUTTER, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            text,
+            font.clone(),
+            fg,
+        );
+        if submenu {
+            ui.painter().text(
+                egui::pos2(rect.right() - 6.0, rect.center().y),
+                egui::Align2::RIGHT_CENTER,
+                "\u{25b8}",
+                font,
+                fg,
+            );
+        }
+    }
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, text));
+    response
+}
+
+/// A menu panel at `at` (the pointer: the menu opens to the right of and below it, as
+/// PE-DESIGN's), opaque from its first frame.
+fn panel<R>(
+    ctx: &egui::Context,
+    id: &'static str,
+    at: Pos2,
+    width: f32,
+    body: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    egui::Area::new(egui::Id::unique(id))
+        .fixed_pos(at)
+        .fade_in(false)
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            egui::Frame::menu(ui.style())
+                .show(ui, |ui| {
+                    ui.set_min_width(width);
+                    ui.set_max_width(width);
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    body(ui)
+                })
+                .inner
+        })
+}
+
+/// A separator between groups of rows, with a little air round it.
+fn rule(ui: &mut egui::Ui) {
+    ui.add_space(3.0);
+    ui.separator();
+    ui.add_space(3.0);
 }
 
 /// The menu, until an entry is chosen, Esc or a click elsewhere.
@@ -139,27 +258,16 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         return;
     };
     let mut chosen = None;
-    // No fade-in: the menu is opaque from its first frame, as the ribbon's menus are.
-    let r = egui::Area::new(egui::Id::unique("point-context-menu"))
-        .fixed_pos(m.at)
-        .fade_in(false)
-        .order(egui::Order::Foreground)
-        .show(ctx, |ui| {
-            egui::Frame::menu(ui.style()).show(ui, |ui| {
-                ui.set_min_width(150.0);
-                for (i, a) in PointAction::MENU.into_iter().enumerate() {
-                    if a.separator_before() {
-                        ui.separator();
-                    }
-                    if ui
-                        .add_enabled(enabled[i], egui::Button::new(label(a)))
-                        .clicked()
-                    {
-                        chosen = Some(a);
-                    }
-                }
-            });
-        });
+    let r = panel(ctx, "point-context-menu", m.at, 170.0, |ui| {
+        for (i, a) in PointAction::MENU.into_iter().enumerate() {
+            if a.separator_before() {
+                rule(ui);
+            }
+            if row(ui, entry_icon(a), label(a), enabled[i], false).clicked() {
+                chosen = Some(a);
+            }
+        }
+    });
     if let Some(a) = chosen {
         run(app, a);
         return;
@@ -174,36 +282,55 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
 
 /// The object's menu: Add, Delete and Reverse Direction Line, a separator, Open and Close,
 /// each greyed as its ribbon command is (an open line has no direction lines and offers
-/// Close; a closed shape offers Open).
+/// Close; a closed shape offers Open). Delete Direction Line opens a sub-menu, as
+/// PE-DESIGN's does.
 fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
     use openstitch_app::editor::ribbon::POINT_OBJECT_MENU;
-    let mut chosen = false;
-    let r = egui::Area::new(egui::Id::unique("point-object-menu"))
-        .fixed_pos(m.at)
-        .fade_in(false)
-        .order(egui::Order::Foreground)
-        .show(ctx, |ui| {
-            egui::Frame::menu(ui.style()).show(ui, |ui| {
-                ui.set_min_width(180.0);
-                for a in POINT_OBJECT_MENU {
-                    if a == Action::OpenOutline {
-                        ui.separator();
-                    }
-                    let enabled = crate::ribbon::enabled(app, a);
-                    if ui
-                        .add_enabled(enabled, egui::Button::new(a.info().label))
-                        .on_disabled_hover_text(a.info().tip)
-                        .clicked()
-                    {
-                        crate::ribbon::run(app, a, ui.ctx());
-                        chosen = true;
-                    }
+    let mut chosen = None;
+    let mut sub_at = None;
+    let r = panel(ctx, "point-object-menu", m.at, 210.0, |ui| {
+        for a in POINT_OBJECT_MENU {
+            if a == Action::OpenOutline {
+                rule(ui);
+            }
+            let enabled = crate::ribbon::enabled(app, a);
+            let submenu = a == Action::DeleteDirectionLine;
+            let response = row(ui, object_entry_icon(a), a.info().label, enabled, submenu);
+            if submenu {
+                if enabled && (response.hovered() || response.clicked()) {
+                    m.sub = true;
                 }
-            });
+                if m.sub {
+                    sub_at = Some(response.rect.right_top() + egui::vec2(2.0, -4.0));
+                }
+            } else {
+                if response.hovered() {
+                    m.sub = false;
+                }
+                if response.clicked() {
+                    chosen = Some(a);
+                }
+            }
+        }
+    });
+    // The sub-menu: the one thing Delete Direction Line deletes here, the shape's direction
+    // lines as a whole (back to a straight sewing direction).
+    let mut over_sub = false;
+    if let Some(at) = sub_at.filter(|_| crate::ribbon::enabled(app, Action::DeleteDirectionLine)) {
+        let sub = panel(ctx, "point-object-submenu", at, 200.0, |ui| {
+            if row(ui, None, t("menu-point-all-direction-lines"), true, false).clicked() {
+                chosen = Some(Action::DeleteDirectionLine);
+            }
         });
+        over_sub = sub.response.contains_pointer();
+    }
+    if let Some(a) = chosen {
+        crate::ribbon::run(app, a, ctx);
+        return;
+    }
     let (pressed, esc) = ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));
-    let outside = pressed && !r.response.contains_pointer();
-    if !chosen && !esc && (m.fresh || !outside) {
+    let outside = pressed && !r.response.contains_pointer() && !over_sub;
+    if !esc && (m.fresh || !outside) {
         m.fresh = false;
         app.workspace.view.point_menu = Some(m);
     }
@@ -221,6 +348,8 @@ fn object_state(app: &EditorApp) -> Value {
                 "label": a.info().label,
                 "separatorBefore": a == Action::OpenOutline,
                 "enabled": crate::ribbon::enabled(app, a),
+                "icon": object_entry_icon(a).is_some(),
+                "submenu": a == Action::DeleteDirectionLine,
             }))
             .collect::<Vec<_>>()
     )
@@ -239,6 +368,7 @@ pub fn state(app: &EditorApp) -> Value {
             "label": label(a),
             "separatorBefore": a.separator_before(),
             "enabled": enabled.is_some_and(|e| e[i]),
+            "icon": entry_icon(a).is_some(),
         })).collect::<Vec<_>>(),
     })
 }
@@ -402,6 +532,193 @@ mod tests {
         assert!(
             app.ui_command("ui.pointMenu", Some(&json!({ "action": "bend" })))
                 .is_err()
+        );
+    }
+
+    /// Every row of PE-DESIGN 11.50's menu table (its menu read from the screen on
+    /// 2026-11-18, 16 cases; docs/COMPATIBILITY_AUDIT.md "Select Point: the right-click menu
+    /// on a point"), through `ui.pointMenu` as a script or the Assistant reads it, and through
+    /// the ribbon's Edit Point drop-down, Delete Point and Split at Point, which must agree.
+    /// Columns: To Straight, To Curve, To Smooth, To Symmetry, To Cusp, Split at Point, Delete.
+    #[test]
+    fn every_row_of_pe_designs_menu_table() {
+        const ON: bool = true;
+        const NO: bool = false;
+        let rectangle = ("shape.rectangle", json!({ "x": 10, "y": 10, "width": 40, "height": 40, "fill": "#2e8b57", "outline": "#203040" }));
+        let polygon = |points: Value, closed: bool| {
+            ("shape.polygon", json!({ "points": points, "closed": closed, "outline": "#203040" }))
+        };
+        let circle = ("shape.ellipse", json!({ "cx": 50, "cy": 50, "rx": 20, "outline": "#203040" }));
+        let kind = |indexes: Value, kind: &str| {
+            ("object.setPointKind", json!({ "id": 1, "indexes": indexes, "kind": kind }))
+        };
+        let delete = |indexes: Value| ("object.deletePoint", json!({ "id": 1, "indexes": indexes }));
+        let line = || polygon(json!([[10, 60], [40, 60], [40, 30]]), false);
+        // (PE-DESIGN's row, the commands that make the case, the selected points, the row).
+        let rows: Vec<(&str, Vec<(&'static str, Value)>, Value, [bool; 7])> = vec![
+            ("closed, straight corner", vec![rectangle.clone()], json!([0]), [NO, ON, NO, NO, NO, ON, ON]),
+            (
+                "closed, after To Curve (point is smooth)",
+                vec![rectangle.clone(), kind(json!([0]), "curve")],
+                json!([0]),
+                [ON, NO, NO, ON, ON, ON, ON],
+            ),
+            (
+                "closed, symmetric point",
+                vec![rectangle.clone(), kind(json!([0]), "curve"), kind(json!([0]), "symmetric")],
+                json!([0]),
+                [ON, NO, ON, NO, ON, ON, ON],
+            ),
+            (
+                "closed, cusp point",
+                vec![rectangle.clone(), kind(json!([0]), "curve"), kind(json!([0]), "cusp")],
+                json!([0]),
+                [ON, NO, ON, ON, NO, ON, ON],
+            ),
+            (
+                "closed, corner of the triangle",
+                vec![rectangle.clone(), delete(json!([0]))],
+                json!([0]),
+                [NO, ON, NO, NO, NO, ON, ON],
+            ),
+            (
+                "closed, corner of 3 collinear points",
+                vec![rectangle.clone(), delete(json!([0])), ("object.setPoint", json!({ "id": 1, "index": 1, "x": 30, "y": 30 }))],
+                json!([1]),
+                [NO, ON, NO, NO, NO, ON, ON],
+            ),
+            (
+                "closed, corner of the 2-point outline",
+                vec![rectangle.clone(), delete(json!([2, 3]))],
+                json!([0]),
+                [NO, ON, NO, NO, NO, ON, ON],
+            ),
+            ("two straight points selected", vec![rectangle.clone()], json!([0, 2]), [NO, ON, NO, NO, NO, NO, ON]),
+            (
+                "two curve points selected",
+                vec![rectangle.clone(), kind(json!([0, 2]), "curve")],
+                json!([0, 2]),
+                [ON, NO, NO, ON, ON, NO, ON],
+            ),
+            (
+                "two curve + one straight selected",
+                vec![rectangle.clone(), kind(json!([0, 2]), "curve")],
+                json!([0, 2, 1]),
+                [ON, ON, NO, ON, ON, NO, ON],
+            ),
+            ("open line, first point", vec![line()], json!([0]), [NO, ON, NO, NO, NO, NO, ON]),
+            ("open line, middle point", vec![line()], json!([1]), [NO, ON, NO, NO, NO, ON, ON]),
+            ("open line, last point", vec![line()], json!([2]), [NO, ON, NO, NO, NO, NO, ON]),
+            (
+                "open line, first point after To Curve",
+                vec![line(), kind(json!([0]), "curve")],
+                json!([0]),
+                [ON, NO, NO, NO, NO, NO, ON],
+            ),
+            (
+                "2-point open line, first point",
+                vec![polygon(json!([[10, 60], [40, 60]]), false)],
+                json!([0]),
+                [NO, ON, NO, NO, NO, NO, ON],
+            ),
+            (
+                "2-point open line, last point",
+                vec![polygon(json!([[10, 60], [40, 60]]), false)],
+                json!([1]),
+                [NO, ON, NO, NO, NO, NO, ON],
+            ),
+            ("circle point (as drawn)", vec![circle.clone()], json!([0]), [ON, NO, NO, ON, ON, ON, ON]),
+            (
+                "circle point after To Cusp",
+                vec![circle.clone(), kind(json!([0]), "cusp")],
+                json!([0]),
+                [ON, NO, ON, ON, NO, ON, ON],
+            ),
+            (
+                "circle point after To Straight",
+                vec![circle.clone(), kind(json!([0]), "straight")],
+                json!([0]),
+                [NO, ON, NO, NO, NO, ON, ON],
+            ),
+        ];
+        // PE-DESIGN's 16 rows; three of them stand for more than one case here.
+        assert_eq!(rows.len(), 19);
+        let ribbon = [
+            Action::PointToStraight,
+            Action::PointToCurve,
+            Action::PointToSmooth,
+            Action::PointToSymmetry,
+            Action::PointToCusp,
+            Action::SplitAtPoint,
+            Action::DeletePoint,
+        ];
+        for (name, setup, points, want) in rows {
+            let mut app = EditorApp::new(Launch::default());
+            for (command, params) in &setup {
+                app.execute(&CommandRequest::new(command, params.clone()))
+                    .unwrap_or_else(|| panic!("{name}: {command} {params}"));
+            }
+            assert_eq!(app.session.design().objects.len(), 1, "{name}");
+            app.selection = BTreeSet::from([app.session.design().objects[0].id]);
+            let s = app
+                .ui_command("ui.pointMenu", Some(&json!({ "points": points })))
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+            let got: Vec<bool> = s["entries"]
+                .as_array()
+                .expect("entries")
+                .iter()
+                .map(|e| e["enabled"] == true)
+                .collect();
+            assert_eq!(got, want, "{name}: the menu");
+            let keys: Vec<&str> = s["entries"]
+                .as_array()
+                .expect("entries")
+                .iter()
+                .map(|e| e["key"].as_str().expect("key"))
+                .collect();
+            assert_eq!(
+                keys,
+                ["toStraight", "toCurve", "toSmooth", "toSymmetry", "toCusp", "splitAtPoint", "deletePoint"],
+                "{name}"
+            );
+            // The ribbon: the drop-down opens with a point selected, and each of its entries,
+            // Delete Point and Split at Point follow the menu.
+            assert!(enabled(&app, Action::EditPoint), "{name}: Edit Point");
+            for (a, on) in ribbon.into_iter().zip(want) {
+                assert_eq!(enabled(&app, a), on, "{name}: ribbon {a:?}");
+            }
+        }
+        // The drop-down's entries in PE-DESIGN's order: Line Type, then Curve Type.
+        use openstitch_app::editor::ribbon::EDIT_POINT_MENU;
+        assert_eq!(EDIT_POINT_MENU, [ribbon[0], ribbon[1], ribbon[2], ribbon[3], ribbon[4]]);
+        assert_eq!((t("menu-point-line-type"), t("menu-point-curve-type")), ("Line Type", "Curve Type"));
+    }
+
+    /// The menus as PE-DESIGN draws them: an icon in front of Split at Point and of Delete,
+    /// none on the To entries; in the object's menu an icon on the three direction-line
+    /// entries and a sub-menu on Delete Direction Line.
+    #[test]
+    fn the_menus_have_pe_designs_icons_and_sub_menu() {
+        let (mut app, _) = with_rectangle();
+        let s = app
+            .ui_command("ui.pointMenu", Some(&json!({ "points": [0] })))
+            .expect("state");
+        let icons: Vec<bool> = s["entries"]
+            .as_array()
+            .expect("entries")
+            .iter()
+            .map(|e| e["icon"] == true)
+            .collect();
+        assert_eq!(icons, [false, false, false, false, false, true, true]);
+        let object: Vec<(bool, bool)> = s["objectMenu"]
+            .as_array()
+            .expect("objectMenu")
+            .iter()
+            .map(|e| (e["icon"] == true, e["submenu"] == true))
+            .collect();
+        assert_eq!(
+            object,
+            [(true, false), (true, true), (true, false), (false, false), (false, false)]
         );
     }
 

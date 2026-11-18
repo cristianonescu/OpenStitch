@@ -1188,7 +1188,7 @@ fn shape_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "shape.ellipse",
-            "Add an ellipse or circle",
+            "Add an ellipse or circle: four curve points, stored as smooth (see object.setPointKind), as the points of PE-DESIGN's circle are",
             Effect::Edit,
             shape_docs(vec![
                 req("cx", "mm", "Centre x"),
@@ -1211,7 +1211,20 @@ fn shape_commands() -> Vec<CommandSpec> {
                     360.0,
                     shapes::ArcMode::Chord,
                 );
-                add_shape_ending(s, p, e, Some(shapes::bottom_centre))
+                let made = add_shape_ending(s, p, e, Some(shapes::bottom_centre))?;
+                // Its four points are smooth curve points, as the points of PE-DESIGN's
+                // circle are (vertex kind 0x11; #1258 capture c0): To Smooth is greyed out
+                // on them and a dragged handle turns the other. Editing only.
+                if let Some(i) = made["id"].as_u64().and_then(|id| s.design.index_of(id)) {
+                    for c in &mut s.design.objects[i].contours {
+                        for k in 0..c.points.len() {
+                            if c.is_curve_point(k) {
+                                c.set_kind(k, openstitch_design::PointKind::Smooth);
+                            }
+                        }
+                    }
+                }
+                Ok(made)
             },
         ),
         spec(
