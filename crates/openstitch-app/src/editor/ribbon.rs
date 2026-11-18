@@ -254,6 +254,8 @@ actions! {
     EditPoint => "editPoint", "Edit Point", "Change the selected points of the outline: Line Type (To Straight, To Curve) and Curve Type (To Smooth, To Symmetry, To Cusp). Select points with the Point tool (Point Edit, A); Ctrl+click adds one. A right-click on a point opens the same entries with Split at Point and Delete.", None, Some("object.setPointKind"), true;
     DeletePoint => "deletePoint", "Delete Point", "Delete the selected points.", Some("Delete"), Some("object.deletePoint"), true;
     SplitAtPoint => "splitAtPoint", "Split at Point", "Open a closed outline at the selected point, or cut an open line in two there (not at its ends). On a stitch pattern: split it at the selected needle point.", None, Some("object.splitAtPoint"), true;
+    OpenOutline => "openOutline", "Open", "Open the selected closed outline: its closing side is removed and it becomes an open line; its region sewing is removed.", None, Some("object.openOutline"), true;
+    CloseOutline => "closeOutline", "Close", "Close the selected open line with a straight side from its last point to its first; it gets region sewing (Fill Stitch) when it has none.", None, Some("object.closeOutline"), true;
     PointToStraight => "pointToStraight", "To Straight", "Make both sides at the selected points straight lines.", None, Some("object.setPointKind"), true;
     PointToCurve => "pointToCurve", "To Curve", "Make the straight sides at the selected points curves with handles; the outline does not move until a handle is dragged.", None, Some("object.setPointKind"), true;
     PointToSmooth => "pointToSmooth", "To Smooth", "Keep the two handles of the selected curve points on one line: dragging one turns the other, each keeps its length.", None, Some("object.setPointKind"), true;
@@ -817,6 +819,16 @@ pub const EDIT_POINT_MENU: [Action; 5] = [
     A::PointToCusp,
 ];
 
+/// The object menu of the Point tool (a right-click on the shape, not on a point), in
+/// PE-DESIGN's order; a separator sits before Open.
+pub const POINT_OBJECT_MENU: [Action; 5] = [
+    A::AddDirectionLine,
+    A::DeleteDirectionLine,
+    A::ReverseDirectionLine,
+    A::OpenOutline,
+    A::CloseOutline,
+];
+
 /// The Option button: other applications and settings.
 pub const OPTION_MENU: [Action; 6] = [
     A::DesignDatabase,
@@ -1052,6 +1064,7 @@ mod tests {
                 || OPTION_MENU.contains(&a)
                 || SUBMENU_ACTIONS.contains(&a)
                 || EDIT_POINT_MENU.contains(&a)
+                || POINT_OBJECT_MENU.contains(&a)
                 || help.contains(&a)
                 || ALIGN_MENU.contains(&a)
                 || SELECT_SAME_MENU.contains(&a)

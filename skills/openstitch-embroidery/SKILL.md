@@ -427,8 +427,13 @@ then style them in the next.
   closed outline opens there (a region on it is switched off, its line stays; refused when
   there is no line sewing), an open line is cut in two objects at an inner point (answers
   `ids`; refused at its ends). `object.deletePoint` `{index | indexes}` is Delete, refused
-  whole when the outline would keep too few points. Move a point with `object.setPoint`, add
-  one with `object.insertPoint`. Each is one undo step. In the window `ui.pointMenu`
+  when the outline would keep fewer than two points (a closed outline goes down to two too).
+  Move a point with `object.setPoint`, several by one offset with `object.movePoints`
+  `{indexes, dx, dy}` (the editor's arrow keys: 0.5 mm), add one with `object.insertPoint`
+  (straight on a straight side, smooth on a curve). `object.openOutline` `{id}` removes a
+  closed outline's closing side and its region; `object.closeOutline` `{id, region}` closes
+  an open line and, unless `region: false`, gives it Fill Stitch at 45° when it has no
+  region (`ui.run openOutline` / `closeOutline`; `ui.pointMenu` lists them as `objectMenu`). Each is one undo step. In the window `ui.pointMenu`
   `{points, contour}` selects points as Ctrl+click does and reports the seven entries with
   what is greyed out; `{action}` runs one (`ui.run pointToCurve` and the other ribbon
   buttons do the same).

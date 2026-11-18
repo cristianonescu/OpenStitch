@@ -325,8 +325,8 @@ pub fn point_actions_enabled(c: &Contour, selected: &[usize]) -> [bool; 7] {
     ]
 }
 
-/// Whether `c` can lose the vertices `selected` (as `object.deletePoint` checks): an open
-/// line keeps 2 points, a closed straight outline 3.
+/// Whether `c` can lose the vertices `selected` (as `object.deletePoint` checks): an outline
+/// keeps 2 points, open or closed, as PE-DESIGN's does.
 pub fn can_delete_points(c: &Contour, selected: &[usize]) -> bool {
     let mut order: Vec<usize> = selected
         .iter()
@@ -340,12 +340,7 @@ pub fn can_delete_points(c: &Contour, selected: &[usize]) -> bool {
     }
     let mut left = c.clone();
     for &i in order.iter().rev() {
-        let minimum = if left.closed && !left.has_curves() {
-            3
-        } else {
-            2
-        };
-        if left.points.len() <= minimum {
+        if left.points.len() <= 2 {
             return false;
         }
         left.delete_point(i);

@@ -13,11 +13,44 @@ use openstitch_app::editor::ui_texts::t;
 use openstitch_design::v2;
 use serde_json::{Value, json};
 
-/// An open point menu.
+/// An open point menu, or the object's menu.
 pub struct PointMenu {
     at: Pos2,
     /// Opened this frame: the click that opened it does not close it.
     fresh: bool,
+    /// The object's menu (a right-click on the shape, not on a point).
+    object: bool,
+}
+
+/// What an arrow key moves the selected points by, 0.1 mm units: 0.5 mm, PE-DESIGN 11.50's
+/// step (ten presses moved a point exactly 5.0 mm, #1260 capture e2).
+pub const POINT_NUDGE: f64 = 5.0;
+
+/// Whether the one selected shape's outline is closed; `None` without exactly one unlocked
+/// shape selected.
+pub fn outline_closed(app: &EditorApp) -> Option<bool> {
+    let ctx = app.tool_context(app.session.design());
+    ctx.point_target()
+        .and_then(|o| o.contours.first())
+        .map(|c| c.closed)
+}
+
+/// Open or Close on the selected shape (`object.openOutline` / `object.closeOutline`).
+pub fn open_or_close(app: &mut EditorApp, close: bool) {
+    if outline_closed(app) != Some(!close) {
+        return;
+    }
+    let command = if close {
+        "object.closeOutline"
+    } else {
+        "object.openOutline"
+    };
+    app.on_selection(|s| {
+        openstitch_app::editor::CommandRequest::new(
+            command,
+            json!({ "id": s.iter().next().copied() }),
+        )
+    });
 }
 
 /// The entry's text, PE-DESIGN's words.
@@ -78,13 +111,19 @@ pub fn pointer(app: &mut EditorApp, response: &egui::Response, vp: &Viewport) ->
         return false;
     };
     let model = vp.to_model(v2(f64::from(at.x), f64::from(at.y)));
-    let mut hit = false;
+    let (mut hit, mut object) = (false, false);
     app.with_tools(|tools, ctx| {
         hit = tools.select_point_at(model, ctx);
+        // Not on a point: the object's menu, as PE-DESIGN opens it.
+        object = !hit && tools.object_menu_at(model, ctx);
         vec![]
     });
-    app.workspace.view.point_menu = hit.then_some(PointMenu { at, fresh: true });
-    hit
+    app.workspace.view.point_menu = (hit || object).then_some(PointMenu {
+        at,
+        fresh: true,
+        object,
+    });
+    hit || object
 }
 
 /// The menu, until an entry is chosen, Esc or a click elsewhere.
@@ -92,6 +131,10 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let Some(mut m) = app.workspace.view.point_menu.take() else {
         return;
     };
+    if m.object {
+        object_window(app, ctx, m);
+        return;
+    }
     let Some(enabled) = states(app) else {
         return;
     };
@@ -127,12 +170,66 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     }
 }
 
+/// The object's menu: Add, Delete and Reverse Direction Line, a separator, Open and Close,
+/// each greyed as its ribbon command is (an open line has no direction lines and offers
+/// Close; a closed shape offers Open).
+fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
+    use openstitch_app::editor::ribbon::POINT_OBJECT_MENU;
+    let mut chosen = false;
+    let r = egui::Area::new(egui::Id::unique("point-object-menu"))
+        .fixed_pos(m.at)
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            egui::Frame::menu(ui.style()).show(ui, |ui| {
+                ui.set_min_width(180.0);
+                for a in POINT_OBJECT_MENU {
+                    if a == Action::OpenOutline {
+                        ui.separator();
+                    }
+                    let enabled = crate::ribbon::enabled(app, a);
+                    if ui
+                        .add_enabled(enabled, egui::Button::new(a.info().label))
+                        .clicked()
+                    {
+                        crate::ribbon::run(app, a, ui.ctx());
+                        chosen = true;
+                    }
+                }
+            });
+        });
+    let (pressed, esc) = ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));
+    let outside = pressed && !r.response.contains_pointer();
+    if !chosen && !esc && (m.fresh || !outside) {
+        m.fresh = false;
+        app.workspace.view.point_menu = Some(m);
+    }
+}
+
+/// The object's menu as `ui.pointMenu` reports it: each entry's key, text, whether a
+/// separator sits above it and whether it is available for the selected shape.
+fn object_state(app: &EditorApp) -> Value {
+    use openstitch_app::editor::ribbon::POINT_OBJECT_MENU;
+    json!(
+        POINT_OBJECT_MENU
+            .into_iter()
+            .map(|a| json!({
+                "key": a.info().key,
+                "label": a.info().label,
+                "separatorBefore": a == Action::OpenOutline,
+                "enabled": crate::ribbon::enabled(app, a),
+            }))
+            .collect::<Vec<_>>()
+    )
+}
+
 /// The menu as `ui.state` reports it: whether it is open, and every entry with its text,
 /// whether a separator sits above it and whether it is available for the selected points.
 pub fn state(app: &EditorApp) -> Value {
     let enabled = states(app);
     json!({
-        "open": app.workspace.view.point_menu.is_some(),
+        "open": app.workspace.view.point_menu.as_ref().is_some_and(|m| !m.object),
+        "objectMenuOpen": app.workspace.view.point_menu.as_ref().is_some_and(|m| m.object),
+        "objectMenu": object_state(app),
         "entries": PointAction::MENU.into_iter().enumerate().map(|(i, a)| json!({
             "key": a.key(),
             "label": label(a),
@@ -302,6 +399,55 @@ mod tests {
             app.ui_command("ui.pointMenu", Some(&json!({ "action": "bend" })))
                 .is_err()
         );
+    }
+
+    /// The object's menu (#1260): PE-DESIGN's entries in its order, a separator before Open;
+    /// a closed shape offers Open and the direction lines, an open line only Close. Close
+    /// gives the line a region, Open takes it away again.
+    #[test]
+    fn the_object_menu_opens_and_closes_the_outline() {
+        let (mut app, _) = with_rectangle();
+        let entries = |app: &mut EditorApp| {
+            let s = app.ui_command("ui.pointMenu", None).expect("state");
+            s["objectMenu"]
+                .as_array()
+                .expect("objectMenu")
+                .iter()
+                .map(|e| {
+                    (
+                        e["label"].as_str().expect("label").to_string(),
+                        e["separatorBefore"] == true,
+                        e["enabled"] == true,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let closed = entries(&mut app);
+        assert_eq!(
+            closed.iter().map(|e| (e.0.as_str(), e.1)).collect::<Vec<_>>(),
+            [
+                ("Add Direction Line", false),
+                ("Delete Direction Line", false),
+                ("Reverse Direction Line", false),
+                ("Open", true),
+                ("Close", false),
+            ]
+        );
+        assert!(closed[0].2 && closed[2].2 && closed[3].2 && !closed[4].2, "{closed:?}");
+        app.ui_command("ui.run", Some(&json!({ "action": "openOutline" })))
+            .expect("Open");
+        let o = &app.session.design().objects[0];
+        assert!(!o.contours[0].closed && o.region.is_none() && o.line.is_some());
+        let open = entries(&mut app);
+        assert!(!open[0].2 && !open[2].2 && !open[3].2 && open[4].2, "{open:?}");
+        app.ui_command("ui.run", Some(&json!({ "action": "closeOutline" })))
+            .expect("Close");
+        let o = &app.session.design().objects[0];
+        assert!(o.contours[0].closed && o.region.is_some());
+        app.undo();
+        app.undo();
+        let o = &app.session.design().objects[0];
+        assert!(o.contours[0].closed && o.region.is_some(), "one Undo each");
     }
 
     /// Split at Point on a stitch pattern still splits it at the selected needle point

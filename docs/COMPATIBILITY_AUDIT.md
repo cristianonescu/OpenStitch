@@ -4826,14 +4826,12 @@ Tests against the numbers above: design `to_curve_places_the_handles_where_pe_de
 
 **Not matched, and why:**
 
-- **Delete on a closed straight outline stops at three points** (PE-DESIGN goes on to two, a
-  shape that sews 2 stitches). The entry stays available as in PE-DESIGN and does nothing there;
-  `object.deletePoint` refuses with the reason. A closed two-point straight outline has no area
-  and no command here can make one.
+- Delete on a closed straight outline stopped at three points in the first version; it goes
+  down to two since #1260 (below).
 - **Split at Point on a shape sewn as a region only is refused** (it would leave nothing to
   sew). PE-DESIGN's case with a region only was not captured; with line and region it drops the
   region, as here.
-- **A click on the outline inserts a point in PE-DESIGN;** here a double-click does (unchanged).
+- A click on the outline inserts a point since #1260 (below); it was a double-click.
 - **Curves made before this change** (and by `object.setSegment`) have no stored kind: their
   points show To Smooth, To Symmetry and To Cusp all available, and are written to PES 0110 as
   `0x11` as before.
@@ -4841,3 +4839,62 @@ Tests against the numbers above: design `to_curve_places_the_handles_where_pe_de
   Close, dragging the twin points apart after a closed split, a drag box around points.
 - The drop-down entries reuse existing icons (`open_line`, `curve`, the Point tool's); no new
   icon was made.
+
+### Select Point: inserting, selecting, moving, Open and Close, 2026-11-18 (#1260)
+
+**Measured** on PE-DESIGN 11.50 the same day, second round (black-box: the screen and 7 more
+saved files, not in the repository).
+
+| what | PE-DESIGN 11.50 | file |
+|---|---|---|
+| One click on a side | Inserts a point there and selects it: a straight point on a straight side; on a curved side a smooth curve point, the curve split exactly (a click at t = 0.826 of a side from 50.1 to 70 mm with one handle at 58.85: the point at 65.1 mm, its handles at 58.59 and 66.47, the first point's handle drawn back to 57.33). The straight end of that side stays a straight point. | e5 |
+| Press and drag on a side | Inserts only; the point does not move. There is no segment drag. A right click on a side inserts nothing. | e3, e5 |
+| Selecting | Click a point; Ctrl+click adds; a click on a selected point keeps the selection; a drag box from empty space selects the points inside; a click on empty space clears. | screen |
+| Dragging one of several selected points | Moves all of them by the same offset. | e1 |
+| Arrow keys | Move the selected points 0.5 mm a press (ten presses: 30.0 → 35.0 mm exactly). Only Right was pressed. | e2 |
+| Delete key | Removes the selected points in one step; one Undo brings them back. | screen |
+| To Curve on a point in the middle of a straight side | Both handles on the side: the outline does not change (the same rule, point ∓ (next − previous) / 4). | e5 |
+| Right click on the shape, not on a point | The object's menu: Add Direction Line, Delete Direction Line, Reverse Direction Line, separator, Open, Close. Open line: only Close is available of the last two, Add and Reverse grey. Closed shape: Add, Reverse and Open available, Close grey. | screen |
+| Close | The open line becomes a closed shape through the same points and gets a region: Fill Stitch at direction 45 (1289 stitches against 310). | e7 |
+| Open | The closing side goes and the region is removed; the line is as before (310 stitches). | e8 |
+| An end point dragged onto the other end without Alt | Lies on it; the line stays open. | e6 |
+
+**Now:** OpenStitch does the same.
+
+- `object.insertPoint` inserts as above (`Contour::insert_point_edit`; the sewing code keeps
+  the exact split, `insert_point`). The Point tool inserts on one click and never drags a side.
+- A drag from empty space is a box over the points; a click there clears. Dragging one of several
+  selected points, and the arrow keys (0.5 mm; Shift: 5 mm, our addition), are one
+  `object.movePoints`. Delete removes every selected point, down to two on any outline; at two
+  it stays available and does nothing.
+- A right click on the shape beside its points opens the object's menu with PE-DESIGN's entries
+  and greying. `object.closeOutline` adds Fill Stitch at 45° in the line's thread when the object
+  has no region (`region: false` leaves it out); `object.openOutline` removes the closing side
+  and the region.
+- The Point tool's hint line names these in our own words.
+
+Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_makes_it`,
+`several_points_move_together_in_one_undo_step`,
+`close_adds_a_region_and_open_removes_it_as_pe_design_does`,
+`the_registry_says_what_the_1260_commands_store`; app
+`a_drag_box_selects_points_and_they_move_together`,
+`one_click_on_a_side_inserts_a_point_and_a_drag_there_does_not_move_it`,
+`a_right_click_beside_the_points_is_for_the_object_menu`,
+`the_object_menu_opens_and_closes_the_outline`.
+
+**By extension, not captured:** Alt held while an end point of an open line is dropped on another
+end point connects them: the same line's other end closes the line (as Close does), another
+line's end joins the two lines into one object (as Join Lines does), one undo step
+(`alt_drops_an_end_point_on_another_end_point_and_connects_them`). PE-DESIGN shows a hint for
+this when an end point is selected; the gesture itself could not be captured.
+
+**Not matched, and why:**
+
+- Split at Point and Open on a shape sewn as a region only are refused (nothing would be left to
+  sew); PE-DESIGN's behaviour there is not captured.
+- Up, Down and Left arrows, and Shift or Ctrl while dragging a point, are not captured; here the
+  arrows all step 0.5 mm, Shift locks a drag to an axis and Ctrl drags without snapping, as
+  before.
+- The drag box selects the points of one outline of the shape (the one with the most points in
+  the box); PE-DESIGN's shapes in the captures had one outline.
+- The browser version is checked in part B of #1260.

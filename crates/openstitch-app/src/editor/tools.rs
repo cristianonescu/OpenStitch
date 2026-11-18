@@ -322,6 +322,10 @@ enum Gesture {
         start: Vec2,
     },
     /// Point tool: a vertex being dragged; `edited` is the contour once the drag has started.
+    /// Point tool: a drag box over the outline's points, from empty space.
+    PointBox {
+        start: Vec2,
+    },
     Vertex {
         point: PointRef,
         start: Vec2,
@@ -917,8 +921,12 @@ impl ToolController {
                             t,
                         },
                     )) => {
+                        // One click on a side inserts a point there and selects it, as
+                        // PE-DESIGN's Select Point does; pressing and dragging inserts only
+                        // (it has no segment drag). The second click of a double-click lands
+                        // on the new point.
                         self.more_points.clear();
-                        if e.clicks < 2 || !(0.001..=0.999).contains(&t) {
+                        if e.clicks >= 2 || !(0.001..=0.999).contains(&t) {
                             self.point = None;
                             return vec![];
                         }
@@ -936,17 +944,58 @@ impl ToolController {
                         )]
                     }
                     None => {
+                        // A drag from here is a box over the points; a click selects the
+                        // object under it or, on empty space, clears the selection (on release).
                         self.point = None;
                         self.more_points.clear();
-                        match object_at(ctx.design, p, ctx.tolerance()) {
-                            Some(id) if ctx.selection.len() == 1 && ctx.selection.contains(&id) => {
-                                vec![]
-                            }
-                            Some(id) => vec![ToolEffect::Select(BTreeSet::from([id]))],
-                            None => vec![ToolEffect::Select(BTreeSet::new())],
-                        }
+                        self.gesture = Some(Gesture::PointBox { start: p });
+                        vec![]
                     }
                 }
+            }
+            (Phase::Dragged, Some(Gesture::PointBox { start })) => {
+                self.preview = (p.distance(start) >= DRAG_THRESHOLD * ctx.units_per_point)
+                    .then(|| ToolPreview::Marquee(rect_from(start, p)));
+                vec![]
+            }
+            (Phase::Up, Some(Gesture::PointBox { start })) => {
+                self.gesture = None;
+                if self.preview.take().is_none() {
+                    return match object_at(ctx.design, p, ctx.tolerance()) {
+                        Some(id) if ctx.selection.len() == 1 && ctx.selection.contains(&id) => {
+                            vec![]
+                        }
+                        Some(id) => vec![ToolEffect::Select(BTreeSet::from([id]))],
+                        None => vec![ToolEffect::Select(BTreeSet::new())],
+                    };
+                }
+                // Every point inside the box, of the contour that has the most of them.
+                let r = rect_from(start, p);
+                let inside = |q: Vec2| {
+                    (r.min_x..=r.max_x).contains(&q.x) && (r.min_y..=r.max_y).contains(&q.y)
+                };
+                let picked = ctx.point_target().and_then(|o| {
+                    o.contours
+                        .iter()
+                        .enumerate()
+                        .map(|(contour, c)| {
+                            c.points
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, q)| inside(**q))
+                                .map(|(index, _)| PointRef {
+                                    id: o.id,
+                                    contour,
+                                    index,
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .max_by_key(Vec::len)
+                });
+                let mut picked = picked.unwrap_or_default().into_iter();
+                self.point = picked.next();
+                self.more_points = picked.collect();
+                vec![]
             }
             (Phase::Dragged, Some(Gesture::Vertex { point, start, .. })) => {
                 let Some(c) = ctx
@@ -959,7 +1008,16 @@ impl ToolController {
                 let edited =
                     (p.distance(start) >= DRAG_THRESHOLD * ctx.units_per_point).then(|| {
                         let d = move_delta(start, p, e.shift);
-                        with_vertex(c, point.index, self.snapped(c.points[point.index] + d))
+                        let to = self.snapped(c.points[point.index] + d);
+                        // Dragging one of several selected points moves them all.
+                        let d = to - c.points[point.index];
+                        let mut moved = with_vertex(c, point.index, to);
+                        for q in self.selected_points(ctx) {
+                            if q != point {
+                                moved.move_point(q.index, moved.points[q.index] + d);
+                            }
+                        }
+                        moved
                     });
                 self.gesture = Some(Gesture::Vertex {
                     point,
@@ -1019,13 +1077,53 @@ impl ToolController {
                         ..
                     } => {
                         let v = c.points[point.index];
-                        vec![ToolEffect::run(
-                            CommandRequest::new(
+                        let selected = self.selected_points(ctx);
+                        let from = ctx
+                            .point_target()
+                            .and_then(|o| o.contours.get(point.contour))
+                            .and_then(|c| c.points.get(point.index).copied());
+                        if let (true, Some(from)) = (selected.len() > 1, from) {
+                            let mut indexes: Vec<usize> =
+                                selected.iter().map(|q| q.index).collect();
+                            indexes.sort_unstable();
+                            return vec![ToolEffect::run(
+                                CommandRequest::new(
+                                    "object.movePoints",
+                                    json!({ "id": point.id, "contour": point.contour, "indexes": indexes, "dx": mm(v.x - from.x), "dy": mm(v.y - from.y) }),
+                                ),
+                                false,
+                            )];
+                        }
+                        let mut requests = vec![CommandRequest::new(
+                            "object.setPoint",
+                            json!({ "id": point.id, "contour": point.contour, "index": point.index, "x": mm(v.x), "y": mm(v.y) }),
+                        )];
+                        // Alt held on release: an end point dropped on another end point is
+                        // connected to it (the same line is closed, another line joined).
+                        if e.alt
+                            && let Some((to, join)) = self.connect_target(point, v, ctx)
+                        {
+                            requests[0] = CommandRequest::new(
                                 "object.setPoint",
-                                json!({ "id": point.id, "contour": point.contour, "index": point.index, "x": mm(v.x), "y": mm(v.y) }),
-                            ),
-                            false,
-                        )]
+                                json!({ "id": point.id, "contour": point.contour, "index": point.index, "x": mm(to.x), "y": mm(to.y) }),
+                            );
+                            requests.push(match join {
+                                Some(other) => CommandRequest::new(
+                                    "shape.joinLines",
+                                    json!({ "ids": [point.id, other], "tolerance": 0.1 }),
+                                ),
+                                None => CommandRequest::new(
+                                    "object.closeOutline",
+                                    json!({ "id": point.id, "contour": point.contour }),
+                                ),
+                            });
+                            self.point = None;
+                            self.more_points.clear();
+                        }
+                        vec![ToolEffect::Execute {
+                            requests,
+                            select_result: false,
+                        }]
                     }
                     Gesture::Control {
                         id,
@@ -1047,6 +1145,82 @@ impl ToolController {
                 }
             }
             _ => vec![],
+        }
+    }
+
+    /// Where an end point of an open line dropped at `at` connects: the position of another
+    /// end point within the point radius, and the other line's object when it is not the
+    /// same line's other end. `None` when `point` is not an end of an open one-outline line
+    /// or no end point is near.
+    fn connect_target(
+        &self,
+        point: PointRef,
+        at: Vec2,
+        ctx: &ToolContext,
+    ) -> Option<(Vec2, Option<u64>)> {
+        let ends = |o: &DesignObject| match o.contours.as_slice() {
+            [c] if !c.closed && c.points.len() >= 2 => {
+                Some((c.points[0], c.points[c.points.len() - 1]))
+            }
+            _ => None,
+        };
+        let own = ctx.point_target().filter(|o| o.id == point.id)?;
+        let (first, last) = ends(own)?;
+        let n = own.contours[0].points.len();
+        let other_end = match point.index {
+            0 => last,
+            i if i + 1 == n => first,
+            _ => return None,
+        };
+        let near = |q: Vec2| q.distance(at) <= ctx.point_radius();
+        if n > 2 && near(other_end) {
+            return Some((other_end, None));
+        }
+        ctx.design
+            .objects
+            .iter()
+            .filter(|o| o.id != own.id && o.kind == ObjectKind::Shape && o.visible && !o.locked)
+            .filter_map(|o| ends(o).map(|e| (o.id, e)))
+            .flat_map(|(id, (a, b))| [(id, a), (id, b)])
+            .filter(|(_, q)| near(*q))
+            .min_by(|x, y| x.1.distance(at).total_cmp(&y.1.distance(at)))
+            .map(|(id, q)| (q, Some(id)))
+    }
+
+    /// Arrow keys with the Point tool: moves the selected vertices by (`dx`, `dy`) (0.1 mm
+    /// units) in one command. `None` when no vertex is selected (the arrows then nudge the
+    /// selected objects as usual).
+    pub fn nudge_points(&mut self, dx: f64, dy: f64, ctx: &ToolContext) -> Option<Vec<ToolEffect>> {
+        if self.tool() != Tool::Point {
+            return None;
+        }
+        let selected = self.selected_points(ctx);
+        let first = *selected.first()?;
+        let mut indexes: Vec<usize> = selected.iter().map(|q| q.index).collect();
+        indexes.sort_unstable();
+        Some(vec![ToolEffect::run(
+            CommandRequest::new(
+                "object.movePoints",
+                json!({ "id": first.id, "contour": first.contour, "indexes": indexes, "dx": mm(dx), "dy": mm(dy) }),
+            ),
+            false,
+        )])
+    }
+
+    /// Whether a right-click at `at` with the Point tool opens the object's menu (Add,
+    /// Delete and Reverse Direction Line, Open, Close): on the shape whose points show, but
+    /// not on one of its points (that opens the point menu).
+    pub fn object_menu_at(&self, at: Vec2, ctx: &ToolContext) -> bool {
+        if self.tool() != Tool::Point {
+            return false;
+        }
+        let Some(o) = ctx.point_target() else {
+            return false;
+        };
+        match point_at(o, at, ctx.point_radius(), ctx.tolerance()) {
+            Some(PointHit::Vertex { .. }) => false,
+            Some(_) => true,
+            None => object_at(ctx.design, at, ctx.tolerance()) == Some(o.id),
         }
     }
 
@@ -1719,6 +1893,7 @@ fn finish_select(
         | Gesture::Marquee { .. }
         | Gesture::Drawing { .. }
         | Gesture::Vertex { .. }
+        | Gesture::PointBox { .. }
         | Gesture::Control { .. }
         | Gesture::PenAnchor { .. }
         | Gesture::SkeletonWidth { .. }

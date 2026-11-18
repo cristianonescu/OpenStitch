@@ -1520,7 +1520,7 @@ fn path_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.insertPoint",
-            "Insert a vertex on a segment (curves are split exactly)",
+            "Insert a vertex on a segment, as one click on the outline with the Point tool does: a straight point on a straight side; on a curve the curve is split exactly and the new point is stored as smooth. A side between a curve point and a straight point (which has no handle of its own) keeps that straight point straight: its piece is then drawn from the new point's handle alone and moves slightly",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),
@@ -1539,12 +1539,12 @@ fn path_commands() -> Vec<CommandSpec> {
                 if c.points.len() >= 100_000 {
                     return Err(p.failed("contour already has 100000 points"));
                 }
-                Ok(json!({ "index": c.insert_point(seg, t) }))
+                Ok(json!({ "index": c.insert_point_edit(seg, t) }))
             },
         ),
         spec(
             "object.deletePoint",
-            "Delete a vertex, or several at once, joining the neighbouring segments (the joined side stays a curve, with the outer handles, when either side was one). Refused when it would leave an open line with fewer than 2 points or a closed straight outline with fewer than 3; nothing is deleted then",
+            "Delete a vertex, or several at once, joining the neighbouring segments (the joined side stays a curve, with the outer handles, when either side was one). An outline keeps 2 points, open or closed, as PE-DESIGN's does (a closed outline of 2 points sews its one side there and back); refused when it would leave fewer, and nothing is deleted then",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),
@@ -1555,14 +1555,10 @@ fn path_commands() -> Vec<CommandSpec> {
             |s, p| {
                 let c = contour_mut(s, p)?;
                 let at = crate::point_edit::point_indexes(p, c)?;
-                // Open: 2 points. Closed: 3, or 2 when curves keep the region non-degenerate.
+                // PE-DESIGN's Delete goes down to two points on any outline (#1260).
                 let mut left = c.clone();
                 for &index in at.iter().rev() {
-                    let minimum = if left.closed && !left.has_curves() {
-                        3
-                    } else {
-                        2
-                    };
+                    let minimum = 2;
                     if left.points.len() <= minimum {
                         return Err(
                             p.failed(format!("this contour needs at least {minimum} points"))

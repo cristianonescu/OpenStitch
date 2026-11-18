@@ -358,6 +358,8 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         }
         OffsetLines | FloralPattern => edit_ui::single_outline(app).is_some(),
         EditPoint => crate::point_menu_ui::states(app).is_some(),
+        OpenOutline => crate::point_menu_ui::outline_closed(app) == Some(true),
+        CloseOutline => crate::point_menu_ui::outline_closed(app) == Some(false),
         DeletePoint => match crate::point_menu_ui::states(app) {
             Some(e) => e[6],
             None => app.tools.tool() == Tool::Point && any,
@@ -690,6 +692,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
                 crate::point_menu_ui::run(app, p);
             }
         }
+        OpenOutline | CloseOutline => crate::point_menu_ui::open_or_close(app, a == CloseOutline),
         OffsetLines => app.edit.offset_open = true,
         FloralPattern => app.edit.floral_open = true,
         SplitStitchData => convert_ui::split_off_area(app),
