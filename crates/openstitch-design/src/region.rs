@@ -2868,8 +2868,8 @@ pub fn hairline_runs(run: &mut Run) {
 /// over that stitch; after a first stitch over 2.65 mm it steps out three times (0.9 mm)
 /// and comes back in stitches of at most 0.5 mm. At the end it steps back along the last
 /// stitch, 0.3 mm at a time, and returns the same way: twice after a last stitch longer than
-/// 4.25 mm, once otherwise. (PE: one tie-in step after 1.2–2.3 mm first stitches, three after
-/// 3.0 and 3.5 mm; one lock step after 0.2–3.5 mm last stitches, two after 5 and 30 mm ones.)
+/// 4.65 mm, once otherwise. (PE: one tie-in step after 1.2–2.3 mm first stitches, three after
+/// 3.0 and 3.5 mm; one lock step after 0.2–4.3 mm last stitches, two after 5 and 30 mm ones.)
 pub fn tie_and_lock(layers: &mut [Vec<Run>]) {
     if let Some(run) = layers.iter_mut().flatten().find(|r| r.len() >= 2) {
         tie_in(run);
@@ -2965,8 +2965,14 @@ pub fn tie_in_by(run: &mut Run, step: f64) {
     run.splice(1..1, tie);
 }
 
+/// A last stitch longer than this (0.1 mm) gets PE-DESIGN's two-step lock: one step after
+/// last stitches up to 4.3 mm (machine-trim-bound's fifth square, a 5 mm fill square at 45
+/// degrees ending on a 4.24 to 4.3 mm stitch, #1246), two after 5 mm (the satin references);
+/// the bound is set halfway.
+const LOCK_TWO_STEPS: f64 = 46.5;
+
 /// PE-DESIGN 11.50's end lock after a last stitch from `a` to `b`: back along it 0.3 mm at a
-/// time and the same way home, twice after a last stitch over 4.25 mm, once otherwise.
+/// time and the same way home, twice after a last stitch over 4.65 mm, once otherwise.
 pub fn lock_points(a: Vec2, b: Vec2) -> Vec<Vec2> {
     lock_points_by(a, b, TIE_STEP)
 }
@@ -2978,7 +2984,7 @@ pub fn lock_points_by(a: Vec2, b: Vec2, step: f64) -> Vec<Vec2> {
         return Vec::new();
     }
     let back = (a - b) * (step.min(len) / len);
-    let steps = if len > 42.5 { 2 } else { 1 };
+    let steps = if len > LOCK_TWO_STEPS { 2 } else { 1 };
     (1..=steps)
         .map(|k| b + back * k as f64)
         .chain((0..steps).rev().map(|k| b + back * k as f64))

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="100mm" viewBox="0 0 100 100">
+  <!-- machine-trim-bound: eight 5 x 5 mm red squares at x = 10, 15.5, 21.3, 27.3, 33.5, 40, 46.8, 53.8 mm, the SVG the reference's make describes. -->
+  <rect x="10" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="15.5" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="21.3" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="27.3" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="33.5" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="40" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="46.8" y="47.5" width="5" height="5" fill="#ff0000"/>
+  <rect x="53.8" y="47.5" width="5" height="5" fill="#ff0000"/>
+</svg>

@@ -157,7 +157,10 @@ Line references are relative to `crates/`.
   slants on the 5×2 mm column). Every satin object starts with a tie-in (0.3 mm out along the
   first stitch and back; three steps out and two back after a first stitch over 3 mm) and ends
   with a lock (0.3 mm back along the last stitch and return; two steps after a last stitch over
-  4.25 mm), per `satin-lock-column-3p5.pes` and the other satin references.
+  4.65 mm), per `satin-lock-column-3p5.pes` and the other satin references. The bound was
+  4.25 mm, halfway between the 3.5 and 5 mm last stitches measured, until #1246 (2026-11-18):
+  machine-trim-bound's fifth square ends on a 4.24 to 4.3 mm stitch and PE-DESIGN locks it
+  with one step, so the bound now lies halfway between 4.3 and 5 mm.
   Since 2026-11-14 (#1032) the tie-in steps along the first stitch longer than 0.1 mm: a run
   that starts on a near-duplicate point (Pacifico's i, a stroke's first rung 0.01-0.02 mm from
   its lead) stepped out that far and back, which the writer sews as one needle point, so the

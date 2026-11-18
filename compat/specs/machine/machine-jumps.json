@@ -3,7 +3,7 @@
   "id": "machine-jumps",
   "area": "machine",
   "title": "Frame moves between same-colour parts: trimmed from about 2.3 mm, sewn across below",
-  "description": "Six 5 x 5 mm red fill squares with gaps of 1, 2, 3, 4 and 6 mm (needle-to-needle moves of about 2.2, 3.2, 4.1, 5.1 and 7.1 mm): PE-DESIGN 11.50 trims the four longer moves and sews the 1 mm gap across as a plain stitch, so there is no untrimmed jump in the file. The squares' y position is OpenStitch's choice (PE imported them centred); only the moves matter. The squares are imported from the SVG the reference was made from, placed where PE-DESIGN's needle points are. An imported closed path starts and ends at its first point, an SVG rect's top-left corner (#1088 c). So each square starts on its under sewing's edge run at the inset corner, 1 mm in from the top-left; the optimiser moves each exit to the top-right corner, nearest the next square, so the needle-to-needle moves are PE-DESIGN's: sqrt((gap + 1)^2 + 1) mm. The last square has no next one and ends where it started, at its top-left corner, as PE-DESIGN's does.",
+  "description": "Six 5 x 5 mm red fill squares with gaps of 1, 2, 3, 4 and 6 mm (needle-to-needle moves of about 2.2, 3.2, 4.1, 5.1 and 7.1 mm): PE-DESIGN 11.50 trims the four longer moves and sews the 1 mm gap across as a plain stitch, so there is no untrimmed jump in the file. The squares' y position is OpenStitch's choice (PE imported them centred); only the moves matter. The squares are imported from the SVG the reference was made from, placed where PE-DESIGN's needle points are. An imported closed path starts and ends at its first point, an SVG rect's top-left corner (#1088 c). So each square starts on its under sewing's edge run at the inset corner, 1 mm in from the top-left; the optimiser moves each exit to the top-right corner, nearest the next square, so the needle-to-needle moves are PE-DESIGN's: sqrt((gap + 1)^2 + 1) mm. The last square has no next one and ends where it started, at its top-left corner, as PE-DESIGN's does. Since #1246 the design is on a Custom Size page, as the reference's Design Settings had it, so no move lands on a stitch in place (#1013).",
   "covers": {
     "audit": [
       4
@@ -33,7 +33,8 @@
       "params": {
         "name": "machine-jumps",
         "width": 100,
-        "height": 100
+        "height": 100,
+        "pageMode": "custom"
       }
     },
     {

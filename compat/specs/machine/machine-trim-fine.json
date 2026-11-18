@@ -3,7 +3,7 @@
   "id": "machine-trim-fine",
   "area": "machine",
   "title": "The trim bound pinned: a 2.2 mm move is sewn across, a 2.33 mm move is trimmed",
-  "description": "Five 5 x 5 mm red fill squares with gaps of 1.0, 1.1, 1.2 and 1.3 mm: PE-DESIGN 11.50 sews the 1.0 mm gap (a 2.2 mm needle-to-needle move) across as a plain stitch and trims the other three (2.33, 2.42 and 2.51 mm moves), so the bound lies between 2.2 and 2.33 mm; OpenStitch sews across up to 2.25 mm. The squares' y position is OpenStitch's choice. The squares are drawn where PE-DESIGN's are (the bounds of each square's needle points in its file). Each square starts on its under sewing's edge run at the inset corner, 1 mm in from the top-left, and leaves at its top-right corner, in OpenStitch since #1088 as in PE-DESIGN, so the needle-to-needle moves are PE-DESIGN's: sqrt((gap + 1)^2 + 1) mm.",
+  "description": "Five 5 x 5 mm red fill squares with gaps of 1.0, 1.1, 1.2 and 1.3 mm: PE-DESIGN 11.50 sews the 1.0 mm gap (a 2.2 mm needle-to-needle move) across as a plain stitch and trims the other three (2.33, 2.42 and 2.51 mm moves), so the bound lies between 2.2 and 2.33 mm; OpenStitch sews across up to 2.25 mm. The squares' y position is OpenStitch's choice. The squares are drawn where PE-DESIGN's are (the bounds of each square's needle points in its file). Each square starts on its under sewing's edge run at the inset corner, 1 mm in from the top-left, and leaves at its top-right corner, in OpenStitch since #1088 as in PE-DESIGN, so the needle-to-needle moves are PE-DESIGN's: sqrt((gap + 1)^2 + 1) mm. Since #1246 the squares are imported from the SVG the reference was made from (an SVG rect starts at its top-left corner) onto a Custom Size page, as the reference's Design Settings had it: on a Custom Size page PE-DESIGN sews no stitch in place where a move lands (#1013), so after a trim it ties in with two needle points, 0.3 mm out and back, and before one it locks with two, 0.3 mm back and home.",
   "covers": {
     "audit": [
       4
@@ -27,68 +27,27 @@
       "params": {
         "name": "machine-trim-fine",
         "width": 100,
-        "height": 100
+        "height": 100,
+        "pageMode": "custom"
       }
     },
     {
-      "command": "shape.rectangle",
+      "command": "import.svg",
       "params": {
+        "path": "squares.svg",
         "x": 35.2,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 41.2,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 47.3,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 53.5,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 59.8,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
+        "y": 47.5
       }
     },
     {
       "command": "object.setRegion",
       "params": {
         "ids": [
-          1,
           2,
           3,
           4,
-          5
+          5,
+          6
         ],
         "type": "fill",
         "color": "Red",
@@ -160,12 +119,110 @@
       "source": {
         "export": "a.pes"
       },
-      "evidence": "PE-DESIGN's count (its fill rows join differently from OpenStitch's, the text-fill item of the audit)",
+      "evidence": "PE-DESIGN's count; the ties and locks hold its needle points, the rest is the under sewing's order and the fill's short rows (#1247)",
       "reference": {
         "tolerance": {
-          "percent": 10
+          "count": 3
         }
       }
+    },
+    {
+      "id": "part-0-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 0,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the first two squares, sewn as one part (the 1.0 mm gap sewn across): the tie-in's 0.3 mm step out is the first needle point, and the part ends at the second square's top-right corner (#1246)",
+      "reference": {
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "part-1-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 1,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the third square: lands at its inset corner after the trim, ties in out and back (two needle points), and locks one step back and home at its top-right corner (#1246)",
+      "reference": {
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "part-2-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 2,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the fourth square, as the third (#1246)",
+      "reference": {
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "part-3-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 3,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the last square: ends at its top-left corner, the imported outline's first point (#1246)",
+      "reference": {
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "from": "compat/reference/machine/machine-trim-fine-squares.svg",
+      "name": "squares.svg"
     }
   ]
 }

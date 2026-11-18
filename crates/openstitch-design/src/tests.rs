@@ -1177,3 +1177,17 @@ fn split_at_point_opens_a_closed_outline_and_cuts_an_open_line() {
     assert_eq!(halves[1].points, vec![v2(30.0, 0.0), v2(30.0, 30.0)]);
     assert!(halves.iter().all(|h| !h.closed));
 }
+
+#[test]
+fn a_lock_steps_back_once_after_a_last_stitch_of_4_3_mm_and_twice_after_5_mm() {
+    // #1246, machine-trim-bound: PE-DESIGN 11.50 ends a 5 mm fill square at 45 degrees on a
+    // stitch of 4.24 to 4.3 mm and locks it with one step back and home; the satin references
+    // lock a 5 mm last stitch with two.
+    let b = v2(50.0, 0.0);
+    let once = crate::region::lock_points(v2(19.6, 30.4), b);
+    assert_eq!(once.len(), 2, "{once:?}");
+    assert!((once[0].distance(b) - 3.0).abs() < 1e-9 && once[1] == b);
+    let twice = crate::region::lock_points(v2(0.0, 0.0), b);
+    assert_eq!(twice.len(), 4, "{twice:?}");
+    assert!((twice[1].distance(b) - 6.0).abs() < 1e-9 && twice[3] == b);
+}

@@ -3,7 +3,7 @@
   "id": "machine-trim-bound",
   "area": "machine",
   "title": "The trim bound: gaps of 0.5, 0.8 and 1.0 mm are sewn across, 1.2 mm and up are trimmed",
-  "description": "Eight 5 x 5 mm red fill squares with gaps of 0.5, 0.8, 1.0, 1.2, 1.5, 1.8 and 2.0 mm: PE-DESIGN 11.50 sews the three shortest gaps across as plain stitches (no jump at all) and trims the four others (needle-to-needle moves of 2.42 mm and more). The squares' y position is OpenStitch's choice. The squares are drawn where PE-DESIGN's are (the bounds of each square's needle points in its file). Each square starts on its under sewing's edge run at the inset corner, 1 mm in from the top-left, and leaves at its top-right corner, in OpenStitch since #1088 as in PE-DESIGN, so the needle-to-needle moves are PE-DESIGN's: sqrt((gap + 1)^2 + 1) mm.",
+  "description": "Eight 5 x 5 mm red fill squares with gaps of 0.5, 0.8, 1.0, 1.2, 1.5, 1.8 and 2.0 mm: PE-DESIGN 11.50 sews the three shortest gaps across as plain stitches (no jump at all) and trims the four others (needle-to-needle moves of 2.42 mm and more). The squares' y position is OpenStitch's choice. The squares are drawn where PE-DESIGN's are (the bounds of each square's needle points in its file). Each square starts on its under sewing's edge run at the inset corner, 1 mm in from the top-left, and leaves at its top-right corner, in OpenStitch since #1088 as in PE-DESIGN, so the needle-to-needle moves are PE-DESIGN's: sqrt((gap + 1)^2 + 1) mm. Since #1246 the squares are imported from the SVG the reference was made from (an SVG rect starts at its top-left corner) onto a Custom Size page, as the reference's Design Settings had it: on a Custom Size page PE-DESIGN sews no stitch in place where a move lands (#1013), so after a trim it ties in with two needle points, 0.3 mm out and back, and before one it locks with two, 0.3 mm back and home.",
   "covers": {
     "audit": [
       4
@@ -27,101 +27,30 @@
       "params": {
         "name": "machine-trim-bound",
         "width": 100,
-        "height": 100
+        "height": 100,
+        "pageMode": "custom"
       }
     },
     {
-      "command": "shape.rectangle",
+      "command": "import.svg",
       "params": {
+        "path": "squares.svg",
         "x": 25.6,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 31.1,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 36.9,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 42.9,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 49.1,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 55.6,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 62.4,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 69.4,
-        "y": 47.5,
-        "width": 5,
-        "height": 5,
-        "fill": "Red"
+        "y": 47.5
       }
     },
     {
       "command": "object.setRegion",
       "params": {
         "ids": [
-          1,
           2,
           3,
           4,
           5,
           6,
           7,
-          8
+          8,
+          9
         ],
         "type": "fill",
         "color": "Red",
@@ -193,12 +122,133 @@
       "source": {
         "export": "a.pes"
       },
-      "evidence": "PE-DESIGN's count (its fill rows join differently from OpenStitch's, the text-fill item of the audit)",
+      "evidence": "PE-DESIGN's count; the ties and locks hold its needle points, the rest is the under sewing's order and the fill's short rows (#1247)",
       "reference": {
         "tolerance": {
-          "percent": 10
+          "count": 10
         }
       }
+    },
+    {
+      "id": "part-0-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 0,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the first four squares, sewn as one part (gaps of 0.5, 0.8 and 1.0 mm sewn across): the tie-in's 0.3 mm step out is the first needle point, at (1.3,1.0) from the first square's corner, and the part ends at the fourth square's top-right corner (#1246)",
+      "reference": {
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "part-1-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 1,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the fifth square: lands at its inset corner after the trim, ties in out and back (two needle points), and locks one step back and home at its top-right corner after a last stitch of 4.24 mm (#1246)",
+      "reference": {
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "part-2-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 2,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the sixth square, as the fifth (#1246)",
+      "reference": {
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "part-3-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 3,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the seventh square, as the fifth (#1246)",
+      "reference": {
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "part-4-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 4,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the last square: ends where its fill ends, at its top-left corner, the imported outline's first point (#1246)",
+      "reference": {
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "from": "compat/reference/machine/machine-trim-bound-squares.svg",
+      "name": "squares.svg"
     }
   ]
 }
