@@ -408,6 +408,11 @@ impl TravelGraph {
         })
     }
 
+    /// Whether the straight run from `a` to `b` stays in the region ([`Self::visible`]).
+    pub(crate) fn sees(&self, a: Vec2, b: Vec2) -> bool {
+        self.visible(a, b)
+    }
+
     fn near_edge(&self, p: Vec2, tolerance: f64) -> bool {
         self.edges.iter().any(|&(a, b)| {
             let d = b - a;

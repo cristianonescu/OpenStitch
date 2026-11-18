@@ -1297,6 +1297,46 @@ Line references are relative to `crates/`.
       along a row therefore depend on the shape's place on the page; its rows do not.
       Lettering, the random stagger, the textures, a pushed-in fill, Stitch Type 2 and every
       other sew type keep their grids with the shape (#567).
+    - Since #1244 (batch:win-fills) a Stitch Type 1 fill in several parts follows PE-DESIGN
+      11.50's order, measured on the U of region-travel-u-fill and six captures of it
+      re-sewn by PE-DESIGN from outlines OpenStitch wrote (one leg longer, the bar 10.2 mm, the
+      start point on a leg's outer and inner corner, the vertices the other way round, and a
+      quadrilateral at 45°):
+      - the part holding the end point is sewn last; the others go before it, the one reaching
+        furthest from the end point's row first (with equal reach the one further along the
+        rows), each from its far end towards the part it hangs from;
+      - a part's rows alternate; its last row ends on the end point (last part) or at the end
+        nearer the next part, and when the needle arrives at the other end of the first row,
+        that row is run across and sewn back;
+      - the first and last row of a part and the rows sewn the way of its first pass keep
+        their edge points, the rows between them sewn the other way do not;
+      - the first part is entered at the end of its first row that comes first along the
+        outline from the start point (four of the five U captures; the one starting on the
+        leg's inner corner enters the bar at its other end, not explained), later parts at
+        the nearer end;
+      - the travel runs straight when the target is in sight, otherwise by the middle of the
+        first row on an outline vertex whose middle sees the target and round the inner
+        corners, in stitches of at most 2 mm; set to Along outline or On outline it follows
+        the outline in the same 2 mm stitches;
+      - the row on the start point is sewn out and back first when the outline's first edge
+        from the start point runs along it;
+      - the under sewing's rows are sewn one after the other from the far part to the start
+        side (189 needle points on the U, ours 187 to 191).
+      A gradation keeps this order whether its rows are one part or several
+      (region-travel-u-gradation, u-gradation-dir-90), travels inside when left at Inside of
+      region, keeps needle points down to 0.4 mm from a row's end, keeps both end points of
+      every row 0.5 mm or more from the next (closer rows sewn against the first pass turn on
+      one point), and puts one travel point between rows more than 2 mm apart. Needle points
+      ours / PE-DESIGN, before → after: region-travel-u-fill 1240 → 1254 / 1254,
+      -u-along-outline 1252 → 1263 / 1262, -u-on-outline 1248 → 1258 / 1259, -u-gradation
+      594 → 617 / 619, u-gradation-pattern-2 607 → 596 / 601, -50-50 820 → 812 / 811, -80-20
+      857 → 836 / 819, -95-50 1105 → 1061 / 994, -dir-90 597 → 581 / 563,
+      square-gradation-default 646 → 660 / 673, -30-10 461 → 476 / 489. The captures: one leg
+      longer 1413 / 1416, bar 10.2 mm 1258 / 1261, start on the leg 1249 / 1257, reversed
+      1240 / 1241, start on the inner corner 1274 / 1282. Left: a one-part shape's entry by a
+      way point (the quadrilateral 651 / 671), the inner-corner capture's entry end, and in
+      flat gradations the second row's missing start point and the side on which close rows
+      turn on one point.
     - **Known difference: when a moved fill is sewn again.** PE-DESIGN keeps an object's
       stitches when it is only moved and sews it again at the next attribute change:
       tatami-40-pos-center and -pos-right10 (moved 5 mm apart, no attribute changed) hold round

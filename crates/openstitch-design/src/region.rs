@@ -748,7 +748,7 @@ fn layers_inner(
             r.entry,
             r.exit,
             r.stitch_type == FillStitchType::Two,
-            entry_travel_along_outline(r),
+            outline_travel(r),
             origin,
         ),
         // A feathered edge alone keeps the sawtooth (PE-DESIGN 11.50, satin-feather); so does
@@ -975,6 +975,16 @@ pub fn entry_travel_along_outline(r: &RegionSewing) -> bool {
     )
 }
 
+/// The outline travel of a fill's Running Stitch Path: along the outline just inside it, on
+/// it, or none (Inside of region).
+fn outline_travel(r: &RegionSewing) -> Option<OutlineTravel> {
+    match r.travel_path() {
+        Some(RunningStitchPath::AlongOutline) => Some(OutlineTravel::Inset(ALONG_OUTLINE_INSET)),
+        Some(RunningStitchPath::OnOutline) => Some(OutlineTravel::On),
+        _ => None,
+    }
+}
+
 /// How close (0.1 mm) a satin travel's needle point may come to an earlier travel's in the
 /// same region before [`join_spread`] slides it along its path: `tools/sew_check.py`'s
 /// 0.5 mm spot.
@@ -1197,7 +1207,13 @@ fn fill_underlay(
                     xs.push(*span.end());
                     xs
                 }
-                _ => tatami_points(span, row, l, Stagger::Regular(FILL_UNDERLAY_SHIFT)),
+                _ => tatami_points(
+                    span,
+                    row,
+                    l,
+                    Stagger::Regular(FILL_UNDERLAY_SHIFT),
+                    l * 0.25,
+                ),
             };
             if !forward {
                 xs.reverse();
@@ -1428,7 +1444,75 @@ fn half_rows(
     };
     let a = generate::chain_spans_from(spans, p, points, at, false);
     let b = generate::chain_spans_from(spans, p, points, at, true);
-    if finish(&b) < finish(&a) - 1.0 { b } else { a }
+    let chained = if finish(&b) < finish(&a) - 1.0 { b } else { a };
+    if chained.len() > 1
+        && let Some(rows) = rows_in_order(spans, p, points, at, start)
+    {
+        return vec![rows];
+    }
+    chained
+}
+
+/// Under sewing rows of different lengths, one span each (the columns under the U of
+/// region-travel-u-fill: the legs' 28 mm ones and the bar's 8 mm ones), as PE-DESIGN 11.50
+/// sews them (#1244): one after the other from the row at `at` towards `start`, alternating,
+/// the last row ending at its end nearer `start`; when that has the first row start at the
+/// end away from `at`, the first row is run across and sewn back (the U's first column, up
+/// to (29,29) and down again). The nearest-end chain left the right leg for the left one and
+/// came back for the bar. `None` when a row has more than one span.
+fn rows_in_order(
+    spans: &[generate::RowSpan],
+    p: &RegionParams,
+    points: &impl Fn(&Span, usize, bool) -> Vec<f64>,
+    at: Vec2,
+    start: Vec2,
+) -> Option<Run> {
+    let rad = p.angle.to_radians();
+    let (at, start) = (at.rotated(-rad), start.rotated(-rad));
+    // Spans of one row that touch (a row on a leg's inner edge, cut where the bar ends) are
+    // one span.
+    let mut sorted: Vec<&generate::RowSpan> = spans.iter().collect();
+    sorted.sort_by(|a, b| {
+        a.row
+            .cmp(&b.row)
+            .then(a.range.start().total_cmp(b.range.start()))
+    });
+    let mut merged: Vec<generate::RowSpan> = Vec::new();
+    for s in sorted {
+        match merged.last_mut() {
+            Some(m) if m.row == s.row && s.range.start() - m.range.end() < 0.5 => {
+                m.range = *m.range.start()..=m.range.end().max(*s.range.end());
+            }
+            _ => merged.push(s.clone()),
+        }
+    }
+    let mut rows: Vec<&generate::RowSpan> = merged.iter().collect();
+    rows.sort_by(|a, b| (a.y - at.y).abs().total_cmp(&(b.y - at.y).abs()));
+    if rows.windows(2).any(|w| w[0].row == w[1].row) {
+        return None;
+    }
+    let (first, last) = (*rows.first()?, *rows.last()?);
+    let n = rows.len();
+    // `true`: sewn from the range's start to its end.
+    let last_forward = (start.x - last.range.end()).abs() <= (start.x - last.range.start()).abs();
+    let first_forward = last_forward ^ !(n - 1).is_multiple_of(2);
+    let arrives_forward = (at.x - first.range.start()).abs() <= (at.x - first.range.end()).abs();
+    let mut run: Run = Vec::new();
+    let mut sew = |row: &generate::RowSpan, forward: bool| {
+        for x in points(&row.range, row.row, forward) {
+            let q = crate::geometry::from_rotated(v2(x, row.y), p.angle);
+            if run.last().is_none_or(|l| l.distance(q) > 1e-6) {
+                run.push(q);
+            }
+        }
+    };
+    if arrives_forward != first_forward {
+        sew(first, arrives_forward);
+    }
+    for (i, row) in rows.iter().enumerate() {
+        sew(row, first_forward ^ !i.is_multiple_of(2));
+    }
+    Some(run)
 }
 
 /// The needle points along the closed run `lap` from `from` to `to` (both projected onto it),
@@ -2087,7 +2171,13 @@ fn satin_underlay_rows(
         let Some(span) = spans.first() else {
             continue;
         };
-        let mut xs = tatami_points(span, i, p.stitch_length, Stagger::Third);
+        let mut xs = tatami_points(
+            span,
+            i,
+            p.stitch_length,
+            Stagger::Third,
+            p.stitch_length * 0.25,
+        );
         let run: Run = xs.iter().map(|&x| unrotate(x, y, p.angle)).collect();
         let reverse = at.is_some_and(|a| a.distance(run[run.len() - 1]) < a.distance(run[0]));
         if reverse {
@@ -3676,7 +3766,14 @@ fn shaped_rows(
     } else {
         generate::chain_spans
     };
-    chain(&spans, p, &|span: &Span, row: usize, forward: bool| {
+    // A gradation's rows keep the needle points PE-DESIGN's do: down to 0.4 mm from a row's
+    // end (region-travel-u-gradation). Feathered and split rows keep a quarter stitch clear.
+    let end_gap = if r.sewn_gradation().is_some() && feather.is_none() && split.is_none() {
+        generate::PE_END_GAP
+    } else {
+        l * 0.25
+    };
+    let points = |span: &Span, row: usize, forward: bool| {
         let (mut lo, mut hi) = (*span.start(), *span.end());
         if let Some(f) = feather {
             let mut rng =
@@ -3693,13 +3790,40 @@ fn shaped_rows(
         let mut xs = if satin {
             satin_points(&span, row, split)
         } else {
-            tatami_points(&span, row, l, stagger)
+            tatami_points(&span, row, l, stagger, end_gap)
         };
         if !forward {
             xs.reverse();
         }
         xs
-    })
+    };
+    // A gradation on a Fill in several parts keeps PE-DESIGN's part order (#1244:
+    // region-travel-u-gradation, u-gradation-pattern-2). Left at Inside of region it travels
+    // inside as the plain fill does: by the bar's middle and round the inner corners.
+    let outline = match r.running_stitch_path {
+        Some(RunningStitchPath::AlongOutline | RunningStitchPath::OnOutline) => outline_travel(r),
+        _ => None,
+    };
+    if !satin && feather.is_none() && split.is_none() {
+        let start = r
+            .entry
+            .or_else(|| closed.first().and_then(|c| c.points.first().copied()));
+        if let Some(from) = start
+            && let Some(runs) = generate::fill_parts(
+                &spans,
+                p,
+                &points,
+                from,
+                r.exit.unwrap_or(from),
+                closed,
+                holes,
+                outline,
+            )
+        {
+            return runs;
+        }
+    }
+    chain(&spans, p, &points)
 }
 
 /// Satin row: one stitch, or with `split` equal stitches no longer than `split`, staggered by
@@ -3722,14 +3846,15 @@ fn satin_points(span: &Span, row: usize, split: Option<f64>) -> Vec<f64> {
     xs
 }
 
-/// Tatami needle positions, as [`generate::fill`] places them.
-fn tatami_points(span: &Span, row: usize, l: f64, stagger: Stagger) -> Vec<f64> {
+/// Tatami needle positions, as [`generate::fill`] places them, leaving out those closer than
+/// `end_gap` to an end of the row.
+fn tatami_points(span: &Span, row: usize, l: f64, stagger: Stagger, end_gap: f64) -> Vec<f64> {
     let phase = generate::row_phase(row, stagger) * l;
     let mut xs = vec![*span.start()];
     let mut k = ((span.start() - phase) / l).floor() + 1.0;
     while phase + k * l < *span.end() {
         let x = phase + k * l;
-        if x - span.start() > l * 0.25 && span.end() - x > l * 0.25 {
+        if x - span.start() > end_gap && span.end() - x > end_gap {
             xs.push(x);
         }
         k += 1.0;

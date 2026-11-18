@@ -807,7 +807,7 @@ fn the_halves_of_a_fill_meet_at_its_end_point() {
         Some(v2(0.0, 0.0)),
         Some(v2(50.0, 0.0)),
         false,
-        false,
+        None,
         None,
     )
     .concat();
@@ -831,7 +831,7 @@ fn the_halves_of_a_fill_meet_at_its_end_point() {
         Some(v2(0.0, 0.0)),
         None,
         false,
-        false,
+        None,
         None,
     )
     .concat();
@@ -860,7 +860,7 @@ fn a_type_1_fills_needle_grid_starts_at_the_origin_it_is_given() {
             Some(v2(200.0, 400.0)),
             None,
             sloped,
-            false,
+            None,
             origin,
         )
         .concat()
@@ -902,4 +902,112 @@ fn join_short_stitches_keeps_short_corners_and_the_last_point() {
     assert_eq!(run.last(), Some(&last));
     assert_eq!(run[0], v2(0.0, 0.0));
     assert!(longest_short_run(&[run], 5.0) <= 1);
+}
+
+/// The U of region-travel-u-fill, 0.1 mm.
+fn u_shape() -> [Contour; 1] {
+    [Contour::new(
+        vec![
+            v2(0.0, 0.0),
+            v2(300.0, 0.0),
+            v2(300.0, 300.0),
+            v2(200.0, 300.0),
+            v2(200.0, 100.0),
+            v2(100.0, 100.0),
+            v2(100.0, 300.0),
+            v2(0.0, 300.0),
+        ],
+        true,
+    )]
+}
+
+#[test]
+fn under_sewing_rows_of_different_lengths_are_sewn_one_after_the_other() {
+    // PE-DESIGN 11.50, region-travel-u-fill (#1244): the columns under the U go from the far
+    // leg to the start point's side one after the other, the first run up and sewn back, the
+    // last ending beside the start point; 189 needle points with the edge run.
+    let mut fill = RegionSewing::new(RegionType::Fill, RED);
+    fill.angle = 0.0;
+    fill.entry = Some(v2(0.0, 0.0));
+    let layers = crate::region::layers_for(&u_shape(), &fill, &[], &[], false, None);
+    let under: Vec<geometry::Vec2> = layers[0].concat();
+    let tail: Vec<String> = under[75..]
+        .iter()
+        .map(|q| format!("({:.0},{:.0})", q.x, q.y))
+        .collect();
+    assert!(
+        (187..=191).contains(&under.len()),
+        "{} {}",
+        under.len(),
+        tail.join(" ")
+    );
+}
+
+/// The top fill of `shape` at Direction 0 from `start`, 4.5 rows/mm, 4 mm stitches.
+fn part_fill(shape: &[Contour], start: geometry::Vec2) -> Vec<geometry::Vec2> {
+    generate::fill_edge_to_edge_travel(
+        shape,
+        &params(0.0, 10.0 / 4.5, 40.0, 0.0),
+        &[],
+        generate::Stagger::Regular(0.3),
+        Some(start),
+        None,
+        false,
+        None,
+        None,
+    )
+    .concat()
+}
+
+#[test]
+fn a_fill_in_several_parts_sews_the_furthest_part_first_and_ends_on_its_end_point() {
+    // PE-DESIGN 11.50, region-travel-u-fill (#1244), start and end on the first vertex: the
+    // row on the start point out and back, the right leg from its far end, the left leg from
+    // its far end, the bar last, ending on the start point; 1065 needle points.
+    let run = part_fill(&u_shape(), v2(0.0, 0.0));
+    let first = |f: &dyn Fn(geometry::Vec2) -> bool| run.iter().position(|&q| f(q));
+    let last = |f: &dyn Fn(geometry::Vec2) -> bool| run.iter().rposition(|&q| f(q));
+    assert_eq!(run[0], v2(0.0, 0.0));
+    assert!(run[run.len() - 1].distance(v2(0.0, 0.0)) < 0.02);
+    // Out along the top edge and back before anything else.
+    assert!(run[8].distance(v2(300.0, 0.0)) < 0.02, "{:?}", &run[..18]);
+    assert!(run[16].distance(v2(0.0, 0.0)) < 0.02, "{:?}", &run[..18]);
+    // By the middle of the bar's last row, then the right leg from its outer far corner.
+    assert!(run.iter().any(|q| q.distance(v2(150.0, 100.0)) < 1.0));
+    let right = first(&|q| q.x > 200.5 && q.y > 299.0).expect("right leg");
+    let right_end = last(&|q| q.x > 200.5 && q.y > 110.0).expect("right leg");
+    let left = first(&|q| q.x < 99.5 && q.y > 299.0).expect("left leg");
+    let left_end = last(&|q| q.x < 99.5 && q.y > 110.0).expect("left leg");
+    let bar = last(&|q| q.y < 99.0 && q.y > 1.0).expect("bar");
+    assert!(
+        run[right].distance(v2(300.0, 300.0)) < 0.02,
+        "{:?}",
+        run[right]
+    );
+    assert!(right < right_end && right_end < left && left < left_end && left_end < bar);
+    assert!((1060..=1070).contains(&run.len()), "{}", run.len());
+}
+
+#[test]
+fn a_fill_in_several_parts_is_entered_where_the_outline_comes_first() {
+    // PE-DESIGN 11.50, 1244-u-reversed: the same U and start point with the vertices the other
+    // way round has no row out and back on the start point, enters the right leg at its inner
+    // far corner and runs that row out and back.
+    let mut points = u_shape()[0].points.clone();
+    points[1..].reverse();
+    let reversed = [Contour::new(points, true)];
+    let run = part_fill(&reversed, v2(0.0, 0.0));
+    assert!(run[1].y > 1.0, "{:?}", &run[..4]);
+    let enter = run.iter().position(|q| q.y > 299.0).expect("leg's far row");
+    assert!(
+        run[enter].distance(v2(200.0, 300.0)) < 0.02,
+        "{:?}",
+        run[enter]
+    );
+    let out = run.iter().position(|q| q.distance(v2(300.0, 300.0)) < 0.02);
+    assert!(
+        out.is_some_and(|i| i > enter && run[i + 1].y > 299.0),
+        "{out:?}"
+    );
+    assert!(run[run.len() - 1].distance(v2(0.0, 0.0)) < 0.02);
 }

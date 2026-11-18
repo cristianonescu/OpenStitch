@@ -458,8 +458,11 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    with the shape in PE-DESIGN, and its passes sit 0.13 mm (first half) and 0.58 mm (second
    half) from ours at 30°; Half Stitch; feathered-edge patterns; gradation presets, per-step editing and Blend. Gradation
    rows follow PE-DESIGN's cumulative-density placement since 2026-10-28 (#95: every row of
-   the U within 0.12 mm, overlap 0.83 → 0.89); left for the U: PE's section order for fills in
-   several parts (right leg, left leg, then the top bar ending at the first vertex). Under
+   the U within 0.12 mm, overlap 0.83 → 0.89). A fill in several parts is sewn in PE-DESIGN's
+   part order since #1244 (the end point's part last, the furthest-reaching part first, travel
+   by a row's middle in 2 mm stitches; the U 1254 to PE-DESIGN's 1254, its gradation 617 to
+   619); left: a one-part shape's entry travel by a way point (a quadrilateral at 45° 651 to
+   671). Under
    sewing Density Dense / Medium / Light and the combinable under sewing parts (edge, rows,
    lattice, piping) are done since 2026-10-29 (#124: sweep-fill-us-density-dense/-light at the
    reference tier; the second type, `cross`, since 2026-10-28, specs sweep-fill-us-type-2 and

@@ -403,9 +403,7 @@ pub fn fill_edge_to_edge(
     entry: Option<Vec2>,
     sloped: bool,
 ) -> Vec<Run> {
-    fill_edge_to_edge_travel(
-        contours, p, holes, stagger, entry, None, sloped, false, None,
-    )
+    fill_edge_to_edge_travel(contours, p, holes, stagger, entry, None, sloped, None, None)
 }
 
 /// [`fill_edge_to_edge`] whose travel from the entry point to the first row, between its
@@ -425,7 +423,7 @@ pub fn fill_edge_to_edge_travel(
     entry: Option<Vec2>,
     exit: Option<Vec2>,
     sloped: bool,
-    along: bool,
+    along: Option<crate::paths::OutlineTravel>,
     origin: Option<Vec2>,
 ) -> Vec<Run> {
     let mut runs = edge_rows_travel(
@@ -459,7 +457,7 @@ pub fn fill_edge_to_edge_travel_hidden(
     origin: Option<Vec2>,
 ) -> Vec<Vec<Run>> {
     let mut candidates = edge_rows_travel(
-        contours, p, holes, stagger, entry, exit, sloped, false, true, origin,
+        contours, p, holes, stagger, entry, exit, sloped, None, true, origin,
     );
     for runs in &mut candidates {
         runs.iter_mut().for_each(join_short_stitches);
@@ -478,7 +476,7 @@ pub(crate) fn edge_to_edge_rows(
     sloped: bool,
 ) -> Vec<Run> {
     edge_rows_travel(
-        contours, p, holes, stagger, entry, None, sloped, false, false, None,
+        contours, p, holes, stagger, entry, None, sloped, None, false, None,
     )
     .swap_remove(0)
 }
@@ -495,7 +493,7 @@ fn edge_rows_travel(
     entry: Option<Vec2>,
     exit: Option<Vec2>,
     sloped: bool,
-    along: bool,
+    along: Option<crate::paths::OutlineTravel>,
     hidden: bool,
     origin: Option<Vec2>,
 ) -> Vec<Vec<Run>> {
@@ -524,7 +522,7 @@ fn edge_rows_travel(
             s,
             a,
             sloped,
-            along.then_some(contours),
+            along.map(|_| contours),
         )
     {
         return vec![vec![run]];
@@ -567,7 +565,24 @@ fn edge_rows_travel(
         }
         xs
     };
-    let mut candidates = vec![chain_in(&spans, p, points, Chain::Brick, start, None, None)];
+    // A Type 1 fill in several parts takes PE-DESIGN's part order (#1244).
+    let parts = match (start, end) {
+        (Some(from), Some(to)) if !sloped => pe_parts(
+            &spans,
+            p,
+            &points,
+            from,
+            to,
+            contours,
+            holes,
+            along,
+            p.row_spacing,
+            false,
+        ),
+        _ => None,
+    };
+    let mut candidates =
+        vec![parts.unwrap_or_else(|| chain_in(&spans, p, points, Chain::Brick, start, None, None))];
     if !hidden {
         return candidates;
     }
@@ -643,18 +658,21 @@ fn greedy_walk(spans: &[RowSpan], start: Option<Vec2>) -> (Vec<usize>, Vec<bool>
     (seq, forward)
 }
 
-/// The rows of a region in several sections (#469) in an order where a section joining others
-/// is sewn after them: rows that continue one-to-one (each overlaps only the other in the next
-/// row) form a section; sections touch where a row overlaps another section's.
-/// - Without a ring: along a spanning tree rooted at the section touching most, every
-///   section's branches come first, each from the row farthest from its parent towards it.
-/// - With `walk` (the Inside order's rows), sections in a ring (they touch round a hole) keep
-///   its order: going round sews them with the least travel. The branches hanging off the ring
-///   are sewn just before the ring section they hang from, in the same way as above.
-///
-/// `None` for one section, for a ring with nothing hanging off it, and without `walk` for any
-/// region whose sections touch in a ring (#930's order).
-fn connectors_last(spans: &[RowSpan], walk: Option<&[usize]>) -> Option<Vec<usize>> {
+/// The sections of a region's rows (#469): rows that continue one-to-one (each overlaps only
+/// the other in the next row) form a section; sections touch where a row overlaps another
+/// section's.
+struct Sections {
+    /// Per row span, the spans of the rows next to it that overlap it.
+    next: Vec<Vec<usize>>,
+    /// Per row span, its section.
+    sec: Vec<usize>,
+    /// Per section, its row spans.
+    members: Vec<Vec<usize>>,
+    /// Which sections touch.
+    touch: Vec<Vec<bool>>,
+}
+
+fn sections_of(spans: &[RowSpan]) -> Sections {
     let n = spans.len();
     let overlaps = |a: &RowSpan, b: &RowSpan| {
         a.row.abs_diff(b.row) == 1
@@ -701,9 +719,6 @@ fn connectors_last(spans: &[RowSpan], walk: Option<&[usize]>) -> Option<Vec<usiz
     names.sort_unstable();
     names.dedup();
     let m = names.len();
-    if m < 2 {
-        return None;
-    }
     let sec: Vec<usize> = ids
         .iter()
         .map(|id| names.binary_search(id).expect("named"))
@@ -720,6 +735,37 @@ fn connectors_last(spans: &[RowSpan], walk: Option<&[usize]>) -> Option<Vec<usiz
                 touch[sec[i]][sec[j]] = true;
             }
         }
+    }
+    Sections {
+        next,
+        sec,
+        members,
+        touch,
+    }
+}
+
+/// The rows of a region in several sections (#469) in an order where a section joining others
+/// is sewn after them: rows that continue one-to-one (each overlaps only the other in the next
+/// row) form a section; sections touch where a row overlaps another section's.
+/// - Without a ring: along a spanning tree rooted at the section touching most, every
+///   section's branches come first, each from the row farthest from its parent towards it.
+/// - With `walk` (the Inside order's rows), sections in a ring (they touch round a hole) keep
+///   its order: going round sews them with the least travel. The branches hanging off the ring
+///   are sewn just before the ring section they hang from, in the same way as above.
+///
+/// `None` for one section, for a ring with nothing hanging off it, and without `walk` for any
+/// region whose sections touch in a ring (#930's order).
+fn connectors_last(spans: &[RowSpan], walk: Option<&[usize]>) -> Option<Vec<usize>> {
+    let n = spans.len();
+    let Sections {
+        next,
+        sec,
+        members,
+        touch,
+    } = sections_of(spans);
+    let m = members.len();
+    if m < 2 {
+        return None;
     }
     let degree = |s: usize| touch[s].iter().filter(|&&t| t).count();
     let Some(walk) = walk else {
@@ -888,11 +934,429 @@ fn tree_order(
     order
 }
 
+/// A Type 1 fill in several parts as PE-DESIGN 11.50 sews it (#1244; the U of
+/// region-travel-u-fill and its captures 1244-u-left-leg-long, -u-bar-10p2 and
+/// -u-start-left-leg, the four-point star of shape-start-points-outline), from `start` to
+/// `end` (rotated space):
+/// - The part with the end point is sewn last. The others go before it, the one reaching
+///   furthest from the end point's row first (with equal reach the one further along the
+///   rows), each from its far end towards the part it hangs from.
+/// - A part's rows alternate. The last row of the last part ends on the end point; the last
+///   row of any other part ends at its end nearer the next part (when both are as near, the
+///   part starts where the needle arrives). The first row has to start at the end that gives:
+///   when the needle arrives at the other one, the first row is run across and sewn back.
+/// - The first and last row of a part keep their edge points, and so do the rows sewn the way
+///   the part's first pass is; the rows between them sewn the other way do not.
+/// - The travel from the start point to the first part runs straight when that keeps clear of
+///   the outline; otherwise by the middle of the first row on which the outline has a vertex
+///   and from whose middle the first row is in sight, or of the last such row, bending on the
+///   inner corners from there. Travel between parts goes by such a middle too, to the nearer
+///   end of the part's first row.
+/// - When the start point lies on the end of a row and the travel leaves through the inside,
+///   that row is first run to its far end and back in steps of the stitch length.
+///
+/// With `outline` (Running Stitch Path Along or On outline) the travel to each part follows
+/// the outline instead, the shorter way round, in the same 2 mm stitches. With `keep_ends`
+/// every row keeps its edge points, as a gradation's rows do (region-travel-u-gradation).
+/// `None` when the rows are one part, the parts touch in a ring, or the end point is not at
+/// an end of its part.
+#[allow(clippy::too_many_arguments)]
+fn pe_parts(
+    spans: &[RowSpan],
+    p: &RegionParams,
+    points: &impl Fn(&Span, usize, bool) -> Vec<f64>,
+    start: Vec2,
+    end: Vec2,
+    contours: &[Contour],
+    holes: &[Contour],
+    outline: Option<crate::paths::OutlineTravel>,
+    gap: f64,
+    keep_ends: bool,
+) -> Option<Vec<Run>> {
+    let Sections {
+        next,
+        sec,
+        members,
+        touch,
+    } = sections_of(spans);
+    let m = members.len();
+    let links = touch.iter().flatten().filter(|&&t| t).count() / 2;
+    // A gradation in one part is sewn the same way: from its far end towards the end point
+    // (u-gradation-dir-90). A plain fill in one part is [`pe_halves`]'.
+    if m == 0 || (m < 2 && !keep_ends) || links != m - 1 {
+        return None;
+    }
+    let near = |i: usize, q: Vec2| {
+        let s = &spans[i];
+        q.distance(v2(q.x.clamp(*s.range.start(), *s.range.end()), s.y))
+    };
+    let root = sec[(0..spans.len()).min_by(|&a, &b| near(a, end).total_cmp(&near(b, end)))?];
+    // Every part hangs from the one nearer the end point's.
+    let mut parent: Vec<Option<usize>> = vec![None; m];
+    let mut seen = vec![false; m];
+    seen[root] = true;
+    let mut queue = std::collections::VecDeque::from([root]);
+    while let Some(u) = queue.pop_front() {
+        for v in 0..m {
+            if touch[u][v] && !seen[v] {
+                seen[v] = true;
+                parent[v] = Some(u);
+                queue.push_back(v);
+            }
+        }
+    }
+    if seen.iter().any(|&s| !s) {
+        return None;
+    }
+    // A part's rows in sewing order: towards the part it hangs from, the last part towards
+    // the end point.
+    let rows_of = |s: usize| -> Vec<usize> {
+        let mut rows = members[s].clone();
+        rows.sort_by_key(|&i| spans[i].row);
+        let (first, last) = (rows[0], rows[rows.len() - 1]);
+        let reverse = match parent[s] {
+            Some(pa) => next[first].iter().any(|&j| sec[j] == pa),
+            None => (spans[first].y - end.y).abs() < (spans[last].y - end.y).abs(),
+        };
+        if reverse {
+            rows.reverse();
+        }
+        rows
+    };
+    let root_rows = rows_of(root);
+    if (spans[*root_rows.last()?].y - end.y).abs() > 1.5 * gap {
+        return None;
+    }
+    let reach = |s: usize| {
+        members[s]
+            .iter()
+            .map(|&i| (spans[i].y - end.y).abs())
+            .fold(0.0, f64::max)
+    };
+    let along = |s: usize| {
+        members[s]
+            .iter()
+            .map(|&i| spans[i].range.start() + spans[i].range.end())
+            .sum::<f64>()
+            / (2.0 * members[s].len() as f64)
+    };
+    let mut order: Vec<usize> = (0..m).filter(|&s| s != root).collect();
+    order.sort_by(|&a, &b| {
+        let (ra, rb) = (reach(a), reach(b));
+        if (ra - rb).abs() > 0.5 {
+            rb.total_cmp(&ra)
+        } else {
+            along(b).total_cmp(&along(a))
+        }
+    });
+    order.push(root);
+
+    let rad = p.angle.to_radians();
+    let design = |q: Vec2| from_rotated(q, p.angle);
+    let mut graph = crate::paths::TravelGraph::new(contours, holes);
+    let mut edge_graph = crate::paths::TravelGraph::new(contours, holes);
+    edge_graph.outline = outline;
+    edge_graph.outline_tolerance = p.pull_compensation.max(0.0) + 1.0;
+    // The rows on which the outline has a vertex (rotated space).
+    let mut vertex_rows: Vec<f64> = contours
+        .iter()
+        .chain(holes)
+        .flat_map(|c| c.points.iter().map(|q| q.rotated(-rad).y))
+        .collect();
+    vertex_rows.sort_by(f64::total_cmp);
+    vertex_rows.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+    let inside_path = |graph: &mut crate::paths::TravelGraph, a: Vec2, b: Vec2| {
+        graph.path(a, b).unwrap_or_else(|| vec![a, b])
+    };
+    // The way from `from` to `to` (rotated space) as design-space corners.
+    let way = |graph: &mut crate::paths::TravelGraph, from: Vec2, to: Vec2, direct: bool| {
+        let (a, b) = (design(from), design(to));
+        if direct && graph.sees(a, b) {
+            return vec![a, b];
+        }
+        // Each vertex row is read on the side the travel comes from.
+        let side = if to.y > from.y { -1.0 } else { 1.0 };
+        let (lo, hi) = (from.y.min(to.y), from.y.max(to.y));
+        let mut rows: Vec<f64> = vertex_rows
+            .iter()
+            .copied()
+            .filter(|&y| (y > lo + 1e-2 && y < hi - 1e-2) || (y - from.y).abs() <= 1.5 * gap)
+            .collect();
+        rows.sort_by(|x, y| (x - from.y).abs().total_cmp(&(y - from.y).abs()));
+        let mut middle: Option<Vec2> = None;
+        for y in rows {
+            let off = |s: &Span| {
+                if from.x < *s.start() {
+                    s.start() - from.x
+                } else if from.x > *s.end() {
+                    from.x - s.end()
+                } else {
+                    0.0
+                }
+            };
+            let span = crate::region::spans_at(contours, holes, p.angle, y + side * 1e-3)
+                .into_iter()
+                .min_by(|s, t| off(s).total_cmp(&off(t)));
+            let Some(span) = span else {
+                continue;
+            };
+            let w = design(v2((span.start() + span.end()) / 2.0, y));
+            middle = Some(w);
+            if graph.sees(w, b) {
+                let mut path = inside_path(graph, a, w);
+                path.push(b);
+                return path;
+            }
+        }
+        let Some(w) = middle else {
+            return inside_path(graph, a, b);
+        };
+        let mut path = inside_path(graph, a, w);
+        let at = path.len() - 1;
+        path.extend(inside_path(graph, w, b).into_iter().skip(1));
+        // A way that turns back on itself at the middle does not go out to it.
+        if at > 0 && at + 1 < path.len() {
+            let (before, after) = (path[at - 1], path[at + 1]);
+            let off_line = |q: Vec2, s: Vec2, e: Vec2| {
+                let d = e - s;
+                let l2 = d.x * d.x + d.y * d.y;
+                let t = if l2 > 0.0 {
+                    (((q - s).x * d.x + (q - s).y * d.y) / l2).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                q.distance(s + d * t)
+            };
+            if off_line(after, before, w) <= 3.0 || off_line(before, w, after) <= 3.0 {
+                path.remove(at);
+            }
+        }
+        path
+    };
+    let length = |path: &[Vec2]| path.windows(2).map(|w| w[0].distance(w[1])).sum::<f64>();
+
+    // The outline's corners from the start point on, in its order (rotated space).
+    let corners: Vec<Vec2> = contours
+        .iter()
+        .find_map(|c| {
+            let pts: Vec<Vec2> = c.points.iter().map(|q| q.rotated(-rad)).collect();
+            let i = pts.iter().position(|q| q.distance(start) <= 1.0)?;
+            Some(pts[i..].iter().chain(&pts[..i]).copied().collect())
+        })
+        .unwrap_or_default();
+    let first_edge_forward = corners
+        .get(1)
+        .is_some_and(|q| (q.y - start.y).abs() <= 0.6 * gap && q.x > start.x + 1.0);
+    // Which end of `row` comes first along the outline (`true` its range's start), when both
+    // lie on corners.
+    let first_corner = |row: &RowSpan| -> Option<bool> {
+        let at = |x: f64| {
+            corners
+                .iter()
+                .position(|q| (q.x - x).abs() <= gap && (q.y - row.y).abs() <= gap)
+        };
+        Some(at(*row.range.start())? < at(*row.range.end())?)
+    };
+    let mut current: Run = vec![design(start)];
+    let mut at = start;
+    let push = |current: &mut Run, q: Vec2| {
+        if current.last().is_none_or(|l| l.distance(q) > 1e-6) {
+            current.push(q);
+        }
+    };
+    for (k, &s) in order.iter().enumerate() {
+        let rows = if s == root {
+            root_rows.clone()
+        } else {
+            rows_of(s)
+        };
+        let n = rows.len();
+        let (first, last) = (&spans[rows[0]], &spans[rows[n - 1]]);
+        // Which way the last row has to run (`true` towards its range's end); `None` when
+        // either end is as near the next part.
+        let ends: Option<bool> = match order.get(k + 1) {
+            None => Some((end.x - last.range.end()).abs() <= (end.x - last.range.start()).abs()),
+            Some(&nx) => {
+                let d = |x: f64| {
+                    members[nx]
+                        .iter()
+                        .map(|&i| near(i, v2(x, last.y)))
+                        .fold(f64::INFINITY, f64::min)
+                };
+                let (d_lo, d_hi) = (d(*last.range.start()), d(*last.range.end()));
+                ((d_lo - d_hi).abs() > 0.5).then_some(d_hi < d_lo)
+            }
+        };
+        let wanted = ends.map(|f| f ^ !(n - 1).is_multiple_of(2));
+        let corner = |forward: bool| {
+            v2(
+                if forward {
+                    *first.range.start()
+                } else {
+                    *first.range.end()
+                },
+                first.y,
+            )
+        };
+        // Where the needle arrives on the first row, and the travel there.
+        let next_to = (at.y - first.y).abs() <= 1.5 * gap
+            && at.x >= first.range.start() - 1.0
+            && at.x <= first.range.end() + 1.0;
+        let arrives_forward = if next_to {
+            (at.x - first.range.start()).abs() <= (at.x - first.range.end()).abs()
+        } else {
+            let ways = [true, false].map(|f| way(&mut graph, at, corner(f), k == 0));
+            // The first part is entered at the end of its first row that comes first along
+            // the outline from the start point; later parts at the nearer end.
+            let arrives_forward = match first_corner(first).filter(|_| k == 0) {
+                Some(f) => f,
+                None => length(&ways[0]) <= length(&ways[1]) + 1e-6,
+            };
+            let path = &ways[usize::from(!arrives_forward)];
+            if k == 0 {
+                // The row on the start point, out and back, when the outline's first edge
+                // from the start point runs forward along it.
+                let own = spans.iter().find(|r| {
+                    (r.y - start.y).abs() <= 0.6 * gap
+                        && (start.x - r.range.start()).abs() <= 1.0
+                        && r.range.end() - r.range.start() >= p.stitch_length
+                });
+                if let Some(r) = own.filter(|_| first_edge_forward) {
+                    let from_start = (start.x - r.range.start()).abs() <= 1.0;
+                    let (near_x, far_x) = if from_start {
+                        (*r.range.start(), *r.range.end())
+                    } else {
+                        (*r.range.end(), *r.range.start())
+                    };
+                    let steps = ((far_x - near_x).abs() / p.stitch_length - 1e-6).ceil() as usize;
+                    let step = (far_x - near_x).signum() * p.stitch_length;
+                    let mut xs: Vec<f64> = (1..steps).map(|i| near_x + step * i as f64).collect();
+                    xs.push(far_x);
+                    for &x in &xs {
+                        push(&mut current, design(v2(x, start.y)));
+                    }
+                    for &x in xs.iter().rev().skip(1) {
+                        push(&mut current, design(v2(x, start.y)));
+                    }
+                    push(&mut current, design(start));
+                }
+            }
+            let walk = outline.and_then(|_| edge_graph.path(path[0], path[path.len() - 1]));
+            for q in subdivide(walk.as_deref().unwrap_or(path), FILL_TRAVEL)
+                .into_iter()
+                .skip(1)
+            {
+                push(&mut current, q);
+            }
+            arrives_forward
+        };
+        let first_forward = wanted.unwrap_or(arrives_forward);
+        // The way the part's first pass runs: its rows sewn that way keep their edge points.
+        let lead = arrives_forward;
+        let row_points = |i: usize, forward: bool, full: bool| -> Vec<Vec2> {
+            let r = &spans[rows[i]];
+            let mut xs = points(&r.range, r.row, forward);
+            if !full && xs.len() > 2 && r.range.end() - r.range.start() >= p.stitch_length {
+                xs.remove(0);
+                xs.pop();
+            }
+            xs.into_iter().map(|x| design(v2(x, r.y))).collect()
+        };
+        if arrives_forward != first_forward {
+            for q in row_points(0, arrives_forward, true) {
+                push(&mut current, q);
+            }
+        }
+        for i in 0..n {
+            let forward = first_forward ^ !i.is_multiple_of(2);
+            let full = keep_ends
+                || (i == 0 && arrives_forward == first_forward)
+                || i + 1 == n
+                || forward == lead;
+            let mut row = row_points(i, forward, full);
+            // Where a gradation's rows lie closer than 0.5 mm, a row sewn against the first
+            // pass turns into the next on one point: its own end point is left out
+            // (u-gradation-50-50's legs, region-travel-u-gradation's bar: 0.44 mm apart;
+            // rows 0.6 mm apart keep both).
+            if keep_ends
+                && forward != lead
+                && i + 1 < n
+                && row.len() > 2
+                && (spans[rows[i + 1]].y - spans[rows[i]].y).abs() < 5.0
+            {
+                row.pop();
+            }
+            // Rows further apart than a travel stitch (a gradation's thin end) are joined
+            // in travel stitches (region-travel-u-gradation: 2.9 mm in two).
+            if let (true, Some(&from), Some(&to)) =
+                (keep_ends && i > 0, current.last(), row.first())
+                && (spans[rows[i]].y - spans[rows[i.saturating_sub(1)]].y).abs() > FILL_TRAVEL + 0.5
+            {
+                let between = subdivide(&[from, to], FILL_TRAVEL);
+                for &q in &between[1..between.len() - 1] {
+                    push(&mut current, q);
+                }
+            }
+            for q in row {
+                push(&mut current, q);
+            }
+        }
+        let r = &spans[rows[n - 1]];
+        let forward = first_forward ^ !(n - 1).is_multiple_of(2);
+        at = v2(
+            if forward {
+                *r.range.end()
+            } else {
+                *r.range.start()
+            },
+            r.y,
+        );
+    }
+    Some(vec![current])
+}
+
+/// [`pe_parts`] for rows laid out elsewhere (a gradation's, further apart where it thins): the
+/// rows of `spans` in PE-DESIGN's part order from `start` to `end` (design space), their
+/// needle points from `points`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn fill_parts(
+    spans: &[RowSpan],
+    p: &RegionParams,
+    points: &impl Fn(&Span, usize, bool) -> Vec<f64>,
+    start: Vec2,
+    end: Vec2,
+    contours: &[Contour],
+    holes: &[Contour],
+    outline: Option<crate::paths::OutlineTravel>,
+) -> Option<Vec<Run>> {
+    let rad = p.angle.to_radians();
+    // The widest step between rows: rows that far apart still follow one another.
+    let mut ys: Vec<f64> = spans.iter().map(|s| s.y).collect();
+    ys.sort_by(f64::total_cmp);
+    ys.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
+    let gap = ys
+        .windows(2)
+        .map(|w| w[1] - w[0])
+        .fold(p.row_spacing, f64::max);
+    pe_parts(
+        spans,
+        p,
+        points,
+        start.rotated(-rad),
+        end.rotated(-rad),
+        contours,
+        holes,
+        outline,
+        gap,
+        true,
+    )
+}
+
 /// Longest travel stitch of PE-DESIGN's fill (its entry, exit and between-half runs), 0.1 mm.
 const FILL_TRAVEL: f64 = 20.0;
 /// PE-DESIGN leaves out a needle grid point closer than this to its row's end, 0.1 mm (it
 /// keeps 0.4 mm, drops 0.2 mm).
-const PE_END_GAP: f64 = 3.0;
+pub(crate) const PE_END_GAP: f64 = 3.0;
 
 /// Where PE-DESIGN's needle grid starts (rotated space): the start of the first row, on the
 /// outline's extreme point across the rows (a square's corner, a pentagon's top vertex).

@@ -1543,6 +1543,70 @@ fn gradation_pattern_sews_rows_at_equal_steps_of_the_cumulative_line_count() {
 }
 
 #[test]
+fn a_gradation_in_several_parts_keeps_the_part_order_and_every_rows_end_points() {
+    // PE-DESIGN 11.50, region-travel-u-gradation (#1244): the U with the default pattern is
+    // sewn in the plain fill's part order (right leg from its far corner, left leg, bar last,
+    // ending on the start point), reached by the middle of the bar's last row and round the
+    // inner corner, and every row at least 0.5 mm from the next keeps both its end points.
+    let c = vec![Contour::new(
+        vec![
+            v2(100.0, 100.0),
+            v2(400.0, 100.0),
+            v2(400.0, 400.0),
+            v2(300.0, 400.0),
+            v2(300.0, 200.0),
+            v2(200.0, 200.0),
+            v2(200.0, 400.0),
+            v2(100.0, 400.0),
+        ],
+        true,
+    )];
+    let mut r = region(RegionType::Fill);
+    r.angle = 0.0;
+    r.gradation = Some(crate::Gradation::PE_DEFAULT);
+    let run = crate::region::layers(&c, &r, &[])
+        .pop()
+        .expect("top")
+        .concat();
+    assert!(run[0].distance(v2(100.0, 100.0)) < 0.02, "{:?}", run[0]);
+    assert!(run[run.len() - 1].distance(v2(100.0, 100.0)) < 0.02);
+    let first = |f: &dyn Fn(Vec2) -> bool| run.iter().position(|&q| f(q)).expect("point");
+    let right = first(&|q| q.y > 399.0 && q.x > 299.0);
+    let left = first(&|q| q.y > 399.0 && q.x < 201.0);
+    let middle = first(&|q| q.distance(v2(250.0, 200.0)) < 8.0);
+    assert!(
+        run[right].distance(v2(400.0, 400.0)) < 0.02,
+        "{:?}",
+        run[right]
+    );
+    assert!(middle < right && right < left, "{middle} {right} {left}");
+    // The right leg's rows above the dense ones: each from edge to edge.
+    let mut rows: Vec<f64> = run[right..left]
+        .iter()
+        .filter(|q| q.x > 299.0 && q.y > 235.0)
+        .map(|q| q.y)
+        .collect();
+    rows.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+    let mut full = 0;
+    for y in rows {
+        let xs: Vec<f64> = run[right..left]
+            .iter()
+            .filter(|q| (q.y - y).abs() < 1e-6)
+            .map(|q| q.x)
+            .collect();
+        if xs.len() < 3 {
+            continue;
+        }
+        let (lo, hi) = xs
+            .iter()
+            .fold((f64::MAX, f64::MIN), |(l, h), &x| (l.min(x), h.max(x)));
+        assert!(lo < 300.02 && hi > 399.98, "row {y}: {xs:?}");
+        full += 1;
+    }
+    assert!(full >= 12, "{full}");
+}
+
+#[test]
 fn satin_at_the_minimum_density_crosses_on_every_line() {
     // The 40 x 6 mm column of compat sweep-satin-density-min at 0.1 lines/mm, start point at
     // the middle of the bottom edge: PE-DESIGN 11.50 sews crossings 10 mm apart (every line)
