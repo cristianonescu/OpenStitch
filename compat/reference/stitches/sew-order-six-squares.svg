@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="100mm" viewBox="0 0 100 100">
+  <!-- sew-order-six-objects: six 15 x 15 mm squares in three colours, the SVG the reference's make describes. -->
+  <rect x="10" y="10" width="15" height="15" fill="#ff0000"/>
+  <rect x="70" y="70" width="15" height="15" fill="#0000ff"/>
+  <rect x="70" y="10" width="15" height="15" fill="#ff0000"/>
+  <rect x="10" y="70" width="15" height="15" fill="#00a000"/>
+  <rect x="40" y="40" width="15" height="15" fill="#0000ff"/>
+  <rect x="40" y="10" width="15" height="15" fill="#00a000"/>
+</svg>

@@ -3,7 +3,7 @@
   "id": "sew-order-six-objects",
   "area": "stitches",
   "title": "Six scattered fill squares in three colours, saved before and after Optimize Sewing Order",
-  "description": "Six 15 mm fill squares at (10,10) red, (70,70) blue, (70,10) red, (10,70) green, (40,40) blue, (40,10) green, imported from an SVG in that order. PE-DESIGN 11.50 groups them into three colour blocks in first-occurrence order (red, blue, green), visiting red top-left, red top-right, blue bottom-right, blue centre, green bottom-left, green top-centre. The Sewing Order pane's Optimize Sewing Order button changed nothing on this design (the two files differ in 4 header bytes only). Issue #137: OpenStitch's order.optimize is compared with the colour blocks and stitch counts of both files.",
+  "description": "Six 15 mm fill squares at (10,10) red, (70,70) blue, (70,10) red, (10,70) green, (40,40) blue, (40,10) green, imported from an SVG in that order, as PE-DESIGN 11.50 imported them (a square from an SVG rect starts at its top-left corner; one drawn with the rectangle tool starts at the middle of its bottom edge). PE-DESIGN groups them into three colour blocks in first-occurrence order (red, blue, green), visiting red top-left, red top-right, blue bottom-right, blue centre, green bottom-left, green top-centre. The Sewing Order pane's Optimize Sewing Order button changed nothing on this design (the two files differ in 4 header bytes only). Issue #137: OpenStitch's order.optimize is compared with the colour blocks and stitch counts of both files. Issue #1245: each square's first and last needle point and its count: within a colour the first square is left and the second entered at their closest corners; a block's first square starts and its last ends at the outline's first point.",
   "covers": {
     "audit": [
       16
@@ -30,71 +30,17 @@
       }
     },
     {
-      "command": "shape.rectangle",
+      "command": "import.svg",
       "params": {
-        "x": 10,
-        "y": 10,
-        "width": 15,
-        "height": 15,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 70,
-        "y": 70,
-        "width": 15,
-        "height": 15,
-        "fill": "Blue"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 70,
-        "y": 10,
-        "width": 15,
-        "height": 15,
-        "fill": "Red"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 10,
-        "y": 70,
-        "width": 15,
-        "height": 15,
-        "fill": "#00a000"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 40,
-        "y": 40,
-        "width": 15,
-        "height": 15,
-        "fill": "Blue"
-      }
-    },
-    {
-      "command": "shape.rectangle",
-      "params": {
-        "x": 40,
-        "y": 10,
-        "width": 15,
-        "height": 15,
-        "fill": "#00a000"
+        "path": "squares.svg"
       }
     },
     {
       "command": "object.setRegion",
       "params": {
         "ids": [
-          1,
-          3
+          2,
+          4
         ],
         "type": "fill",
         "color": "Red",
@@ -106,8 +52,8 @@
       "command": "object.setRegion",
       "params": {
         "ids": [
-          2,
-          5
+          3,
+          6
         ],
         "type": "fill",
         "color": "Blue",
@@ -119,8 +65,8 @@
       "command": "object.setRegion",
       "params": {
         "ids": [
-          4,
-          6
+          5,
+          7
         ],
         "type": "fill",
         "color": "#00a000",
@@ -132,12 +78,12 @@
       "command": "object.setLine",
       "params": {
         "ids": [
-          1,
           2,
           3,
           4,
           5,
-          6
+          6,
+          7
         ],
         "type": "none"
       }
@@ -206,6 +152,300 @@
           "percent": 8
         }
       }
+    },
+    {
+      "id": "square-0-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 0,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the red top-left square: starts at its inset top-left corner (1,1), the block's first square; left at its top-right corner (15,0), the corner nearest the next red square (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "square-0-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 0,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50's needle points in the red top-left square, within 3 (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "count": 3
+        }
+      }
+    },
+    {
+      "id": "square-1-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 1,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the red top-right square: entered at its inset top-left corner (1,1), nearest the square before; ends at (0,0), its outline's first point, the block's last square (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "square-1-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 1,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50's needle points in the red top-right square, within 3 (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "count": 3
+        }
+      }
+    },
+    {
+      "id": "square-2-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 2,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the blue bottom-right square: starts at its inset top-left corner (1,1); left at its top-left corner (0,0), the corner nearest the centre square (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "square-2-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 2,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50's needle points in the blue bottom-right square, within 3 (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "count": 3
+        }
+      }
+    },
+    {
+      "id": "square-3-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 3,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the blue centre square: entered at its inset bottom-right corner (14,14), nearest the square before; ends at (0,0), its outline's first point (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "square-3-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 3,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50's needle points in the blue centre square, within 3 (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "count": 3
+        }
+      }
+    },
+    {
+      "id": "square-4-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 4,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the green bottom-left square: starts at its inset top-left corner (1,1); left at its top-right corner (15,0), nearest the top-centre square (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "square-4-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 4,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50's needle points in the green bottom-left square, within 3 (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "count": 3
+        }
+      }
+    },
+    {
+      "id": "square-5-ends",
+      "measure": {
+        "kind": "needleEnds"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 5,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50, the green top-centre square: entered at its inset bottom-left corner (1,14), nearest the square before; ends at (0,0), its outline's first point (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "mm": 0
+        }
+      }
+    },
+    {
+      "id": "square-5-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes",
+        "part": 5,
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "PE-DESIGN 11.50's needle points in the green top-centre square, within 3 (#1245)",
+      "reference": {
+        "id": "pe-design-after",
+        "tolerance": {
+          "count": 3
+        }
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "from": "compat/reference/stitches/sew-order-six-squares.svg",
+      "name": "squares.svg"
     }
   ]
 }

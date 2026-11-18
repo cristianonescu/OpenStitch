@@ -1501,6 +1501,22 @@ Line references are relative to `crates/`.
   three colours before and after Optimize Sewing Order) has an identical stitch stream in both
   files, only four header bytes differ: PE-DESIGN reordered nothing and moved no points, as
   this item predicts.
+- **Issue #1245 (2026-11-18):** the entry and end points on those six squares were compared
+  per square. Where two squares of a colour follow each other, PE-DESIGN's exit and entry are
+  the closest corners of the two outlines, and `order.optimize` already gave the same points
+  (three exits, three entries). The six other points (a colour block's first entry and last
+  exit) are PE-DESIGN's defaults: the outline's first point, which for a square imported from
+  an SVG rect is its top-left corner. The spec drew its squares with `shape.rectangle`, whose
+  first point is the middle of the bottom edge, as PE-DESIGN's rectangle tool has it
+  (`optimize-entry-exit`: 5.3 mm along the bottom edge of a 10 mm square), so those six
+  points differed and the per-square counts with them. `sew-order-six-objects` now imports
+  the six rects from an SVG as the reference did and checks each square: first and last
+  needle point at 0 mm in all six, needle points ours / PE-DESIGN 432 / 433, 432 / 435,
+  432 / 435, 421 / 422, 432 / 434, 423 / 426 (total 2572 / 2585; drawn with the rectangle
+  tool it was 437 / 427 / 421 / 438 / 437 / 429). No change to the optimiser. Not followed:
+  when two pairs of corners are equally close, PE-DESIGN's choice on `optimize-entry-exit`
+  (the lower pair on the way back to the left) is not ours (the upper pair); the jump length
+  is the same.
 
 ## 17. Hole sewing is not validated or paired
 
