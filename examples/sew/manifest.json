@@ -997,6 +997,25 @@
   "sha256": "4bf3f59e9be1049d7ec7d768a04adb9408ba5bb96797b1d7531d0fadebb61a84",
   "renderVersion": 3
  },
+ "fills/direction-lines.pes": {
+  "title": "Direction lines (PE-DESIGN's Add Direction Line)",
+  "about": "A 40 mm square with two direction lines: the rows are parallel to the 45° line on one side of it, fan between the two lines, and are parallel to the second line in the corner beyond it.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   40.0,
+   40.0
+  ],
+  "stitches": 2841,
+  "trims": 1,
+  "threads": [
+   "405 Blue"
+  ],
+  "sewingMinutes": 3.6,
+  "image": null,
+  "preview": "previews/direction-lines.png",
+  "sha256": "9773ba3d26e93076a41e408fb3cb42fd64c6f0e4d4845508c966779f7732d8e3",
+  "renderVersion": 3
+ },
  "fills/tartan.pes": {
   "title": "Tartan fill (beyond PE-DESIGN)",
   "about": "A 50 mm square in the symmetric sett R8 G12 W2 (red, green, white): one colour block per thread, warp and weft stripes crossing.",

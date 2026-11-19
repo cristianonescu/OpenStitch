@@ -353,19 +353,31 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         SmoothStitches => convert_ui::stitch_selection(app).1.is_some(),
         ShapeEffects => crate::shape_effects_ui::can_apply(app),
         LineGap => crate::line_gap_ui::target(app).is_some(),
-        AddDirectionLine | ReverseDirectionLine | SewingPoints => {
+        ReverseDirectionLine | SewingPoints | CurvedDirection => {
             edit_ui::single_region(app).is_some()
         }
+        // PE-DESIGN's direction lines are a fill's.
+        AddDirectionLine => edit_ui::single_region(app).is_some_and(|id| {
+            let d = app.session.design();
+            d.index_of(id)
+                .and_then(|i| d.objects[i].region.as_ref())
+                .is_some_and(|r| r.kind == openstitch_design::RegionType::Fill)
+        }),
         // A shape's one straight direction (its fill angle, which the Point tool shows as a
         // line) cannot be deleted: PE-DESIGN greys Delete Direction Line then (#1260, capture
         // g). It is available for what it removes here: a curved direction or several
         // direction lines.
-        DeleteDirectionLine => edit_ui::single_region(app).is_some_and(|id| {
-            let d = app.session.design();
-            d.index_of(id)
-                .and_then(|i| d.objects[i].region.as_ref())
-                .is_some_and(|r| r.direction_curve.is_some() || !r.direction_lines.is_empty())
-        }),
+        DeleteDirectionLine => {
+            crate::point_menu_ui::selected_stored_line(app).is_some()
+                || edit_ui::single_region(app).is_some_and(|id| {
+                    let d = app.session.design();
+                    d.index_of(id)
+                        .and_then(|i| d.objects[i].region.as_ref())
+                        .is_some_and(|r| {
+                            r.direction_curve.is_some() || !r.direction_lines.is_empty()
+                        })
+                })
+        }
         OffsetLines | FloralPattern => edit_ui::single_outline(app).is_some(),
         EditPoint => crate::point_menu_ui::states(app).is_some(),
         OpenOutline => crate::point_menu_ui::outline_closed(app) == Some(true),
@@ -694,7 +706,12 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         SplitOutline => edit_ui::split_outline(app),
         SmoothShape => crate::shape_tools_ui::smooth_shape(app),
         SmoothStitches => crate::shape_tools_ui::smooth_stitches(app),
-        AddDirectionLine => edit_ui::add_direction(app),
+        AddDirectionLine => crate::point_menu_ui::start_direction_line(app),
+        CurvedDirection => edit_ui::add_direction(app),
+        // With a direction line selected the button deletes that line, as the Delete key.
+        DeleteDirectionLine if crate::point_menu_ui::selected_stored_line(app).is_some() => {
+            crate::point_menu_ui::run_direction_entry(app, "deleteSelectedLine");
+        }
         DeleteDirectionLine => edit_ui::delete_direction(app),
         DeletePoint => delete(app),
         SplitAtPoint => {

@@ -18,6 +18,7 @@
 //! Lines that cross inside the shape, or whose middle is not inside it, are refused (see
 //! [`check`]). Lengths are 0.1 mm.
 
+use crate::fmath::Det;
 use crate::generate::Run;
 use crate::geometry::{Contour, Vec2, contains, v2};
 
@@ -442,4 +443,461 @@ pub fn needles(piece: &[Vec2], stitch: f64, phase: f64) -> Run {
     }
     out.push(piece[piece.len() - 1]);
     out
+}
+
+// MARK: PE-DESIGN's direction lines (#1273)
+
+/// Where the infinite lines through chords `a` and `b` meet; `None` when they are parallel or
+/// meet farther than 100 m away (they are sewn as parallel then).
+fn meeting(a: [Vec2; 2], b: [Vec2; 2]) -> Option<Vec2> {
+    let (r, s) = (a[1] - a[0], b[1] - b[0]);
+    let den = r.x * s.y - r.y * s.x;
+    if den.abs() < 1e-9 * r.length() * s.length() {
+        return None;
+    }
+    let w = b[0] - a[0];
+    let t = (w.x * s.y - w.y * s.x) / den;
+    let p = a[0] + r * t;
+    (p.distance(a[0]) < 1.0e6).then_some(p)
+}
+
+/// The farthest crossing of the ray from `p` along unit `u` with the outlines, as a distance
+/// from `p`; `None` when the ray meets none.
+fn ray_reach(p: Vec2, u: Vec2, closed: &[Contour], holes: &[Contour]) -> Option<f64> {
+    let mut far = 0.0_f64;
+    for c in closed.iter().chain(holes).filter(|c| c.closed) {
+        for (a, b) in c.edges() {
+            let e = b - a;
+            let den = u.x * e.y - u.y * e.x;
+            if den.abs() < 1e-12 {
+                continue;
+            }
+            let w = a - p;
+            let t = (w.x * e.y - w.y * e.x) / den;
+            let s = (w.x * u.y - w.y * u.x) / den;
+            if t > 1e-6 && (0.0..=1.0).contains(&s) {
+                far = far.max(t);
+            }
+        }
+    }
+    (far > 0.0).then_some(far)
+}
+
+/// How far a warped outline may stray from the exact one, 0.1 mm units (0.005 mm).
+const WARP_TOLERANCE: f64 = 0.05;
+
+/// Steps the far-end distance of a fan is summed over.
+const FAN_SAMPLES: usize = 128;
+
+/// One zone of a [`FanWarp`]: where rows are parallel, or a fan.
+#[derive(Clone, Debug)]
+enum Zone {
+    /// Rows parallel to a direction line. `u` runs along `along` from `origin` (plus
+    /// `shift`), `v` across from `v0` at the line.
+    Flat {
+        origin: Vec2,
+        along: Vec2,
+        across: Vec2,
+        shift: f64,
+        v0: f64,
+        /// `v - v0` of the zone's two edges (infinite beyond the first and last line).
+        from: f64,
+        to: f64,
+    },
+    /// Rows through `p`, from angle `t0` over `sweep`. `u` is the distance from `p` (times
+    /// `sigma`, plus `off`); `v` is `v0` plus the far-end distance summed over the angle
+    /// (`sum`, at [`FAN_SAMPLES`] steps), so equal steps of `v` are rows a spacing apart at
+    /// their far ends.
+    Fan {
+        p: Vec2,
+        t0: f64,
+        sweep: f64,
+        sum: Vec<f64>,
+        sigma: f64,
+        off: f64,
+        v0: f64,
+    },
+}
+
+/// PE-DESIGN's direction lines as a change of coordinates (`AngleRule::Fan`, #1273). In the
+/// warped plane every row of the fill is a horizontal line: before the first direction line
+/// and after the last one the rows are parallel to it, and between two consecutive lines they
+/// are a fan through the point where the two lines meet when extended, a row spacing apart at
+/// each row's far end from that point and closer toward it (PE-DESIGN 11.50's rule, measured
+/// on its files: 0.19 degrees a row where the far end is 64 mm away, 0.16 where it is 79 mm,
+/// at 0.212 mm spacing). Distances along a row are kept. The shape is warped, the plain fill
+/// is laid out on it with horizontal rows, and its needle points are brought back, so the
+/// under sewing, the stitch pattern and the travel are the plain fill's.
+#[derive(Clone, Debug)]
+pub struct FanWarp {
+    zones: Vec<Zone>,
+    /// A point in the middle of each zone, to tell which zone a point is in.
+    anchors: Vec<Vec2>,
+}
+
+impl FanWarp {
+    /// The warp for `lines` on the shape; `None` with fewer than two lines.
+    pub fn new(lines: &[[Vec2; 2]], closed: &[Contour], holes: &[Contour]) -> Option<FanWarp> {
+        if lines.len() < 2 {
+            return None;
+        }
+        let mut chords: Vec<[Vec2; 2]> = lines.iter().map(|l| chord(*l, closed, holes)).collect();
+        // Consecutive chords paired end to end so the rows do not twist between them.
+        for i in 1..chords.len() {
+            let (a, b) = (chords[i - 1], chords[i]);
+            if a[0].distance(b[1]) + a[1].distance(b[0]) < a[0].distance(b[0]) + a[1].distance(b[1])
+            {
+                chords[i] = [b[1], b[0]];
+            }
+        }
+        let n = chords.len();
+        let mid = |c: [Vec2; 2]| c[0].lerp(c[1], 0.5);
+        let dir = |c: [Vec2; 2]| {
+            let d = c[1] - c[0];
+            d * (1.0 / d.length().max(1e-9))
+        };
+        // The unit normal of chord `c` on the side of point `q`.
+        let normal_toward = |c: [Vec2; 2], q: Vec2| {
+            let d = dir(c);
+            let nrm = v2(-d.y, d.x);
+            let w = q - c[0];
+            if nrm.x * w.x + nrm.y * w.y < 0.0 {
+                nrm * -1.0
+            } else {
+                nrm
+            }
+        };
+        let mut zones = Vec::new();
+        let mut anchors = Vec::new();
+        // Before the first line: v runs toward the second line, so it is negative here.
+        let across0 = normal_toward(chords[0], mid(chords[1]));
+        zones.push(Zone::Flat {
+            origin: chords[0][0],
+            along: dir(chords[0]),
+            across: across0,
+            shift: 0.0,
+            v0: 0.0,
+            from: f64::NEG_INFINITY,
+            to: 0.0,
+        });
+        anchors.push(mid(chords[0]) - across0 * 1.0);
+        let (mut shift, mut v0) = (0.0, 0.0);
+        for i in 0..n - 1 {
+            let (a, b) = (chords[i], chords[i + 1]);
+            anchors.push(mid(a).lerp(mid(b), 0.5));
+            let fan = meeting(a, b).and_then(|p| {
+                let toward = |c: [Vec2; 2]| {
+                    let d = mid(c) - p;
+                    d.y.datan2(d.x)
+                };
+                let (t0, t1) = (toward(a), toward(b));
+                let sweep = (t1 - t0 + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU)
+                    - std::f64::consts::PI;
+                (sweep.abs() > 1e-9).then_some((p, t0, sweep))
+            });
+            match fan {
+                Some((p, t0, sweep)) => {
+                    let fallback = a[0]
+                        .distance(p)
+                        .max(a[1].distance(p))
+                        .max(b[0].distance(p))
+                        .max(b[1].distance(p));
+                    let far = |t: f64| {
+                        ray_reach(p, v2(t.dcos(), t.dsin()), closed, holes).unwrap_or(fallback)
+                    };
+                    let mut sum = vec![0.0; FAN_SAMPLES + 1];
+                    let mut before = far(t0);
+                    for k in 1..=FAN_SAMPLES {
+                        let here = far(t0 + sweep * k as f64 / FAN_SAMPLES as f64);
+                        sum[k] =
+                            sum[k - 1] + (before + here) / 2.0 * sweep.abs() / FAN_SAMPLES as f64;
+                        before = here;
+                    }
+                    // u runs the way the chords do: outward from the meeting point when
+                    // the chord's first end is the nearer one.
+                    let sigma = if a[0].distance(p) <= a[1].distance(p) {
+                        1.0
+                    } else {
+                        -1.0
+                    };
+                    let off = shift - sigma * a[0].distance(p);
+                    let total = sum[FAN_SAMPLES];
+                    zones.push(Zone::Fan {
+                        p,
+                        t0,
+                        sweep,
+                        sum,
+                        sigma,
+                        off,
+                        v0,
+                    });
+                    shift = sigma * b[0].distance(p) + off;
+                    v0 += total;
+                }
+                None => {
+                    // Parallel lines: straight rows from one to the other.
+                    let across = normal_toward(a, mid(b));
+                    let w = b[0] - a[0];
+                    let width = (w.x * across.x + w.y * across.y).abs();
+                    let along = dir(a);
+                    zones.push(Zone::Flat {
+                        origin: a[0],
+                        along,
+                        across,
+                        shift,
+                        v0,
+                        from: 0.0,
+                        to: width,
+                    });
+                    shift += w.x * along.x + w.y * along.y;
+                    v0 += width;
+                }
+            }
+        }
+        // After the last line: v goes on away from the line before it.
+        let last = chords[n - 1];
+        let across = normal_toward(last, mid(chords[n - 2])) * -1.0;
+        zones.push(Zone::Flat {
+            origin: last[0],
+            along: dir(last),
+            across,
+            shift,
+            v0,
+            from: 0.0,
+            to: f64::INFINITY,
+        });
+        anchors.push(mid(last) + across * 1.0);
+        Some(FanWarp { zones, anchors })
+    }
+
+    /// Whether `q` lies in zone `z`.
+    fn holds(z: &Zone, q: Vec2) -> bool {
+        match z {
+            Zone::Flat {
+                origin,
+                across,
+                from,
+                to,
+                ..
+            } => {
+                let w = q - *origin;
+                let d = w.x * across.x + w.y * across.y;
+                (*from..=*to).contains(&d)
+            }
+            Zone::Fan { p, t0, sweep, .. } => {
+                let d = q - *p;
+                let rel = (d.y.datan2(d.x) - t0 + std::f64::consts::PI)
+                    .rem_euclid(std::f64::consts::TAU)
+                    - std::f64::consts::PI;
+                if *sweep >= 0.0 {
+                    (0.0..=*sweep).contains(&rel)
+                } else {
+                    (*sweep..=0.0).contains(&rel)
+                }
+            }
+        }
+    }
+
+    /// `q` in the warped plane: (along the row, across the rows).
+    pub fn forward(&self, q: Vec2) -> Vec2 {
+        // The zone that holds the point; of several (wedges reach far), the nearest one.
+        let near = |k: &usize| self.anchors[*k].distance(q);
+        let k = (0..self.zones.len())
+            .filter(|&k| Self::holds(&self.zones[k], q))
+            .min_by(|a, b| near(a).total_cmp(&near(b)))
+            .or_else(|| (0..self.zones.len()).min_by(|a, b| near(a).total_cmp(&near(b))))
+            .unwrap_or(0);
+        match &self.zones[k] {
+            Zone::Flat {
+                origin,
+                along,
+                across,
+                shift,
+                v0,
+                ..
+            } => {
+                let w = q - *origin;
+                v2(
+                    w.x * along.x + w.y * along.y + shift,
+                    v0 + w.x * across.x + w.y * across.y,
+                )
+            }
+            Zone::Fan {
+                p,
+                t0,
+                sweep,
+                sum,
+                sigma,
+                off,
+                v0,
+            } => {
+                let d = q - *p;
+                let rel = (d.y.datan2(d.x) - t0 + std::f64::consts::PI)
+                    .rem_euclid(std::f64::consts::TAU)
+                    - std::f64::consts::PI;
+                let f = (rel / sweep).clamp(0.0, 1.0) * FAN_SAMPLES as f64;
+                let i = (f.floor() as usize).min(FAN_SAMPLES - 1);
+                let g = sum[i] + (sum[i + 1] - sum[i]) * (f - i as f64);
+                v2(sigma * d.length() + off, v0 + g)
+            }
+        }
+    }
+
+    /// The point of the design at `w` of the warped plane.
+    pub fn back(&self, w: Vec2) -> Vec2 {
+        // Zones are in order of v; the first whose range holds it (the last one otherwise).
+        let end = |z: &Zone| match z {
+            Zone::Flat { v0, to, .. } => v0 + to,
+            Zone::Fan { v0, sum, .. } => v0 + sum[FAN_SAMPLES],
+        };
+        let k = self
+            .zones
+            .iter()
+            .position(|z| w.y <= end(z))
+            .unwrap_or(self.zones.len() - 1);
+        match &self.zones[k] {
+            Zone::Flat {
+                origin,
+                along,
+                across,
+                shift,
+                v0,
+                ..
+            } => *origin + *along * (w.x - shift) + *across * (w.y - v0),
+            Zone::Fan {
+                p,
+                t0,
+                sweep,
+                sum,
+                sigma,
+                off,
+                v0,
+            } => {
+                let g = (w.y - v0).clamp(0.0, sum[FAN_SAMPLES]);
+                let i = sum.partition_point(|&x| x < g).clamp(1, FAN_SAMPLES);
+                let span = sum[i] - sum[i - 1];
+                let f = if span > 0.0 {
+                    (g - sum[i - 1]) / span
+                } else {
+                    0.0
+                };
+                let t = t0 + sweep * (i as f64 - 1.0 + f) / FAN_SAMPLES as f64;
+                *p + v2(t.dcos(), t.dsin()) * (sigma * (w.x - off))
+            }
+        }
+    }
+
+    /// `c` in the warped plane, as a polygon: its outline is followed in steps of at most
+    /// 0.3 mm, since a straight side is a curve there.
+    pub fn contour(&self, c: &Contour) -> Contour {
+        const STEP: f64 = 3.0;
+        let path = c.path();
+        let mut out: Vec<Vec2> = Vec::new();
+        for w in path.windows(2) {
+            let n = ((w[0].distance(w[1]) / STEP).ceil() as usize).max(1);
+            for k in 0..n {
+                out.push(self.forward(w[0].lerp(w[1], k as f64 / n as f64)));
+            }
+        }
+        if !c.closed
+            && let Some(&last) = path.last()
+        {
+            out.push(self.forward(last));
+        }
+        // Points that add nothing are dropped again (a straight side stays one side where
+        // the rows are parallel): the plain fill puts needle points at outline corners, so
+        // needless ones would add stitches.
+        crate::simplify::contour(&Contour::new(out, c.closed), WARP_TOLERANCE)
+    }
+}
+
+/// How far outside the shape's bounds a direction line is drawn and stored when it is made
+/// from the fill angle: 5 mm, as PE-DESIGN draws its ends.
+pub const LINE_REACH: f64 = 50.0;
+
+/// The one straight direction line of a shape with fill angle `angle` (stored degrees,
+/// counter-clockwise on screen): through the middle of the bounds of `closed`, from
+/// [`LINE_REACH`] before the bounds to as far behind them, pointing the way the angle does.
+/// `None` for a shape without a closed outline.
+pub fn angle_line(closed: &[Contour], angle: f64) -> Option<[Vec2; 2]> {
+    let b = crate::geometry::Rect::enclosing(
+        closed
+            .iter()
+            .filter(|c| c.closed)
+            .flat_map(Contour::outline_points),
+    )?;
+    let centre = v2((b.min_x + b.max_x) / 2.0, (b.min_y + b.max_y) / 2.0);
+    let d = v2(angle.to_radians().dcos(), -angle.to_radians().dsin());
+    let reach = |half: f64, along: f64| {
+        if along.abs() < 1e-9 {
+            f64::INFINITY
+        } else {
+            half / along.abs()
+        }
+    };
+    let half = reach((b.max_x - b.min_x) / 2.0, d.x).min(reach((b.max_y - b.min_y) / 2.0, d.y))
+        + LINE_REACH;
+    Some([centre - d * half, centre + d * half])
+}
+
+/// A direction line drawn from `l[0]` to `l[1]` as it is stored: along the same line, from
+/// [`LINE_REACH`] before its first crossing of the outline to as far after its last one, so
+/// that it lies across the shape wherever its ends were put. `None` when it does not cross
+/// the shape (fewer than two crossings).
+pub fn across(l: [Vec2; 2], closed: &[Contour]) -> Option<[Vec2; 2]> {
+    let d = l[1] - l[0];
+    let len = d.length();
+    if len <= 0.0 {
+        return None;
+    }
+    let u = d * (1.0 / len);
+    let (mut first, mut last) = (f64::INFINITY, f64::NEG_INFINITY);
+    let mut crossings = 0;
+    for c in closed.iter().filter(|c| c.closed) {
+        for (a, b) in c.edges() {
+            let e = b - a;
+            let den = u.x * e.y - u.y * e.x;
+            if den.abs() < 1e-12 {
+                continue;
+            }
+            let w = a - l[0];
+            let t = (w.x * e.y - w.y * e.x) / den;
+            let s = (w.x * u.y - w.y * u.x) / den;
+            if (0.0..=len).contains(&t) && (0.0..=1.0).contains(&s) {
+                first = first.min(t);
+                last = last.max(t);
+                crossings += 1;
+            }
+        }
+    }
+    (crossings >= 2 && last - first > 1.0).then(|| {
+        [
+            l[0] + u * (first - LINE_REACH),
+            l[0] + u * (last + LINE_REACH),
+        ]
+    })
+}
+
+/// The stored angle (degrees, counter-clockwise on screen, 0 to 360) a direction line points
+/// at, from its first end to its second.
+pub fn line_angle(l: [Vec2; 2]) -> f64 {
+    let d = l[1] - l[0];
+    let a = (-d.y).datan2(d.x).to_degrees().rem_euclid(360.0);
+    ((a * 10.0).round() / 10.0).rem_euclid(360.0)
+}
+
+/// Where a new direction line goes among `lines` (which are in order across the shape): the
+/// place that keeps the lines' middles nearest to each other in turn; after the others when
+/// places are equal (a second line goes after the first, as in PE-DESIGN's files).
+pub fn place_for(lines: &[[Vec2; 2]], new: [Vec2; 2]) -> usize {
+    let mid = |l: &[Vec2; 2]| l[0].lerp(l[1], 0.5);
+    let length = |at: usize| {
+        let mut all: Vec<Vec2> = lines.iter().map(mid).collect();
+        all.insert(at, mid(&new));
+        all.windows(2).map(|w| w[0].distance(w[1])).sum::<f64>()
+    };
+    (0..=lines.len())
+        .rev()
+        .min_by(|a, b| length(*a).total_cmp(&length(*b)))
+        .unwrap_or(lines.len())
 }

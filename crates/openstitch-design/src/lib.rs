@@ -71,6 +71,7 @@ pub use machine::{
     BRANDS, BROTHER_HOOPS, Estimate, Hoop, HoopShape, MachineSettings, MachineType, OTHER_HOOPS,
     SewingArea, UserHoop, estimate, find_hoop,
 };
+pub use model::AngleRule;
 pub use model::{
     Arrange, BackgroundImage, BackgroundLayer, ChainShape, ContourJoin, ContourStrategy, CrossKind,
     CrossTimes, Design, DesignObject, DesignPage, DesignProperties, FILL_TEXTURES, Feather,

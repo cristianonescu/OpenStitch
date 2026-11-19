@@ -980,9 +980,16 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
     // thin red line across the shape, an empty square (turned 45 degrees) at its start and an
     // empty arrow head at its end, both about 5 mm outside the shape and outlined in the
     // line's red; the square is black while the line is selected.
-    if let Some(l) = app.tools.direction_line(&ctx) {
+    let red = Color32::from_rgb(0xd3, 0x2f, 0x2f);
+    // Add Direction Line: the line from the first click to the pointer.
+    if let Some((Some(first), Some(hover))) = app.tools.adding_direction_line() {
+        painter.line_segment(
+            [pos(vp.to_screen(first)), pos(vp.to_screen(hover))],
+            Stroke::new(1.0, red),
+        );
+    }
+    for l in app.tools.direction_lines(&ctx) {
         let (a, b) = (pos(vp.to_screen(l.from)), pos(vp.to_screen(l.to)));
-        let red = Color32::from_rgb(0xd3, 0x2f, 0x2f);
         let dark = Color32::from_gray(16);
         painter.line_segment([a, b], Stroke::new(1.0, red));
         let u = (b - a).normalized();

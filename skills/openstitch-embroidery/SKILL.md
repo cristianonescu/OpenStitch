@@ -467,7 +467,14 @@ then style them in the next.
   `object.setHoleSewing` `{ids: [id], enabled: false}` first). A filled shape's
   straight sewing direction shows as a line across it (`directionLine`: `angle`, `from`,
   `to`); turning it is `object.setRegion` `{id, angle}`, and a shape's only direction line
-  cannot be deleted; `{action}` runs one (`ui.run pointToCurve` and the other ribbon
+  cannot be deleted. More direction lines, as PE-DESIGN's Add Direction Line makes them:
+  `object.addDirectionLine` `{id, line: [[x, y], [x, y]]}` with both ends outside the shape
+  (refused with the reason when an end is inside, when it would cross another line inside
+  the shape, on hole sewing, or on a shape with OpenStitch's own angle lines); the fill's
+  rows then fan between the lines and are parallel beyond the first and last.
+  `object.deleteDirectionLine` `{id, index}` deletes one, `{id, keep}` all but one; the last
+  line is the fill angle again. PES 0110 keeps them. (`object.setAngleLines` holds both
+  kinds of lines, told apart by `rule`: `fan` for these, `sides` for OpenStitch's own.); `{action}` runs one (`ui.run pointToCurve` and the other ribbon
   buttons do the same).
 - Clean up: `shape.simplify` `{ids, tolerance: 0.2}` removes nodes within a tolerance (mm; a
   Manual Punch column loses one direction line per call; `ui.run smoothShape` uses the

@@ -248,9 +248,10 @@ actions! {
     ShapeBuilder => "shapeBuilder", "Shape Builder", "Select two or more overlapping shapes, then drag across the pieces of their overlaps: the pieces you touch become one shape (sewn like the topmost of them). Hold Alt to remove the pieces instead.", None, Some("shape.build"), true;
     LineGap => "lineGap", "Turning Gap", "Leave part of the selected closed line unsewn, the opening for turning in-the-hoop pieces: where it starts along the outline and how long it is. Running, triple, zigzag, E and V lines.", None, Some("object.setLineGap"), true;
     SplitOutline => "splitOutline", "Split Outline", "Draw a cut line that splits the selected shape.", None, Some("shape.split"), true;
-    AddDirectionLine => "addDirection", "Add Direction Line", "Draw a curved sewing direction across the region.", None, Some("object.setDirectionCurve"), true;
+    AddDirectionLine => "addDirection", "Add Direction Line", "Add a straight direction line to the selected fill, as PE-DESIGN's Select Point does: click outside the shape for its start, then outside it on another side for its end. The fill's rows turn from line to line (a fan between two lines, parallel beyond the first and last). A line that ends inside the shape, crosses another line inside it, or is on a shape with hole sewing is not added, and the status bar says why.", None, Some("object.addDirectionLine"), true;
     DeleteDirectionLine => "deleteDirection", "Delete Direction Line", "Back to one straight sewing direction: the shape's direction lines and its curved direction are removed (object.setDirectionLines and object.setDirectionCurve with none), in one undo step.", None, Some("object.setDirectionLines"), true;
     ReverseDirectionLine => "reverseDirection", "Reverse Direction Line", "Sew the direction line the other way.", None, Some("object.reverseDirection"), true;
+    CurvedDirection => "curvedDirection", "Curved Direction", "Draw a curved sewing direction across the region: the rows follow the curve (PE-DESIGN's Direction: Manual curve). Draw an open curve with the Pen; Delete Direction Line removes it.", None, Some("object.setDirectionCurve"), true;
     EditPoint => "editPoint", "Edit Point", "Change the selected points of the outline: Line Type (To Straight, To Curve) and Curve Type (To Smooth, To Symmetry, To Cusp). Select points with the Point tool (Point Edit, A); Ctrl+click or Shift+click adds one, and a drag box takes the points inside it on every selected shape. A right-click on a point opens the same entries with Split at Point and Delete.", None, Some("object.setPointKind"), true;
     DeletePoint => "deletePoint", "Delete Point", "Delete the selected points.", Some("Delete"), Some("object.deletePoint"), true;
     SplitAtPoint => "splitAtPoint", "Split at Point", "Open a closed outline at the selected point, or cut an open line in two there (not at its ends). A closed shape loses its region sewing; one sewn as a region only becomes a running-stitch line in the region's thread. On a stitch pattern: split it at the selected needle point.", None, Some("object.splitAtPoint"), true;
@@ -731,6 +732,7 @@ const SHAPES: &[Group] = &[
                 A::DeleteDirectionLine,
                 A::ReverseDirectionLine,
             ]),
+            Small(&[A::CurvedDirection]),
             Small(&[A::DeriveSkeleton, A::SmoothShape, A::SmoothTolerance]),
             Small(&[A::ShapeEffects, A::ShapeBuilder, A::LineGap]),
         ],

@@ -406,6 +406,32 @@ fn object(s: &Shape, table: &[Thread], notes: &mut Vec<String>) -> Result<Design
         }
         r
     });
+    // Direction lines added in PE-DESIGN (#1273): the fill's rows fan between them.
+    if let Some(r) = region
+        .as_mut()
+        .filter(|r| s.direction_lines.len() >= 2 && r.kind == RegionType::Fill)
+    {
+        let outline = contour(&s.vertices, s.closed);
+        let crossing = |(side, t): (u32, f64)| {
+            let path = outline.segment_polyline(side as usize % outline.points.len().max(1));
+            let total: f64 = path.windows(2).map(|w| w[0].distance(w[1])).sum();
+            let mut left = total * t.clamp(0.0, 1.0);
+            for w in path.windows(2) {
+                let len = w[0].distance(w[1]);
+                if left <= len && len > 0.0 {
+                    return w[0].lerp(w[1], left / len);
+                }
+                left -= len;
+            }
+            path.last().copied().unwrap_or_default()
+        };
+        r.angle_lines = s
+            .direction_lines
+            .iter()
+            .map(|l| [crossing(l[0]), crossing(l[1])])
+            .collect();
+        r.angle_rule = openstitch_design::AngleRule::Fan;
+    }
     if let Some(r) = region.as_mut().filter(|_| !s.punch.is_empty()) {
         r.direction_lines = punch_lines(s, &vertices)?;
         // A Curve Block's sides are Bézier curves through the line ends (o-manual-curve).

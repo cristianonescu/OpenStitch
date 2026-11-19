@@ -4940,7 +4940,12 @@ saved files, not in the repository).
 | Ribbon with the shape selected | Add Direction Line available, Delete Direction Line grey, Reverse Direction Line available. | PE-DESIGN capture g, 2026-11-19 |
 | A click on the line's start square | Selects the line (the square turns black). With the only line selected Delete Direction Line stays grey: the last line cannot be deleted. | PE-DESIGN capture g, 2026-11-19 |
 | Dragging an end of a direction line | Changes the angle. | PE-DESIGN instruction manual, read 2026-11-19; not captured |
-| Add Direction Line (a second line, the fill bending between the lines), Delete Selected Line, Delete Lines Not Selected with two or more lines | See capture g; not built here (#1273). | PE-DESIGN capture g, 2026-11-19 |
+| Add Direction Line | A click outside the shape, a second click outside it on another side: a second line, its square at the first click and its arrow head at the second. The fill is sewn again and bends between the two lines (the 40 mm square: 3247 to 3611 stitches). Nothing is selected afterwards. | PE-DESIGN capture g, 2026-11-19 |
+| Add Direction Line with the second click inside the shape | No line is added. | PE-DESIGN capture g, 2026-11-19 |
+| A line that would cross another inside the shape; a shape with hole sewing | Not added; not possible. | PE-DESIGN instruction manual, read 2026-11-19; not captured |
+| Two lines, one selected | Delete Direction Line available; Delete Selected Line and Delete Lines Not Selected both available. Delete Lines Not Selected removes the other line and keeps the selected one, unselected afterwards. The Delete key removes the selected line. One Ctrl+Z brings a line back. | PE-DESIGN capture g, 2026-11-19 |
+| How the lines are stored (PES 0110) | In the shape record's two position lists: the first list each line's first crossing of the outline, the second its second crossing, each as (side, fraction along it); the lists are in order across the shape (a third line was stored first). Two lines: [(0, 1.0), (1, 0.84)] and [(2, 1.0), (2, 0.384)]. | files g1-two-lines, g2-three-lines, read 2026-11-19 |
+| How the fill is sewn between lines | Beyond the first and the last line the rows are parallel to it. Between two lines they are a fan through the point where the two lines meet when extended, a row spacing apart at their far ends (0.19 degrees a row where the far end is 64 mm away, 0.16 where it is 79 mm, at 0.212 mm). Rows per zone 24 / 143 / 140, median row angle 21.8 / 34.9 / 45.0 degrees, 2773 needle points in the fill. | files g1-two-lines, g2-three-lines, read 2026-11-19 |
 | To Curve on a point in the middle of a straight side | Both handles on the side: the outline does not change (the same rule, point ∓ (next − previous) / 4). | e5 |
 | Right click on the shape, not on a point | The object's menu: Add Direction Line, Delete Direction Line (a sub-menu: Delete Selected Line, Delete Lines Not Selected), Reverse Direction Line, separator, Open, Close. Add and Reverse carry an icon, Delete Direction Line none. Delete Direction Line is always available; on an open line its two sub-menu entries are grey. Open line: Add and Reverse grey, Open grey, Close available. Closed shape with a region: Add, Reverse and Open available, Close grey. | screen |
 | Close | The open line becomes a closed shape through the same points and gets a region: Fill Stitch at direction 45 (1289 stitches against 310). | e7 |
@@ -4991,11 +4996,47 @@ saved files, not in the repository).
   such a shape and available for what it removes here, a curved direction or several
   direction lines (`the_direction_line_is_the_fill_angle_and_a_dragged_end_turns_it`,
   `the_direction_line_of_a_filled_shape_and_its_greying`).
-- Not built yet (#1273): a second and further direction lines on an ordinary shape with the
-  fill bending between them, so Add Direction Line still draws OpenStitch's curved
-  direction (its own command, kept), and the sub-menu's Delete Selected Line and Delete Lines
-  Not Selected do not yet work on selected lines (Delete Selected Line is grey; Delete Lines
-  Not Selected removes a curved direction or a Manual Punch shape's lines, as before).
+- Direction lines on an ordinary fill (#1273). Storage: the shape's stitch angle lines
+  (`region.angle_lines`, #534) with a stored rule, `fan` for PE-DESIGN's direction lines and
+  `sides` for OpenStitch's own (existing files and the Angle Lines tool: unchanged). One
+  shape has one rule and lines are not converted: Add Direction Line on a shape with `sides`
+  lines, and `object.setAngleLines` with the other rule, are refused with a message.
+  `region.direction_lines` stays Manual Punch only.
+- Sewing (`angle_lines::FanWarp`): the shape is taken to a plane where every row is
+  horizontal: parallel to the first line before it and to the last line after it, and between
+  two lines a fan through the point where they meet, measured so that rows are a spacing
+  apart at their far ends. The plain fill is laid out there, with its under sewing, stitch
+  pattern, travel and entry and exit points, and its needle points are brought back. A shape
+  without added lines sews exactly as before. Against PE-DESIGN's two files for the same
+  square and lines (tolerance, stated once and pinned in
+  `the_fill_between_direction_lines_is_pe_designs_within_the_stated_tolerance`: stitch count
+  within 3 %, rows of a zone within 2, median row angle of a zone within 1.5 degrees): 2822
+  and 2828 needle points against 2773 (+1.8 %, +2.0 %); rows 23 / 142 / 141 against
+  24 / 143 / 140; median angles 21.2 / 35.8 / 45.0 against 21.8 / 34.9 / 45.0 degrees. Only
+  the fill follows direction lines; other region types refuse Add Direction Line.
+- PES 0110 reads and writes the lines in the two position lists; for the two reference
+  designs OpenStitch writes the same list entries as PE-DESIGN (`pes_0110_keeps_direction_lines`).
+  On a curved side the fraction is by length along the side; PE-DESIGN's measure on a curve
+  is not captured. `sides` lines are still refused in PES 0110.
+- Add Direction Line (ribbon, object menu, `ui.run addDirection`) is PE-DESIGN's two clicks
+  with the Point tool; `object.addDirectionLine` refuses, with the reason, an end inside the
+  shape, a line that does not cross it, one that would cross another line inside it, hole
+  sewing, a curved direction or Manual Punch lines, a region that is not a fill, and `sides`
+  lines. The new line is put where it lies among the others (PE-DESIGN keeps its lists in
+  order across the shape). Every line shows with its square and arrow head; a click on an
+  end selects it; dragging an end of a stored line moves that end (not captured on
+  PE-DESIGN). Delete Selected Line and the Delete key remove the selected line, Delete Lines
+  Not Selected every other one; one line left is the fill angle again; the last line cannot
+  be deleted (`object.deleteDirectionLine`). Reverse Direction Line turns every line round.
+  The curved direction keeps its own command and is drawn with Shapes ▸ Curved Direction
+  (it was the old Add Direction Line button).
+  (`add_direction_line_is_two_clicks_and_stored_lines_are_selected_dragged_and_deleted`,
+  `direction_lines_are_added_selected_and_deleted_through_the_ui_commands`,
+  `add_direction_line_refuses_what_pe_design_refuses_and_says_why`,
+  `delete_and_reverse_direction_lines`).
+- Not known: PE-DESIGN's under sewing with several lines (here the plain fill's, warped with
+  the rows); how PE-DESIGN orders lines that do not lie in a row across the shape; the
+  pointer shape while adding.
 - Hole sewing and fitted text (#1271; PE-DESIGN instruction manual, read 2026-11-19, none of
   it captured yet): `object.splitAtPoint` and `object.openOutline` cancel hole sewing on the
   object's pair, whether it is the outer shape or the inner one, so no piece keeps the flags

@@ -393,9 +393,42 @@ fn layers_inner(
             p.row_spacing,
         )];
     }
+    // PE-DESIGN's direction lines (#1273): the shape is taken to a plane where every row is
+    // horizontal (parallel rows beyond the first and last line, a fan between two lines, see
+    // `angle_lines::FanWarp`), the plain fill is laid out there, under sewing and all, and
+    // its needle points are brought back.
+    if r.kind == RegionType::Fill
+        && r.angle_rule == crate::model::AngleRule::Fan
+        && r.angle_lines.len() >= 2
+        && r.gradient.is_none()
+        && crate::angle_lines::check(&r.angle_lines, closed, holes).is_ok()
+        && let Some(warp) = crate::angle_lines::FanWarp::new(&r.angle_lines, closed, holes)
+    {
+        let mut plain = r.clone();
+        plain.angle_lines.clear();
+        plain.angle_rule = crate::model::AngleRule::Sides;
+        plain.angle = 0.0;
+        plain.auto_direction = false;
+        plain.entry = r.entry.map(|p| warp.forward(p));
+        plain.exit = r.exit.map(|p| warp.forward(p));
+        plain.center = None;
+        plain.reference = None;
+        let flat: Vec<Contour> = closed.iter().map(|c| warp.contour(c)).collect();
+        let flat_holes: Vec<Contour> = holes.iter().map(|c| warp.contour(c)).collect();
+        return layers_inner(&flat, &plain, &flat_holes, user, letter, None)
+            .into_iter()
+            .map(|layer| {
+                layer
+                    .into_iter()
+                    .map(|run| run.into_iter().map(|p| warp.back(p)).collect())
+                    .collect()
+            })
+            .collect();
+    }
     // Stitch angle lines (#534, beyond PE-DESIGN): the plain fill's under sewing, then rows
     // turning from line to line (see `crate::angle_lines`), joined by travel inside.
     if r.kind == RegionType::Fill
+        && r.angle_rule == crate::model::AngleRule::Sides
         && r.angle_lines.len() >= 2
         && r.gradient.is_none()
         && crate::angle_lines::check(&r.angle_lines, closed, holes).is_ok()

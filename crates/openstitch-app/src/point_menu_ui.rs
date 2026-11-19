@@ -178,27 +178,83 @@ pub fn object_entry_enabled(app: &EditorApp, a: Action) -> bool {
     a == Action::DeleteDirectionLine || crate::ribbon::enabled(app, a)
 }
 
-/// The Delete Direction Line sub-menu, PE-DESIGN's two entries: (key, text id, available).
-/// Delete Selected Line removes the selected direction line. It is grey here: the one line
-/// the Point tool can select is a shape's only direction line (its fill angle), which cannot
-/// be deleted (PE-DESIGN capture g), and of a curved direction or a Manual Punch shape's
-/// lines none can be selected yet (#1273). Delete Lines Not Selected removes the others,
-/// which until #1273 is all of them: the shape goes back to one straight sewing direction
-/// ([`delete_direction_lines`]). Both are grey on a shape without such lines.
-pub fn direction_submenu(app: &EditorApp) -> [(&'static str, &'static str, bool); 2] {
+/// The selected stored direction line (the shape has two or more, #1273): (shape, index).
+pub fn selected_stored_line(app: &EditorApp) -> Option<(u64, usize)> {
     let ctx = app.tool_context(app.session.design());
-    let has_lines = ctx
+    app.tools
+        .selected_direction_line(&ctx)
+        .filter(|l| l.stored)
+        .map(|l| (l.id, l.index))
+}
+
+/// Add Direction Line: PE-DESIGN's two clicks with the Point tool on the selected fill.
+pub fn start_direction_line(app: &mut EditorApp) {
+    app.tools.set_tool(openstitch_app::editor::Tool::Point);
+    let mut started = false;
+    app.with_tools(|tools, ctx| {
+        started = tools.start_direction_line(ctx);
+        vec![]
+    });
+    if started {
+        app.status = openstitch_app::editor::hints::point_hint(
+            openstitch_app::editor::hints::PointSelection::AddingDirectionLine,
+        )
+        .into();
+    }
+}
+
+/// The Delete Direction Line sub-menu, PE-DESIGN's two entries: (key, text id, available).
+/// As captured (capture g): with one of two or more direction lines selected both are
+/// available: Delete Selected Line removes that line, Delete Lines Not Selected every other
+/// one; with the shape's only line selected, or none, both are grey. Kept from before for
+/// what PE-DESIGN's shapes do not have: on a shape with a curved direction or a Manual Punch
+/// shape's lines (none of which can be selected) Delete Lines Not Selected removes them
+/// ([`delete_direction_lines`]).
+pub fn direction_submenu(app: &EditorApp) -> [(&'static str, &'static str, bool); 2] {
+    let selected = selected_stored_line(app).is_some();
+    let ctx = app.tool_context(app.session.design());
+    let other = ctx
         .point_target()
         .and_then(|o| o.region.as_ref())
         .is_some_and(|r| r.direction_curve.is_some() || !r.direction_lines.is_empty());
     [
-        ("deleteSelectedLine", "menu-point-delete-selected-line", false),
+        (
+            "deleteSelectedLine",
+            "menu-point-delete-selected-line",
+            selected,
+        ),
         (
             "deleteLinesNotSelected",
             "menu-point-delete-lines-not-selected",
-            has_lines && crate::ribbon::enabled(app, Action::DeleteDirectionLine),
+            selected || other,
         ),
     ]
+}
+
+/// Runs an entry of the Delete Direction Line sub-menu (one undo step); nothing when it is
+/// grey.
+pub fn run_direction_entry(app: &mut EditorApp, key: &str) {
+    if !direction_submenu(app).iter().any(|e| e.0 == key && e.2) {
+        return;
+    }
+    match (key, selected_stored_line(app)) {
+        ("deleteSelectedLine", Some(_)) => {
+            app.with_tools(|tools, ctx| tools.delete_point(ctx).unwrap_or_default());
+        }
+        ("deleteLinesNotSelected", Some((id, index))) => {
+            app.execute(&openstitch_app::editor::CommandRequest::new(
+                "object.deleteDirectionLine",
+                json!({ "id": id, "keep": index }),
+            ));
+            // The line that is kept is no longer selected (capture g).
+            app.with_tools(|tools, ctx| {
+                tools.select_direction_line(None, ctx);
+                vec![]
+            });
+        }
+        ("deleteLinesNotSelected", None) => delete_direction_lines(app),
+        _ => {}
+    }
 }
 
 /// Width of the icon column at the left of a menu row, in points.
@@ -360,7 +416,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
 fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
     use openstitch_app::editor::ribbon::POINT_OBJECT_MENU;
     let mut chosen = None;
-    let mut delete_lines = false;
+    let mut delete_lines: Option<&'static str> = None;
     let mut sub_at = None;
     let (r, painted) = panel(ctx, "point-object-menu", m.at, 210.0, |ui| {
         for a in POINT_OBJECT_MENU {
@@ -392,16 +448,16 @@ fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
     if let Some(at) = sub_at {
         let entries = direction_submenu(app);
         let (sub, _) = panel(ctx, "point-object-submenu", at, 200.0, |ui| {
-            for (_, text, enabled) in entries {
+            for (key, text, enabled) in entries {
                 if row(ui, None, t(text), enabled, false).clicked() {
-                    delete_lines = true;
+                    delete_lines = Some(key);
                 }
             }
         });
         over_sub = sub.response.contains_pointer();
     }
-    if delete_lines {
-        delete_direction_lines(app);
+    if let Some(key) = delete_lines {
+        run_direction_entry(app, key);
         return;
     }
     if let Some(a) = chosen {
@@ -507,20 +563,37 @@ pub fn state(app: &EditorApp) -> Value {
             .collect(),
         _ => vec![],
     };
-    // The shape's direction line as the Point tool shows it (its fill angle).
-    let direction = app.tools.direction_line(&ctx).map(|l| {
-        let screen = |p| app.viewport.map(|vp| vp.to_screen(p)).map(|s| [s.x, s.y]);
-        json!({
-            "angle": l.angle,
-            "selected": l.selected,
-            "from": [l.from.x / 10.0, l.from.y / 10.0],
-            "to": [l.to.x / 10.0, l.to.y / 10.0],
-            "screenFrom": screen(l.from),
-            "screenTo": screen(l.to),
+    // The shape's direction lines as the Point tool shows them: its stored lines, or the one
+    // that is its fill angle.
+    let lines: Vec<Value> = app
+        .tools
+        .direction_lines(&ctx)
+        .iter()
+        .map(|l| {
+            let screen = |p| app.viewport.map(|vp| vp.to_screen(p)).map(|s| [s.x, s.y]);
+            json!({
+                "index": l.index,
+                "stored": l.stored,
+                "angle": l.angle,
+                "selected": l.selected,
+                "from": [l.from.x / 10.0, l.from.y / 10.0],
+                "to": [l.to.x / 10.0, l.to.y / 10.0],
+                "screenFrom": screen(l.from),
+                "screenTo": screen(l.to),
+            })
         })
-    });
+        .collect();
+    // The selected line, else the first.
+    let direction = lines
+        .iter()
+        .find(|l| l["selected"] == true)
+        .or(lines.first())
+        .cloned();
+    let adding = app.tools.adding_direction_line().is_some();
     json!({
         "directionLine": direction,
+        "directionLines": lines,
+        "addingDirectionLine": adding,
         "connectOverlap": overlap,
         "connectable": connectable,
         "menuRect": drawn.map(|(r, _)| [r.min.x, r.min.y, r.width(), r.height()]),
@@ -596,19 +669,23 @@ pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, Str
         }
     }
     // A click on an end of the shape's direction line, as a command.
-    if let Some(on) = params
-        .and_then(|p| p.get("selectDirectionLine"))
-        .and_then(Value::as_bool)
-    {
+    if let Some(which) = params.and_then(|p| p.get("selectDirectionLine")) {
+        // true: the first line; a number: that line; false: none.
+        let index = match (which.as_bool(), which.as_u64()) {
+            (Some(true), _) => Some(0),
+            (Some(false), _) => None,
+            (None, Some(k)) => Some(k as usize),
+            _ => return Err("selectDirectionLine: must be true, false or a line's index".into()),
+        };
         app.tools.set_tool(openstitch_app::editor::Tool::Point);
         let mut ok = false;
         app.with_tools(|tools, ctx| {
-            ok = tools.select_direction_line(on, ctx);
+            ok = tools.select_direction_line(index, ctx);
             vec![]
         });
         if !ok {
             return Err(
-                "selectDirectionLine: the selected shape shows no direction line (it needs one shape with a region sewn in one straight direction)"
+                "selectDirectionLine: the selected shape shows no such direction line (directionLines lists them; it needs one shape with a fill sewn in one straight direction or along direction lines)"
                     .into(),
             );
         }
@@ -672,13 +749,13 @@ pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, Str
             return Err(format!(
                 "{key} is not available: {}",
                 if key == "deleteSelectedLine" {
-                    "a shape's only direction line cannot be deleted, and of a curved direction or a Manual Punch shape's lines none can be selected yet; deleteLinesNotSelected removes those"
+                    "select one of the shape's direction lines first (selectDirectionLine); a shape's only direction line cannot be deleted, and of a curved direction or a Manual Punch shape's lines none can be selected: deleteLinesNotSelected removes those"
                 } else {
-                    "the selected shape has no direction lines"
+                    "select the direction line to keep first (selectDirectionLine): without a selected line the shape has no direction lines this entry can delete"
                 }
             ));
         }
-        delete_direction_lines(app);
+        run_direction_entry(app, key);
         app.workspace.view.point_menu = None;
         return Ok(state(app));
     }
@@ -1091,6 +1168,118 @@ mod tests {
         assert!(!hint(&mut app, json!([1])).contains("Alt"));
     }
 
+    /// PE-DESIGN capture g, 2026-11-19 (#1273), the greying with real lines and the two
+    /// sub-menu entries: with two or more lines and one selected, Delete Direction Line and
+    /// both entries are available; Delete Lines Not Selected keeps the selected line,
+    /// unselected afterwards; Delete Selected Line removes it; one undo step each.
+    #[test]
+    fn direction_lines_are_added_selected_and_deleted_through_the_ui_commands() {
+        let mut app = EditorApp::new(Launch::default());
+        let id = app
+            .execute(&CommandRequest::new(
+                "shape.rectangle",
+                json!({ "x": 30, "y": 30, "width": 40, "height": 40, "fill": "#2e8b57" }),
+            ))
+            .expect("square")["id"]
+            .as_u64()
+            .expect("id");
+        app.execute(&CommandRequest::new(
+            "object.setRegion",
+            json!({ "id": id, "angle": 45 }),
+        ))
+        .expect("angle");
+        app.selection = BTreeSet::from([id]);
+        // Add Direction Line from the ribbon starts the two clicks with the Point tool.
+        app.ui_command("ui.run", Some(&json!({ "action": "addDirection" })))
+            .expect("Add Direction Line");
+        let s = app.ui_command("ui.pointMenu", None).expect("state");
+        assert_eq!(s["addingDirectionLine"], true);
+        assert!(s["hint"].as_str().expect("hint").contains("click outside the shape"));
+        for at in [v2(252.0, 384.0), v2(501.7, 280.0)] {
+            app.with_tools(|tools, ctx| {
+                tools.handle(
+                    openstitch_app::editor::PointerEvent::new(openstitch_app::editor::Phase::Down, at),
+                    ctx,
+                )
+            });
+        }
+        let s = app.ui_command("ui.pointMenu", None).expect("state");
+        assert_eq!(s["addingDirectionLine"], false);
+        let lines = s["directionLines"].as_array().expect("lines");
+        assert_eq!(lines.len(), 2);
+        assert!(lines.iter().all(|l| l["stored"] == true && l["selected"] == false));
+        assert!(app.status.contains("object.addDirectionLine"), "{}", app.status);
+        // Nothing selected: Delete Direction Line grey, both entries grey.
+        assert!(!enabled(&app, Action::DeleteDirectionLine));
+        let sub = direction_submenu(&app);
+        assert_eq!((sub[0].2, sub[1].2), (false, false));
+        assert!(enabled(&app, Action::AddDirectionLine) && enabled(&app, Action::ReverseDirectionLine));
+        let two = app.session.design().clone();
+        // One of two selected: all three available.
+        let s = app
+            .ui_command("ui.pointMenu", Some(&json!({ "selectDirectionLine": 1 })))
+            .expect("select the second line");
+        assert_eq!(s["directionLine"]["index"], 1);
+        assert_eq!(s["directionLines"][1]["selected"], true);
+        assert!(enabled(&app, Action::DeleteDirectionLine));
+        let sub = direction_submenu(&app);
+        assert_eq!((sub[0].2, sub[1].2), (true, true));
+        // Delete Lines Not Selected: the 45 degree line goes, the selected one stays as the
+        // fill angle and is not selected any more; Delete is grey again.
+        let s = app
+            .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteLinesNotSelected" })))
+            .expect("Delete Lines Not Selected");
+        let lines = s["directionLines"].as_array().expect("lines");
+        assert_eq!(lines.len(), 1);
+        assert_eq!((lines[0]["stored"].clone(), lines[0]["selected"].clone()), (json!(false), json!(false)));
+        let angle = lines[0]["angle"].as_f64().expect("angle");
+        assert!((angle - 22.6).abs() < 0.3, "{angle}");
+        assert!(!enabled(&app, Action::DeleteDirectionLine));
+        app.undo();
+        assert_eq!(*app.session.design(), two, "one Undo");
+        // Delete Selected Line: that line goes, the 45 degree one is left.
+        app.ui_command("ui.pointMenu", Some(&json!({ "selectDirectionLine": 1 })))
+            .expect("select");
+        let s = app
+            .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteSelectedLine" })))
+            .expect("Delete Selected Line");
+        assert_eq!(s["directionLines"].as_array().expect("lines").len(), 1);
+        assert_eq!(s["directionLine"]["angle"], 45.0);
+        app.undo();
+        assert_eq!(*app.session.design(), two, "one Undo");
+        // The ribbon's Delete Direction Line with a line selected deletes that line.
+        app.ui_command("ui.pointMenu", Some(&json!({ "selectDirectionLine": 0 })))
+            .expect("select");
+        app.ui_command("ui.run", Some(&json!({ "action": "deleteDirection" })))
+            .expect("Delete Direction Line");
+        let s = app.ui_command("ui.pointMenu", None).expect("state");
+        let angle = s["directionLine"]["angle"].as_f64().expect("angle");
+        assert!((angle - 22.6).abs() < 0.3, "the 45 degree line went: {angle}");
+        // The curved direction keeps its own command: Curved Direction draws it with the Pen.
+        assert!(enabled(&app, Action::CurvedDirection));
+        app.ui_command("ui.run", Some(&json!({ "action": "curvedDirection" })))
+            .expect("Curved Direction");
+        assert_eq!(app.tools.tool(), openstitch_app::editor::Tool::Pen);
+        let info = Action::AddDirectionLine.info();
+        assert_eq!(info.engine, Some("object.addDirectionLine"));
+        assert!(info.tip.contains("click outside the shape"));
+        assert_eq!(Action::CurvedDirection.info().engine, Some("object.setDirectionCurve"));
+        let spec = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.pointMenu")
+            .expect("ui.pointMenu");
+        for words in [
+            "directionLines",
+            "addingDirectionLine",
+            "object.addDirectionLine",
+            "object.deleteDirectionLine",
+            "deleteSelectedLine removes the selected line",
+            "deleteLinesNotSelected removes every line but the selected one",
+        ] {
+            assert!(spec.summary.contains(words), "summary: {words}");
+        }
+    }
+
     /// An entry of the point menu or the object menu run through `ui.run` closes an open menu,
     /// as a click on the entry does (a script could leave it open, and the next click then
     /// landed on a row of it); a refused entry leaves the menu open.
@@ -1228,9 +1417,10 @@ mod tests {
             .expect("ui.pointMenu");
         // Why Delete Selected Line is grey, said truly: a line can be selected now.
         assert!(!spec.summary.contains("no direction line can be selected"));
-        assert!(spec.summary.contains(
-            "deleteSelectedLine (grey: a shape's only direction line cannot be deleted"
-        ));
+        assert!(
+            spec.summary
+                .contains("a shape's only direction line cannot be deleted")
+        );
         let e = app
             .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteSelectedLine" })))
             .expect_err("grey");

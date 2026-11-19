@@ -1937,6 +1937,35 @@ impl Feather {
     }
 }
 
+/// How a fill's rows turn between its stitch angle lines ([`RegionSewing::angle_lines`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AngleRule {
+    /// OpenStitch's stitch angle lines (#534): between two lines a row joins the points at
+    /// the same fraction along the two outline sides, so the rows turn with the shape.
+    #[default]
+    Sides,
+    /// PE-DESIGN's direction lines (#1273): between two lines the rows are a fan through the
+    /// point where the two lines meet when extended; beyond the first and last line they are
+    /// parallel to it (see `crate::angle_lines::fan_rows`).
+    Fan,
+}
+
+impl AngleRule {
+    /// Whether this is the default rule (not written to the project file).
+    pub fn is_sides(&self) -> bool {
+        *self == AngleRule::Sides
+    }
+
+    /// The rule's name in commands and project files.
+    pub fn key(self) -> &'static str {
+        match self {
+            AngleRule::Sides => "sides",
+            AngleRule::Fan => "fan",
+        }
+    }
+}
+
 /// Region sewing of a closed shape. mm and degrees; defaults are placeholders until calibrated
 /// against PE-DESIGN reference output. Every attribute after `underlay` is optional and omitted
 /// from JSON when unset, so designs that do not use it serialize as before.
@@ -2153,6 +2182,10 @@ pub struct RegionSewing {
     /// one line's direction to the next (see `crate::angle_lines`). Fewer than two: none.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub angle_lines: Vec<[Vec2; 2]>,
+    /// Fill: how the rows turn between [`RegionSewing::angle_lines`] (#1273). One shape has
+    /// one rule; files saved before it was stored have OpenStitch's ([`AngleRule::Sides`]).
+    #[serde(default, skip_serializing_if = "AngleRule::is_sides")]
+    pub angle_rule: AngleRule,
     /// Fill: rows that follow this direction field (#538, beyond PE-DESIGN), as evenly spaced
     /// streamlines (see `crate::flow`). Unset: straight rows (PE-DESIGN's fill).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2313,6 +2346,7 @@ impl RegionSewing {
             tartan: None,
             push_compensation: None,
             angle_lines: Vec::new(),
+            angle_rule: AngleRule::Sides,
             flow_field: None,
             gradient: None,
             motif_band: None,

@@ -455,6 +455,12 @@ pub fn commands() -> Vec<CommandSpec> {
                     for l in &mut r.direction_lines {
                         l.swap(0, 1);
                     }
+                    // PE-DESIGN's direction lines on a fill (#1273): every one turns round.
+                    if r.angle_rule == openstitch_design::AngleRule::Fan {
+                        for l in &mut r.angle_lines {
+                            l.swap(0, 1);
+                        }
+                    }
                     if let Some(c) = &mut r.direction_curve {
                         *c = reversed(c);
                     }

@@ -436,6 +436,15 @@ def angle_lines():
     ]
 
 
+def direction_lines():
+    """PE-DESIGN's direction lines (#1273): a 40 mm square whose rows fan between two lines."""
+    return [
+        {"command": "shape.rectangle", "params": {"x": 30, "y": 30, "width": 40, "height": 40, "fill": "Blue"}},
+        {"command": "object.setRegion", "params": {"id": 1, "angle": 45}},
+        {"command": "object.addDirectionLine", "params": {"id": 1, "line": [[25.2, 38.4], [50.17, 28.0]]}},
+    ]
+
+
 def tartan():
     """Tartan fill (#539, beyond PE-DESIGN): a 50 mm square in a red, green and white sett."""
     return [
@@ -718,6 +727,10 @@ FEATURES = [
     ("fills/angle-lines.pes", "Stitch angle lines (beyond PE-DESIGN)",
      "An L whose rows turn round its corner between three angle lines, as one object with no seam.",
      angle_lines()),
+    ("fills/direction-lines.pes", "Direction lines (PE-DESIGN's Add Direction Line)",
+     "A 40 mm square with two direction lines: the rows are parallel to the 45° line on one side of it, "
+     "fan between the two lines, and are parallel to the second line in the corner beyond it.",
+     direction_lines()),
     ("fills/tartan.pes", "Tartan fill (beyond PE-DESIGN)",
      "A 50 mm square in the symmetric sett R8 G12 W2 (red, green, white): one colour block per thread, warp "
      "and weft stripes crossing.", tartan()),
