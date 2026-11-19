@@ -44,6 +44,10 @@ fn room_beside(ctx: &egui::Context, button: egui::Rect) -> f32 {
     if side >= BESIDE_LEAST { side.min(all) } else { all }
 }
 
+fn wheel_id() -> egui::Id {
+    egui::Id::unique("fit-wheel-passed-on")
+}
+
 fn scroll_in<R>(ui: &mut egui::Ui, max: f32, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let frame = egui::Frame::menu(ui.style()).total_margin().sum().x;
     let wide = (ui.ctx().content_rect().width() - frame - 2.0 * EDGE).max(LEAST);
@@ -62,8 +66,24 @@ fn scroll_in<R>(ui: &mut egui::Ui, max: f32, add: impl FnOnce(&mut egui::Ui) -> 
         .show(ui, |ui| {
             let inner = add(ui);
             follow_focus(ui);
+            // The wheel turned over a sub-menu of this list that had nothing to scroll.
+            let passed = ui.ctx().data_mut(|d| d.remove_temp::<egui::Vec2>(wheel_id()));
+            if let Some(delta) = passed {
+                ui.scroll_with_delta(delta);
+            }
             inner
         });
+    // In a narrow window a sub-menu opens over the list it belongs to, under the resting
+    // pointer, and takes the wheel: when it has nothing to scroll, the wheel goes on to the
+    // list under it (read where that list finishes its frame, above).
+    let fits = out.content_size.y <= out.inner_rect.height() + 0.5;
+    if fits && ui.rect_contains_pointer(out.inner_rect) {
+        let delta = ui.input(|i| i.smooth_scroll_delta);
+        if delta.y != 0.0 {
+            ui.ctx()
+                .data_mut(|d| d.insert_temp(wheel_id(), egui::vec2(0.0, delta.y)));
+        }
+    }
     note(
         ui.ctx(),
         Surface {
@@ -205,17 +225,37 @@ pub fn drawn(ctx: &egui::Context) -> Drawn {
     drawn
 }
 
-/// Brings the control that has just taken the keyboard focus (Tab, the arrow keys) into view,
-/// when it is inside the scrolled content `ui`. The toolkit moves the focus without scrolling.
+/// Brings the control that has just taken the keyboard focus through the keyboard (Tab, the
+/// arrow keys) into view, when it is inside the scrolled content `ui`. The toolkit moves the
+/// focus without scrolling. A focus that moved without a key (an entry under the resting
+/// pointer opening its sub-menu) is left alone: following it would turn the list back under
+/// the wheel.
 fn follow_focus(ui: &egui::Ui) {
     let ctx = ui.ctx();
     let key = ui.scope_id().with("fit-focus");
+    let frame = ctx.cumulative_frame_nr();
+    let keys_id = egui::Id::unique("fit-focus-keys");
+    let pressed = ctx.input(|i| {
+        use egui::Key::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Tab};
+        [Tab, ArrowDown, ArrowUp, ArrowLeft, ArrowRight]
+            .iter()
+            .any(|k| i.key_pressed(*k))
+    });
+    if pressed {
+        ctx.data_mut(|d| d.insert_temp(keys_id, frame));
+    }
+    let by_key = ctx
+        .data(|d| d.get_temp::<u64>(keys_id))
+        .is_some_and(|at| frame <= at + 2);
     let now = ctx.memory(|m| m.focused());
     let last = ctx.data(|d| d.get_temp::<Option<egui::Id>>(key)).flatten();
     if now == last {
         return;
     }
     ctx.data_mut(|d| d.insert_temp(key, now));
+    if !by_key {
+        return;
+    }
     let Some(id) = now else { return };
     let inside = ui.unique_id();
     let rect = ctx.viewport(|v| {

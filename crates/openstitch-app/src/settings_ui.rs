@@ -147,6 +147,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 let r = egui::ComboBox::from_label(t("ui-default-thread-chart"))
                     .selected_text(name)
                     .show_ui(ui, |ui| {
+                        crate::fit::combo_list(ui);
                         for (c, label) in choices {
                             ui.selectable_value(&mut chosen, c, label);
                         }

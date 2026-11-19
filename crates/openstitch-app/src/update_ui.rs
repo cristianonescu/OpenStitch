@@ -422,7 +422,10 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.separator();
                 // The notes take what the window leaves beside the heading and the buttons
                 // (#1276: in a small window the whole content scrolls as well).
-                let notes_height = (crate::fit::room(ui.ctx()) - 220.0).clamp(80.0, 320.0);
+                let room = crate::fit::room(ui.ctx()) - 220.0;
+                // (With too little room for a list of its own, the notes are part of the
+                // window's scrolling content: a list inside a list traps the wheel.)
+                let notes_height = if room < 120.0 { f32::INFINITY } else { room.min(320.0) };
                 egui::ScrollArea::vertical()
                     .max_height(notes_height)
                     .auto_shrink([false, true])

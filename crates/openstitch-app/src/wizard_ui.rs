@@ -783,6 +783,7 @@ fn threads_rows(ui: &mut egui::Ui, w: &mut ImageWizard, charts: &[String]) {
     egui::ComboBox::from_id_salt("wizardThreads")
         .selected_text(label(&w.threads))
         .show_ui(ui, |ui| {
+            crate::fit::combo_list(ui);
             for v in ["brother", "all"]
                 .into_iter()
                 .chain(brands.iter().map(|(id, _)| *id))

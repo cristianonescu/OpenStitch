@@ -50,6 +50,8 @@ struct Win {
     size: egui::Vec2,
     time: f64,
     nodes: HashMap<NodeId, Node>,
+    /// The controls seen in full while scrolling, by role, name and layer (see `audit`).
+    seen_named: HashSet<(String, String, egui::LayerId)>,
 }
 
 /// One row of the survey.
@@ -85,6 +87,7 @@ impl Win {
             size: egui::vec2(px.0 / k, px.1 / k),
             time: 0.0,
             nodes: HashMap::new(),
+            seen_named: HashSet::new(),
         };
         w.frames(5, Vec::new());
         w
@@ -208,7 +211,7 @@ impl Win {
         // First with the pointer on the control or the nearest view of it; then, as a person
         // does when a list inside a scrolling pane takes the wheel, from other places in the
         // containers around it.
-        (0..8).any(|from| self.reach_from(id, ok, from) == Some(true))
+        (0..12).any(|from| self.reach_from(id, ok, from) == Some(true))
     }
 
     /// Other places to rest the pointer for [`Self::reach`]: in each container around `c`,
@@ -225,9 +228,13 @@ impl Win {
                 if r.width() > 1.0 && r.height() > 1.0 {
                     let far_y = if centre.y > r.center().y { r.min.y } else { r.max.y };
                     let far_x = if centre.x > r.center().x { r.min.x } else { r.max.x };
+                    // (Its middle and its other end too: another window may lie over a part.)
+                    let near_y = if far_y == r.min.y { r.max.y } else { r.min.y };
                     for p in [
                         egui::pos2(centre.x.clamp(r.min.x, r.max.x), far_y),
                         egui::pos2(far_x, centre.y.clamp(r.min.y, r.max.y)),
+                        r.center(),
+                        egui::pos2(r.center().x, near_y),
                     ] {
                         if out.iter().all(|q| q.distance(p) > 4.0) {
                             out.push(p);
@@ -245,6 +252,18 @@ impl Win {
 
     /// `None` when there is no place number `from` to scroll from.
     fn reach_from(&mut self, id: egui::Id, ok: &mut HashSet<egui::Id>, from: usize) -> Option<bool> {
+        // Moving the pointer to another place takes a moment to tell: a sub-menu that opened
+        // under the resting pointer (and, in a narrow window, over its own menu, which then
+        // does not get the wheel) closes a little after the pointer has left its entry.
+        if from > 0 {
+            let at = self
+                .controls()
+                .iter()
+                .find(|c| c.id == id)
+                .and_then(|c| self.other_wheel_points(c).get(from - 1).copied())?;
+            self.frames(1, vec![egui::Event::PointerMoved(at)]);
+            self.frames(30, Vec::new());
+        }
         let (mut last, mut still) = (None, 0);
         // A control larger than the view it scrolls in (a button wider than a squeezed pane)
         // cannot be shown at once: it is reached when both of its ends have been in view.
@@ -255,6 +274,7 @@ impl Win {
             for c in &all {
                 if self.shown(c) {
                     ok.insert(c.id);
+                    self.seen_named.insert((format!("{:?}", c.role), c.label.clone(), c.layer));
                 }
             }
             let Some(c) = all.iter().find(|c| c.id == id) else {
@@ -425,13 +445,21 @@ impl Win {
         }
         let t0 = std::time::Instant::now();
         let mut ok = HashSet::new();
+        self.seen_named.clear();
         let hidden: Vec<Control> = all.iter().filter(|c| !self.shown(c)).cloned().collect();
         let mut lost = Vec::new();
         for c in &hidden {
             if ok.contains(&c.id) {
                 continue;
             }
-            if !self.reach(c.id, &mut ok) {
+            // A menu gives its entries their identity by their order, and an entry that opens
+            // a sub-menu under the resting pointer shifts that for the ones after it: such an
+            // entry is known by its role and name instead, when the surface has only one of
+            // that name and it was seen in full on the way.
+            let named = (format!("{:?}", c.role), c.label.clone(), c.layer);
+            let only = !c.label.is_empty()
+                && all.iter().filter(|o| o.role == c.role && o.label == c.label && o.layer == c.layer).count() == 1;
+            if !self.reach(c.id, &mut ok) && !(only && self.seen_named.contains(&named)) {
                 if let Some(now) = self.controls().into_iter().find(|n| n.id == c.id) {
                     eprintln!(
                         "  LOST in {surface}: {:?} '{}' rect {:?} seen {:?}",
@@ -1391,4 +1419,52 @@ fn a_pane_with_room_is_as_wide_as_its_content() {
         let c = all.iter().find(|c| c.label == label).unwrap_or_else(|| panic!("{label}"));
         assert!(w.shown(c), "{label} is in view without scrolling: {c:?}");
     }
+}
+
+/// One turn of the wheel (30 points down) with the pointer at `at`.
+fn wheel_down(w: &mut Win, at: egui::Pos2) {
+    w.frames(1, vec![egui::Event::PointerMoved(at)]);
+    w.frames(
+        1,
+        vec![egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -30.0),
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Wheel,
+            modifiers: egui::Modifiers::NONE,
+        }],
+    );
+    w.frames(8, Vec::new());
+}
+
+/// In a narrow window (640 × 400 at Text size 200 %: 320 points) a sub-menu opens over the
+/// menu it belongs to, under the resting pointer. The wheel goes on scrolling the menu then:
+/// it used to stop at the first entry with a sub-menu.
+#[test]
+fn the_wheel_scrolls_a_menu_on_past_an_entry_that_opens_a_sub_menu() {
+    let mut w = Win::new(demo(), (640.0, 400.0), 200);
+    assert!(w.click_label("Options"));
+    w.frames(10, Vec::new());
+    let menu = |w: &Win| {
+        let list = &w.app.drawn.list;
+        list.iter()
+            .max_by(|a, b| a.content.total_cmp(&b.content))
+            .cloned()
+            .expect("the Options menu")
+    };
+    let end = menu(&w).content - menu(&w).rect.height();
+    assert!(end > 500.0, "the menu is far taller than the window: {:?}", menu(&w));
+    let mut sub_menus = 0;
+    for _ in 0..60 {
+        let m = menu(&w);
+        sub_menus = sub_menus.max(w.app.drawn.list.len() - 1);
+        if m.offset >= end - 1.0 {
+            break;
+        }
+        // The pointer rests near the top of the menu, as a hand on a wheel does.
+        wheel_down(&mut w, egui::pos2(m.rect.center().x, m.rect.top() + 12.0));
+    }
+    assert!(sub_menus > 0, "a sub-menu opened under the pointer on the way");
+    let m = menu(&w);
+    assert!(m.offset >= end - 1.0, "the wheel reached the end of the menu: {m:?}, end {end}");
 }
