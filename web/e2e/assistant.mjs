@@ -15,7 +15,7 @@
 
 import { createServer } from "node:http";
 import { mkdirSync, readFileSync } from "node:fs";
-import { extname, join, normalize, resolve } from "node:path";
+import { extname, join, resolve, posix } from "node:path";
 import { chromium, firefox, webkit } from "playwright";
 import { startFakeModel } from "./fake-model.mjs";
 
@@ -33,7 +33,8 @@ if (!webDir) {
 const root = resolve(webDir);
 const types = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm" };
 const server = createServer((req, res) => {
-  const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));
+  // A URL path, so with forward slashes on every system (Windows: the page test runs there too).
+  const path = posix.normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));
   const file = join(root, path.endsWith("/") ? `${path}index.html` : path);
   if (!file.startsWith(root)) return res.writeHead(403).end();
   try {

@@ -2073,7 +2073,12 @@ impl EditorApp {
         }
         if take(KeyboardShortcut::new(Modifiers::NONE, Key::Escape)) {
             self.keyboard = Default::default();
-            if self.zoom_box.active {
+            if self.workspace.view.point_menu.is_some() {
+                // Esc closes an open point menu or object menu and nothing else, as a menu
+                // does in PE-DESIGN: the selection, the selected points and the tool stay
+                // (it used to drop the selection as well, #1260).
+                self.workspace.view.point_menu = None;
+            } else if self.zoom_box.active {
                 self.zoom_box = Default::default();
             } else if self.edit.cancel() {
                 self.tools.cancel();

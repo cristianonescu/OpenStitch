@@ -22,7 +22,7 @@
 import { createServer } from "node:http";
 import { inflateSync } from "node:zlib";
 import { mkdirSync, readFileSync } from "node:fs";
-import { basename, dirname, extname, join, normalize, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, firefox, webkit } from "playwright";
 
@@ -43,7 +43,8 @@ const types = { ".html": "text/html", ".js": "text/javascript", ".wasm": "applic
 
 // A static server for WEB_DIR on a free loopback port.
 const server = createServer((req, res) => {
-  const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));
+  // A URL path, so with forward slashes on every system (Windows: the page test runs there too).
+  const path = posix.normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));
   const file = join(root, path.endsWith("/") ? `${path}index.html` : path);
   if (!file.startsWith(root)) return res.writeHead(403).end();
   try {
@@ -467,6 +468,40 @@ async function extraChecks(browser, type, label) {
       await ok({ command: "ui.run", params: { action: "openOutline" } });
       const opened = (await ok({ command: "object.list" })).find((o) => o.id === made.id);
       if (!opened || opened.region) throw new Error(`Open: ${JSON.stringify(opened).slice(0, 300)}`);
+      // The direction line of a filled shape (PE-DESIGN capture g): a click on its start
+      // square selects it (the square turns black on the page); Delete then removes nothing.
+      const filled = await ok({ command: "shape.rectangle", params: { x: 62, y: 62, width: 20, height: 14, fill: "#2e8b57", outline: "#203040" } });
+      await ok({ command: "object.setRegion", params: { id: filled.id, angle: 45 } });
+      await ok({ command: "ui.select", params: { ids: [filled.id] } });
+      // The object menu of the step before is still open (Open was run as a command, not by
+      // a click on its entry), and a click would land on one of its rows: Esc closes it.
+      await page.keyboard.press("Escape");
+      await until("Esc closes the object menu", () => {
+        const s = window.openstitch.run({ command: "ui.pointMenu" }).result;
+        return s?.objectMenuOpen === false && s?.open === false;
+      });
+      await until("the filled shape shows its direction line", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.directionLine?.screenFrom != null);
+      const shownLine = (await menu()).directionLine;
+      if (shownLine.angle !== 45 || shownLine.selected) throw new Error(`the direction line before the click: ${JSON.stringify(shownLine)}`);
+      const square = shownLine.screenFrom;
+      const centre = async () => png(await page.screenshot()).pixel(Math.round(box.x + square[0]), Math.round(box.y + square[1]));
+      const empty = await centre();
+      if (empty[0] < 200 || empty[1] < 200 || empty[2] < 200) throw new Error(`the unselected square is not white inside: ${empty}`);
+      await page.mouse.click(box.x + square[0], box.y + square[1]);
+      await until("a click on the square selects the direction line", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.directionLine?.selected === true);
+      let black = [];
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        black = await centre();
+        if (black[0] < 80 && black[1] < 80 && black[2] < 80) break;
+        await page.waitForTimeout(250);
+      }
+      if (!(black[0] < 80 && black[1] < 80 && black[2] < 80)) throw new Error(`the selected square is not black on the page: ${black}`);
+      if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-direction-line.png`) });
+      await page.keyboard.press("Delete");
+      await page.waitForTimeout(300);
+      if (!(await ok({ command: "object.list" })).some((o) => o.id === filled.id)) throw new Error("Delete with the direction line selected removed the shape");
+      const kept = (await menu()).directionLine;
+      if (kept?.angle !== 45 || kept.selected !== true) throw new Error(`the direction line after the click and Delete: ${JSON.stringify(kept)}`);
       // Alt + drag of a line's end onto another open line's end joins the two lines; Alt is
       // not the browser's here (no menu bar opens, the page stays).
       const lineA = await ok({ command: "shape.polygon", params: { points: [[10, 64], [30, 64], [30, 56]], closed: false, outline: "#203040" } });

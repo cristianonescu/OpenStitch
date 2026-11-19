@@ -357,6 +357,14 @@ enum Gesture {
     PointBox {
         start: Vec2,
     },
+    /// Point tool: an end of the shape's direction line being dragged (`arrow`: the end with
+    /// the arrow head); `edited` is the new direction angle once the drag has started.
+    DirectionEnd {
+        id: u64,
+        arrow: bool,
+        start: Vec2,
+        edited: Option<f64>,
+    },
     Vertex {
         point: PointRef,
         start: Vec2,
@@ -425,6 +433,27 @@ enum Gesture {
     },
 }
 
+/// The one straight sewing-direction line of a filled shape, as the Point tool shows it
+/// (#1260, PE-DESIGN capture g): PE-DESIGN draws a shape's fill direction as a thin red line
+/// right across the shape, from a small square about 5 mm outside it to an arrow head about
+/// 5 mm outside the far side. Here the line is not stored: it is the region's direction
+/// angle, drawn through the middle of the shape's bounds.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DirectionLine {
+    pub id: u64,
+    /// The end with the square, 0.1 mm.
+    pub from: Vec2,
+    /// The end with the arrow head: the direction the angle points in.
+    pub to: Vec2,
+    /// The direction angle shown, degrees (the region's, or the dragged one).
+    pub angle: f64,
+    /// Whether the line is selected (its square is filled black).
+    pub selected: bool,
+}
+
+/// How far outside the shape's bounds the direction line's ends lie: 5 mm.
+pub const DIRECTION_LINE_REACH: f64 = 50.0;
+
 /// What the Point tool shows over the selected shape: its contours (as edited while a drag is
 /// in progress) and the selected vertex.
 #[derive(Clone, Debug, PartialEq)]
@@ -475,6 +504,8 @@ pub struct ToolController {
     /// Point tool: the selection a connect gave up (the connected point is gone afterwards);
     /// put back by [`Self::restore_points`] when the connect was refused.
     given_up: Option<(PointRef, Vec<PointRef>)>,
+    /// Point tool: the shape whose direction line is selected (a click on one of its ends).
+    direction_end: Option<u64>,
     /// Point tool: the end the Alt-dragged end point lies on (a red square shows there), and
     /// whether the running point drag has Alt held.
     connect_hover: Option<Vec2>,
@@ -657,6 +688,7 @@ impl ToolController {
         self.pen_width = None;
         self.point = None;
         self.more_points.clear();
+        self.direction_end = None;
         self.character = None;
         self.tool = Some(t);
     }
@@ -897,6 +929,80 @@ impl ToolController {
         }
         self.point = Some(points[0]);
         self.more_points = points[1..].to_vec();
+        self.direction_end = None;
+        true
+    }
+
+    /// The middle of the shape whose direction line shows, and its region's angle: the one
+    /// selected shape, when its region has one straight sewing direction (a region type with
+    /// a direction, not Auto direction, no curved direction and no several direction lines).
+    fn direction_base<'a>(&self, ctx: &'a ToolContext) -> Option<(&'a DesignObject, Vec2, f64)> {
+        if !self.shows_outline_points(ctx) {
+            return None;
+        }
+        let o = ctx.point_target()?;
+        let r = o.region.as_ref()?;
+        if r.auto_direction
+            || r.direction_curve.is_some()
+            || r.direction_lines.len() >= 2
+            || !fill_angle::has_direction(r.kind)
+        {
+            return None;
+        }
+        let b = bounds_of(ctx.design, &BTreeSet::from([o.id]))?;
+        Some((
+            o,
+            v2((b.min_x + b.max_x) / 2.0, (b.min_y + b.max_y) / 2.0),
+            r.angle,
+        ))
+    }
+
+    /// The direction line the Point tool shows for the selected shape; `None` for a shape
+    /// without one straight sewing direction (see [`DirectionLine`]). While an end is dragged
+    /// it shows the angle the drag gives.
+    pub fn direction_line(&self, ctx: &ToolContext) -> Option<DirectionLine> {
+        let (o, centre, stored) = self.direction_base(ctx)?;
+        let angle = match self.gesture {
+            Some(Gesture::DirectionEnd {
+                id,
+                edited: Some(a),
+                ..
+            }) if id == o.id => a,
+            _ => stored,
+        };
+        let b = bounds_of(ctx.design, &BTreeSet::from([o.id]))?;
+        // Stored angles turn counter-clockwise on screen (y runs down).
+        let d = v2(angle.to_radians().cos(), -angle.to_radians().sin());
+        let reach = |half: f64, along: f64| {
+            if along.abs() < 1e-9 {
+                f64::INFINITY
+            } else {
+                half / along.abs()
+            }
+        };
+        let inside =
+            reach((b.max_x - b.min_x) / 2.0, d.x).min(reach((b.max_y - b.min_y) / 2.0, d.y));
+        let half = inside + DIRECTION_LINE_REACH;
+        Some(DirectionLine {
+            id: o.id,
+            from: centre - d * half,
+            to: centre + d * half,
+            angle,
+            selected: self.direction_end == Some(o.id),
+        })
+    }
+
+    /// Selects the shown direction line (as a click on one of its ends does) or drops that
+    /// selection; the outline points are deselected. False when no direction line shows.
+    pub fn select_direction_line(&mut self, on: bool, ctx: &ToolContext) -> bool {
+        let Some(l) = self.direction_line(ctx) else {
+            return false;
+        };
+        self.direction_end = on.then_some(l.id);
+        if on {
+            self.point = None;
+            self.more_points.clear();
+        }
         true
     }
 
@@ -934,6 +1040,9 @@ impl ToolController {
         use super::hints::PointSelection as S;
         if !self.shows_outline_points(ctx) {
             return None;
+        }
+        if self.direction_line(ctx).is_some_and(|l| l.selected) {
+            return Some(S::DirectionLine);
         }
         let selected = self.selected_points(ctx);
         Some(match selected.as_slice() {
@@ -1136,7 +1245,43 @@ impl ToolController {
         match (e.phase, self.gesture.clone()) {
             (Phase::Down, _) => {
                 self.given_up = None;
-                match self.point_hit(p, ctx) {
+                // Any press drops the direction line's selection; one on its ends sets it.
+                self.direction_end = None;
+                let hit = self.point_hit(p, ctx);
+                // An end of the direction line wins over a point of the outline when the
+                // press is nearer to it: zoomed out, the end (5 mm outside the shape) and a
+                // corner are within reach of one press. A handle keeps the press.
+                let point_at = match hit {
+                    Some((o, PointHit::Vertex { contour, index })) => o
+                        .contours
+                        .get(contour)
+                        .and_then(|c| c.points.get(index))
+                        .map_or(0.0, |v| v.distance(p)),
+                    Some((_, PointHit::Handle { .. })) => 0.0,
+                    _ => f64::INFINITY,
+                };
+                if let Some(l) = self.direction_line(ctx)
+                    && let Some((_, arrow)) = [(l.from, false), (l.to, true)]
+                        .into_iter()
+                        .filter(|(q, _)| {
+                            q.distance(p) <= 1.5 * ctx.point_radius() && q.distance(p) < point_at
+                        })
+                        .min_by(|a, b| a.0.distance(p).total_cmp(&b.0.distance(p)))
+                {
+                    // An end of the direction line: the line is selected (its square turns
+                    // black), and a drag turns the sewing direction.
+                    self.point = None;
+                    self.more_points.clear();
+                    self.direction_end = Some(l.id);
+                    self.gesture = Some(Gesture::DirectionEnd {
+                        id: l.id,
+                        arrow,
+                        start: p,
+                        edited: None,
+                    });
+                    return vec![];
+                }
+                match hit {
                     Some((o, PointHit::Vertex { contour, index })) => {
                         let point = PointRef {
                             id: o.id,
@@ -1223,6 +1368,44 @@ impl ToolController {
                         vec![]
                     }
                 }
+            }
+            (
+                Phase::Dragged,
+                Some(Gesture::DirectionEnd {
+                    id, arrow, start, ..
+                }),
+            ) => {
+                // The line turns about the middle of the shape: the dragged end points from
+                // (the arrow head) or toward (the square) the middle. Whole tenths of a degree.
+                let edited = self
+                    .direction_base(ctx)
+                    .filter(|_| p.distance(start) >= DRAG_THRESHOLD * ctx.units_per_point)
+                    .map(|(_, centre, _)| {
+                        let v = if arrow { p - centre } else { centre - p };
+                        let a = (-v.y).atan2(v.x).to_degrees().rem_euclid(360.0);
+                        ((a * 10.0).round() / 10.0).rem_euclid(360.0)
+                    });
+                self.gesture = Some(Gesture::DirectionEnd {
+                    id,
+                    arrow,
+                    start,
+                    edited,
+                });
+                vec![]
+            }
+            (
+                Phase::Up,
+                Some(Gesture::DirectionEnd {
+                    id,
+                    edited: Some(angle),
+                    ..
+                }),
+            ) => {
+                self.gesture = None;
+                vec![ToolEffect::run(
+                    CommandRequest::new("object.setRegion", json!({ "id": id, "angle": angle })),
+                    false,
+                )]
             }
             (Phase::Dragged, Some(Gesture::PointBox { start })) => {
                 self.preview = (p.distance(start) >= DRAG_THRESHOLD * ctx.units_per_point)
@@ -1643,6 +1826,11 @@ impl ToolController {
     pub fn delete_point(&mut self, ctx: &ToolContext) -> Option<Vec<ToolEffect>> {
         if self.tool() != Tool::Point {
             return None;
+        }
+        // The shape's one direction line is selected: the last line cannot be deleted
+        // (PE-DESIGN capture g), and the key does not fall through to deleting the shape.
+        if self.direction_line(ctx).is_some_and(|l| l.selected) {
+            return Some(vec![]);
         }
         if let Some(effects) = self.delete_needles(ctx) {
             return Some(effects);
@@ -2330,6 +2518,7 @@ fn finish_select(
         | Gesture::Drawing { .. }
         | Gesture::Vertex { .. }
         | Gesture::PointBox { .. }
+        | Gesture::DirectionEnd { .. }
         | Gesture::Control { .. }
         | Gesture::PenAnchor { .. }
         | Gesture::SkeletonWidth { .. }

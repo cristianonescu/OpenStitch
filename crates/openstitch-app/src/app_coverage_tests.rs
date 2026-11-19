@@ -887,3 +887,122 @@ fn the_alt_connect_marks_and_the_red_square_are_painted() {
     assert_eq!(app.session.design().objects.len(), 1);
     assert_eq!(painted(&mut app), (0, 0));
 }
+
+/// The direction line as painted (#1260, PE-DESIGN capture g): a red line, and a square and
+/// an arrow head that are white inside and outlined in the same red; the selected line's
+/// square is black. The whole frame is run and its painted shapes are read.
+#[test]
+fn the_direction_line_is_painted_red_and_its_selected_square_black() {
+    use egui::epaint::ColorMode;
+    fn flat(shape: &egui::Shape, out: &mut Vec<egui::Shape>) {
+        match shape {
+            egui::Shape::Vec(list) => list.iter().for_each(|s| flat(s, out)),
+            other => out.push(other.clone()),
+        }
+    }
+    let ctx = egui::Context::default();
+    let mut frame = eframe::Frame::_new_kittest();
+    let red = egui::Color32::from_rgb(0xd3, 0x2f, 0x2f);
+    let dark = egui::Color32::from_gray(16);
+    // (red lines of width 1, white polygons outlined red, dark polygons outlined dark)
+    let mut painted = |app: &mut EditorApp| {
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let raw = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1440.0, 900.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(raw, |ui| eframe::App::ui(app, ui, &mut frame));
+            out.textures_delta.clear();
+            shapes.clear();
+            for clipped in &out.shapes {
+                flat(&clipped.shape, &mut shapes);
+            }
+        }
+        let lines = shapes
+            .iter()
+            .filter(|s| {
+                matches!(s, egui::Shape::LineSegment { stroke, .. } if stroke.width == 1.0 && stroke.color == red)
+            })
+            .count();
+        let polygons = |fill: egui::Color32, outline: egui::Color32| {
+            shapes
+                .iter()
+                .filter(|s| {
+                    matches!(s, egui::Shape::Path(p) if p.closed
+                        && p.fill == fill
+                        && matches!(p.stroke.color, ColorMode::Solid(c) if c == outline))
+                })
+                .count()
+        };
+        (
+            lines,
+            polygons(egui::Color32::WHITE, red),
+            polygons(dark, dark),
+        )
+    };
+    let mut app = EditorApp::new(Launch::default());
+    let r = app
+        .execute(&CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 20, "y": 20, "width": 40, "height": 30, "fill": "#2e8b57", "outline": "#203040" }),
+        ))
+        .expect("rectangle");
+    app.selection = CommandRequest::created_ids(&r);
+    let id = *app.selection.first().expect("id");
+    app.execute(&CommandRequest::new(
+        "object.setRegion",
+        json!({ "id": id, "angle": 45 }),
+    ))
+    .expect("a straight direction");
+    assert_eq!(painted(&mut app), (0, 0, 0), "not with the Select tool");
+    app.tools.set_tool(Tool::Point);
+    assert_eq!(
+        painted(&mut app),
+        (1, 2, 0),
+        "the line, and the square and the arrow head white with a red outline"
+    );
+    app.ui_command("ui.pointMenu", Some(&json!({ "selectDirectionLine": true })))
+        .expect("select the line");
+    assert_eq!(
+        painted(&mut app),
+        (1, 1, 1),
+        "selected: the square black, the arrow head as before"
+    );
+}
+
+/// Esc with a point menu or an object menu open closes the menu and nothing else (PE-DESIGN's:
+/// Esc closes a menu): the shape stays selected, the selected point too, and the Point tool
+/// stays. It used to drop the selection as well, which the browser test showed (#1260).
+#[test]
+fn esc_closes_an_open_point_menu_and_keeps_the_selection_and_the_tool() {
+    let ctx = egui::Context::default();
+    for object in [false, true] {
+        let mut app = EditorApp::new(Launch::default());
+        let r = app.execute(&rectangle(10.0)).expect("rectangle");
+        app.selection = CommandRequest::created_ids(&r);
+        let selection = app.selection.clone();
+        app.ui_command("ui.pointMenu", Some(&json!({ "points": [0] })))
+            .expect("a point");
+        crate::point_menu_ui::open_for_test(&mut app, egui::pos2(300.0, 200.0), object);
+        let open = |app: &mut EditorApp| {
+            let s = app.ui_command("ui.pointMenu", None).expect("state");
+            (
+                s["open"] == true,
+                s["objectMenuOpen"] == true,
+                s["selected"].as_array().map_or(0, Vec::len),
+            )
+        };
+        assert_eq!(open(&mut app), (!object, object, 1));
+        press(&ctx, &mut app, Key::Escape, Modifiers::NONE);
+        assert_eq!(open(&mut app), (false, false, 1), "the menu is closed, the point selected");
+        assert_eq!(app.selection, selection, "the shape is still selected");
+        assert_eq!(app.tools.tool(), Tool::Point);
+        // With no menu open Esc deselects, as before.
+        press(&ctx, &mut app, Key::Escape, Modifiers::NONE);
+        assert!(app.selection.is_empty());
+    }
+}

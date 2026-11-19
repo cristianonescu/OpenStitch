@@ -353,9 +353,19 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         SmoothStitches => convert_ui::stitch_selection(app).1.is_some(),
         ShapeEffects => crate::shape_effects_ui::can_apply(app),
         LineGap => crate::line_gap_ui::target(app).is_some(),
-        AddDirectionLine | DeleteDirectionLine | ReverseDirectionLine | SewingPoints => {
+        AddDirectionLine | ReverseDirectionLine | SewingPoints => {
             edit_ui::single_region(app).is_some()
         }
+        // A shape's one straight direction (its fill angle, which the Point tool shows as a
+        // line) cannot be deleted: PE-DESIGN greys Delete Direction Line then (#1260, capture
+        // g). It is available for what it removes here: a curved direction or several
+        // direction lines.
+        DeleteDirectionLine => edit_ui::single_region(app).is_some_and(|id| {
+            let d = app.session.design();
+            d.index_of(id)
+                .and_then(|i| d.objects[i].region.as_ref())
+                .is_some_and(|r| r.direction_curve.is_some() || !r.direction_lines.is_empty())
+        }),
         OffsetLines | FloralPattern => edit_ui::single_outline(app).is_some(),
         EditPoint => crate::point_menu_ui::states(app).is_some(),
         OpenOutline => crate::point_menu_ui::outline_closed(app) == Some(true),
