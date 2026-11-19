@@ -4932,6 +4932,11 @@ saved files, not in the repository).
 | Alt held with an end point selected | Every point it can connect to is drawn as an x: the other end of the same shape and the end points of other open shapes. | PE-DESIGN instruction manual, read 2026-11-19 |
 | Alt + drag of an end point onto another open shape's end point | Joins the two shapes into one. A red square shows when the two points overlap; releasing connects. | PE-DESIGN instruction manual, read 2026-11-19 |
 | Delete key | Removes the selected points in one step; one Undo brings them back. | screen |
+| A filled shape selected with the tool | Shows its outline points and ONE straight direction line: a thin red line right across the shape, from an empty square (drawn turned 45 degrees) about 5 mm outside the shape to an empty arrow head about 5 mm outside the far side. It is the fill angle (Sewing Attributes: Direction "Manual straight line", 45 degrees). | PE-DESIGN capture g, 2026-11-19 |
+| Ribbon with the shape selected | Add Direction Line available, Delete Direction Line grey, Reverse Direction Line available. | PE-DESIGN capture g, 2026-11-19 |
+| A click on the line's start square | Selects the line (the square turns black). With the only line selected Delete Direction Line stays grey: the last line cannot be deleted. | PE-DESIGN capture g, 2026-11-19 |
+| Dragging an end of a direction line | Changes the angle. | PE-DESIGN instruction manual, read 2026-11-19; not captured |
+| Add Direction Line (a second line, the fill bending between the lines), Delete Selected Line, Delete Lines Not Selected with two or more lines | See capture g; not built here (#1273). | PE-DESIGN capture g, 2026-11-19 |
 | To Curve on a point in the middle of a straight side | Both handles on the side: the outline does not change (the same rule, point ∓ (next − previous) / 4). | e5 |
 | Right click on the shape, not on a point | The object's menu: Add Direction Line, Delete Direction Line (a sub-menu: Delete Selected Line, Delete Lines Not Selected), Reverse Direction Line, separator, Open, Close. Add and Reverse carry an icon, Delete Direction Line none. Delete Direction Line is always available; on an open line its two sub-menu entries are grey. Open line: Add and Reverse grey, Open grey, Close available. Closed shape with a region: Add, Reverse and Open available, Close grey. | screen |
 | Close | The open line becomes a closed shape through the same points and gets a region: Fill Stitch at direction 45 (1289 stitches against 310). | e7 |
@@ -4964,6 +4969,27 @@ saved files, not in the repository).
   Ctrl + Alt), so the marks show with AltGr held as well. The marks and the square are
   checked as painted shapes (`the_alt_connect_marks_and_the_red_square_are_painted`) and, in
   the browser, as pixels (`web/e2e/page.mjs`).
+- The direction line (PE-DESIGN capture g, 2026-11-19): the Point tool draws the selected
+  shape's straight sewing direction as PE-DESIGN does, a thin red line through the middle of
+  the shape's bounds at the region's direction angle, from a square turned 45 degrees to an
+  arrow head, each 5 mm outside the bounds. Nothing new is stored: the line IS the angle
+  (`ToolController::direction_line`). It shows for one selected shape whose region has one
+  straight direction (not Auto direction, not a curved direction, not several direction
+  lines). A click on either end selects it (the square turns black) and deselects the
+  points; the Delete key then removes nothing, and Delete Direction Line stays grey, as the
+  last line cannot be deleted. Dragging an end turns the line about the middle of the shape
+  (the arrow head points where the drag is; whole tenths of a degree), one
+  `object.setRegion` `{angle}`, one undo step: the manual says a dragged end changes the
+  angle, how PE-DESIGN turns it is not captured. `ui.pointMenu` reports `directionLine` and
+  selects it with `{selectDirectionLine}`. The ribbon's Delete Direction Line is grey for
+  such a shape and available for what it removes here, a curved direction or several
+  direction lines (`the_direction_line_is_the_fill_angle_and_a_dragged_end_turns_it`,
+  `the_direction_line_of_a_filled_shape_and_its_greying`).
+- Not built yet (#1273): a second and further direction lines on an ordinary shape with the
+  fill bending between them, so Add Direction Line still draws OpenStitch's curved
+  direction (its own command, kept), and the sub-menu's Delete Selected Line and Delete Lines
+  Not Selected do not yet work on selected lines (Delete Selected Line is grey; Delete Lines
+  Not Selected removes a curved direction or a Manual Punch shape's lines, as before).
 - Keys during a mouse drag (owner's hand check, 2026-11-19): Shift locks a point's drag to the
   axis it mostly runs along from its start, and the other coordinate stays the point's own
   (Snap to Grid used to pull that coordinate onto the grid as well; it no longer does). Ctrl

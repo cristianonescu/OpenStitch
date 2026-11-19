@@ -976,6 +976,34 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
             }
         }
     }
+    // The shape's sewing direction as PE-DESIGN's Select Point shows it (#1260, capture g): a
+    // thin red line across the shape, an empty square (turned 45 degrees) at its start and an
+    // empty arrow head at its end, both about 5 mm outside the shape; the square is black
+    // while the line is selected.
+    if let Some(l) = app.tools.direction_line(&ctx) {
+        let (a, b) = (pos(vp.to_screen(l.from)), pos(vp.to_screen(l.to)));
+        let red = Color32::from_rgb(0xd3, 0x2f, 0x2f);
+        let dark = Color32::from_gray(16);
+        painter.line_segment([a, b], Stroke::new(1.0, red));
+        let u = (b - a).normalized();
+        let n = egui::vec2(-u.y, u.x);
+        let diamond = vec![
+            a + egui::vec2(0.0, -5.5),
+            a + egui::vec2(5.5, 0.0),
+            a + egui::vec2(0.0, 5.5),
+            a + egui::vec2(-5.5, 0.0),
+        ];
+        painter.add(egui::Shape::convex_polygon(
+            diamond,
+            if l.selected { dark } else { Color32::WHITE },
+            Stroke::new(1.0, dark),
+        ));
+        painter.add(egui::Shape::convex_polygon(
+            vec![b + u * 9.0, b + n * 5.0, b - n * 5.0],
+            Color32::WHITE,
+            Stroke::new(1.0, dark),
+        ));
+    }
     // Alt held with an end point of an open line selected: an x on every end it can connect
     // to; a red square where the dragged end lies on one (PE-DESIGN's manual, #1260).
     let alt = painter.ctx().input(|i| i.modifiers.alt);

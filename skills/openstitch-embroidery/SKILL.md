@@ -460,7 +460,10 @@ then style them in the next.
   `connectable` lists the ends it can be connected to (its own other end, and the ends of
   every other open line) and `{connectTo: {id, index}}` connects it as Alt + drag does: its
   own end closes the line, another line's end joins the two lines into one object
-  (`shape.joinLines` joins lines by their nearest ends without the window); `{action}` runs one (`ui.run pointToCurve` and the other ribbon
+  (`shape.joinLines` joins lines by their nearest ends without the window). A filled shape's
+  straight sewing direction shows as a line across it (`directionLine`: `angle`, `from`,
+  `to`); turning it is `object.setRegion` `{id, angle}`, and a shape's only direction line
+  cannot be deleted; `{action}` runs one (`ui.run pointToCurve` and the other ribbon
   buttons do the same).
 - Clean up: `shape.simplify` `{ids, tolerance: 0.2}` removes nodes within a tolerance (mm; a
   Manual Punch column loses one direction line per call; `ui.run smoothShape` uses the

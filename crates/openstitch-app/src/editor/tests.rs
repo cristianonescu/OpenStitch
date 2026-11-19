@@ -3107,3 +3107,86 @@ fn delete_with_nothing_deletable_keeps_the_selection() {
         assert_eq!(t.selected_points(&c), points);
     }
 }
+
+/// PE-DESIGN capture g, 2026-11-19 (#1260): a filled shape shows one straight direction line,
+/// its fill angle, from a square about 5 mm outside the shape to an arrow head about 5 mm
+/// outside the far side; a click on an end selects it. Dragging an end changes the angle (the
+/// manual; not captured): here the line turns about the middle of the shape.
+#[test]
+fn the_direction_line_is_the_fill_angle_and_a_dragged_end_turns_it() {
+    let mut s = session();
+    let id = outlined_rect(&mut s);
+    let mut t = ToolController::default();
+    let sel = BTreeSet::from([id]);
+    let design = s.design().clone();
+    assert!(
+        t.direction_line(&ctx(&design, &sel)).is_none(),
+        "not with another tool"
+    );
+    t.set_tool(Tool::Point);
+    run(
+        &mut s,
+        &CommandRequest::new("object.setRegion", json!({ "id": id, "angle": 45 })),
+    );
+    let design = s.design().clone();
+    let l = t.direction_line(&ctx(&design, &sel)).expect("the line");
+    assert_eq!((l.id, l.angle, l.selected), (id, 45.0, false));
+    // Through the middle of the shape (200, 150), up to the right (45 degrees on screen),
+    // each end 5 mm beyond where the line leaves the shape's bounds (100..300 x 100..200).
+    let middle = v2(200.0, 150.0);
+    assert!(l.from.lerp(l.to, 0.5).distance(middle) < 1e-6);
+    assert!(l.to.x > 200.0 && l.to.y < 100.0 && l.from.x < 200.0 && l.from.y > 200.0);
+    let leaves = v2(250.0, 100.0);
+    assert!(
+        (l.to.distance(leaves) - super::tools::DIRECTION_LINE_REACH).abs() < 1e-6,
+        "{l:?}"
+    );
+    // A click on the start square selects the line; the points are deselected, and Delete
+    // removes nothing.
+    let sel = click_at(&mut t, &mut s, sel, v2(100.0, 100.0), 1);
+    let sel = click_at(&mut t, &mut s, sel, l.from, 1);
+    let design = s.design().clone();
+    let c = ctx(&design, &sel);
+    assert!(t.direction_line(&c).expect("line").selected);
+    assert!(t.selected_points(&c).is_empty());
+    assert_eq!(
+        t.point_selection(&c),
+        Some(super::hints::PointSelection::DirectionLine)
+    );
+    assert_eq!(t.delete_point(&c), Some(vec![]));
+    assert_eq!(sel, BTreeSet::from([id]), "the shape stays selected");
+    // Dragging the arrow head to straight above the middle: 90 degrees; one command, one
+    // Undo. The line shows the new angle while the drag runs.
+    let before = s.design().clone();
+    let c = ctx(&before, &sel);
+    t.handle(PointerEvent::new(Phase::Down, l.to), &c);
+    t.handle(PointerEvent::new(Phase::Dragged, v2(200.0, 20.0)), &c);
+    assert_eq!(t.direction_line(&c).expect("line").angle, 90.0);
+    let effects = t.handle(PointerEvent::new(Phase::Up, v2(200.0, 20.0)), &c);
+    let sel = apply(&mut s, effects, sel);
+    let angle = |s: &Session| s.design().objects[0].region.as_ref().expect("region").angle;
+    assert_eq!(angle(&s), 90.0);
+    undo(&mut s);
+    assert_eq!(*s.design(), before, "one Undo");
+    // Dragging the square there instead: the arrow points the other way, 270 degrees.
+    let sel = drag(&mut t, &mut s, sel, l.from, v2(200.0, 20.0), false);
+    assert_eq!(angle(&s), 270.0);
+    // A press elsewhere drops the line's selection.
+    let sel = click_at(&mut t, &mut s, sel, v2(300.0, 200.0), 1);
+    let design = s.design().clone();
+    assert!(
+        !t.direction_line(&ctx(&design, &sel))
+            .expect("line")
+            .selected
+    );
+    // Auto direction, and an open line: no straight direction line.
+    run(
+        &mut s,
+        &CommandRequest::new(
+            "object.setRegion",
+            json!({ "id": id, "autoDirection": true }),
+        ),
+    );
+    let design = s.design().clone();
+    assert!(t.direction_line(&ctx(&design, &sel)).is_none());
+}
