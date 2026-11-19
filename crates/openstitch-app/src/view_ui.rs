@@ -544,10 +544,10 @@ fn guide_menu_window(app: &mut EditorApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             egui::Frame::menu(ui.style()).show(ui, |ui| {
                 ui.set_min_width(180.0);
-                chosen = match m.target {
+                chosen = crate::fit::scroll(ui, |ui| match m.target {
                     MenuTarget::Ruler => ruler_menu(app, ui),
                     MenuTarget::Guide(v, i) => guide_entries(app, ui, Some((v, i))),
-                };
+                });
             });
         });
     let (pressed, esc) = ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));

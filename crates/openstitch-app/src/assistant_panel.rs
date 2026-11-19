@@ -2172,7 +2172,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                         let list = ui
                             .add(egui::Button::new(crate::icons::ui_image(ui, "menu_caret")))
                             .on_hover_text(t("ui-the-models-this-address-lists-tip"));
-                        egui::Popup::menu(&list).show(|ui| {
+                        crate::fit::menu(&list, |ui| {
                                 for m in models {
                                     let text = m.name.as_deref().map_or(m.id.clone(), |n| format!("{n} ({})", m.id));
                                     if ui.selectable_label(prefs.model == m.id, text).clicked() {

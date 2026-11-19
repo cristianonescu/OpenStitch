@@ -901,13 +901,15 @@ fn thread_picker(
         let button = ui.button(label);
         let popup_id = ui.make_persistent_id(id);
         let open = resp.clicked() || button.clicked();
-        egui::Popup::from_response(&button)
-            .id(popup_id)
-            .open_memory(open.then_some(egui::SetOpenCommand::Toggle))
-            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-            .show(|ui| {
+        crate::fit::popup(
+            egui::Popup::from_response(&button)
+                .id(popup_id)
+                .open_memory(open.then_some(egui::SetOpenCommand::Toggle))
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+            |ui| {
                 chosen = thread_grid(ui, id, current, user);
-            });
+            },
+        );
     });
     chosen
 }

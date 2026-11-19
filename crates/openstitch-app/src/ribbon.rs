@@ -800,7 +800,7 @@ pub fn menu_item(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
 fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     for ty in FileType::writable() {
         if ty == FileType::Pes {
-            ui.menu_button(t("menu-pes"), |ui| {
+            crate::fit::sub_menu(ui, t("menu-pes"), |ui| {
                 for (v, label) in EditorApp::PES_VERSIONS {
                     if ui.button(format!("{}…", openstitch_app::editor::ui_texts::tr(label))).clicked() {
                         app.export_with(ty, Some(v));
@@ -811,7 +811,7 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         if ty == FileType::Exp {
             // Bernina machines read the colours from an INF beside the EXP (#482).
-            ui.menu_button(t("menu-exp"), |ui| {
+            crate::fit::sub_menu(ui, t("menu-exp"), |ui| {
                 if ui.button(t("menu-exp-2")).clicked() {
                     app.export(ty);
                 }
@@ -858,10 +858,10 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             app.export_media(command, ext);
         }
     }
-    ui.menu_button(t("menu-garment-mockup"), |ui| garment_mockup_menu(app, ui))
+    crate::fit::sub_menu(ui, t("menu-garment-mockup"), |ui| garment_mockup_menu(app, ui))
         .response
         .on_hover_text(t("menu-beyond-pe-design-the-design-at-tip"));
-    ui.menu_button(t("menu-thread-list"), |ui| {
+    crate::fit::sub_menu(ui, t("menu-thread-list"), |ui| {
         for (ext, label) in EditorApp::THREAD_LISTS {
             if ui.button(format!("{}…", openstitch_app::editor::ui_texts::tr(label))).clicked() {
                 app.export_thread_list(ext);
@@ -948,7 +948,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             menu_item(app, ui, FloppyImage);
             menu_item(app, ui, TestSwatches);
             menu_item(app, ui, ExportSections);
-            ui.menu_button(t("menu-export"), |ui| export_menu(app, ui));
+            crate::fit::sub_menu(ui, t("menu-export"), |ui| export_menu(app, ui));
         }
         Options => options_menu(app, ui),
         Help => help_menu(app, ui),
@@ -964,7 +964,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
                 menu_item(app, ui, t);
             }
             ui.separator();
-            ui.menu_button(t("menu-insert-preset-shape"), |ui| edit_ui::insert_menu(app, ui));
+            crate::fit::sub_menu(ui, t("menu-insert-preset-shape"), |ui| edit_ui::insert_menu(app, ui));
         }
         OtherZoom => {
             if ui
@@ -1144,7 +1144,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
         Font => {
             let fonts = crate::lettering_ui::fonts(app);
             egui::ScrollArea::vertical()
-                .max_height(320.0)
+                .max_height(crate::fit::room(ui.ctx()).min(320.0))
                 .show(ui, |ui| {
                     for f in fonts {
                         if ui.button(&f.label).clicked() {
@@ -1319,7 +1319,7 @@ fn change_color_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .corner_radius(2.0);
         // The thread's code beside its colour (#798).
         let code = crate::panels::thread_caption(t);
-        ui.menu_button((swatch, format!("{}. {code} {name}", k + 1)), |ui| {
+        crate::fit::sub_menu(ui, (swatch, format!("{}. {code} {name}", k + 1)), |ui| {
             let user = app.session.user_settings();
             if let Some(i) = panels::thread_grid(ui, &format!("change-color-{k}"), Some(t), user) {
                 app.execute(&CommandRequest::new(
@@ -1392,7 +1392,7 @@ pub fn image_density_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 fn accent_menu(app: &mut EditorApp, ui: &mut egui::Ui) -> bool {
     use openstitch_app::editor::accent::PRESETS;
     let mut changed = false;
-    ui.menu_button(t("menu-accent-colour"), |ui| {
+    crate::fit::sub_menu(ui, t("menu-accent-colour"), |ui| {
         let tip = "Selection outline, handles, selected buttons and links; text on it keeps a 4.5:1 contrast";
         let a = &mut app.ui.prefs.accent;
         changed |= ui.radio_value(a, None, t("menu-theme-default")).on_hover_text(tip).changed();
@@ -1607,8 +1607,8 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             .changed();
     }
     changed |= accent_menu(app, ui);
-    ui.menu_button(t("menu-layouts"), |ui| layouts_menu(app, ui));
-    ui.menu_button(t("menu-reset-preferences"), |ui| reset_menu(app, ui));
+    crate::fit::sub_menu(ui, t("menu-layouts"), |ui| layouts_menu(app, ui));
+    crate::fit::sub_menu(ui, t("menu-reset-preferences"), |ui| reset_menu(app, ui));
     ui.separator();
     changed |= ui
         .checkbox(
@@ -1619,7 +1619,7 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     changed |= ui
         .checkbox(&mut app.ui.prefs.splash, t("menu-show-splash-at-startup"))
         .changed();
-    ui.menu_button(t("menu-text-size"), |ui| {
+    crate::fit::sub_menu(ui, t("menu-text-size"), |ui| {
         // The whole window larger (#499), on top of the system's display scale.
         for pct in [100, 125, 150, 175, 200] {
             changed |= ui
@@ -1629,7 +1629,7 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     })
     .response
     .on_hover_text(t("menu-beyond-pe-design-everything-in-the-tip"));
-    ui.menu_button(t("menu-language"), |ui| {
+    crate::fit::sub_menu(ui, t("menu-language"), |ui| {
         // The interface language (#555); the ribbon follows at once.
         for (code, name) in openstitch_app::editor::i18n::languages() {
             if ui
@@ -1648,7 +1648,7 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .checkbox(&mut app.ui.prefs.start_cards, t("menu-show-start-cards"))
         .on_hover_text(t("menu-an-empty-design-offers-cards-to-tip"))
         .changed();
-    ui.menu_button(t("menu-new-objects"), |ui| changed |= new_objects_menu(app, ui));
+    crate::fit::sub_menu(ui, t("menu-new-objects"), |ui| changed |= new_objects_menu(app, ui));
     changed |= ui
         .checkbox(&mut app.ui.prefs.open_in_tabs, t("menu-open-designs-in-tabs"))
         .on_hover_text(t("menu-beyond-pe-design-new-and-open-tip"))
@@ -1869,7 +1869,7 @@ fn command(app: &mut EditorApp, ui: &mut egui::Ui, a: Action, large: bool) {
     }
     if menu {
         if on {
-            egui::Popup::menu(&resp).show(|ui| self::menu(app, a, ui));
+            crate::fit::menu(&resp, |ui| self::menu(app, a, ui));
         }
     } else if resp.clicked() && on {
         run(app, a, ui.ctx());
@@ -1948,6 +1948,8 @@ pub fn button(
             caret(ui, egui::pos2(end + 7.0, rect.center().y));
         }
     }
+    // Named as a button for screen readers and for the reach test (#1276).
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, on, info.label));
     resp.on_hover_text(info.screen_tip(MAC))
 }
 
@@ -2089,7 +2091,7 @@ fn menu_button(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
     let r = ui
         .add(egui::Button::new((info.label, crate::icons::ui_image(ui, "menu_caret"))).frame(false))
         .on_hover_text(info.screen_tip(MAC));
-    egui::Popup::menu(&r).show(|ui| menu(app, a, ui));
+    crate::fit::menu(&r, |ui| menu(app, a, ui));
 }
 
 /// Text of a ribbon tab.
@@ -2109,11 +2111,12 @@ fn app_button(app: &mut EditorApp, ui: &mut egui::Ui) {
     } else {
         None
     };
-    egui::Popup::menu(&resp)
-        .open_memory(cmd)
-        .layout(egui::Layout::top_down(egui::Align::Min))
-        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-        .show(|ui| application_menu(app, ui));
+    crate::fit::popup(
+            egui::Popup::menu(&resp)
+            .open_memory(cmd)
+            .layout(egui::Layout::top_down(egui::Align::Min))
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+        |ui| application_menu(app, ui));
 }
 
 /// The blue Application button at the left of the tab row (every ribbon window).
@@ -2187,7 +2190,7 @@ fn application_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         ui.add_space(250.0);
-        ui.menu_button(t("menu-options"), |ui| options_menu(app, ui));
+        crate::fit::sub_menu(ui, t("menu-options"), |ui| options_menu(app, ui));
         if ui.button(t("menu-exit")).clicked() {
             app.guarded(Pending::Exit);
         }
@@ -2203,7 +2206,7 @@ fn app_menu_row(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
         let text = RichText::new(info.label).size(14.0);
         if a.is_menu() {
             ui.add_enabled_ui(on, |ui| {
-                ui.menu_button(text, |ui| menu(app, a, ui))
+                crate::fit::sub_menu(ui, text, |ui| menu(app, a, ui))
                     .response
                     .on_hover_text(info.screen_tip(MAC));
             });
@@ -2258,6 +2261,7 @@ pub fn qat_button(
         ui.visuals().strong_text_color(),
         on,
     );
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, on, info.label));
     resp.on_hover_text(info.screen_tip(MAC))
 }
 
@@ -2270,7 +2274,7 @@ pub fn quick_access(app: &mut EditorApp, ui: &mut egui::Ui) {
             let resp = qat_button(ui, &a.info(), a, on, false);
             if a.is_menu() {
                 if on {
-                    egui::Popup::menu(&resp).show(|ui| menu(app, a, ui));
+                    crate::fit::menu(&resp, |ui| menu(app, a, ui));
                 }
             } else if resp.clicked() {
                 run(app, a, ui.ctx());
@@ -2279,7 +2283,7 @@ pub fn quick_access(app: &mut EditorApp, ui: &mut egui::Ui) {
         let r = ui
             .add(egui::Button::new(crate::icons::ui_image(ui, "menu_caret")).frame(false))
             .on_hover_text("Customize Quick Access Toolbar");
-        egui::Popup::menu(&r).show(|ui| {
+        crate::fit::menu(&r, |ui| {
             ui.label(RichText::new("Customize Quick Access Toolbar").strong());
             for a in ribbon::qat_candidates() {
                 let mut on = app.ui.prefs.qat.contains(&a);

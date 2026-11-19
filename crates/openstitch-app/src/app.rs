@@ -3123,6 +3123,9 @@ mod narrow_tests;
 #[path = "resize_tests.rs"]
 mod resize_tests;
 #[cfg(test)]
+#[path = "reach_tests.rs"]
+mod reach_tests;
+#[cfg(test)]
 #[path = "monkey_tests.rs"]
 mod monkey_tests;
 #[cfg(test)]

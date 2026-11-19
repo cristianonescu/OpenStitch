@@ -51,7 +51,7 @@ fn after_click<A: Command, H: Host<A>>(
     }
     if a.is_menu() {
         if on {
-            egui::Popup::menu(resp).show(|ui| h.menu(a, ui));
+            crate::fit::menu(resp, |ui| h.menu(a, ui));
         }
     } else if resp.clicked() && on {
         h.run(a, ui.ctx());
@@ -65,7 +65,7 @@ pub fn menu_item<A: Command, H: Host<A>>(h: &mut H, ui: &mut egui::Ui, a: A) {
     let tip = info.screen_tip(MAC);
     if a.is_menu() {
         ui.add_enabled_ui(on, |ui| {
-            ui.menu_button(info.label, |ui| h.menu(a, ui))
+            crate::fit::sub_menu(ui, info.label, |ui| h.menu(a, ui))
                 .response
                 .on_hover_text(&tip)
                 .on_disabled_hover_text(&tip);
@@ -162,11 +162,12 @@ pub fn ribbon<A: Command, H: Host<A>>(
         } else {
             None
         };
-        egui::Popup::menu(&resp)
-            .open_memory(cmd)
-            .layout(egui::Layout::top_down(egui::Align::Min))
-            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-            .show(|ui| application_menu(h, ui, w));
+        crate::fit::popup(
+                egui::Popup::menu(&resp)
+                .open_memory(cmd)
+                .layout(egui::Layout::top_down(egui::Align::Min))
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+            |ui| application_menu(h, ui, w));
         ui.add_space(6.0);
         for (i, t) in w.tabs.iter().enumerate() {
             let selected = *tab == i;
@@ -189,7 +190,7 @@ pub fn ribbon<A: Command, H: Host<A>>(
                             .frame(false),
                     )
                     .on_hover_text(info.screen_tip(MAC));
-                egui::Popup::menu(&r).show(|ui| h.menu(a, ui));
+                crate::fit::menu(&r, |ui| h.menu(a, ui));
             }
         });
     });
@@ -239,7 +240,7 @@ pub fn status_bar(
 pub fn menu_bar<A: Command, H: Host<A>>(h: &mut H, ui: &mut egui::Ui, w: &MenuWindow<A>) {
     egui::MenuBar::new().ui(ui, |ui| {
         for m in w.menus {
-            ui.menu_button(m.name, |ui| {
+            crate::fit::sub_menu(ui, m.name, |ui| {
                 for (k, section) in m.sections.iter().enumerate() {
                     if k > 0 {
                         ui.separator();

@@ -137,7 +137,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                                     st.picked.push(p.clone());
                                 }
                             }
-                            r.context_menu(|ui| {
+                            crate::fit::context_menu(&r, |ui| {
                                 if ui.button(t("ui-remove-from-writing-list")).clicked() {
                                     remove = Some(p.clone());
                                 }

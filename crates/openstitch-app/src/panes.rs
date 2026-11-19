@@ -349,7 +349,7 @@ fn pane_menu(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
             egui::Button::new((info.label, crate::icons::ui_image(ui, "menu_caret"))),
         )
         .on_hover_text(info.tip);
-    egui::Popup::menu(&r).show(|ui| ribbon::menu(app, a, ui));
+    crate::fit::menu(&r, |ui| ribbon::menu(app, a, ui));
 }
 
 /// Text Attributes ▸ Transform: the check box and PE-DESIGN's 26 presets (the two arches,
