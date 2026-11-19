@@ -263,7 +263,7 @@ pub fn toolbar<A: Command, H: Host<A>>(
     w: &MenuWindow<A>,
     labelled: impl Fn(A) -> bool,
 ) {
-    ui.horizontal(|ui| {
+    crate::fit::row(ui, "suite-toolbar", |ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
         for (k, section) in w.toolbar.iter().enumerate() {
             if k > 0 {

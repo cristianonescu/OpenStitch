@@ -89,7 +89,8 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         .collapsible(false)
         .resizable(false)
         .default_width(460.0)
-        .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 80.0))
+        // (Nearer the top in a low window, #1276, so the list keeps its room.)
+        .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, if ctx.content_rect().height() < 600.0 { 4.0 } else { 80.0 }))
         , ctx, |ui| {
             let edit = ui.add(
                 egui::TextEdit::singleline(&mut app.palette.query)

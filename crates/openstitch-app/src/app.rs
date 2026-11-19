@@ -2494,13 +2494,16 @@ impl eframe::App for EditorApp {
         if self.database.open || self.creator.open || self.sewing.open {
             // The other suite windows take the whole window, as separate programs do.
             self.update_title(&ctx);
-            if self.database.open {
-                crate::database_ui::database(self, ui);
-            } else if self.creator.open {
-                crate::creator_ui::creator(self, ui);
-            } else {
-                crate::sewing_ui::factory(self, ui);
-            }
+            // (A low window scrolls as a page, as the main window does.)
+            crate::fit::page(ui, crate::panes::PAGE_HEIGHT_LEAST, true, |ui| {
+                if self.database.open {
+                    crate::database_ui::database(self, ui);
+                } else if self.creator.open {
+                    crate::creator_ui::creator(self, ui);
+                } else {
+                    crate::sewing_ui::factory(self, ui);
+                }
+            });
             self.screenshot_step(&ctx);
             return;
         }

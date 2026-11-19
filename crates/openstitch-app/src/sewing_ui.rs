@@ -763,7 +763,7 @@ fn preview(ui: &mut egui::Ui, e: &SewingEditor) {
 }
 
 fn settings(ui: &mut egui::Ui, e: &mut SewingEditor) {
-    ui.horizontal(|ui| {
+    crate::fit::row(ui, "factory-design", |ui| {
         ui.label(t("ui-kind"));
         let r = egui::ComboBox::from_id_salt("sdf-kind")
             .selected_text(e.doc.kind.label())

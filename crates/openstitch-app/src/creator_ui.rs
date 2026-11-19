@@ -509,7 +509,7 @@ pub fn creator(app: &mut EditorApp, ui: &mut egui::Ui) {
 }
 
 fn header(ui: &mut egui::Ui, st: &mut CreatorState, user: &[patterns::Pattern]) {
-    ui.horizontal(|ui| {
+    crate::fit::row(ui, "creator-pattern", |ui| {
         ui.label(t("ui-kind"));
         let current = KINDS
             .iter()

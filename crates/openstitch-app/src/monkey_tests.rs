@@ -210,6 +210,12 @@ fn run(seed: u64, steps: usize, drop: &std::path::Path) -> Result<(), String> {
     };
     for n in 1..=steps {
         let step = random_step(&app, &mut rng, drop);
+        // An Undo while the design is as it started would go below the start (the demo's own
+        // construction is on the history), and an edit after that drops the start from the
+        // history for good: that is no fault of Undo, so such a step is passed over.
+        if (step == "run:undo" || step == "cmd+key:Z") && *app.session.design() == start {
+            continue;
+        }
         last.push_back(step.clone());
         if last.len() > 20 {
             last.pop_front();
