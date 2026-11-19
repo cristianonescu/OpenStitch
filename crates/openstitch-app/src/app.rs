@@ -2495,7 +2495,7 @@ impl eframe::App for EditorApp {
             // The other suite windows take the whole window, as separate programs do.
             self.update_title(&ctx);
             // (A low window scrolls as a page, as the main window does.)
-            crate::fit::page(ui, crate::panes::PAGE_HEIGHT_LEAST, true, |ui| {
+            crate::fit::page(ui, egui::vec2(0.0, crate::panes::PAGE_HEIGHT_LEAST), true, |ui| {
                 if self.database.open {
                     crate::database_ui::database(self, ui);
                 } else if self.creator.open {
@@ -2526,7 +2526,7 @@ impl eframe::App for EditorApp {
             .zip(pointer)
             .is_some_and(|(c, p)| c.contains(p));
         let least = if self.bare { 0.0 } else { crate::panes::PAGE_HEIGHT_LEAST };
-        crate::fit::page(ui, least, !on_canvas, |ui| self.main_layout(ui));
+        crate::fit::page(ui, egui::vec2(0.0, least), !on_canvas, |ui| self.main_layout(ui));
         crate::start_ui::cards(self, &ctx);
         crate::start_ui::windows(self, &ctx);
         crate::limits_ui::poll(self);

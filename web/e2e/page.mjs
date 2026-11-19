@@ -1194,12 +1194,16 @@ async function smallWindowChecks(browser, type, label) {
     const { page, errors } = await editorPage(context);
     const surfaces = async () => (await run(page, { command: "ui.state" })).result?.surfaces;
     // The surfaces once `test` holds for them; it returns what the step needs.
+    // (Twice in a row the same: a pop-up's first frame is a measuring one, laid out elsewhere.)
     const when = async (what, test) => {
       let last;
+      let before = "";
       for (let i = 0; i < 60; i += 1) {
         last = await surfaces();
-        const got = last && test(last);
+        const now = JSON.stringify(last);
+        const got = last && now === before && test(last);
         if (got) return got;
+        before = now;
         await page.waitForTimeout(150);
       }
       throw new Error(`small window, ${what}: ${JSON.stringify(last)}`);
@@ -1216,6 +1220,9 @@ async function smallWindowChecks(browser, type, label) {
     };
     const middle = ([x, y, w, h]) => [x + w / 2, y + h / 2];
     const end = (s) => s.contentHeight - s.rect[3];
+    // The start cards (a pop-up of their own, scrolling as the menus do) are put away first.
+    const cards = await run(page, { command: "ui.set", params: { name: "showStartCards", value: false } });
+    if (!cards.ok) throw new Error(`ui.set showStartCards: ${JSON.stringify(cards).slice(0, 200)}`);
     const start = await when("the Options button is drawn and nothing is open", (s) => s.optionsButton && s.open.length === 0 && s);
     if (start.textScale !== 1 || Math.abs(start.windowPoints[0] - size.width) > 1 || Math.abs(start.windowPoints[1] - size.height) > 1) {
       throw new Error(`small window: the editor's window is ${JSON.stringify(start.windowPoints)} points at text scale ${start.textScale}`);
@@ -1224,10 +1231,10 @@ async function smallWindowChecks(browser, type, label) {
     inside("the Options button", button);
     await page.mouse.click(...middle(button));
     const menu = (await when("the Options menu opens", (s) => s.open.length === 1 && s.open[0].kind === "menu" && s.open[0].rect[3] > 50 && s)).open[0];
+    await shot("options-menu");
     inside("the Options menu", menu.rect);
     if (menu.rect[1] < button[1] + button[3]) throw new Error(`small window: the Options menu covers its button: ${JSON.stringify(menu.rect)} over ${JSON.stringify(button)}`);
     if (!(end(menu) > 50) || menu.scrolled !== 0) throw new Error(`small window: the Options menu should be taller than its view and start at its top: ${JSON.stringify(menu)}`);
-    await shot("options-menu");
     await page.mouse.move(...middle(menu.rect));
     await page.mouse.wheel(0, 6000);
     // (The pointer rests on an entry, which may open its sub-menu beside it: the Options menu
@@ -1236,8 +1243,9 @@ async function smallWindowChecks(browser, type, label) {
     const menuEnd = await when("the wheel scrolls the Options menu to its end", (s) => { const m = same(s); return m && Math.abs(m.scrolled - end(m)) < 1.5 && m; });
     inside("the Options menu, scrolled", menuEnd.rect);
     await shot("options-menu-end");
-    await page.keyboard.press("Escape");
-    await when("Escape closes the Options menu", (s) => s.open.length === 0 && s);
+    // A click beside the menu (the empty end of the top bar) closes it.
+    await page.mouse.click(size.width - 40, 10);
+    await when("a click beside the Options menu closes it", (s) => s.open.length === 0 && s);
     // A dialog taller than the window.
     const opened = await run(page, { command: "ui.run", params: { action: "designProperty" } });
     if (!opened.ok) throw new Error(`ui.run designProperty: ${JSON.stringify(opened).slice(0, 200)}`);

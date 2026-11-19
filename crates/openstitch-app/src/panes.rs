@@ -155,8 +155,10 @@ const WORK_AREA_LEAST: f32 = 160.0;
 /// points, so sooner at a large Text size) scrolls as a page (`fit::page`).
 pub const PAGE_HEIGHT_LEAST: f32 = 340.0;
 /// The width the Sewing Order and Attributes panes lay their content out at when they are
-/// squeezed narrower (panes on both sides of a small window): they scroll sideways then.
-const PANE_WIDTH_LEAST: f32 = 240.0;
+/// squeezed narrower (panes on both sides of a small window): they scroll sideways then. Less
+/// than either pane's content needs at its default width, so a pane that has its room grows
+/// to its content as it always did.
+const PANE_WIDTH_LEAST: f32 = 200.0;
 
 /// Docks the visible panes around the work area (call before the central panel).
 pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {

@@ -500,19 +500,21 @@ pub fn pane_limit(height: f32, rest: f32) -> f32 {
     (height - rest).max(LEAST)
 }
 
-/// The whole content of a window (its bars, panes and work area): laid out as it is while the
-/// window is at least `least` points high, and in a page that high which scrolls up and down
-/// once the window is lower, so the bars at its bottom can be reached. `wheel` is false while
-/// the pointer is over something that takes the wheel and a drag for itself (the canvas):
-/// the page then scrolls by its bar only.
+/// The whole content of a window or of a panel with bars of its own: laid out as it is while
+/// there is `least` room for it (width, height; 0 for a side that takes any size), and at
+/// that size in a page that scrolls once there is less, so the bars at its bottom and the
+/// controls at its side can be reached. `wheel` is false while the pointer is over something
+/// that takes the wheel and a drag for itself (the canvas): the page then scrolls by its bar
+/// only.
 pub fn page<R>(
     ui: &mut egui::Ui,
-    least: f32,
+    least: egui::Vec2,
     wheel: bool,
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
     let room = ui.available_rect_before_wrap();
-    if room.height() >= least {
+    let scrolls = [room.width() + 0.5 < least.x, room.height() + 0.5 < least.y];
+    if !scrolls[0] && !scrolls[1] {
         return add(ui);
     }
     visible_bars(ui);
@@ -525,15 +527,12 @@ pub fn page<R>(
         },
         ..egui::scroll_area::ScrollSource::ALL
     };
-    egui::ScrollArea::vertical()
+    egui::ScrollArea::new(scrolls)
         .id_salt("fit-page")
         .auto_shrink([false, false])
         .scroll_source(source)
         .show(ui, |ui| {
-            let rect = egui::Rect::from_min_size(
-                ui.cursor().min,
-                egui::vec2(room.width(), least),
-            );
+            let rect = egui::Rect::from_min_size(ui.cursor().min, room.size().max(least));
             let mut body = ui.new_child(egui::UiBuilder::new().max_rect(rect));
             let inner = add(&mut body);
             ui.allocate_rect(rect, egui::Sense::hover());

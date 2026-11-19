@@ -3056,9 +3056,14 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
     if !dropped.is_empty() {
         attach_files(app, dropped);
     }
+    /// The room the Assistant's heading, conversation and composer need.
+    const PANEL_LEAST: egui::Vec2 = egui::vec2(260.0, 220.0);
     egui::Panel::right("assistant")
         .default_size(380.0)
         .show(ui, |ui| {
+            // In a panel too low or too narrow for the heading and the composer (#1276: a small window, a
+            // large Text size) they keep their height and the panel scrolls.
+            crate::fit::page(ui, PANEL_LEAST, true, |ui| {
             ui.horizontal(|ui| {
                 ui.heading(t("ui-assistant"));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -3271,6 +3276,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                         app.assistant.panel.last_undo = None;
                     }
                 });
+        });
         });
 }
 

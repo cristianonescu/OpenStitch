@@ -163,9 +163,11 @@ impl Win {
         c.seen.intersect(c.rect).intersect(self.screen())
     }
 
+    /// In view in full. The one point of slack is for rounding: a control's rectangle and
+    /// the clip it is drawn in are placed at fractions of a point and snapped separately.
     fn shown(&self, c: &Control) -> bool {
         let v = self.visible(c);
-        v.width() >= c.rect.width() - 2.0 && v.height() >= c.rect.height() - 2.0
+        v.width() >= c.rect.width() - 1.0 && v.height() >= c.rect.height() - 1.0
     }
 
     /// Where the pointer rests to scroll `c` into view: on its visible part, else on the
@@ -290,31 +292,35 @@ impl Win {
             }
             let v = self.visible(c);
             let part = v.width() > 1.0 && v.height() > 1.0;
-            let axis = |lo: f32, hi: f32, vlo: f32, vhi: f32, p: f32| -> f32 {
+            // How far to turn the wheel on one axis (points, at most 40 a step): just enough to
+            // bring the cut end in; the far end first, then, once that has been seen, the near
+            // one (a control larger than its view shows them one after the other).
+            let axis = |lo: f32, hi: f32, vlo: f32, vhi: f32, p: f32, seen_hi: bool| -> f32 {
+                let (over, under) = (hi - vhi, vlo - lo);
                 if part {
-                    if hi > vhi + 0.5 {
-                        -1.0
-                    } else if lo < vlo - 0.5 {
-                        1.0
+                    if over > 0.5 && !(seen_hi && under > 0.5) {
+                        -(over + 1.0).min(40.0)
+                    } else if under > 0.5 {
+                        (under + 1.0).min(40.0)
                     } else {
                         0.0
                     }
                 } else if (lo + hi) / 2.0 > p + 1.0 {
-                    -1.0
+                    -40.0
                 } else if (lo + hi) / 2.0 < p - 1.0 {
-                    1.0
+                    40.0
                 } else {
                     0.0
                 }
             };
-            let dx = axis(c.rect.min.x, c.rect.max.x, v.min.x, v.max.x, at.x);
-            let dy = axis(c.rect.min.y, c.rect.max.y, v.min.y, v.max.y, at.y);
+            let dx = axis(c.rect.min.x, c.rect.max.x, v.min.x, v.max.x, at.x, ends[1]);
+            let dy = axis(c.rect.min.y, c.rect.max.y, v.min.y, v.max.y, at.y, ends[3]);
             self.frames(1, vec![egui::Event::PointerMoved(at)]);
             self.frames(
                 1,
                 vec![egui::Event::MouseWheel {
                     unit: egui::MouseWheelUnit::Point,
-                    delta: egui::vec2(dx * 40.0, dy * 40.0),
+                    delta: egui::vec2(dx, dy),
                     phase: egui::TouchPhase::Move,
                     source: egui::MouseWheelSource::Wheel,
                     modifiers: egui::Modifiers::NONE,
@@ -1363,4 +1369,19 @@ fn every_control_can_be_reached_at_640x400_part_5() {
 #[test]
 fn every_control_can_be_reached_at_640x400_part_6() {
     walk(5);
+}
+
+/// A window with room is laid out as it was before #1276: the Sewing Order pane is as wide as
+/// its content (the monkey test's seed 881 caught it squeezed to its default width and
+/// scrolling sideways), and nothing in it waits behind a scroll bar.
+#[test]
+fn a_pane_with_room_is_as_wide_as_its_content() {
+    let w = Win::new(demo(), (1440.0, 900.0), 100);
+    let canvas = w.app.workspace.canvas.expect("canvas");
+    assert!(canvas.min.x > 280.0, "the Sewing Order pane is 286 points wide at this size: {canvas:?}");
+    let all = w.controls();
+    for label in ["Branch", "Then: run", "Sew in click order", "Optimise"] {
+        let c = all.iter().find(|c| c.label == label).unwrap_or_else(|| panic!("{label}"));
+        assert!(w.shown(c), "{label} is in view without scrolling: {c:?}");
+    }
 }
