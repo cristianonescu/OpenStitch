@@ -79,6 +79,9 @@ IN_WORDS = set("▸→")
 CANVAS_MARKS = {
     ("crates/openstitch-app/src/view_ui.rs", "inline draw_show"): "trim marks on the design",
     ("crates/openstitch-app/src/view_ui.rs", "inline draw_guide_markers"): "guide handles on the rulers",
+    # The Point tool's direction line (#1260): its start square (turned 45 degrees) and arrow
+    # head, editing handles on the design like the point squares, drawn as PE-DESIGN draws them.
+    ("crates/openstitch-app/src/canvas.rs", "inline draw_points"): "the direction line's square and arrow head",
 }
 # A string literal made of symbols only ("✓", "✗", "▾"), anywhere in the source: a symbol used
 # as an icon, even when it reaches a label through a variable (#654).
