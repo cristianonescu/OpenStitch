@@ -481,7 +481,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.pointMenu",
-        summary: "The Select Point tool's right-click menu on a point (#1258): its seven entries in order (toStraight, toCurve, toSmooth, toSymmetry, toCusp, splitAtPoint, deletePoint), each with its text, whether a separator sits above it and whether it is available for the selected points, and whether the menu is open. points (with contour) selects those vertices of the one selected shape with the Point tool, as clicks and Ctrl+clicks do; action runs an entry on the selected points as a click in the menu does (one undo step) and is refused when the entry is greyed out. objectMenu lists the entries of the menu a right-click on the shape itself opens (addDirection, deleteDirection, reverseDirection, then openOutline and closeOutline) with what is greyed out; run one with ui.run. The engine commands object.setPointKind, object.splitAtPoint, object.deletePoint, object.movePoints, object.openOutline and object.closeOutline do the same without the window",
+        summary: "The Select Point tool's right-click menu on a point (#1258): its seven entries in order (toStraight, toCurve, toSmooth, toSymmetry, toCusp, splitAtPoint, deletePoint), each with its text, whether a separator sits above it and whether it is available for the selected points, and whether the menu is open. points (with contour) selects those vertices of the one selected shape with the Point tool, as clicks and Ctrl+clicks do; action runs an entry on the selected points as a click in the menu does (one undo step) and is refused when the entry is greyed out. menuRect is where the open menu (the point's or the object's) was painted, [x, y, width, height] in window points, and menuFill its panel colour (#rrggbb): both null until a frame has painted the menu (its first frame only measures it), so open: true with menuRect: null means the menu is still opening. hint is the hint line the status bar shows for what is selected (it changes with the selection: an end point of an open line tells of Alt and connecting the ends). selected lists the selected points (index, x and y in mm, and screen: where the point is in the window, in points from its top-left corner) and pointCount the first outline's number of points. objectMenu lists the entries of the menu a right-click on the shape itself opens (addDirection, deleteDirection, reverseDirection, then openOutline and closeOutline) with what is greyed out; run one with ui.run. deleteDirection's entry carries submenu, the list of its sub-menu's entries, each with key, label and enabled: deleteSelectedLine (grey: no direction line can be selected on the canvas) and deleteLinesNotSelected, which removes every direction line of the shape, straight ones and a curved one, in one undo step; run either with action, as the point entries (refused while it is grey). The engine commands object.setPointKind, object.splitAtPoint, object.deletePoint, object.movePoints, object.openOutline and object.closeOutline do the same without the window",
         effect: Effect::Edit,
         params: &[
             p(
@@ -498,9 +498,9 @@ pub const UI_COMMANDS: &[UiCommand] = &[
             ),
             p(
                 "action",
-                "toStraight|toCurve|toSmooth|toSymmetry|toCusp|splitAtPoint|deletePoint",
+                "toStraight|toCurve|toSmooth|toSymmetry|toCusp|splitAtPoint|deletePoint|deleteSelectedLine|deleteLinesNotSelected",
                 false,
-                "Run this entry on the selected points",
+                "Run this entry: one of the seven on the selected points, or an entry of the Delete Direction Line sub-menu on the selected shape",
             ),
         ],
     },

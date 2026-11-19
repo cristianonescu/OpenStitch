@@ -22,6 +22,9 @@ pub struct PointMenu {
     object: bool,
     /// The object's menu: the Delete Direction Line sub-menu is open.
     sub: bool,
+    /// Where the menu's panel was painted, and in which colour; `None` until a frame has
+    /// drawn it (a menu's first frame only measures it, and paints nothing).
+    drawn: Option<(egui::Rect, egui::Color32)>,
 }
 
 /// What an arrow key moves the selected points by, 0.1 mm units: 0.5 mm, PE-DESIGN 11.50's
@@ -90,6 +93,15 @@ pub fn action_of(a: Action) -> Option<PointAction> {
     })
 }
 
+/// The Point tool's hint line for what is selected of the outline whose points show
+/// (`editor::hints::point_hint`); `None` with another tool or target.
+pub fn hint(app: &EditorApp) -> Option<&'static str> {
+    let ctx = app.tool_context(app.session.design());
+    app.tools
+        .point_selection(&ctx)
+        .map(openstitch_app::editor::hints::point_hint)
+}
+
 /// Which entries are available for the selected points, in menu order; `None` when the Point
 /// tool has no point selected.
 pub fn states(app: &EditorApp) -> Option<[bool; 7]> {
@@ -125,6 +137,7 @@ pub fn pointer(app: &mut EditorApp, response: &egui::Response, vp: &Viewport) ->
         fresh: true,
         object,
         sub: false,
+        drawn: None,
     });
     hit || object
 }
@@ -239,34 +252,11 @@ fn row(
     response
 }
 
-/// Delete Lines Not Selected: removes every direction line of the selected shape, the
-/// straight ones (`object.setDirectionLines` with none) and a curved one
-/// (`object.setDirectionCurve` with none), in one undo step; the region is sewn in its one
-/// straight direction again.
+/// Delete Lines Not Selected: removes every direction line of the selected shape, straight
+/// and curved, in one undo step: what the ribbon's Delete Direction Line does
+/// ([`crate::edit_ui::delete_direction`]).
 pub fn delete_direction_lines(app: &mut EditorApp) {
-    let ctx = app.tool_context(app.session.design());
-    let Some((id, lines, curve)) = ctx.point_target().and_then(|o| {
-        let r = o.region.as_ref()?;
-        Some((o.id, !r.direction_lines.is_empty(), r.direction_curve.is_some()))
-    }) else {
-        return;
-    };
-    let mut requests = Vec::new();
-    if lines {
-        requests.push(openstitch_app::editor::CommandRequest::new(
-            "object.setDirectionLines",
-            json!({ "id": id, "lines": null }),
-        ));
-    }
-    if curve {
-        requests.push(openstitch_app::editor::CommandRequest::new(
-            "object.setDirectionCurve",
-            json!({ "id": id, "points": null }),
-        ));
-    }
-    if !requests.is_empty() {
-        app.execute_all(&requests);
-    }
+    crate::edit_ui::delete_direction(app);
 }
 
 /// A menu panel at `at` (the pointer: the menu opens to the right of and below it, as
@@ -277,21 +267,33 @@ fn panel<R>(
     at: Pos2,
     width: f32,
     body: impl FnOnce(&mut egui::Ui) -> R,
-) -> egui::InnerResponse<R> {
-    egui::Area::new(egui::Id::unique(id))
+) -> (egui::InnerResponse<R>, Option<(egui::Rect, egui::Color32)>) {
+    let mut painted = None;
+    let r = egui::Area::new(egui::Id::unique(id))
         .fixed_pos(at)
         .fade_in(false)
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
-            egui::Frame::menu(ui.style())
-                .show(ui, |ui| {
-                    ui.set_min_width(width);
-                    ui.set_max_width(width);
-                    ui.spacing_mut().item_spacing.y = 0.0;
-                    body(ui)
-                })
-                .inner
-        })
+            // An area's first frame is a sizing pass: laid out, not painted.
+            let visible = !ui.is_sizing_pass();
+            let frame = egui::Frame::menu(ui.style());
+            let fill = frame.fill;
+            let shown = frame.show(ui, |ui| {
+                ui.set_min_width(width);
+                ui.set_max_width(width);
+                ui.spacing_mut().item_spacing.y = 0.0;
+                body(ui)
+            });
+            if visible {
+                painted = Some((shown.response.rect, fill));
+            }
+            shown.inner
+        });
+    if painted.is_none() {
+        // The measuring frame painted nothing: draw the menu in the next one, at once.
+        ctx.request_repaint();
+    }
+    (r, painted)
 }
 
 /// A separator between groups of rows, with a little air round it.
@@ -314,7 +316,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         return;
     };
     let mut chosen = None;
-    let r = panel(ctx, "point-context-menu", m.at, 170.0, |ui| {
+    let (r, painted) = panel(ctx, "point-context-menu", m.at, 170.0, |ui| {
         for (i, a) in PointAction::MENU.into_iter().enumerate() {
             if a.separator_before() {
                 rule(ui);
@@ -328,6 +330,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         run(app, a);
         return;
     }
+    m.drawn = painted.or(m.drawn);
     let (pressed, esc) = ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));
     let outside = pressed && !r.response.contains_pointer();
     if !esc && (m.fresh || !outside) {
@@ -345,7 +348,7 @@ fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
     let mut chosen = None;
     let mut delete_lines = false;
     let mut sub_at = None;
-    let r = panel(ctx, "point-object-menu", m.at, 210.0, |ui| {
+    let (r, painted) = panel(ctx, "point-object-menu", m.at, 210.0, |ui| {
         for a in POINT_OBJECT_MENU {
             if a == Action::OpenOutline {
                 rule(ui);
@@ -374,7 +377,7 @@ fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
     let mut over_sub = false;
     if let Some(at) = sub_at {
         let entries = direction_submenu(app);
-        let sub = panel(ctx, "point-object-submenu", at, 200.0, |ui| {
+        let (sub, _) = panel(ctx, "point-object-submenu", at, 200.0, |ui| {
             for (_, text, enabled) in entries {
                 if row(ui, None, t(text), enabled, false).clicked() {
                     delete_lines = true;
@@ -391,6 +394,7 @@ fn object_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
         crate::ribbon::run(app, a, ctx);
         return;
     }
+    m.drawn = painted.or(m.drawn);
     let (pressed, esc) = ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));
     let outside = pressed && !r.response.contains_pointer() && !over_sub;
     if !esc && (m.fresh || !outside) {
@@ -427,7 +431,44 @@ fn object_state(app: &EditorApp) -> Value {
 /// whether a separator sits above it and whether it is available for the selected points.
 pub fn state(app: &EditorApp) -> Value {
     let enabled = states(app);
+    // The selected points: index, position on the Design Page in mm, and where they are in
+    // the window (points from its top-left corner), so a script can click one.
+    let design = app.session.design();
+    let ctx = app.tool_context(design);
+    let selected: Vec<Value> = app
+        .tools
+        .selected_points(&ctx)
+        .iter()
+        .filter_map(|p| {
+            let at = *ctx.point_target()?.contours.get(p.contour)?.points.get(p.index)?;
+            let screen = app.viewport.map(|vp| vp.to_screen(at));
+            Some(json!({
+                "contour": p.contour,
+                "index": p.index,
+                "x": at.x / 10.0,
+                "y": at.y / 10.0,
+                "screen": screen.map(|s| [s.x, s.y]),
+            }))
+        })
+        .collect();
+    let point_count = ctx
+        .point_target()
+        .and_then(|o| o.contours.first())
+        .map(|c| c.points.len());
+    // Where the open menu (the point's or the object's) was painted, in window points, and
+    // its panel colour; null while no menu is open or its first frame has not painted it.
+    let drawn = app
+        .workspace
+        .view
+        .point_menu
+        .as_ref()
+        .and_then(|m| m.drawn);
     json!({
+        "menuRect": drawn.map(|(r, _)| [r.min.x, r.min.y, r.width(), r.height()]),
+        "menuFill": drawn.map(|(_, c)| format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())),
+        "hint": hint(app),
+        "selected": selected,
+        "pointCount": point_count,
         "open": app.workspace.view.point_menu.as_ref().is_some_and(|m| !m.object),
         "objectMenuOpen": app.workspace.view.point_menu.as_ref().is_some_and(|m| m.object),
         "objectMenu": object_state(app),
@@ -473,12 +514,28 @@ pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, Str
     let Some(key) = params.and_then(|p| p.get("action")).and_then(Value::as_str) else {
         return Ok(state(app));
     };
+    // An entry of the object menu's Delete Direction Line sub-menu (#1269).
+    if let Some((_, _, enabled)) = direction_submenu(app).into_iter().find(|e| e.0 == key) {
+        if !enabled {
+            return Err(format!(
+                "{key} is not available: {}",
+                if key == "deleteSelectedLine" {
+                    "no direction line can be selected here; deleteLinesNotSelected removes them all"
+                } else {
+                    "the selected shape has no direction lines"
+                }
+            ));
+        }
+        delete_direction_lines(app);
+        app.workspace.view.point_menu = None;
+        return Ok(state(app));
+    }
     let a = PointAction::MENU
         .into_iter()
         .find(|a| a.key() == key)
         .ok_or_else(|| {
             format!(
-                "action: must be one of {}",
+                "action: must be one of {}, deleteSelectedLine, deleteLinesNotSelected",
                 PointAction::MENU.map(PointAction::key).join(", ")
             )
         })?;
@@ -536,6 +593,9 @@ mod tests {
         let s = app
             .ui_command("ui.pointMenu", Some(&json!({ "points": [0] })))
             .expect("select a point");
+        assert_eq!(s["pointCount"], 4);
+        assert_eq!(s["selected"][0]["index"], 0);
+        assert_eq!((&s["selected"][0]["x"], &s["selected"][0]["y"]), (&json!(10.0), &json!(10.0)));
         let entries = s["entries"].as_array().expect("entries");
         let row = |i: usize| {
             (
@@ -770,6 +830,115 @@ mod tests {
         assert_eq!((t("menu-point-line-type"), t("menu-point-curve-type")), ("Line Type", "Curve Type"));
     }
 
+    /// `ui.pointMenu` says where the open menu was painted: nothing while it is closed or
+    /// only measured (a menu's first frame paints nothing), then its panel's rectangle at the
+    /// pointer and its colour; so a script knows the menu is on screen, not just open.
+    #[test]
+    fn the_menu_reports_where_it_was_painted() {
+        let (mut app, _) = with_rectangle();
+        app.ui_command("ui.pointMenu", Some(&json!({ "points": [0] })))
+            .expect("select a point");
+        let ctx = egui::Context::default();
+        let frame = |app: &mut EditorApp| {
+            let raw = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 800.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(raw, |ui| window(app, ui.ctx()));
+            out.textures_delta.clear();
+            app.ui_command("ui.pointMenu", None).expect("state")
+        };
+        for object in [false, true] {
+            assert!(frame(&mut app)["menuRect"].is_null(), "no menu open");
+            app.workspace.view.point_menu = Some(PointMenu {
+                at: egui::pos2(300.0, 200.0),
+                fresh: true,
+                object,
+                sub: false,
+                drawn: None,
+            });
+            let measured = frame(&mut app);
+            assert_eq!(
+                (measured["open"] == true, measured["objectMenuOpen"] == true),
+                (!object, object)
+            );
+            assert!(measured["menuRect"].is_null(), "the first frame only measures: {measured}");
+            let painted = frame(&mut app);
+            let r: Vec<f64> = painted["menuRect"]
+                .as_array()
+                .expect("painted in the second frame")
+                .iter()
+                .filter_map(Value::as_f64)
+                .collect();
+            assert!((r[0] - 300.0).abs() < 1.0 && (r[1] - 200.0).abs() < 1.0, "at the pointer: {r:?}");
+            assert!(r[2] >= 170.0 && r[3] >= 5.0 * 22.0, "the panel's size: {r:?}");
+            let fill = painted["menuFill"].as_str().expect("fill");
+            assert!(fill.starts_with('#') && fill.len() == 7, "{fill}");
+            app.workspace.view.point_menu = None;
+        }
+        let summary = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.pointMenu")
+            .expect("ui.pointMenu")
+            .summary;
+        for words in ["menuRect", "menuFill", "null until a frame has painted"] {
+            assert!(summary.contains(words), "ui.pointMenu's summary names {words:?}");
+        }
+    }
+
+    /// The hint line follows the selection, as PE-DESIGN's status bar does (#1260): with an
+    /// end point of an open line selected it tells of Alt and connecting the two ends.
+    #[test]
+    fn the_hint_line_follows_the_selected_point() {
+        let hint = |app: &mut EditorApp, points: Value| {
+            let s = app
+                .ui_command("ui.pointMenu", Some(&json!({ "points": points })))
+                .expect("points");
+            s["hint"].as_str().expect("hint").to_string()
+        };
+        let (mut app, _) = with_rectangle();
+        assert!(app.ui_command("ui.pointMenu", None).expect("state")["hint"].is_null());
+        app.tools.set_tool(openstitch_app::editor::Tool::Point);
+        let none = app.ui_command("ui.pointMenu", None).expect("state")["hint"]
+            .as_str()
+            .expect("hint")
+            .to_string();
+        assert!(none.contains("Click a point") && none.contains("Open and Close"), "{none}");
+        let straight = hint(&mut app, json!([0]));
+        assert!(straight.contains("To Curve") && !straight.contains("Alt"), "{straight}");
+        let several = hint(&mut app, json!([0, 2]));
+        assert!(several.contains("move them all"), "{several}");
+        app.execute(&CommandRequest::new(
+            "object.setPointKind",
+            json!({ "id": 1, "index": 0, "kind": "curve" }),
+        ))
+        .expect("To Curve");
+        let curve = hint(&mut app, json!([0]));
+        assert!(curve.contains("handle lines") && curve.contains("To Symmetry"), "{curve}");
+        // An open line: its ends tell of Alt, its middle point does not.
+        let mut app = EditorApp::new(Launch::default());
+        let id = app
+            .execute(&CommandRequest::new(
+                "shape.polygon",
+                json!({ "points": [[10, 60], [40, 60], [40, 30]], "closed": false, "outline": "#203040" }),
+            ))
+            .expect("line")["id"]
+            .as_u64()
+            .expect("id");
+        app.selection = BTreeSet::from([id]);
+        for end in [0, 2] {
+            let text = hint(&mut app, json!([end]));
+            assert!(
+                text.contains("Hold Alt") && text.contains("other end") && text.contains("closed shape"),
+                "{text}"
+            );
+        }
+        assert!(!hint(&mut app, json!([1])).contains("Alt"));
+    }
+
     /// The menus as PE-DESIGN draws them: an icon in front of Split at Point and of Delete,
     /// none on the To entries; in the object's menu an icon on the three direction-line
     /// entries and a sub-menu on Delete Direction Line.
@@ -813,16 +982,61 @@ mod tests {
         .expect("direction lines");
         let sub = direction_submenu(&app);
         assert_eq!((sub[0].2, sub[1].2), (false, true));
-        delete_direction_lines(&mut app);
+        // Through the command, as a script or the Assistant runs it (#1269); a curved
+        // direction is set too, so that both kinds go in the one step.
+        app.execute(&CommandRequest::new(
+            "object.setDirectionCurve",
+            json!({ "id": 1, "points": [[11, 15], [20, 13], [29, 15]] }),
+        ));
+        let had_curve = app.session.design().objects[0]
+            .region
+            .as_ref()
+            .is_some_and(|r| r.direction_curve.is_some());
+        let had_lines = app.session.design().objects[0]
+            .region
+            .as_ref()
+            .map_or(0, |r| r.direction_lines.len());
+        let e = app
+            .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteSelectedLine" })))
+            .expect_err("grey");
+        assert!(e.contains("not available") && e.contains("deleteLinesNotSelected"), "{e}");
+        let s = app
+            .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteLinesNotSelected" })))
+            .expect("Delete Lines Not Selected");
+        assert_eq!(s["objectMenu"][1]["submenu"][1]["enabled"], false, "nothing left to delete");
         let region = app.session.design().objects[0].region.clone().expect("region");
         assert!(region.direction_lines.is_empty() && region.direction_curve.is_none());
         assert!(!direction_submenu(&app)[1].2);
+        let e = app
+            .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteLinesNotSelected" })))
+            .expect_err("grey now");
+        assert!(e.contains("no direction lines"), "{e}");
         app.undo();
+        let region = app.session.design().objects[0].region.clone().expect("region");
         assert_eq!(
-            app.session.design().objects[0].region.as_ref().map(|r| r.direction_lines.len()),
-            Some(2),
-            "one Undo"
+            (region.direction_lines.len(), region.direction_curve.is_some()),
+            (had_lines, had_curve),
+            "one Undo brings back what was there"
         );
+        assert!(had_lines == 2 || had_curve, "the shape had direction lines to delete");
+        // The ribbon's Delete Direction Line (`ui.run deleteDirection`) does the same, and
+        // its ui.actions entry names the command it sends.
+        app.ui_command("ui.run", Some(&json!({ "action": "deleteDirection" })))
+            .expect("ui.run deleteDirection");
+        let region = app.session.design().objects[0].region.clone().expect("region");
+        assert!(region.direction_lines.is_empty() && region.direction_curve.is_none());
+        let info = Action::DeleteDirectionLine.info();
+        assert_eq!(info.engine, Some("object.setDirectionLines"));
+        assert!(info.tip.contains("object.setDirectionCurve") && info.tip.contains("one undo step"));
+        // The summary a model reads says what `submenu` is and how to run its entries.
+        let summary = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.pointMenu")
+            .expect("ui.pointMenu")
+            .summary;
+        for words in ["submenu", "deleteSelectedLine", "deleteLinesNotSelected", "key, label and enabled"] {
+            assert!(summary.contains(words), "ui.pointMenu's summary names {words:?}");
+        }
     }
 
     /// The object's menu (#1260): PE-DESIGN's entries in its order, a separator before Open;

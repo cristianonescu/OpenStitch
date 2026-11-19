@@ -762,6 +762,31 @@ impl ToolController {
         true
     }
 
+    /// What is selected of the outline whose points show, for the hint line; `None` when the
+    /// Point tool is not showing an outline's points.
+    pub fn point_selection(&self, ctx: &ToolContext) -> Option<super::hints::PointSelection> {
+        use super::hints::PointSelection as S;
+        if !self.shows_outline_points(ctx) {
+            return None;
+        }
+        let selected = self.selected_points(ctx);
+        Some(match selected.as_slice() {
+            [] => S::None,
+            [p] => {
+                let c = ctx.point_target()?.contours.get(p.contour)?;
+                let end = !c.closed && (p.index == 0 || p.index + 1 == c.points.len());
+                if end {
+                    S::LineEnd
+                } else if c.is_curve_point(p.index) {
+                    S::Curve
+                } else {
+                    S::Straight
+                }
+            }
+            _ => S::Several,
+        })
+    }
+
     /// Whether the Point tool is showing the points of an outline (not needle points, a
     /// column's rungs, a satin line's widths or a text's characters).
     pub fn shows_outline_points(&self, ctx: &ToolContext) -> bool {

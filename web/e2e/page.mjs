@@ -15,9 +15,12 @@
 // reach the editor, not the browser (#834); the editor draws at 2 device pixels per CSS pixel
 // and works at a phone's width with touch (#834); a design left unsaved in a closed tab is
 // offered and restored in the next one from IndexedDB (#831); and with the page's storage
-// refused the editor still works on its defaults (#831). ONLY_BROWSER=Chromium (or Firefox,
-// WebKit) runs one browser.
+// refused the editor still works on its defaults (#831); and the Point tool's right-click
+// menus open in the editor while the browser's own menu stays shut, with the arrow keys and
+// Delete kept in the editor (#1260). ONLY_BROWSER=Chromium (or Firefox, WebKit) runs one
+// browser.
 import { createServer } from "node:http";
+import { inflateSync } from "node:zlib";
 import { mkdirSync, readFileSync } from "node:fs";
 import { basename, dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,6 +72,44 @@ const started = async (page) => {
   return page.evaluate(() => document.getElementById("message")?.textContent ?? "");
 };
 
+
+// A PNG as Playwright's screenshots are (8 bits a channel, RGB or RGBA, not interlaced):
+// its size and a reader of one pixel's [r, g, b].
+const png = (buffer) => {
+  const width = buffer.readUInt32BE(16);
+  const height = buffer.readUInt32BE(20);
+  const channels = buffer[25] === 6 ? 4 : 3;
+  if (buffer[24] !== 8 || (buffer[25] !== 6 && buffer[25] !== 2) || buffer[28] !== 0) throw new Error("a PNG of a kind this test does not read");
+  const parts = [];
+  for (let at = 8; at < buffer.length; ) {
+    const length = buffer.readUInt32BE(at);
+    if (buffer.toString("latin1", at + 4, at + 8) === "IDAT") parts.push(buffer.subarray(at + 8, at + 8 + length));
+    at += 12 + length;
+  }
+  const raw = inflateSync(Buffer.concat(parts));
+  const stride = width * channels;
+  const rows = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[y * (stride + 1)];
+    for (let x = 0; x < stride; x += 1) {
+      const value = raw[y * (stride + 1) + 1 + x];
+      const left = x >= channels ? rows[y * stride + x - channels] : 0;
+      const up = y > 0 ? rows[(y - 1) * stride + x] : 0;
+      const upLeft = y > 0 && x >= channels ? rows[(y - 1) * stride + x - channels] : 0;
+      let predicted = 0;
+      if (filter === 1) predicted = left;
+      else if (filter === 2) predicted = up;
+      else if (filter === 3) predicted = (left + up) >> 1;
+      else if (filter === 4) {
+        const p = left + up - upLeft;
+        const [a, b, c] = [Math.abs(p - left), Math.abs(p - up), Math.abs(p - upLeft)];
+        predicted = a <= b && a <= c ? left : b <= c ? up : upLeft;
+      }
+      rows[y * stride + x] = (value + predicted) & 255;
+    }
+  }
+  return { width, height, pixel: (x, y) => [rows[y * stride + x * channels], rows[y * stride + x * channels + 1], rows[y * stride + x * channels + 2]] };
+};
 
 // A new page in `context` with its page errors collected; it waits until the editor has started.
 const editorPage = async (context) => {
@@ -170,6 +211,222 @@ async function extraChecks(browser, type, label) {
         if (!taken.includes(chord)) throw new Error(`${chord} is not named as the browser's: ${JSON.stringify(taken)}`);
       }
       noErrors("keys", errors);
+    } finally {
+      await context.close();
+    }
+  }
+
+  // #1260: the Point tool in the browser. One click on the outline inserts a point, a mouse
+  // drag moves a point and Ctrl+click adds one to the selection, none of them the browser's
+  // to act on. A right-click on a point opens the editor's own
+  // menu and the browser's stays shut (the page's contextmenu event is cancelled); the arrow
+  // keys move the selected point 0.5 mm and do not scroll the page; Delete removes the point
+  // and the keyboard stays with the editor; a right-click beside the points opens the
+  // object's menu, whose Open is the engine's.
+  console.log(`${label}: the Point tool's menus, arrow keys and Delete stay in the editor`);
+  {
+    const context = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+    try {
+      const { page, errors } = await editorPage(context);
+      const ok = async (request) => {
+        const r = await run(page, request);
+        if (!r.ok) throw new Error(`${request.command}: ${JSON.stringify(r).slice(0, 300)}`);
+        return r.result;
+      };
+      const menu = () => ok({ command: "ui.pointMenu" });
+      // Waits on the editor's own state (ui.pointMenu), never on a fixed sleep: a browser on a
+      // slow software renderer draws few frames a second. A wait that runs out says which step
+      // it was and what the editor reported then.
+      const until = async (step, test, arg = null) => {
+        try {
+          await page.waitForFunction(test, arg, { timeout: 30_000 });
+        } catch (e) {
+          const seen = await page
+            .evaluate(() => JSON.stringify(window.openstitch.run({ command: "ui.pointMenu" }).result ?? null))
+            .catch(() => "?");
+          throw new Error(`point tool, ${step}: ${String(e.message).split("\n")[0]}; ui.pointMenu said ${seen.slice(0, 500)}`);
+        }
+      };
+      const pointX = () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.[0]?.x ?? null;
+      // A menu that reports open has to be ON SCREEN before it is photographed: ui.pointMenu
+      // gives the rectangle its panel was painted in (null while it is only measured) and the
+      // panel's colour; a screenshot of that rectangle must then be mostly that colour (the
+      // canvas under it is the page, its grid and the shape's stitches). Polled, because the
+      // browser shows a frame a moment after the editor has drawn it.
+      const painted = async (step) => {
+        await until(`${step}: the menu is drawn`, () => window.openstitch.run({ command: "ui.pointMenu" }).result?.menuRect != null);
+        const { menuRect: r, menuFill } = await menu();
+        const fill = [1, 3, 5].map((i) => parseInt(menuFill.slice(i, i + 2), 16));
+        const clip = { x: Math.round(box.x + r[0]) + 2, y: Math.round(box.y + r[1]) + 2, width: Math.round(r[2]) - 4, height: Math.round(r[3]) - 4 };
+        let share = 0;
+        for (let attempt = 0; attempt < 40; attempt += 1) {
+            const { width, height, pixel } = png(await page.screenshot({ clip }));
+            let same = 0;
+            let all = 0;
+            for (let y = 0; y < height; y += 3) {
+              for (let x = 0; x < width; x += 3) {
+                const p = pixel(x, y);
+                all += 1;
+                if (Math.abs(p[0] - fill[0]) <= 8 && Math.abs(p[1] - fill[1]) <= 8 && Math.abs(p[2] - fill[2]) <= 8) same += 1;
+              }
+            }
+            share = same / all;
+            if (share >= 0.6) return;
+            await page.waitForTimeout(250);
+        }
+        throw new Error(`point tool, ${step}: the menu reports it was drawn at ${JSON.stringify(r)} but only ${Math.round(share * 100)} % of that rectangle has its panel colour ${menuFill}: it is not on screen`);
+      };
+      await ok({ command: "ui.gettingStarted", params: { cards: "dismiss" } });
+      const made = await ok({ command: "shape.rectangle", params: { x: 20, y: 20, width: 40, height: 30, fill: "#2e8b57", outline: "#203040" } });
+      await ok({ command: "ui.select", params: { ids: [made.id] } });
+      await ok({ command: "ui.zoom", params: { fit: "page" } });
+      const onScreen = async (index) => {
+        await ok({ command: "ui.pointMenu", params: { points: [index] } });
+        await until(
+          `point ${index} selected and placed on screen`,
+          (i) => {
+            const p = window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.[0];
+            return p?.index === i && p.screen != null;
+          },
+          index,
+        );
+        return (await menu()).selected[0].screen;
+      };
+      // The opposite corner first, to know where the inside of the shape is on screen.
+      const far = await onScreen(2);
+      await onScreen(0);
+      const start = await menu();
+      if (start.pointCount !== 4 || start.open) throw new Error(`point tool: ${JSON.stringify(start).slice(0, 300)}`);
+      // The hint line follows the selection (a straight corner here: To Curve, no Alt).
+      if (!/To Curve/.test(start.hint ?? "") || /Alt/.test(start.hint)) throw new Error(`hint: ${start.hint}`);
+      const box = await page.locator("#openstitch").boundingBox();
+      const [sx, sy] = start.selected[0].screen;
+      const at = [box.x + sx, box.y + sy];
+      await page.evaluate(() => {
+        window.__menus = [];
+        window.__keys = [];
+        window.addEventListener("contextmenu", (e) => window.__menus.push(e), true);
+        window.addEventListener("keydown", (e) => window.__keys.push(e), true);
+        document.getElementById("openstitch").focus();
+      });
+      const scroll = () => page.evaluate(() => [window.scrollX, window.scrollY, document.activeElement?.id ?? ""]);
+      const before = await scroll();
+      // One click on the outline inserts a point there (the middle of the top side).
+      await page.mouse.click(box.x + (sx + far[0]) / 2, box.y + sy);
+      await until("one click on the outline inserts a point (5 points)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.pointCount === 5);
+      await ok({ command: "history.undo" });
+      // Dragging a point with the mouse moves it; the page neither scrolls nor selects text.
+      await onScreen(0);
+      await page.mouse.move(at[0], at[1]);
+      await page.mouse.down();
+      for (let step = 1; step <= 5; step += 1) await page.mouse.move(at[0] - 5 * step, at[1] - 4 * step);
+      await page.mouse.up();
+      await until(
+        `the dragged point is at ${sx - 25}, ${sy - 20} on screen (within 6)`,
+        ([x, y]) => {
+          const s = window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.[0]?.screen;
+          return s && Math.abs(s[0] - x) < 6 && Math.abs(s[1] - y) < 6;
+        },
+        [sx - 25, sy - 20],
+      );
+      const afterDrag = await scroll();
+      const picked = await page.evaluate(() => String(window.getSelection?.() ?? ""));
+      if (afterDrag[0] !== before[0] || afterDrag[1] !== before[1] || picked !== "") {
+        throw new Error(`a point drag moved the page or selected text: ${before} -> ${afterDrag}, "${picked}"`);
+      }
+      await ok({ command: "history.undo" });
+      // Ctrl+click on a second point adds it to the selection; the browser opens no menu and
+      // no tab of its own.
+      await onScreen(0);
+      await page.mouse.click(box.x + far[0], box.y + far[1], { modifiers: ["Control"] });
+      await until("Ctrl+click adds a second point (2 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2);
+      const stray = await page.evaluate(() => window.__menus.length);
+      if (stray !== 0 || context.pages().length !== 1) {
+        throw new Error(`Ctrl+click was the browser's: ${stray} menu(s), ${context.pages().length} page(s)`);
+      }
+      await onScreen(0);
+      // Right-click on the point: our menu, with PE-DESIGN's seven entries, not the browser's.
+      await page.mouse.click(at[0], at[1], { button: "right" });
+      await until("a right-click on the point opens the point menu", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.open === true);
+      const shown = await menu();
+      const labels = shown.entries.map((e) => `${e.label}${e.enabled ? "" : " (grey)"}`).join(", ");
+      const want = "To Straight (grey), To Curve, To Smooth (grey), To Symmetry (grey), To Cusp (grey), Split at Point, Delete";
+      if (labels !== want) throw new Error(`point menu: ${labels}`);
+      const menus = await page.evaluate(() => window.__menus.map((e) => e.defaultPrevented));
+      if (menus.length === 0 || menus.some((prevented) => !prevented)) {
+        throw new Error(`the browser's own menu was not held back: ${JSON.stringify(menus)}`);
+      }
+      await painted("the point menu");
+      if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-point-menu.png`) });
+      // An entry of the menu, as a click in it runs it; the menu closes.
+      const curved = await ok({ command: "ui.pointMenu", params: { action: "toCurve" } });
+      if (curved.open || curved.entries[1].enabled || !curved.entries[0].enabled) {
+        throw new Error(`after To Curve: ${JSON.stringify(curved.entries).slice(0, 300)}`);
+      }
+      // Arrow keys: 0.5 mm a press, in the editor; the page does not scroll. One key at a
+      // time, each waited for: two presses that reach the editor within one drawn frame move
+      // the point once, as two quick presses of any of its shortcuts do.
+      const x0 = curved.selected[0].x;
+      const y0 = curved.selected[0].y;
+      await page.evaluate(() => document.getElementById("openstitch").focus());
+      const near = (want) => `Math.abs((${pointX.toString()})() - ${want}) < 1e-6`;
+      await page.keyboard.press("ArrowRight");
+      await until("ArrowRight moves the point 0.5 mm", near(x0 + 0.5));
+      await page.keyboard.press("ArrowRight");
+      await until("a second ArrowRight moves it 0.5 mm more", near(x0 + 1));
+      await page.keyboard.press("ArrowDown");
+      await until(
+        "ArrowDown moves the point 0.5 mm down",
+        (y) => Math.abs((window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.[0]?.y ?? 0) - y) < 1e-6,
+        y0 + 0.5,
+      );
+      const moved = (await menu()).selected[0];
+      // With Shift the arrows leave the points where they are (PE-DESIGN's). No state changes
+      // to wait for, so a plain ArrowLeft follows: after both the point must be 0.5 mm to the
+      // left of where it was, which it is not if Shift+ArrowRight moved it.
+      await page.keyboard.press("Shift+ArrowRight");
+      await page.keyboard.press("ArrowLeft");
+      await until("Shift+ArrowRight moves nothing, then ArrowLeft moves 0.5 mm back", near(moved.x - 0.5));
+      await page.waitForTimeout(200);
+      if (Math.abs((await menu()).selected[0].x - (moved.x - 0.5)) > 1e-6) throw new Error("Shift+ArrowRight moved the point");
+      // Delete: the point goes, the keyboard stays with the editor.
+      await page.keyboard.press("Delete");
+      await until("Delete removes the point (3 points)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.pointCount === 3);
+      const keys = await page.evaluate(() => window.__keys.map((e) => [e.key, e.defaultPrevented]));
+      // The arrow keys would scroll a page: the editor must take them from the browser. A
+      // browser does nothing of its own with Delete on a canvas (the editor does not cancel
+      // it, in Chromium and Firefox alike), so for Delete what counts is above and below: the
+      // point is gone, the page has not moved and the keyboard is still with the editor.
+      for (const key of ["ArrowRight", "ArrowDown"]) {
+        if (!keys.some(([k, prevented]) => k === key && prevented)) {
+          throw new Error(`${key} was left to the browser: ${JSON.stringify(keys)}`);
+        }
+      }
+      if (!keys.some(([k]) => k === "Delete")) throw new Error(`Delete never reached the page: ${JSON.stringify(keys)}`);
+      if (new URL(page.url()).pathname !== "/") throw new Error(`the page went elsewhere: ${page.url()}`);
+      const after = await scroll();
+      if (after[0] !== before[0] || after[1] !== before[1]) throw new Error(`the page scrolled: ${before} -> ${after}`);
+      if (after[2] !== "openstitch") throw new Error(`the keyboard left the editor: focus is on "${after[2]}"`);
+      // Beside the points, on the shape: the object's menu; its Open through the ribbon command.
+      // Four fifths of the way to the opposite corner: inside the triangle that is left.
+      const inside = [at[0] + (far[0] - sx) * 0.8, at[1] + (far[1] - sy) * 0.8];
+      await page.mouse.click(inside[0], inside[1], { button: "right" });
+      await until("a right-click on the shape opens the object menu", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.objectMenuOpen === true);
+      const object = await menu();
+      const objectLabels = object.objectMenu.map((e) => e.label).join(", ");
+      if (objectLabels !== "Add Direction Line, Delete Direction Line, Reverse Direction Line, Open, Close") {
+        throw new Error(`object menu: ${objectLabels}`);
+      }
+      await painted("the object menu");
+      if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-object-menu.png`) });
+      const menus2 = await page.evaluate(() => window.__menus.map((e) => e.defaultPrevented));
+      if (menus2.length < 2 || menus2.some((prevented) => !prevented)) {
+        throw new Error(`the browser's own menu was not held back: ${JSON.stringify(menus2)}`);
+      }
+      await ok({ command: "ui.run", params: { action: "openOutline" } });
+      const opened = (await ok({ command: "object.list" })).find((o) => o.id === made.id);
+      if (!opened || opened.region) throw new Error(`Open: ${JSON.stringify(opened).slice(0, 300)}`);
+      noErrors("point tool", errors);
     } finally {
       await context.close();
     }
