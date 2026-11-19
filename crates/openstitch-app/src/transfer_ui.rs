@@ -65,11 +65,11 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let mut action: Option<bool> = None; // Some(overwrite)
     let mut refresh = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-send-to-usb-media")).id(egui::Id::unique("window-send-to-usb-media"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-send-to-usb-media")).id(egui::Id::unique("window-send-to-usb-media"))
         .open(&mut open)
         .resizable(false)
         .default_width(360.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let d = &mut app.workspace.usb;
             if d.volumes.is_empty() {
                 crate::art::header(ui, crate::art::Art::NoMedia, |ui| {

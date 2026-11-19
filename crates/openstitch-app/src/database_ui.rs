@@ -857,12 +857,12 @@ fn name_dialog(
 ) -> Option<String> {
     let mut result = None;
     let mut open = true;
-    egui::Window::new(title)
+    crate::fit::show(egui::Window::new(title)
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(prompt);
             let r = ui.text_edit_singleline(&mut name);
             r.request_focus();
@@ -889,12 +889,12 @@ fn name_dialog(
 
 fn confirm_delete(app: &mut EditorApp, ctx: &egui::Context, paths: &[PathBuf]) {
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-delete")).id(egui::Id::unique("window-delete"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-delete")).id(egui::Id::unique("window-delete"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(format!(
                 "Move {} item(s) to the {}?",
                 paths.len(),
@@ -963,11 +963,11 @@ fn search_dialog(app: &mut EditorApp, ctx: &egui::Context) {
         Units::Mm => " mm",
         Units::Inch => " in",
     };
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-search")).id(egui::Id::unique("window-search"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-search")).id(egui::Id::unique("window-search"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.database.search;
             ui.horizontal(|ui| {
                 ui.checkbox(&mut f.use_name, t("ui-file-name"));
@@ -1072,11 +1072,11 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let mut run = false;
     let n = app.database.selection.len();
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-convert-format")).id(egui::Id::unique("window-convert-format"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-convert-format")).id(egui::Id::unique("window-convert-format"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(format!(
                 "{n} design(s) selected. The originals are not changed."
             ));
@@ -1145,11 +1145,11 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
     let mut printing = false;
     let shown = app.database.items().len();
     let selected = app.database.selection.len();
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-catalogue")).id(egui::Id::unique("window-catalogue"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-catalogue")).id(egui::Id::unique("window-catalogue"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let c = &mut app.database.catalog;
             egui::Grid::new("db-catalog")
                 .num_columns(2)

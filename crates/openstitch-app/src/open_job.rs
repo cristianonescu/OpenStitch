@@ -319,7 +319,7 @@ fn progress_window(app: &mut EditorApp, ctx: &egui::Context) {
     let stage = job.stage();
     let seconds = job.seconds();
     let mut cancel = false;
-    egui::Modal::new(egui::Id::unique("open-job-progress")).show(ctx, |ui| {
+    crate::fit::modal(egui::Modal::new(egui::Id::unique("open-job-progress")), ctx, |ui| {
         ui.set_width(340.0);
         ui.heading(format!("{verb} {name}"));
         ui.add_space(6.0);

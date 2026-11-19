@@ -375,7 +375,7 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
     tops.push(y);
     let total = (y - gap).max(0.0);
     let mut built = Vec::new();
-    let mut area = egui::ScrollArea::vertical().auto_shrink([false, false]);
+    let mut area = crate::fit::list(ui, 120.0);
     if let Some(y) = ui.data_mut(|d| d.remove_temp::<f32>(order_scroll_to_id())) {
         area = area.vertical_scroll_offset(y);
     }
@@ -916,8 +916,7 @@ fn thread_picker(
 
 /// The Sewing Attributes pane: transform, region and line sewing of the selection.
 pub fn sewing_attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
+    crate::fit::list(ui, 160.0)
         .show(ui, |ui| {
             if app.selection.is_empty() {
                 design_info(app, ui);

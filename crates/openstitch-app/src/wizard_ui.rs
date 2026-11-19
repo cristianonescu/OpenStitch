@@ -29,11 +29,11 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
             &app.session.user_settings().default_chart(),
         );
     }
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-image-to-embroidery")).id(egui::Id::unique("window-image-to-embroidery"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-image-to-embroidery")).id(egui::Id::unique("window-image-to-embroidery"))
         .open(&mut open)
         .default_width(360.0)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let w = &mut app.wizard;
             crate::art::header(ui, crate::art::Art::WizardImage, |ui| {
                 ui.add_space(4.0);
@@ -531,10 +531,10 @@ fn fixing_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut clicked = None;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-fix-on-the-picture")).id(egui::Id::unique("window-fix-on-the-picture"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-fix-on-the-picture")).id(egui::Id::unique("window-fix-on-the-picture"))
         .open(&mut open)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let Some((_, (iw, ih), texture)) = &app.wizard_preview else {
                 ui.label(t("ui-the-image-could-not-be-read"));
                 return;
@@ -589,10 +589,10 @@ fn marking_window(app: &mut EditorApp, ctx: &egui::Context) {
             .map(|(size, t)| (path.clone(), size, t));
     }
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-mark-the-subject")).id(egui::Id::unique("window-mark-the-subject"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-mark-the-subject")).id(egui::Id::unique("window-mark-the-subject"))
         .open(&mut open)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let w = &mut app.wizard;
             ui.horizontal(|ui| {
                 ui.radio_value(&mut w.mark_subject, true, t("ui-subject"));

@@ -71,11 +71,11 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     // Some(true): print through the system; Some(false): save the PDF.
     let mut print: Option<bool> = None;
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-print")).id(egui::Id::unique("window-print"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-print")).id(egui::Id::unique("window-print"))
         .open(&mut open)
         .resizable(false)
         .default_width(360.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             for (m, label) in MODES {
                 let enabled = m != "image" || has_background;
                 ui.add_enabled_ui(enabled, |ui| {

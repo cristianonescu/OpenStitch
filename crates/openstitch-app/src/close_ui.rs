@@ -20,7 +20,7 @@ pub fn turn_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut stop = false;
     let mut cancel = false;
-    let modal = egui::Modal::new(egui::Id::unique("turn-close-prompt")).show(ctx, |ui| {
+    let modal = crate::fit::modal(egui::Modal::new(egui::Id::unique("turn-close-prompt")), ctx, |ui| {
         ui.set_width(400.0);
         ui.heading("The Assistant is still working");
         ui.add_space(4.0);
@@ -75,7 +75,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         }
     };
     let mut choice = None;
-    let modal = egui::Modal::new(egui::Id::unique("close-prompt")).show(ctx, |ui| {
+    let modal = crate::fit::modal(egui::Modal::new(egui::Id::unique("close-prompt")), ctx, |ui| {
         ui.set_width(400.0);
         ui.heading(title);
         ui.add_space(4.0);

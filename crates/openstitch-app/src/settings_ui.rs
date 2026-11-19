@@ -37,10 +37,10 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
 fn sets_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.settings.sets_open;
     let mut request = None;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-sewing-attribute-sets")).id(egui::Id::unique("window-sewing-attribute-sets"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-sewing-attribute-sets")).id(egui::Id::unique("window-sewing-attribute-sets"))
         .open(&mut open)
         .default_width(320.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let sets: Vec<String> = app
                 .session
                 .user_settings()
@@ -106,10 +106,10 @@ fn sets_window(app: &mut EditorApp, ctx: &egui::Context) {
 fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.settings.charts_open;
     let mut request: Option<CommandRequest> = None;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-user-thread-charts")).id(egui::Id::unique("window-user-thread-charts"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-user-thread-charts")).id(egui::Id::unique("window-user-thread-charts"))
         .open(&mut open)
         .default_width(380.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.horizontal(|ui| {
                 if ui
                     .button(t("ui-match-to-thread-chart"))

@@ -309,11 +309,11 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     }
     let mut action: Option<(String, bool)> = None;
     let mut later = false;
-    egui::Window::new("Recover Designs")
+    crate::fit::show(egui::Window::new("Recover Designs")
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(
                 "OpenStitch closed without saving these designs. Restore opens one as an untitled design; the original file is not changed.",
             );

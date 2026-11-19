@@ -187,11 +187,11 @@ fn card(ui: &mut egui::Ui, c: &Card) -> egui::Response {
 pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.ui.start.samples_open;
     let mut chosen: Option<&str> = None;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-open-sample")).id(egui::Id::unique("window-open-sample"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-open-sample")).id(egui::Id::unique("window-open-sample"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(t("ui-opens-a-copy-as-a-new"));
             ui.add_space(4.0);
             for (key, title, file) in SAMPLES {
@@ -210,10 +210,10 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
 
     let mut open = app.ui.start.page_open;
     let mut step: Option<Start> = None;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-getting-started")).id(egui::Id::unique("window-getting-started"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-getting-started")).id(egui::Id::unique("window-getting-started"))
         .open(&mut open)
         .default_size([520.0, 560.0])
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 for (label, s) in STEPS {
                     if ui.button(*label).clicked() {

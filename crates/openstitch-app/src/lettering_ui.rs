@@ -94,11 +94,11 @@ fn fit_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let (mut ok, mut cancel) = (false, false);
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-fit-text-to-outline-attribute-setting")).id(egui::Id::unique("window-fit-text-to-outline-attribute-setting"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-fit-text-to-outline-attribute-setting")).id(egui::Id::unique("window-fit-text-to-outline-attribute-setting"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.lettering.fit;
             egui::Grid::new("fit-text").num_columns(2).show(ui, |ui| {
                 ui.label(t("ui-horizontal-alignment"));
@@ -322,11 +322,11 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut action = None;
-    let shown = app
+    let shown = crate::fit::show(app
         .dialog_window(ctx, "Fonts", None)
         .open(&mut open)
         .default_width(380.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.lettering.fonts;
             ui.label(egui::RichText::new(t("ui-fonts-in-this-design")).strong());
             if rows.is_empty() {
@@ -856,10 +856,10 @@ fn text_window(app: &mut EditorApp, ctx: &egui::Context) {
     let choices = fonts(app);
     let mut open = true;
     let mut add = None;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-text")).id(egui::Id::unique("window-text"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-text")).id(egui::Id::unique("window-text"))
         .open(&mut open)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.lettering.text;
             ui.add(egui::TextEdit::multiline(&mut f.text).desired_rows(2));
             egui::Grid::new("text-form").num_columns(2).show(ui, |ui| {
@@ -932,11 +932,11 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let (mut add, mut edit, mut decorate) = (false, false, false);
-    let shown = app
+    let shown = crate::fit::show(app
         .dialog_window(ctx, "Monogram", None)
         .open(&mut open)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.lettering.monogram;
             egui::Grid::new("monogram-form")
                 .num_columns(2)
@@ -1080,10 +1080,10 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
     app.lettering.name_drop.fit_columns(n);
     let mut open = true;
     let mut action = None;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-name-drop-list")).id(egui::Id::unique("window-name-drop-list"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-name-drop-list")).id(egui::Id::unique("window-name-drop-list"))
         .open(&mut open)
         .default_width(420.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.lettering.name_drop;
             ui.label(egui::RichText::new(t("ui-name-drop-attribute")).strong());
             ui.horizontal(|ui| {
@@ -1270,10 +1270,10 @@ fn template_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let (mut next, mut back, mut folder, mut export, mut done, mut again) =
         (false, false, false, false, false, false);
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-template-wizard")).id(egui::Id::unique("window-template-wizard"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-template-wizard")).id(egui::Id::unique("window-template-wizard"))
         .open(&mut open)
         .default_width(360.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let w = &mut app.lettering.templates;
             match w.step {
                 2 => {

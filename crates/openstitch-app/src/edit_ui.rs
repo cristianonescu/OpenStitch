@@ -523,11 +523,11 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
             )
         })
         .collect();
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-arrange-copies")).id(egui::Id::unique("window-arrange-copies"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-arrange-copies")).id(egui::Id::unique("window-arrange-copies"))
         .open(&mut open)
         .resizable(false)
         .default_width(300.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.edit.arrange;
             let r = egui::ComboBox::from_label("Arrangement")
                 .selected_text(f.mode.label())
@@ -699,11 +699,11 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
     let units = app.ui.prefs.units;
     let mut open = app.edit.offset_open;
     let mut apply = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-offset-lines")).id(egui::Id::unique("window-offset-lines"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-offset-lines")).id(egui::Id::unique("window-offset-lines"))
         .open(&mut open)
         .resizable(false)
         .default_width(260.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.edit.offset;
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut f.inward, false, "Outward");
@@ -732,11 +732,11 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
 fn floral_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.edit.floral_open;
     let mut apply = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-floral-pattern")).id(egui::Id::unique("window-floral-pattern"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-floral-pattern")).id(egui::Id::unique("window-floral-pattern"))
         .open(&mut open)
         .resizable(false)
         .default_width(260.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.edit.floral;
             ui.add(egui::Slider::new(&mut f.density, 1..=10).text("Density"));
             ui.add(egui::Slider::new(&mut f.pattern, 0..=251).text("Pattern"));

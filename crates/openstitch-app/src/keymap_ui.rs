@@ -142,10 +142,10 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             }
         }
     }
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-keyboard-shortcuts")).id(egui::Id::unique("window-keyboard-shortcuts"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-keyboard-shortcuts")).id(egui::Id::unique("window-keyboard-shortcuts"))
         .open(&mut open)
         .default_size([480.0, 520.0])
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(t("ui-find"));
                 ui.add(

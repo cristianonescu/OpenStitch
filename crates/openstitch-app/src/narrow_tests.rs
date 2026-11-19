@@ -64,8 +64,10 @@ impl Window {
         self.nodes
             .iter()
             .filter(|n| n.role() == Role::Button)
-            .find(|n| n.label().is_some_and(|l| l.trim() == label))
-            .and_then(Node::bounds)
+            .filter(|n| n.label().is_some_and(|l| l.trim() == label))
+            .filter_map(Node::bounds)
+            // The widest: the Quick Access Toolbar has a small Help button of its own.
+            .max_by(|a, b| (a.x1 - a.x0).total_cmp(&(b.x1 - b.x0)))
             .map(|b| {
                 egui::Rect::from_min_max(
                     egui::pos2(b.x0 as f32, b.y0 as f32),

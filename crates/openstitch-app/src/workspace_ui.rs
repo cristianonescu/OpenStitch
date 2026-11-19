@@ -337,11 +337,11 @@ pub fn draw_measure(painter: &egui::Painter, vp: &Viewport, tool: &MeasureTool, 
 /// click or drag to move the canvas there.
 pub fn reference_window(app: &mut EditorApp, ctx: &egui::Context, canvas: Option<egui::Rect>) {
     let mut open = app.workspace.reference;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-reference")).id(egui::Id::unique("window-reference"))
+    crate::fit::show_filling(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-reference")).id(egui::Id::unique("window-reference"))
         .open(&mut open)
         .default_size([220.0, 220.0])
         .resizable(true)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let size = ui.available_size().max(egui::vec2(120.0, 120.0));
             let (rect, response) = ui.allocate_exact_size(size, Sense::click_and_drag());
             let page = app.session.design().page;
@@ -505,12 +505,12 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
     let units = app.ui.prefs.units;
     let mut open = app.workspace.settings_open;
     let mut requests: Vec<CommandRequest> = Vec::new();
-    let shown = app
+    let shown = crate::fit::show(app
         .dialog_window(ctx, "Design Settings", None)
         .open(&mut open)
         .default_width(340.0)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let d = app.session.design();
             let m = d.machine.clone();
             let (pw, ph) = (d.page.width / 10.0, d.page.height / 10.0);

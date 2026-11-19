@@ -802,3 +802,54 @@ fn the_options_menu_scrolls_to_every_entry_in_a_small_window() {
         assert_eq!(row.beyond, (0.0, 0.0), "{px:?} at {scale} %: inside the window");
     }
 }
+
+/// A dialog taller than the window: its content scrolls and its buttons stay in view. Design
+/// Property at 640 x 400 had Apply and Revert below the window's edge.
+#[test]
+fn a_dialog_scrolls_its_content_and_keeps_its_buttons_in_view() {
+    let base = Win::new(demo(), (640.0, 400.0), 100).layers();
+    let mut w = Win::new(
+        Launch {
+            show: vec!["property".into()],
+            ..demo()
+        },
+        (640.0, 400.0),
+        100,
+    );
+    w.frames(6, Vec::new());
+    let dialog: HashSet<egui::LayerId> = w.layers().difference(&base).copied().collect();
+    let controls: Vec<Control> =
+        w.controls().into_iter().filter(|c| dialog.contains(&c.layer)).collect();
+    // The buttons are in view before anything is scrolled.
+    for label in ["Apply", "Revert"] {
+        let b = controls.iter().find(|c| c.label == label).expect(label);
+        assert!(w.shown(b), "{label} is in view: {b:?}");
+    }
+    let fields = controls.iter().filter(|c| !w.shown(c)).count();
+    assert!(fields > 0, "the fields do not all fit at this size");
+    let row = w.audit("Design Property", Some(&dialog));
+    assert!(row.lost.is_empty(), "{row:?}");
+    assert_eq!(row.beyond, (0.0, 0.0), "inside the window");
+    // Still in view with the content scrolled to its end.
+    for label in ["Apply", "Revert"] {
+        let all = w.controls();
+        let b = all.iter().find(|c| c.label == label).expect(label);
+        assert!(w.shown(b), "{label} stays in view: {b:?}");
+    }
+    // A window with room for all of it lays the dialog out as before: nothing scrolls.
+    let mut big = Win::new(
+        Launch {
+            show: vec!["property".into()],
+            ..demo()
+        },
+        (1440.0, 900.0),
+        100,
+    );
+    big.frames(6, Vec::new());
+    let cut: Vec<Control> = big
+        .controls()
+        .into_iter()
+        .filter(|c| dialog.contains(&c.layer) && !big.shown(c))
+        .collect();
+    assert!(cut.is_empty(), "{cut:?}");
+}

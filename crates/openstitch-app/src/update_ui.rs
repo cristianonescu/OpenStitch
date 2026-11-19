@@ -397,13 +397,13 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         .current
         .as_ref()
         .map_or_else(version_line, |c| c.tag.clone());
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-openstitch-update")).id(egui::Id::unique("window-openstitch-update"))
+    crate::fit::show_filling(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-openstitch-update")).id(egui::Id::unique("window-openstitch-update"))
         .open(&mut open)
         .collapsible(false)
         .default_width(600.0)
         .default_height(480.0)
         .default_pos(ctx.content_rect().center() - egui::vec2(300.0, 240.0))
-        .show(ctx, |ui| match &st.phase {
+        , ctx, |ui| match &st.phase {
             Phase::Available(update) => {
                 crate::art::header(ui, crate::art::Art::UpdateAvailable, |ui| {
                     ui.heading(format!("OpenStitch {} is available", update.tag()));

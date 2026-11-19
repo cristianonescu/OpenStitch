@@ -20,12 +20,12 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut apply = false;
-    let shown = app
+    let shown = crate::fit::show(app
         .dialog_window(ctx, kind.title(), Some([260.0, 90.0]))
         .open(&mut open)
         .default_width(380.0)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let n = app.selection.len();
             let art = match kind {
                 WizardKind::Background => Art::WizardBackground,

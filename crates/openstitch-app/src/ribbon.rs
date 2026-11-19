@@ -1949,7 +1949,7 @@ pub fn button(
         }
     }
     // Named as a button for screen readers and for the reach test (#1276).
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, on, info.label));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, on, info.label));
     resp.on_hover_text(info.screen_tip(MAC))
 }
 
@@ -2261,7 +2261,7 @@ pub fn qat_button(
         ui.visuals().strong_text_color(),
         on,
     );
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, on, info.label));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, on, info.label));
     resp.on_hover_text(info.screen_tip(MAC))
 }
 

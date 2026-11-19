@@ -694,12 +694,12 @@ fn new_guide_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut done = false;
-    egui::Window::new(t("ui-guide-new-title"))
+    crate::fit::show(egui::Window::new(t("ui-guide-new-title"))
         .id(egui::Id::unique("window-new-guide"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.radio_value(&mut d.vertical, true, t("ui-guide-vertical"));
                 ui.radio_value(&mut d.vertical, false, t("ui-guide-horizontal"));
@@ -812,12 +812,12 @@ fn guide_layout_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let mut done = false;
     let unit = openstitch_app::editor::units::suffix(app.ui.prefs.units);
-    egui::Window::new(t("ui-guide-layout-title"))
+    crate::fit::show(egui::Window::new(t("ui-guide-layout-title"))
         .id(egui::Id::unique("window-guide-layout"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             egui::Grid::new("guide-layout-grid").num_columns(3).show(ui, |ui| {
                 ui.label(t("ui-guide-columns"));
                 ui.add(egui::DragValue::new(&mut d.columns).range(0..=50));
@@ -967,12 +967,12 @@ fn guide_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut done = false;
-    egui::Window::new(t("ui-guide-set-position-title"))
+    crate::fit::show(egui::Window::new(t("ui-guide-set-position-title"))
         .id(egui::Id::unique("window-guide-set-position"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let unit = openstitch_app::editor::units::suffix(app.ui.prefs.units);
             ui.label(if d.vertical {
                 t("ui-guide-position-x")
@@ -1324,11 +1324,11 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.workspace.view.image_open;
     let mut commit: Option<Value> = None;
     let mut turn: Option<&str> = None;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-modify-image")).id(egui::Id::unique("window-modify-image"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-modify-image")).id(egui::Id::unique("window-modify-image"))
         .open(&mut open)
         .resizable(false)
         .default_width(300.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let Some(b) = app.session.design().background.clone() else {
                 crate::art::header(ui, crate::art::Art::NoImage, |ui| {
                     ui.label(t("ui-no-background-image-use-image-open"));
@@ -1477,10 +1477,10 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
 fn realistic_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.workspace.view.realistic_open;
     let mut changed = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-realistic-view-settings")).id(egui::Id::unique("window-realistic-view-settings"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-realistic-view-settings")).id(egui::Id::unique("window-realistic-view-settings"))
         .open(&mut open)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let r = &mut app.ui.prefs.realistic;
             egui::Grid::new("realistic").num_columns(2).show(ui, |ui| {
                 ui.label(t("ui-thread-width"));
@@ -1557,10 +1557,10 @@ fn font_filter_window(app: &mut EditorApp, ctx: &egui::Context) {
         .clone()
         .unwrap_or_else(|| app.ui.prefs.font_filter.clone());
     let mut apply = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-font-filter-settings")).id(egui::Id::unique("window-font-filter-settings"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-font-filter-settings")).id(egui::Id::unique("window-font-filter-settings"))
         .open(&mut open)
         .default_width(300.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(t("ui-tick-the-fonts-to-show-clear"));
             egui::ScrollArea::vertical()
                 .max_height(320.0)
@@ -1668,11 +1668,11 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
     });
     let v = &mut app.workspace.view;
     let mut ok = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-fabric-selector")).id(egui::Id::unique("window-fabric-selector"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-fabric-selector")).id(egui::Id::unique("window-fabric-selector"))
         .open(&mut open)
         .default_width(420.0)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(190.0);

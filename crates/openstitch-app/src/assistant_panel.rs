@@ -1122,7 +1122,7 @@ fn close_hint_dialog(app: &mut EditorApp, ctx: &egui::Context) {
         app.ui.prefs.ai.enabled,
     );
     let mut ok = false;
-    egui::Modal::new(egui::Id::unique("assistant-close-hint")).show(ctx, |ui| {
+    crate::fit::modal(egui::Modal::new(egui::Id::unique("assistant-close-hint")), ctx, |ui| {
         ui.set_max_width(360.0);
         ui.heading(t("ui-the-assistant-is-closed"));
         ui.label(t("ui-to-open-it-again"));

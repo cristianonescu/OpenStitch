@@ -680,10 +680,10 @@ fn simulator_window(st: &mut SewingState, ctx: &egui::Context) {
     let mut open = true;
     let needles = repeated_needles(&st.editor, REPEATS);
     let total = needles.len();
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-stitch-simulator")).id(egui::Id::unique("window-stitch-simulator"))
+    crate::fit::show_filling(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-stitch-simulator")).id(egui::Id::unique("window-stitch-simulator"))
         .open(&mut open)
         .default_size([620.0, 220.0])
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let sim = &mut st.sim;
             crate::panels::sim_controls(ui, &mut sim.playing, &mut sim.pos, &mut sim.speed, total);
             let shown = sim.pos.unwrap_or(total);

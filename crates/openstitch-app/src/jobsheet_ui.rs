@@ -91,11 +91,11 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut print: Option<bool> = None;
     let mut apply = false;
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-job-sheet")).id(egui::Id::unique("window-job-sheet"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-job-sheet")).id(egui::Id::unique("window-job-sheet"))
         .open(&mut open)
         .resizable(false)
         .default_width(380.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             egui::Grid::new("job-fields").num_columns(2).show(ui, |ui| {
                 for (label, value) in [
                     ("Customer", &mut d.job.customer),

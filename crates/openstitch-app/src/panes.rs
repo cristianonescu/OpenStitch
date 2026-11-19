@@ -88,12 +88,12 @@ fn floating(
         return;
     }
     let mut open = true;
-    egui::Window::new(pane.title())
+    crate::fit::show_filling(egui::Window::new(pane.title())
         .open(&mut open)
         .default_pos(pos)
         .default_size(size)
         .resizable(true)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                 let dock =
                     egui::Button::new((crate::icons::ui_image(ui, "pane_dock"), "Dock")).small();
@@ -102,7 +102,7 @@ fn floating(
                     app.ui.save_prefs();
                 }
             });
-            pane.contents(app, ui);
+            crate::fit::pane(ui, |ui| pane.contents(app, ui));
         });
     if !open {
         pane.state(app).visible = false;
@@ -122,14 +122,14 @@ fn narrow_panes(app: &mut EditorApp, ctx: &egui::Context, screen: egui::Rect) {
         let mut open = true;
         // Above the status bar, one title bar over the other; an opened one grows upwards.
         let row = (panes.len() - 1 - i) as f32;
-        egui::Window::new(pane.title())
+        crate::fit::show_filling(egui::Window::new(pane.title())
             .id(egui::Id::unique(("narrow-pane", pane.title())))
             .open(&mut open)
             .default_open(false)
             .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(4.0, -100.0 - 34.0 * row))
             .default_width((screen.width() - 8.0).min(360.0))
             .resizable(true)
-            .show(ctx, |ui| pane.contents(app, ui));
+            , ctx, |ui| crate::fit::pane(ui, |ui| pane.contents(app, ui)));
         if !open {
             pane.state(app).visible = false;
             app.ui.save_prefs();
@@ -148,8 +148,13 @@ fn panel(id: &'static str, side: openstitch_app::editor::prefs::Side) -> egui::P
     }
 }
 
+/// The height the work area and the panes at its sides keep beside a pane docked above or
+/// below them, in a window too small for all of it (#1276).
+const WORK_AREA_LEAST: f32 = 160.0;
+
 /// Docks the visible panes around the work area (call before the central panel).
 pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
+    use openstitch_app::editor::prefs::Side;
     // A narrow window (#834, a phone) docks nothing: the canvas keeps the width, and the
     // panes float folded instead (`floating_panes`).
     if openstitch_app::editor::workspace::narrow(ui.ctx().content_rect().width()) {
@@ -159,25 +164,37 @@ pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
         let s = *p.state(app);
         s.visible && !s.floating
     };
+    // A small window (#1276): the Simulator leaves the work area and the panes beside it
+    // room, and each pane scrolls what does not fit (`fit::pane`).
     if docked(app, Pane::Simulator) {
-        panel("simulator", app.ui.prefs.panes.simulator.side).show(ui, |ui| {
-            header(app, ui, Pane::Simulator);
-            crate::panels::simulator(app, ui);
+        let side = app.ui.prefs.panes.simulator.side;
+        let across = matches!(side, Side::Top | Side::Bottom);
+        let mut p = panel("simulator", side);
+        if across {
+            p = p.max_size(crate::fit::pane_limit(ui.available_height(), WORK_AREA_LEAST));
+        }
+        p.show(ui, |ui| {
+            crate::fit::pane(ui, |ui| {
+                header(app, ui, Pane::Simulator);
+                crate::panels::simulator(app, ui);
+            })
         });
     }
     if docked(app, Pane::SewingOrder) {
         panel("objects", app.ui.prefs.panes.sewing_order.side)
             .default_size(250.0)
             .show(ui, |ui| {
-                header(app, ui, Pane::SewingOrder);
-                ui.separator();
-                crate::panels::object_list(app, ui);
+                crate::fit::pane(ui, |ui| {
+                    header(app, ui, Pane::SewingOrder);
+                    ui.separator();
+                    crate::panels::object_list(app, ui);
+                })
             });
     }
     if docked(app, Pane::Attributes) {
         panel("inspector", app.ui.prefs.panes.attributes.side)
             .default_size(330.0)
-            .show(ui, |ui| attributes(app, ui));
+            .show(ui, |ui| crate::fit::pane(ui, |ui| attributes(app, ui)));
     }
 }
 
@@ -309,7 +326,7 @@ fn color_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
         crate::art::notice(ui, crate::art::Art::SewEmpty, 64.0, "Nothing is sewn yet");
     }
     egui::ScrollArea::vertical()
-        .max_height(ui.available_height() - 40.0)
+        .max_height((ui.available_height() - 40.0).max(120.0))
         .show(ui, |ui| {
             for (k, c) in blocks.iter().enumerate() {
                 ui.horizontal(|ui| {
@@ -709,10 +726,10 @@ fn zoom_controls(app: &mut EditorApp, ui: &mut egui::Ui) {
 /// Design Property, Keyboard Shortcuts and About windows.
 pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.ui.property_open;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-design-property")).id(egui::Id::unique("window-design-property"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-design-property")).id(egui::Id::unique("window-design-property"))
         .open(&mut open)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             crate::panels::design_info(app, ui);
             ui.separator();
             let s = &app.stats;
@@ -775,7 +792,7 @@ fn property_fields(app: &mut EditorApp, ui: &mut egui::Ui) {
             }
         });
     let changed = *draft != current;
-    ui.horizontal(|ui| {
+    crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
         if ui
             .add_enabled(changed, egui::Button::new(t("menu-apply")))
             .clicked()
@@ -788,7 +805,7 @@ fn property_fields(app: &mut EditorApp, ui: &mut egui::Ui) {
         {
             app.ui.property_draft = None;
         }
-    });
+    }));
 }
 
 /// Writes the Design Property draft to the design (`design.setProperties`, one Undo step).
@@ -825,10 +842,10 @@ pub const WEB_LICENCE_APACHE: &str = "LICENSE-APACHE.txt";
 
 pub fn about_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.ui.about_open;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-about-openstitch")).id(egui::Id::unique("window-about-openstitch"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-about-openstitch")).id(egui::Id::unique("window-about-openstitch"))
         .open(&mut open)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let (name, src) = if ui.visuals().dark_mode {
                 ("wordmark-dark", crate::icons::WORDMARK_DARK)
             } else {
@@ -887,12 +904,12 @@ fn problem_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let mut close = false;
     let mut folder_error = None;
-    egui::Window::new(t("ui-window-report-a-problem"))
+    crate::fit::show(egui::Window::new(t("ui-window-report-a-problem"))
         .id(egui::Id::unique("window-report-a-problem"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.set_max_width(420.0);
             if st.report.is_some() {
                 ui.label(RichText::new(t("ui-openstitch-closed-unexpectedly")).strong());

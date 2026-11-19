@@ -163,12 +163,12 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     }
     let mut open = true;
     let mut act = None;
-    egui::Window::new(t("ui-window-floppy-image"))
+    crate::fit::show(egui::Window::new(t("ui-window-floppy-image"))
         .id(egui::Id::unique("window-floppy-image"))
         .open(&mut open)
         .resizable(false)
         .default_width(400.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let d = &mut app.workspace.floppy;
             ui.label(egui::RichText::new(t("ui-floppy-intro")).weak());
             ui.horizontal(|ui| {

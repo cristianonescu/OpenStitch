@@ -67,12 +67,12 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let (mut save, mut skip) = (false, false);
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-machine-setup")).id(egui::Id::unique("window-machine-setup"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-machine-setup")).id(egui::Id::unique("window-machine-setup"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
         .default_width(380.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(t("ui-which-machine-do-you-sew-on"));
             ui.add_space(6.0);
             egui::Grid::new("machine-setup").num_columns(2).show(ui, |ui| {
