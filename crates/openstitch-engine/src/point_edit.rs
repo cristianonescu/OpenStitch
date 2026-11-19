@@ -73,7 +73,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.movePoints",
-            "Move several vertices of one outline by the same offset, as dragging one of several selected points or pressing an arrow key with the Point tool does (PE-DESIGN's arrow keys move the selected points 0.5 mm). Each point's own curve handles move with it; a straight point beside a curve point has none. On an object of a hole-sewing pair (the outer shape or the inner one) a move that would take an outline across the other object's outline is refused and nothing moves: cancel hole sewing first (object.setHoleSewing with enabled false), as PE-DESIGN asks. One undo step. One outline of one object a call: for points on several outlines or objects send one call per outline (the editor's Point tool does, with all of them in one undo step)",
+            "Move several vertices of one outline by the same offset, as dragging one of several selected points or pressing an arrow key with the Point tool does (PE-DESIGN's arrow keys move the selected points 0.5 mm). Each point's own curve handles move with it; a straight point beside a curve point has none. On an object of a hole-sewing pair (the outer shape or the inner one) a move that would take an outline across the other object's outline is refused and nothing moves: cancel hole sewing first (object.setHoleSewing {ids: [id], enabled: false}), as PE-DESIGN asks. One undo step. One outline of one object a call: for points on several outlines or objects send one call per outline (the editor's Point tool does, with all of them in one undo step)",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),
@@ -190,7 +190,7 @@ pub(crate) fn refuse_hole_crossing(
     if openstitch_design::holes::moves_across_partner(before, id, &s.design.objects[i].contours) {
         let other = openstitch_design::holes::partner(before, id).map_or(0, |o| o.id);
         return Err(p.failed(format!(
-            "object {id} has hole sewing with object {other}: a point cannot be moved across the other outline. Cancel hole sewing first (object.setHoleSewing, enabled false)"
+            "object {id} has hole sewing with object {other}: a point cannot be moved across the other outline. Cancel hole sewing first (object.setHoleSewing {{ids: [{id}], enabled: false}})"
         )));
     }
     Ok(())

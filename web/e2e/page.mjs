@@ -473,13 +473,12 @@ async function extraChecks(browser, type, label) {
       const filled = await ok({ command: "shape.rectangle", params: { x: 62, y: 62, width: 20, height: 14, fill: "#2e8b57", outline: "#203040" } });
       await ok({ command: "object.setRegion", params: { id: filled.id, angle: 45 } });
       await ok({ command: "ui.select", params: { ids: [filled.id] } });
-      // The object menu of the step before is still open (Open was run as a command, not by
-      // a click on its entry), and a click would land on one of its rows: Esc closes it.
-      await page.keyboard.press("Escape");
-      await until("Esc closes the object menu", () => {
-        const s = window.openstitch.run({ command: "ui.pointMenu" }).result;
-        return s?.objectMenuOpen === false && s?.open === false;
-      });
+      // Open was run through ui.run in the step before: that closes the object menu, as a
+      // click on the entry does (#1271), so the next click cannot land on one of its rows.
+      const afterRun = await menu();
+      if (afterRun.objectMenuOpen !== false || afterRun.open !== false) {
+        throw new Error(`ui.run openOutline left a menu open: ${JSON.stringify({ open: afterRun.open, objectMenuOpen: afterRun.objectMenuOpen })}`);
+      }
       await until("the filled shape shows its direction line", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.directionLine?.screenFrom != null);
       const shownLine = (await menu()).directionLine;
       if (shownLine.angle !== 45 || shownLine.selected) throw new Error(`the direction line before the click: ${JSON.stringify(shownLine)}`);

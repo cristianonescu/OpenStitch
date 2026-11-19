@@ -1511,7 +1511,7 @@ fn path_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.setPoint",
-            "Move a vertex (its curve handles move with it; a straight point beside a curve point has none, so that curve keeps the curve point's handle). On an object of a hole-sewing pair (the outer shape or the inner one) a move that would take an outline across the other object's outline is refused and nothing moves: cancel hole sewing first (object.setHoleSewing with enabled false), as PE-DESIGN asks",
+            "Move a vertex (its curve handles move with it; a straight point beside a curve point has none, so that curve keeps the curve point's handle). On an object of a hole-sewing pair (the outer shape or the inner one) a move that would take an outline across the other object's outline is refused and nothing moves: cancel hole sewing first (object.setHoleSewing {ids: [id], enabled: false}), as PE-DESIGN asks",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),

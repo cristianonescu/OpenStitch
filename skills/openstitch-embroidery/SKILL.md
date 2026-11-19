@@ -464,7 +464,7 @@ then style them in the next.
   shape cancels hole sewing on its pair and takes text fitted to its outline off it
   (`holeSewingOff`, `textOff` in the answer); a point of a hole-sewn pair cannot be moved
   across the other shape's outline (`object.setPoint` and `object.movePoints` refuse:
-  `object.setHoleSewing` `{enabled: false}` first). A filled shape's
+  `object.setHoleSewing` `{ids: [id], enabled: false}` first). A filled shape's
   straight sewing direction shows as a line across it (`directionLine`: `angle`, `from`,
   `to`); turning it is `object.setRegion` `{id, angle}`, and a shape's only direction line
   cannot be deleted; `{action}` runs one (`ui.run pointToCurve` and the other ribbon

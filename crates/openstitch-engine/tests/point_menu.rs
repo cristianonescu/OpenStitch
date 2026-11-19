@@ -1246,11 +1246,24 @@ fn a_point_of_a_hole_sewn_pair_is_not_moved_across_the_other_outline() {
         p["id"] = json!(id);
         let e = fails(&mut s, command, p);
         assert!(
-            e.contains("hole sewing") && e.contains("object.setHoleSewing"),
+            e.contains("hole sewing")
+                && e.contains(&format!(
+                    "object.setHoleSewing {{ids: [{id}], enabled: false}}"
+                )),
             "{command}: {e}"
         );
         assert_eq!(*s.design(), before, "{command}: nothing moved");
     }
+    // A refused move is no undo step (the engine runs a command on a copy of the design and
+    // keeps it only when the command succeeds): one Undo takes back the last command that
+    // ran, the one that set hole sewing.
+    undo(&mut s);
+    assert!(
+        !object(&s, outer).hole_sewing,
+        "the refusals added no undo step"
+    );
+    s.execute("history.redo", None).expect("redo");
+    assert_eq!(*s.design(), before);
     // A move that crosses nothing is made.
     run(
         &mut s,
