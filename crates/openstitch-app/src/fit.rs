@@ -74,12 +74,14 @@ fn scroll_in<R>(ui: &mut egui::Ui, max: f32, add: impl FnOnce(&mut egui::Ui) -> 
             inner
         });
     // In a narrow window a sub-menu opens over the list it belongs to, under the resting
-    // pointer, and takes the wheel: when it has nothing to scroll, the wheel goes on to the
-    // list under it (read where that list finishes its frame, above).
-    let fits = out.content_size.y <= out.inner_rect.height() + 0.5;
-    if fits && ui.rect_contains_pointer(out.inner_rect) {
+    // pointer, and takes the wheel: when it has nothing (more) to scroll that way, the wheel
+    // goes on to the list under it (read where that list finishes its frame, above).
+    if ui.rect_contains_pointer(out.inner_rect) {
         let delta = ui.input(|i| i.smooth_scroll_delta);
-        if delta.y != 0.0 {
+        let offset = out.state.clamped_offset().y;
+        let end = (out.content_size.y - out.inner_rect.height()).max(0.0);
+        let stuck = (delta.y > 0.0 && offset <= 0.5) || (delta.y < 0.0 && offset >= end - 0.5);
+        if stuck {
             ui.ctx()
                 .data_mut(|d| d.insert_temp(wheel_id(), egui::vec2(0.0, delta.y)));
         }
@@ -335,10 +337,19 @@ pub fn show_filling<R>(
     ctx: &egui::Context,
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> Option<egui::InnerResponse<Option<R>>> {
-    window.show(ctx, |ui| {
-        visible_bars(ui);
-        add(ui)
-    })
+    // (A window that remembers a size larger than the app's window is held to that.)
+    let most = ctx.content_rect().size() - egui::vec2(2.0 * EDGE, 2.0 * EDGE + 32.0);
+    let most = most.max(egui::vec2(LEAST, LEAST));
+    window
+        .max_width(most.x)
+        .max_height(most.y)
+        // (And it does not fold up around a list that would take any size.)
+        .min_width(most.x.min(200.0))
+        .min_height(most.y.min(140.0))
+        .show(ctx, |ui| {
+            visible_bars(ui);
+            add(ui)
+        })
 }
 
 fn dialog<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
@@ -411,7 +422,10 @@ fn dialog<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
         &ctx,
         Surface {
             kind: "dialog",
-            rect: out.inner_rect,
+            rect: egui::Rect::from_min_size(
+                out.inner_rect.min,
+                egui::vec2(out.inner_rect.width(), out.inner_rect.height().min(out.content_size.y)),
+            ),
             content: out.content_size.y,
             offset: out.state.clamped_offset().y,
             buttons: pinned.filter(|_| buttons > 0.0),

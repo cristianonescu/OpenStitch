@@ -425,11 +425,8 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 let room = crate::fit::room(ui.ctx()) - 220.0;
                 // (With too little room for a list of its own, the notes are part of the
                 // window's scrolling content: a list inside a list traps the wheel.)
-                let notes_height = if room < 120.0 { f32::INFINITY } else { room.min(320.0) };
-                egui::ScrollArea::vertical()
-                    .max_height(notes_height)
-                    .auto_shrink([false, true])
-                    .show(ui, |ui| {
+                let cache = &mut st.cache;
+                let mut notes = |ui: &mut egui::Ui| {
                         for (i, r) in update.notes.iter().enumerate() {
                             if i > 0 {
                                 ui.separator();
@@ -440,14 +437,18 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                             if r.body.trim().is_empty() {
                                 ui.label(RichText::new(t("ui-no-release-notes")).weak());
                             } else {
-                                egui_commonmark::CommonMarkViewer::new().show(
-                                    ui,
-                                    &mut st.cache,
-                                    &r.body,
-                                );
+                                egui_commonmark::CommonMarkViewer::new().show(ui, cache, &r.body);
                             }
                         }
-                    });
+                };
+                if room < 120.0 {
+                    notes(ui);
+                } else {
+                    egui::ScrollArea::vertical()
+                        .max_height(room.min(320.0))
+                        .auto_shrink([false, true])
+                        .show(ui, notes);
+                }
                 ui.separator();
                 ui.checkbox(&mut st.skip, t("ui-don-t-remind-me-about-this"))
                     .on_hover_text(t("ui-stays-quiet-about-this-version-a-tip"));

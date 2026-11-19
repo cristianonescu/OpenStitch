@@ -573,7 +573,8 @@ design as it was; a finished open is one undo step, as before. The Assistant see
 **Options ▸ Text size** (100 %, 125 %, 150 %, 175 %, 200 %) enlarges the whole window on top of
 the system's display scale; ribbon groups that no longer fit scroll under a solid scroll bar and
 the status bar's controls move to a row of their own. Contrast, focus and screen-reader support:
-[ACCESSIBILITY.md](ACCESSIBILITY.md).
+[ACCESSIBILITY.md](ACCESSIBILITY.md). What a window too small for its menus, panes and dialogs
+does (they scroll; every control stays within reach, #1276): [SMALL_WINDOWS.md](SMALL_WINDOWS.md).
 
 ### Language (#555)
 

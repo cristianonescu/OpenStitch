@@ -2495,7 +2495,11 @@ impl eframe::App for EditorApp {
             // The other suite windows take the whole window, as separate programs do.
             self.update_title(&ctx);
             // (A low window scrolls as a page, as the main window does.)
-            crate::fit::page(ui, egui::vec2(0.0, crate::panes::PAGE_HEIGHT_LEAST), true, |ui| {
+            // The Stitch Creator and the Design Factory have a panel on each side of their
+            // work area: under 900 points wide they scroll sideways as well.
+            let wide = if self.database.open { 0.0 } else { 900.0 };
+            let least = egui::vec2(wide, crate::panes::PAGE_HEIGHT_LEAST);
+            crate::fit::page(ui, least, true, |ui| {
                 if self.database.open {
                     crate::database_ui::database(self, ui);
                 } else if self.creator.open {

@@ -661,7 +661,8 @@ These give the AI assistant ([research/beyond/ai-integration.md](research/beyond
 
 **Reading and running window commands**
 - `ui.state`: the window's current state, with the Sewing Order pane's Find text (`orderFilter`),
-  the page mode (`pageMode`), the Realistic view's `msaa` and, after a crash, `crashReport`.
+  the page mode (`pageMode`), the Realistic view's `msaa`, the menus, lists and dialogs on screen
+  with how far each is scrolled (`surfaces`, #1276) and, after a crash, `crashReport`.
 - `ui.actions`: every ribbon, menu and Quick Access Toolbar command, with how the assistant reaches it.
 - `ui.run`: runs a command by key, as a click would.
 

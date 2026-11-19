@@ -27,6 +27,9 @@ which documents none of this.
   The ribbon, panes and dialogs grow with it. Checked at 150 % in a 1440 × 900 window: the
   ribbon's groups that do not fit scroll into view under a solid scroll bar, the status bar's
   controls take a row of their own, and the Stitch Simulator's buttons wrap; nothing overlaps.
+  At 200 % in a small window (down to 640 × 400 pixels, 320 × 200 points) every menu, pane and
+  dialog scrolls and every control can be reached, also from the keyboard (#1276):
+  [SMALL_WINDOWS.md](SMALL_WINDOWS.md).
 
   ![The editor at Text size 150 %](images/rust-editor-large-text.png)
 - The Light and Dark themes meet **WCAG 2 AA**: text 4.5:1 on every background it is drawn on,

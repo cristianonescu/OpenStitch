@@ -294,7 +294,12 @@ impl Win {
             if (wide || (ends[0] && ends[1])) && (tall || (ends[2] && ends[3])) {
                 return Some(true);
             }
-            if last == Some(c.rect) {
+            // Nothing moves any more: neither the control nor any menu or dialog (a sub-menu
+            // over the list may take the wheel to its own end first, then pass it on).
+            let scrolled: Vec<i32> =
+                self.app.drawn.list.iter().map(|s| s.offset.round() as i32).collect();
+            let now = (c.rect, scrolled);
+            if last.as_ref() == Some(&now) {
                 still += 1;
                 if still >= 2 {
                     return Some(false);
@@ -302,7 +307,7 @@ impl Win {
             } else {
                 still = 0;
             }
-            last = Some(c.rect);
+            last = Some(now);
             let at = match from {
                 0 => self.wheel_point(c),
                 n => *self.other_wheel_points(c).get(n - 1)?,
@@ -1467,4 +1472,35 @@ fn the_wheel_scrolls_a_menu_on_past_an_entry_that_opens_a_sub_menu() {
     assert!(sub_menus > 0, "a sub-menu opened under the pointer on the way");
     let m = menu(&w);
     assert!(m.offset >= end - 1.0, "the wheel reached the end of the menu: {m:?}, end {end}");
+}
+
+/// By hand: one `--show` scene (REACH_SCENE) at REACH_PROBE's size, audited alone.
+#[test]
+#[ignore = "the survey: run by hand"]
+fn probe_scene() {
+    let px: Vec<f32> = std::env::var("REACH_PROBE")
+        .unwrap_or_else(|_| "640,400,100".into())
+        .split(',')
+        .map(|v| v.parse().expect("number"))
+        .collect();
+    let scene = std::env::var("REACH_SCENE").unwrap_or_else(|_| "property".into());
+    let base = Win::new(demo(), (px[0], px[1]), px[2] as u32).layers();
+    let mut w = Win::new(
+        Launch {
+            show: vec![scene.clone()],
+            ..demo()
+        },
+        (px[0], px[1]),
+        px[2] as u32,
+    );
+    w.frames(6, Vec::new());
+    let mut rows = Vec::new();
+    if w.app.database.open || w.app.creator.open || w.app.sewing.open {
+        rows.push(w.audit(&format!("Scene {scene} (whole window)"), None));
+    } else {
+        w.audit_new(&format!("Scene {scene}"), &base, &mut rows);
+    }
+    for r in rows {
+        eprintln!("{r:?}");
+    }
 }
