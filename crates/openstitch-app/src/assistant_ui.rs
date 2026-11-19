@@ -577,7 +577,20 @@ impl EditorApp {
         }
     }
 
+    /// `ui.run`. An entry of the Point tool's menus (the point menu's or the object menu's)
+    /// that ran closes an open menu, as a click on the entry does; a refused one leaves it.
     fn ui_run(&mut self, key: &str) -> Result<Value, String> {
+        let out = self.ui_run_action(key)?;
+        if Action::from_key(key).is_some_and(|a| {
+            openstitch_app::editor::ribbon::POINT_OBJECT_MENU.contains(&a)
+                || crate::point_menu_ui::action_of(a).is_some()
+        }) {
+            self.workspace.view.point_menu = None;
+        }
+        Ok(out)
+    }
+
+    fn ui_run_action(&mut self, key: &str) -> Result<Value, String> {
         let a = Action::from_key(key)
             .ok_or_else(|| format!("no command '{key}'; ui.actions lists them"))?;
         let info = a.info();

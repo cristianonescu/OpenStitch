@@ -309,7 +309,7 @@ fn split_at_point_opens_a_closed_outline_and_cuts_an_open_line_in_two() {
     );
     assert_eq!(
         r,
-        json!({ "ids": [id], "opened": true, "regionOff": false, "regionToLine": false })
+        json!({ "ids": [id], "opened": true, "regionOff": false, "regionToLine": false, "holeSewingOff": false, "textOff": 0 })
     );
     let c = contour(&s, id);
     assert!(!c.closed);
@@ -429,7 +429,7 @@ fn opening_the_outline_of_a_region() {
     let r = run(&mut s, "object.openOutline", json!({ "id": only }));
     assert_eq!(
         r,
-        json!({ "id": only, "regionOff": true, "regionToLine": true })
+        json!({ "id": only, "regionOff": true, "regionToLine": true, "holeSewingOff": false, "textOff": 0 })
     );
     let o = object(&s, only);
     assert!(!o.contours[0].closed && o.region.is_none() && o.line.is_some());
@@ -888,7 +888,7 @@ fn close_adds_a_region_and_open_removes_it_as_pe_design_does() {
     let r = run(&mut s, "object.openOutline", json!({ "id": id }));
     assert_eq!(
         r,
-        json!({ "id": id, "regionOff": true, "regionToLine": false })
+        json!({ "id": id, "regionOff": true, "regionToLine": false, "holeSewingOff": false, "textOff": 0 })
     );
     let o = object(&s, id);
     assert!(!o.contours[0].closed && o.region.is_none() && o.line.is_some());
@@ -1060,6 +1060,242 @@ fn the_registry_says_the_point_commands_take_one_outline_a_call() {
             "in one undo step",
         ] {
             assert!(summary.contains(words), "{id}: {words}");
+        }
+    }
+}
+
+/// #1271 (PE-DESIGN's instruction manual, read 2026-11-19): splitting or opening a shape
+/// cancels hole sewing on it, and text fitted to its outline comes off it.
+#[test]
+fn split_and_open_cancel_hole_sewing_and_take_fitted_text_off() {
+    let pair = |s: &mut Session| {
+        let outer = run(
+            s,
+            "shape.rectangle",
+            json!({ "x": 10, "y": 10, "width": 60, "height": 40, "fill": "#2e8b57", "outline": "#203040" }),
+        )["id"]
+            .as_u64()
+            .expect("id");
+        let inner = run(
+            s,
+            "shape.rectangle",
+            json!({ "x": 30, "y": 20, "width": 20, "height": 20, "fill": "#c0504d", "outline": "#203040" }),
+        )["id"]
+            .as_u64()
+            .expect("id");
+        run(
+            s,
+            "object.setHoleSewing",
+            json!({ "ids": [outer, inner], "enabled": true }),
+        );
+        assert!(object(s, outer).hole_sewing, "the pair is set");
+        (outer, inner)
+    };
+    let hole = |s: &Session| {
+        s.design()
+            .objects
+            .iter()
+            .any(|o| o.hole_sewing || o.hole_inner.is_some())
+    };
+    for (command, params, what) in [
+        (
+            "object.splitAtPoint",
+            json!({ "index": 1 }),
+            "Split at Point on the outer shape",
+        ),
+        ("object.openOutline", json!({}), "Open on the outer shape"),
+    ] {
+        for inner_one in [false, true] {
+            let mut s = Session::new(std::env::temp_dir());
+            let (outer, inner) = pair(&mut s);
+            let before = s.design().clone();
+            let mut p = params.clone();
+            p["id"] = json!(if inner_one { inner } else { outer });
+            let r = run(&mut s, command, p);
+            assert_eq!(r["holeSewingOff"], true, "{what} (inner: {inner_one})");
+            assert!(
+                !hole(&s),
+                "{what} (inner: {inner_one}): no object keeps the flags"
+            );
+            undo(&mut s);
+            assert_eq!(*s.design(), before, "{what}: one Undo brings the pair back");
+        }
+    }
+    // A shape in no pair: nothing to cancel.
+    let mut s = Session::new(std::env::temp_dir());
+    let (outer, _) = pair(&mut s);
+    run(
+        &mut s,
+        "object.setHoleSewing",
+        json!({ "ids": [outer], "enabled": false }),
+    );
+    let r = run(&mut s, "object.openOutline", json!({ "id": outer }));
+    assert_eq!(
+        (r["holeSewingOff"].clone(), r["textOff"].clone()),
+        (json!(false), json!(0))
+    );
+
+    // Text fitted to the outline: taken off by a split of a closed shape, by Open, and by a
+    // cut of an open line (neither piece carries it).
+    let fitted = |s: &mut Session, shape: u64| {
+        let t = run(
+            s,
+            "text.add",
+            json!({ "text": "AB", "size": 8, "x": 20, "y": 80, "fill": "Red" }),
+        )["id"]
+            .as_u64()
+            .expect("id");
+        run(s, "text.setPath", json!({ "id": t, "path": shape }));
+        assert_eq!(object(s, t).text.as_ref().and_then(|x| x.path), Some(shape));
+        t
+    };
+    for (command, params) in [
+        ("object.splitAtPoint", json!({ "index": 1 })),
+        ("object.openOutline", json!({})),
+    ] {
+        let mut s = Session::new(std::env::temp_dir());
+        let shape = run(
+            &mut s,
+            "shape.rectangle",
+            json!({ "x": 10, "y": 10, "width": 60, "height": 40, "outline": "#203040" }),
+        )["id"]
+            .as_u64()
+            .expect("id");
+        let t = fitted(&mut s, shape);
+        let before = s.design().clone();
+        let mut p = params.clone();
+        p["id"] = json!(shape);
+        let r = run(&mut s, command, p);
+        assert_eq!(r["textOff"], 1, "{command}");
+        assert_eq!(
+            object(&s, t).text.as_ref().and_then(|x| x.path),
+            None,
+            "{command}"
+        );
+        undo(&mut s);
+        assert_eq!(*s.design(), before, "{command}: one Undo");
+    }
+    let mut s = Session::new(std::env::temp_dir());
+    let line = run(
+        &mut s,
+        "shape.polygon",
+        json!({ "points": [[10, 60], [40, 60], [70, 40]], "closed": false, "outline": "#203040" }),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let t = fitted(&mut s, line);
+    let r = run(
+        &mut s,
+        "object.splitAtPoint",
+        json!({ "id": line, "index": 1 }),
+    );
+    assert_eq!(r["textOff"], 1);
+    assert_eq!(object(&s, t).text.as_ref().and_then(|x| x.path), None);
+}
+
+/// #1271 (PE-DESIGN's instruction manual, read 2026-11-19): on a shape with hole sewing a
+/// point cannot be moved across an outline; hole sewing has to be cancelled first.
+#[test]
+fn a_point_of_a_hole_sewn_pair_is_not_moved_across_the_other_outline() {
+    let mut s = Session::new(std::env::temp_dir());
+    let outer = run(
+        &mut s,
+        "shape.rectangle",
+        json!({ "x": 10, "y": 10, "width": 60, "height": 40, "fill": "#2e8b57", "outline": "#203040" }),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let inner = run(
+        &mut s,
+        "shape.rectangle",
+        json!({ "x": 30, "y": 20, "width": 20, "height": 20, "fill": "#c0504d", "outline": "#203040" }),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    run(
+        &mut s,
+        "object.setHoleSewing",
+        json!({ "ids": [outer, inner], "enabled": true }),
+    );
+    let before = s.design().clone();
+    // The outer shape's corner into the hole, the inner shape's corner out of the outer
+    // shape, by setPoint and by movePoints (the arrow keys and the drag of several points).
+    for (id, command, params) in [
+        (
+            outer,
+            "object.setPoint",
+            json!({ "index": 0, "x": 40, "y": 30 }),
+        ),
+        (
+            outer,
+            "object.movePoints",
+            json!({ "indexes": [0], "dx": 30, "dy": 20 }),
+        ),
+        (
+            inner,
+            "object.setPoint",
+            json!({ "index": 1, "x": 90, "y": 20 }),
+        ),
+        (
+            inner,
+            "object.movePoints",
+            json!({ "indexes": [1, 2], "dx": 40, "dy": 0 }),
+        ),
+    ] {
+        let mut p = params;
+        p["id"] = json!(id);
+        let e = fails(&mut s, command, p);
+        assert!(
+            e.contains("hole sewing") && e.contains("object.setHoleSewing"),
+            "{command}: {e}"
+        );
+        assert_eq!(*s.design(), before, "{command}: nothing moved");
+    }
+    // A move that crosses nothing is made.
+    run(
+        &mut s,
+        "object.setPoint",
+        json!({ "id": outer, "index": 0, "x": 5, "y": 5 }),
+    );
+    run(
+        &mut s,
+        "object.movePoints",
+        json!({ "id": inner, "indexes": [1], "dx": 2, "dy": -2 }),
+    );
+    undo(&mut s);
+    undo(&mut s);
+    // With hole sewing cancelled the same move is made.
+    run(
+        &mut s,
+        "object.setHoleSewing",
+        json!({ "ids": [outer], "enabled": false }),
+    );
+    run(
+        &mut s,
+        "object.setPoint",
+        json!({ "id": outer, "index": 0, "x": 40, "y": 30 }),
+    );
+    // What a model reads.
+    let commands = s.commands();
+    let summary = |id: &str| {
+        commands
+            .iter()
+            .find(|c| c.id == id)
+            .unwrap_or_else(|| panic!("{id} is registered"))
+            .summary
+    };
+    for id in ["object.setPoint", "object.movePoints"] {
+        for words in [
+            "hole-sewing pair",
+            "is refused and nothing moves",
+            "object.setHoleSewing",
+        ] {
+            assert!(summary(id).contains(words), "{id}: {words}");
+        }
+    }
+    for id in ["object.splitAtPoint", "object.openOutline"] {
+        for words in ["Hole sewing is cancelled", "holeSewingOff", "textOff"] {
+            assert!(summary(id).contains(words), "{id}: {words}");
         }
     }
 }

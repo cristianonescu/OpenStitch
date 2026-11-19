@@ -3235,3 +3235,81 @@ fn a_press_on_the_direction_lines_end_wins_over_a_corner_within_reach() {
     t.handle(PointerEvent::new(Phase::Up, between), &far);
     assert!(t.direction_line(&far).expect("line").selected);
 }
+
+/// #1271 (PE-DESIGN's manual): a point of a hole-sewn shape cannot be dragged across an
+/// outline. The drag stops at the last place where the outlines did not cross.
+#[test]
+fn a_dragged_point_of_a_hole_sewn_shape_stops_before_the_other_outline() {
+    let mut s = session();
+    let rect = |s: &mut Session, x: f64, y: f64, w: f64, h: f64| {
+        run(
+            s,
+            &CommandRequest::new(
+                "shape.rectangle",
+                json!({ "x": x, "y": y, "width": w, "height": h, "fill": "#2e8b57", "outline": "#203040" }),
+            ),
+        )["id"]
+            .as_u64()
+            .expect("id")
+    };
+    let outer = rect(&mut s, 10.0, 10.0, 60.0, 40.0);
+    let inner = rect(&mut s, 30.0, 20.0, 20.0, 20.0);
+    run(
+        &mut s,
+        &CommandRequest::new(
+            "object.setHoleSewing",
+            json!({ "ids": [outer, inner], "enabled": true }),
+        ),
+    );
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([outer]);
+    let design = s.design().clone();
+    let c = ctx(&design, &sel);
+    // The outer shape's top-left corner (100, 100) dragged toward the middle of the hole
+    // (the inner shape is 300..500 x 200..400): the preview follows to (250, 150), then
+    // stays there when the pointer goes on into the hole.
+    t.handle(PointerEvent::new(Phase::Down, v2(100.0, 100.0)), &c);
+    t.handle(PointerEvent::new(Phase::Dragged, v2(250.0, 150.0)), &c);
+    let shown = |t: &ToolController| t.point_overlay(&c).expect("overlay").contours[0].points[0];
+    assert_eq!(shown(&t), v2(250.0, 150.0));
+    t.handle(PointerEvent::new(Phase::Dragged, v2(400.0, 300.0)), &c);
+    assert_eq!(
+        shown(&t),
+        v2(250.0, 150.0),
+        "the drag stops before the hole's outline"
+    );
+    let effects = t.handle(PointerEvent::new(Phase::Up, v2(400.0, 300.0)), &c);
+    let sel = apply(&mut s, effects, sel);
+    assert_eq!(
+        s.design().objects[0].contours[0].points[0],
+        v2(250.0, 150.0)
+    );
+    assert!(s.design().objects[0].hole_sewing, "hole sewing is kept");
+    // The arrow keys: a step that would cross is refused by the engine; nothing moves. (The
+    // inner shape's corner 0.2 mm inside the outer shape's right side, then 0.5 mm right.)
+    run(
+        &mut s,
+        &CommandRequest::new(
+            "object.setPoint",
+            json!({ "id": inner, "index": 1, "x": 69.8, "y": 20 }),
+        ),
+    );
+    let _ = sel;
+    let sel = BTreeSet::from([inner]);
+    let design = s.design().clone();
+    let c = ctx(&design, &sel);
+    assert!(t.select_points(0, &[1], &c));
+    let effects = t.nudge_points(5.0, 0.0, &c).expect("a point is selected");
+    let [ToolEffect::Execute { requests, .. }] = effects.as_slice() else {
+        panic!("one effect");
+    };
+    let refused = s.execute(requests[0].command, Some(&requests[0].params));
+    assert!(
+        refused
+            .expect_err("across the outline")
+            .to_string()
+            .contains("hole sewing")
+    );
+    assert_eq!(*s.design(), design);
+}

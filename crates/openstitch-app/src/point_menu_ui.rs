@@ -179,11 +179,12 @@ pub fn object_entry_enabled(app: &EditorApp, a: Action) -> bool {
 }
 
 /// The Delete Direction Line sub-menu, PE-DESIGN's two entries: (key, text id, available).
-/// Built from their names (what they do with lines present is not captured): Delete Selected
-/// Line removes the selected direction lines, and no direction line can be selected on the
-/// canvas here, so it has nothing to act on; Delete Lines Not Selected removes the others,
-/// which is all of them: the shape goes back to one straight sewing direction
-/// ([`delete_direction_lines`]). Both are grey on a shape without direction lines.
+/// Delete Selected Line removes the selected direction line. It is grey here: the one line
+/// the Point tool can select is a shape's only direction line (its fill angle), which cannot
+/// be deleted (PE-DESIGN capture g), and of a curved direction or a Manual Punch shape's
+/// lines none can be selected yet (#1273). Delete Lines Not Selected removes the others,
+/// which until #1273 is all of them: the shape goes back to one straight sewing direction
+/// ([`delete_direction_lines`]). Both are grey on a shape without such lines.
 pub fn direction_submenu(app: &EditorApp) -> [(&'static str, &'static str, bool); 2] {
     let ctx = app.tool_context(app.session.design());
     let has_lines = ctx
@@ -671,7 +672,7 @@ pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, Str
             return Err(format!(
                 "{key} is not available: {}",
                 if key == "deleteSelectedLine" {
-                    "no direction line can be selected here; deleteLinesNotSelected removes them all"
+                    "a shape's only direction line cannot be deleted, and of a curved direction or a Manual Punch shape's lines none can be selected yet; deleteLinesNotSelected removes those"
                 } else {
                     "the selected shape has no direction lines"
                 }
@@ -1090,6 +1091,54 @@ mod tests {
         assert!(!hint(&mut app, json!([1])).contains("Alt"));
     }
 
+    /// An entry of the point menu or the object menu run through `ui.run` closes an open menu,
+    /// as a click on the entry does (a script could leave it open, and the next click then
+    /// landed on a row of it); a refused entry leaves the menu open.
+    #[test]
+    fn ui_run_of_a_menu_entry_closes_the_open_menu() {
+        let open = |app: &mut EditorApp, object: bool| {
+            app.workspace.view.point_menu = Some(PointMenu {
+                at: egui::pos2(300.0, 200.0),
+                fresh: false,
+                object,
+                sub: false,
+                drawn: None,
+            });
+        };
+        let state = |app: &mut EditorApp| {
+            let s = app.ui_command("ui.pointMenu", None).expect("state");
+            (s["open"] == true, s["objectMenuOpen"] == true)
+        };
+        let (mut app, _) = with_rectangle();
+        app.ui_command("ui.pointMenu", Some(&json!({ "points": [0] })))
+            .expect("a point");
+        // Refused (the outline is closed already): the object menu stays open.
+        open(&mut app, true);
+        assert!(
+            app.ui_command("ui.run", Some(&json!({ "action": "closeOutline" })))
+                .is_err()
+        );
+        assert_eq!(state(&mut app), (false, true));
+        // Open runs: the menu closes.
+        app.ui_command("ui.run", Some(&json!({ "action": "openOutline" })))
+            .expect("Open");
+        assert_eq!(state(&mut app), (false, false));
+        assert!(!app.session.design().objects[0].contours[0].closed);
+        // A point entry through ui.run closes the point menu.
+        app.ui_command("ui.pointMenu", Some(&json!({ "points": [1] })))
+            .expect("a point");
+        open(&mut app, false);
+        assert_eq!(state(&mut app), (true, false));
+        app.ui_command("ui.run", Some(&json!({ "action": "pointToCurve" })))
+            .expect("To Curve");
+        assert_eq!(state(&mut app), (false, false));
+        // Another command leaves a menu alone.
+        open(&mut app, true);
+        app.ui_command("ui.run", Some(&json!({ "action": "selectAll" })))
+            .expect("Select All");
+        assert_eq!(state(&mut app), (false, true));
+    }
+
     /// PE-DESIGN capture g, 2026-11-19: a filled shape shows one direction line, its fill
     /// angle; a click on an end selects it; the only line cannot be deleted. The greying, row
     /// by row.
@@ -1177,6 +1226,15 @@ mod tests {
             .iter()
             .find(|c| c.id == "ui.pointMenu")
             .expect("ui.pointMenu");
+        // Why Delete Selected Line is grey, said truly: a line can be selected now.
+        assert!(!spec.summary.contains("no direction line can be selected"));
+        assert!(spec.summary.contains(
+            "deleteSelectedLine (grey: a shape's only direction line cannot be deleted"
+        ));
+        let e = app
+            .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteSelectedLine" })))
+            .expect_err("grey");
+        assert!(e.contains("only direction line cannot be deleted"), "{e}");
         for words in ["directionLine", "selectDirectionLine", "object.setRegion", "cannot be deleted"] {
             assert!(spec.summary.contains(words), "summary: {words}");
         }
@@ -1582,7 +1640,7 @@ mod tests {
             .collect();
         assert_eq!(sub, [("Delete Selected Line", false), ("Delete Lines Not Selected", false)]);
         // With direction lines on the shape, Delete Lines Not Selected removes them all (none
-        // can be selected here), one undo step; Delete Selected Line has nothing to act on.
+        // of those can be selected yet), one undo step; Delete Selected Line stays grey.
         app.execute(&CommandRequest::new(
             "object.setDirectionLines",
             json!({ "id": 1, "lines": [[[12, 12], [12, 18]], [[28, 12], [28, 18]]] }),

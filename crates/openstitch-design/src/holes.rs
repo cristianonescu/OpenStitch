@@ -62,3 +62,52 @@ pub fn paired_inner<'a>(object: &DesignObject, design: &'a Design) -> Option<&'a
         .iter()
         .find(|o| o.visible && object_encloses(object, o))
 }
+
+/// The other object of the hole-sewing pair object `id` belongs to (#1271): the inner object
+/// when `id` is sewn around one, or the object that is sewn around `id`. `None` when `id` is
+/// in no pair.
+pub fn partner(design: &Design, id: u64) -> Option<&DesignObject> {
+    let i = design.index_of(id)?;
+    if let Some(inner) = paired_inner(&design.objects[i], design) {
+        return Some(inner);
+    }
+    design
+        .objects
+        .iter()
+        .find(|o| paired_inner(o, design).is_some_and(|inner| inner.id == id))
+}
+
+/// Whether segment `a`-`b` properly crosses segment `c`-`d` (touching ends do not count).
+fn segments_cross(a: crate::Vec2, b: crate::Vec2, c: crate::Vec2, d: crate::Vec2) -> bool {
+    let side = |p: crate::Vec2, q: crate::Vec2, r: crate::Vec2| {
+        (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+    };
+    let (d1, d2) = (side(c, d, a), side(c, d, b));
+    let (d3, d4) = (side(a, b, c), side(a, b, d));
+    d1 * d2 < 0.0 && d3 * d4 < 0.0
+}
+
+/// Whether an outline of `a` crosses an outline of `b` (curves flattened): what a point of a
+/// hole-sewn shape must not be moved into, since the outer region is sewn around the inner
+/// shape (PE-DESIGN's manual: such a point cannot be dragged across an outline).
+pub fn outlines_cross(a: &[Contour], b: &[Contour]) -> bool {
+    let paths = |cs: &[Contour]| cs.iter().map(Contour::path).collect::<Vec<_>>();
+    let (pa, pb) = (paths(a), paths(b));
+    pa.iter().any(|p| {
+        p.windows(2).any(|s| {
+            pb.iter()
+                .any(|q| q.windows(2).any(|t| segments_cross(s[0], s[1], t[0], t[1])))
+        })
+    })
+}
+
+/// Whether changing object `id`'s outlines from what they are in `design` to `edited` moves
+/// one across an outline of its hole-sewing partner: they cross afterwards and did not
+/// before. False for an object in no pair.
+pub fn moves_across_partner(design: &Design, id: u64, edited: &[Contour]) -> bool {
+    let (Some(i), Some(other)) = (design.index_of(id), partner(design, id)) else {
+        return false;
+    };
+    outlines_cross(edited, &other.contours)
+        && !outlines_cross(&design.objects[i].contours, &other.contours)
+}

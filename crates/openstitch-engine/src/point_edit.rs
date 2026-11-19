@@ -62,7 +62,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.splitAtPoint",
-            "Split an outline at a vertex (Select Point's Split at Point). A closed outline is opened there: it becomes one open line that starts and ends at the point, and a region on an object left with no closed outline is removed, as PE-DESIGN removes it; the line sewing stays. An object sewn as a region only gets line sewing in its place, a running stitch in the region's thread, as object.regionToLine gives it (the answer's regionToLine says so; by extension: PE-DESIGN's own shapes always have a line). An open line is cut at an inner vertex into two objects that both keep the point: the first keeps the id, the second gets a new id right after it in the sewing order with the same attributes. Refused at the first and last point of an open line. One undo step",
+            "Split an outline at a vertex (Select Point's Split at Point). A closed outline is opened there: it becomes one open line that starts and ends at the point, and a region on an object left with no closed outline is removed, as PE-DESIGN removes it; the line sewing stays. An object sewn as a region only gets line sewing in its place, a running stitch in the region's thread, as object.regionToLine gives it (the answer's regionToLine says so; by extension: PE-DESIGN's own shapes always have a line). An open line is cut at an inner vertex into two objects that both keep the point: the first keeps the id, the second gets a new id right after it in the sewing order with the same attributes. Refused at the first and last point of an open line. Hole sewing is cancelled on the object's pair, whether it is the outer or the inner shape (holeSewingOff in the answer; no piece keeps it), and text fitted to its outline is taken off it and stays where it was laid out (textOff, the number of texts), as PE-DESIGN's manual states a split does. One undo step",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),
@@ -73,7 +73,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.movePoints",
-            "Move several vertices of one outline by the same offset, as dragging one of several selected points or pressing an arrow key with the Point tool does (PE-DESIGN's arrow keys move the selected points 0.5 mm). Each point's own curve handles move with it; a straight point beside a curve point has none. One undo step. One outline of one object a call: for points on several outlines or objects send one call per outline (the editor's Point tool does, with all of them in one undo step)",
+            "Move several vertices of one outline by the same offset, as dragging one of several selected points or pressing an arrow key with the Point tool does (PE-DESIGN's arrow keys move the selected points 0.5 mm). Each point's own curve handles move with it; a straight point beside a curve point has none. On an object of a hole-sewing pair (the outer shape or the inner one) a move that would take an outline across the other object's outline is refused and nothing moves: cancel hole sewing first (object.setHoleSewing with enabled false), as PE-DESIGN asks. One undo step. One outline of one object a call: for points on several outlines or objects send one call per outline (the editor's Point tool does, with all of them in one undo step)",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),
@@ -91,7 +91,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.openOutline",
-            "Open a closed outline (the Point tool's object menu, Open): its closing side, from the last vertex to the first, is removed and it becomes an open line through the same points. A region on an object left with no closed outline is removed, as PE-DESIGN removes it (the answer's regionOff says so); the line sewing stays. An object sewn as a region only gets line sewing in its place, a running stitch in the region's thread, as object.regionToLine gives it (regionToLine in the answer). Refused on an open outline. One undo step",
+            "Open a closed outline (the Point tool's object menu, Open): its closing side, from the last vertex to the first, is removed and it becomes an open line through the same points. A region on an object left with no closed outline is removed, as PE-DESIGN removes it (the answer's regionOff says so); the line sewing stays. An object sewn as a region only gets line sewing in its place, a running stitch in the region's thread, as object.regionToLine gives it (regionToLine in the answer). Hole sewing is cancelled on the object's pair, whether it is the outer or the inner shape (holeSewingOff), and text fitted to its outline is taken off it (textOff, the number of texts), as with object.splitAtPoint. Refused on an open outline. One undo step",
             Effect::Edit,
             vec![req("id", "int", "Shape object"), CONTOUR],
             open_outline,
@@ -154,13 +154,81 @@ fn set_point_kind(s: &mut EngineState, p: &Params) -> Result<Value, CommandError
 fn move_points(s: &mut EngineState, p: &Params) -> Result<Value, CommandError> {
     let dx = p.req("dx", -5000.0, 5000.0)? * crate::commands::MM;
     let dy = p.req("dy", -5000.0, 5000.0)? * crate::commands::MM;
+    let before = hole_pair_before(s, p);
     let c = contour_mut(s, p)?;
     let at = point_indexes(p, c)?;
     for &i in &at {
         let to = c.points[i] + openstitch_design::v2(dx, dy);
         c.move_point(i, to);
     }
+    refuse_hole_crossing(s, p, before.as_ref())?;
     Ok(json!({ "moved": at.len() }))
+}
+
+/// The design before a point move of object `id`, kept only when the object is in a
+/// hole-sewing pair (there is nothing to check otherwise).
+pub(crate) fn hole_pair_before(s: &EngineState, p: &Params) -> Option<openstitch_design::Design> {
+    let id = p.int("id", None, 0, i64::MAX).ok()? as u64;
+    openstitch_design::holes::partner(&s.design, id).map(|_| s.design.clone())
+}
+
+/// Refuses a point move that took object `id`'s outline across the outline of its
+/// hole-sewing partner (#1271): `before` is the design before the move
+/// ([`hole_pair_before`]).
+pub(crate) fn refuse_hole_crossing(
+    s: &EngineState,
+    p: &Params,
+    before: Option<&openstitch_design::Design>,
+) -> Result<(), CommandError> {
+    let Some(before) = before else {
+        return Ok(());
+    };
+    let id = p.int("id", None, 0, i64::MAX)? as u64;
+    let Some(i) = s.design.index_of(id) else {
+        return Ok(());
+    };
+    if openstitch_design::holes::moves_across_partner(before, id, &s.design.objects[i].contours) {
+        let other = openstitch_design::holes::partner(before, id).map_or(0, |o| o.id);
+        return Err(p.failed(format!(
+            "object {id} has hole sewing with object {other}: a point cannot be moved across the other outline. Cancel hole sewing first (object.setHoleSewing, enabled false)"
+        )));
+    }
+    Ok(())
+}
+
+/// After object `i`'s outline was split or opened (#1271, PE-DESIGN's manual): hole sewing is
+/// cancelled on its pair (the flags of the outer object, whether `i` is the outer or the
+/// inner one), and text fitted to its outline comes off it, as the Knife does. Returns
+/// (hole sewing cancelled, texts taken off).
+fn cancel_hole_and_text(s: &mut EngineState, i: usize) -> (bool, usize) {
+    let id = s.design.objects[i].id;
+    let mut hole_off = false;
+    let outer: Vec<usize> = s
+        .design
+        .objects
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| {
+            o.hole_sewing
+                && (o.id == id
+                    || openstitch_design::holes::paired_inner(o, &s.design)
+                        .is_some_and(|inner| inner.id == id))
+        })
+        .map(|(k, _)| k)
+        .collect();
+    for k in outer {
+        s.design.objects[k].hole_sewing = false;
+        s.design.objects[k].hole_inner = None;
+        hole_off = true;
+    }
+    let mut texts = 0;
+    for t in 0..s.design.objects.len() {
+        if s.design.objects[t].text.as_ref().and_then(|x| x.path) == Some(id) {
+            s.design.detach_text(t);
+            texts += 1;
+        }
+    }
+    (hole_off, texts)
 }
 
 /// After an outline of object `i` was opened: with no closed outline left its region is
@@ -204,8 +272,11 @@ fn open_outline(s: &mut EngineState, p: &Params) -> Result<Value, CommandError> 
         return Err(p.failed(format!("object {id}'s outline is open already")));
     }
     s.design.objects[i].contours[ci].open_up();
+    let (hole_off, texts) = cancel_hole_and_text(s, i);
     let (region_off, to_line) = region_after_opening(s, i);
-    Ok(json!({ "id": id, "regionOff": region_off, "regionToLine": to_line }))
+    Ok(
+        json!({ "id": id, "regionOff": region_off, "regionToLine": to_line, "holeSewingOff": hole_off, "textOff": texts }),
+    )
 }
 
 fn close_outline(s: &mut EngineState, p: &Params) -> Result<Value, CommandError> {
@@ -261,15 +332,18 @@ fn split_at_point(s: &mut EngineState, p: &Params) -> Result<Value, CommandError
         // A closed outline opened at the point.
         None => {
             s.design.objects[i].contours[ci] = first;
+            let (hole_off, texts) = cancel_hole_and_text(s, i);
             let (region_off, to_line) = region_after_opening(s, i);
             let _ = index;
             Ok(
-                json!({ "ids": [id], "opened": true, "regionOff": region_off, "regionToLine": to_line }),
+                json!({ "ids": [id], "opened": true, "regionOff": region_off, "regionToLine": to_line, "holeSewingOff": hole_off, "textOff": texts }),
             )
         }
         // An open line cut in two.
         Some(second) => {
             debug_assert_eq!(s.design.objects[i].kind, ObjectKind::Shape);
+            // Before the second piece is copied, so that neither piece keeps the flags.
+            let (hole_off, texts) = cancel_hole_and_text(s, i);
             let mut tail = s.design.objects[i].clone();
             tail.contours = vec![second];
             tail.id = s.design.next_object_id;
@@ -278,7 +352,7 @@ fn split_at_point(s: &mut EngineState, p: &Params) -> Result<Value, CommandError
             s.design.objects[i].contours[ci] = first;
             s.design.objects.insert(i + 1, tail);
             Ok(
-                json!({ "ids": [id, new_id], "opened": false, "regionOff": false, "regionToLine": false }),
+                json!({ "ids": [id, new_id], "opened": false, "regionOff": false, "regionToLine": false, "holeSewingOff": hole_off, "textOff": texts }),
             )
         }
     }

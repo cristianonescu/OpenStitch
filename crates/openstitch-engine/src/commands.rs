@@ -1511,7 +1511,7 @@ fn path_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.setPoint",
-            "Move a vertex (its curve handles move with it; a straight point beside a curve point has none, so that curve keeps the curve point's handle)",
+            "Move a vertex (its curve handles move with it; a straight point beside a curve point has none, so that curve keeps the curve point's handle). On an object of a hole-sewing pair (the outer shape or the inner one) a move that would take an outline across the other object's outline is refused and nothing moves: cancel hole sewing first (object.setHoleSewing with enabled false), as PE-DESIGN asks",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),
@@ -1523,11 +1523,13 @@ fn path_commands() -> Vec<CommandSpec> {
             |s, p| {
                 let x = p.req("x", -5000.0, 5000.0)? * MM;
                 let y = p.req("y", -5000.0, 5000.0)? * MM;
+                let before = crate::point_edit::hole_pair_before(s, p);
                 let c = contour_mut(s, p)?;
                 let index = p.int("index", None, 0, c.points.len() as i64 - 1)? as usize;
                 // Its own handles move with it; a control point a straight point only borrows
                 // from the curve point next to it stays with that handle (#1258).
                 c.move_point(index, v2(x, y));
+                crate::point_edit::refuse_hole_crossing(s, p, before.as_ref())?;
                 Ok(Value::Null)
             },
         ),

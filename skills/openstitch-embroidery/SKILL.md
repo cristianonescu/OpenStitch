@@ -460,7 +460,11 @@ then style them in the next.
   `connectable` lists the ends it can be connected to (its own other end, and the ends of
   every other open line) and `{connectTo: {id, index}}` connects it as Alt + drag does: its
   own end closes the line, another line's end joins the two lines into one object
-  (`shape.joinLines` joins lines by their nearest ends without the window). A filled shape's
+  (`shape.joinLines` joins lines by their nearest ends without the window). Splitting or opening a
+  shape cancels hole sewing on its pair and takes text fitted to its outline off it
+  (`holeSewingOff`, `textOff` in the answer); a point of a hole-sewn pair cannot be moved
+  across the other shape's outline (`object.setPoint` and `object.movePoints` refuse:
+  `object.setHoleSewing` `{enabled: false}` first). A filled shape's
   straight sewing direction shows as a line across it (`directionLine`: `angle`, `from`,
   `to`); turning it is `object.setRegion` `{id, angle}`, and a shape's only direction line
   cannot be deleted; `{action}` runs one (`ui.run pointToCurve` and the other ribbon
