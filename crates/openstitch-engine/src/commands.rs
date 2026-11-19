@@ -1557,7 +1557,7 @@ fn path_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.deletePoint",
-            "Delete a vertex, or several at once, joining the neighbouring segments (the joined side stays a curve, with the outer handles, when either side was one). An outline keeps 2 points, open or closed, as PE-DESIGN's does (a closed outline of 2 points sews its one side there and back); refused when it would leave fewer, and nothing is deleted then",
+            "Delete a vertex, or several at once, joining the neighbouring segments (the joined side stays a curve, with the outer handles, when either side was one). An outline keeps 2 points, open or closed, as PE-DESIGN's does (a closed outline of 2 points sews its one side there and back); refused when it would leave fewer, and nothing is deleted then. One outline of one object a call: for points on several outlines or objects send one call per outline (the editor's Point tool does, with all of them in one undo step)",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),

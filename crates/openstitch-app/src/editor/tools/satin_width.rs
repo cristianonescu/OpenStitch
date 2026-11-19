@@ -36,6 +36,11 @@ pub struct WidthOverlay {
     pub selected: Option<usize>,
 }
 
+/// Whether `o` is a satin line: the Point tool shows its width handles, not outline points.
+pub(super) fn is_satin_line(o: &DesignObject) -> bool {
+    satin_path(o).is_some()
+}
+
 /// The line a satin line object sews along, when `o` is one: its first contour's path.
 fn satin_path(o: &DesignObject) -> Option<Vec<Vec2>> {
     let l = o.line.as_ref()?;

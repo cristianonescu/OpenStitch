@@ -13,8 +13,10 @@ To change the outline itself, pick **Point Edit** (or press A): the shape shows 
 a point to move it, click the outline to add one. Right-click a point for its menu: **To
 Curve** rounds a corner and gives it two handles to drag, **To Straight** makes it a corner
 again; **To Smooth**, **To Symmetry** and **To Cusp** choose how the two handles follow each
-other; **Split at Point** opens the outline there and **Delete** removes the point. Ctrl+click
-or a drag box selects several points; they move together, and the arrow keys nudge them. A
+other; **Split at Point** opens the outline there and **Delete** removes the point. Ctrl+click, Shift+click
+or a drag box selects several points, on every selected shape; they move together, and the
+arrow keys nudge them. Hold Shift while dragging a point to move it only horizontally or
+vertically. A
 right-click on the shape itself offers **Open** and **Close**. The same commands are on the
 **Shapes** tab under **Edit Point**.
 

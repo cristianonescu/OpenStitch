@@ -739,3 +739,151 @@ fn thread_charts_last_in_the_pages_storage() {
         .collect();
     assert_eq!(names, ["My Threads", "Shelf"], "kept across a reload");
 }
+
+/// PE-DESIGN capture f, 2026-11-19 (#1260), through the key events as the window gets them:
+/// with points selected Ctrl+Right / Ctrl+Down select the next point and Ctrl+Left / Ctrl+Up
+/// the previous one, Shift+arrow grows and shrinks the selection, and with Shift or Ctrl held
+/// no point moves (the plain arrows' 0.5 mm move does not fire).
+#[test]
+fn ctrl_and_shift_arrows_change_the_point_selection_and_move_no_point() {
+    use openstitch_design::v2;
+    let ctx = egui::Context::default();
+    let mut app = EditorApp::new(Launch::default());
+    let r = app
+        .execute(&CommandRequest::new(
+            "shape.polygon",
+            json!({ "points": [[10, 60], [40, 60], [40, 30]], "closed": false, "outline": "#203040" }),
+        ))
+        .expect("line");
+    app.selection = CommandRequest::created_ids(&r);
+    let picked = |app: &mut EditorApp| {
+        let s = app.ui_command("ui.pointMenu", None).expect("state");
+        let mut out: Vec<u64> = s["selected"]
+            .as_array()
+            .expect("selected")
+            .iter()
+            .map(|p| p["index"].as_u64().expect("index"))
+            .collect();
+        out.sort_unstable();
+        out
+    };
+    app.ui_command("ui.pointMenu", Some(&json!({ "points": [1] })))
+        .expect("the corner");
+    let before = app.session.design().clone();
+    let ctrl = Modifiers::COMMAND;
+    for (key, modifiers, want, what) in [
+        (Key::ArrowRight, ctrl, vec![2], "Ctrl+Right: the next point"),
+        (Key::ArrowDown, ctrl, vec![2], "Ctrl+Down at the line's end: it stays"),
+        (Key::ArrowLeft, ctrl, vec![1], "Ctrl+Left: the previous point"),
+        (Key::ArrowUp, ctrl, vec![0], "Ctrl+Up: the previous point"),
+        (Key::ArrowDown, ctrl, vec![1], "Ctrl+Down: the next point"),
+        (Key::ArrowRight, Modifiers::SHIFT, vec![1, 2], "Shift+Right grows"),
+        (Key::ArrowLeft, Modifiers::SHIFT, vec![1], "Shift+Left shrinks"),
+        (Key::ArrowUp, Modifiers::SHIFT, vec![0, 1], "Shift+Up grows the other way"),
+        (Key::ArrowDown, Modifiers::SHIFT, vec![1], "Shift+Down shrinks"),
+        (Key::ArrowDown, Modifiers::SHIFT, vec![1, 2], "Shift+Down grows"),
+        (Key::ArrowUp, ctrl, vec![0], "Ctrl+Up from the point it started at"),
+    ] {
+        press(&ctx, &mut app, key, modifiers);
+        assert_eq!(picked(&mut app), want, "{what}");
+        assert_eq!(*app.session.design(), before, "{what}: no point moves");
+    }
+    // The plain arrows still move the selected point, 0.5 mm, in all four directions.
+    let at = |app: &EditorApp| app.session.design().objects[0].contours[0].points[0];
+    let start = at(&app);
+    for (key, by) in [
+        (Key::ArrowRight, v2(5.0, 0.0)),
+        (Key::ArrowDown, v2(5.0, 5.0)),
+        (Key::ArrowLeft, v2(0.0, 5.0)),
+        (Key::ArrowUp, v2(0.0, 0.0)),
+    ] {
+        press(&ctx, &mut app, key, Modifiers::NONE);
+        assert_eq!(at(&app), start + by, "{key:?}");
+    }
+    // Without a selected point Ctrl+arrow is not taken by the Point tool.
+    app.tools.set_tool(Tool::Point);
+    press(&ctx, &mut app, Key::ArrowRight, ctrl);
+    assert!(picked(&mut app).is_empty());
+}
+
+/// The marks of an Alt-connect are drawn (#1260): an x (two strokes) on every end the selected
+/// end point can connect to, and a red square on the end the dragged point lies on. The whole
+/// frame is run as the window runs it and its painted shapes are read.
+#[test]
+fn the_alt_connect_marks_and_the_red_square_are_painted() {
+    use openstitch_app::editor::Phase;
+    use openstitch_design::v2;
+    fn flat(shape: &egui::Shape, out: &mut Vec<egui::Shape>) {
+        match shape {
+            egui::Shape::Vec(list) => list.iter().for_each(|s| flat(s, out)),
+            other => out.push(other.clone()),
+        }
+    }
+    let ctx = egui::Context::default();
+    let mut frame = eframe::Frame::_new_kittest();
+    let mut painted = |app: &mut EditorApp| {
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let raw = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1440.0, 900.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(raw, |ui| eframe::App::ui(app, ui, &mut frame));
+            out.textures_delta.clear();
+            shapes.clear();
+            for clipped in &out.shapes {
+                flat(&clipped.shape, &mut shapes);
+            }
+        }
+        let ink = egui::Color32::from_gray(16);
+        let red = egui::Color32::from_rgb(0xe0, 0x20, 0x20);
+        let strokes = shapes
+            .iter()
+            .filter(|s| {
+                matches!(s, egui::Shape::LineSegment { stroke, .. } if stroke.width == 1.5 && stroke.color == ink)
+            })
+            .count();
+        let squares = shapes
+            .iter()
+            .filter(|s| matches!(s, egui::Shape::Rect(r) if r.stroke.color == red && r.stroke.width == 2.0))
+            .count();
+        (strokes, squares)
+    };
+    let mut app = EditorApp::new(Launch::default());
+    let line = |app: &mut EditorApp, points: Value| {
+        app.execute(&CommandRequest::new(
+            "shape.polygon",
+            json!({ "points": points, "closed": false, "outline": "#203040" }),
+        ))
+        .expect("line")["id"]
+            .as_u64()
+            .expect("id")
+    };
+    let a = line(&mut app, json!([[10, 60], [40, 60], [40, 30]]));
+    line(&mut app, json!([[50, 30], [70, 30], [70, 60]]));
+    app.selection = BTreeSet::from([a]);
+    app.ui_command("ui.pointMenu", Some(&json!({ "points": [2] })))
+        .expect("the end point");
+    assert_eq!(painted(&mut app), (0, 0), "no marks without Alt");
+    // An Alt + drag of the end, not yet on another end: three ends marked, no square.
+    let event = |phase, at| {
+        let mut e = openstitch_app::editor::PointerEvent::new(phase, at);
+        e.alt = true;
+        e
+    };
+    app.with_tools(|t, c| t.handle(event(Phase::Down, v2(400.0, 300.0)), c));
+    app.with_tools(|t, c| t.handle(event(Phase::Dragged, v2(450.0, 330.0)), c));
+    assert_eq!(painted(&mut app), (6, 0), "an x of two strokes on each of the three ends");
+    // On the other line's end: the red square as well.
+    app.with_tools(|t, c| t.handle(event(Phase::Dragged, v2(500.0, 300.0)), c));
+    assert_eq!(painted(&mut app), (6, 1));
+    let s = app.ui_command("ui.pointMenu", None).expect("state");
+    assert_eq!(s["connectOverlap"]["x"], 50.0);
+    // Released: joined, and nothing is marked any more.
+    app.with_tools(|t, c| t.handle(event(Phase::Up, v2(500.0, 300.0)), c));
+    assert_eq!(app.session.design().objects.len(), 1);
+    assert_eq!(painted(&mut app), (0, 0));
+}

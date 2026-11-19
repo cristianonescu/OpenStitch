@@ -2555,7 +2555,8 @@ fn alt_drops_an_end_point_on_another_end_point_and_connects_them() {
     let o = s.design().objects[0].clone();
     assert!(!o.contours[0].closed && o.region.is_none());
     assert_eq!(o.contours[0].points[2], v2(800.0, 800.0));
-    // Onto another line's end: only moved there, nothing joined (that is Join Lines).
+    // Onto another line's end: the two lines become one object (PE-DESIGN's manual, read
+    // 2026-11-19; see `alt_drag_onto_another_open_lines_end_joins_the_two_lines`).
     let b = line(&mut s, json!([[120, 80], [120, 50]]));
     let sel = alt_drag(
         &mut t,
@@ -2565,12 +2566,10 @@ fn alt_drops_an_end_point_on_another_end_point_and_connects_them() {
         v2(1199.0, 801.0),
         true,
     );
-    assert_eq!(s.design().objects.len(), 2);
-    assert!(s.design().index_of(b).is_some());
-    assert_eq!(
-        s.design().objects[0].contours[0].points[2],
-        v2(1199.0, 801.0)
-    );
+    assert_eq!(s.design().objects.len(), 1);
+    assert!(s.design().index_of(b).is_none());
+    let c = &s.design().objects[0].contours[0];
+    assert_eq!((c.points.len(), c.points[2]), (4, v2(1200.0, 800.0)));
     let _ = sel;
 }
 
@@ -2601,4 +2600,510 @@ fn split_at_point_makes_a_region_only_shape_a_line() {
     assert!(!o.contours[0].closed && o.region.is_none() && o.line.is_some());
     undo(&mut s);
     assert!(s.design().objects[0].contours[0].closed, "one Undo");
+}
+
+/// A press, two moves and a release, with the keys `keys` sets on every event.
+fn drag_with(
+    tool: &mut ToolController,
+    s: &mut Session,
+    mut sel: BTreeSet<u64>,
+    from: Vec2,
+    to: Vec2,
+    keys: impl Fn(&mut PointerEvent),
+) -> BTreeSet<u64> {
+    for (phase, p) in [
+        (Phase::Down, from),
+        (Phase::Dragged, from.lerp(to, 0.5)),
+        (Phase::Dragged, to),
+        (Phase::Up, to),
+    ] {
+        let mut e = PointerEvent::new(phase, p);
+        keys(&mut e);
+        let design = s.design().clone();
+        let effects = tool.handle(e, &ctx(&design, &sel));
+        sel = apply(s, effects, sel);
+    }
+    sel
+}
+
+/// PE-DESIGN, the owner's hand check of 2026-11-19 (#1260): "dragging with shift held drags it
+/// only horizontally / vertically"; "dragging with CTRL held, doesn't seem to do anything
+/// special it is draged normally"; "no diff when a curve point is draged from one handle end
+/// with shift or ctrl".
+#[test]
+fn shift_locks_a_point_drag_to_an_axis_and_ctrl_and_handles_are_as_without_a_key() {
+    let mut s = session();
+    let id = outlined_rect(&mut s);
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let point = |s: &Session, i: usize| s.design().objects[0].contours[0].points[i];
+    // Shift: along the axis the drag mostly runs on from its start; the other coordinate
+    // stays the point's own.
+    let sel = drag(
+        &mut t,
+        &mut s,
+        sel,
+        v2(100.0, 100.0),
+        v2(160.0, 130.0),
+        true,
+    );
+    assert_eq!(
+        point(&s, 0),
+        v2(160.0, 100.0),
+        "mostly sideways: horizontal"
+    );
+    let sel = drag(
+        &mut t,
+        &mut s,
+        sel,
+        v2(160.0, 100.0),
+        v2(175.0, 113.0),
+        false,
+    );
+    assert_eq!(point(&s, 0), v2(175.0, 113.0), "no key: free");
+    let sel = drag(&mut t, &mut s, sel, v2(175.0, 113.0), v2(180.0, 70.0), true);
+    assert_eq!(point(&s, 0), v2(175.0, 70.0), "mostly up: vertical");
+    // With Snap to Grid the moving coordinate lands on the grid and the locked one is not
+    // pulled onto it.
+    let sel = drag(&mut t, &mut s, sel, v2(175.0, 70.0), v2(163.0, 87.0), false);
+    assert_eq!(point(&s, 0), v2(163.0, 87.0));
+    t.set_snap(Some(50.0));
+    let sel = drag(&mut t, &mut s, sel, v2(163.0, 87.0), v2(196.0, 95.0), true);
+    assert_eq!(point(&s, 0), v2(200.0, 87.0), "x on the grid, y as it was");
+    // Ctrl: as without it. The grid still applies (Ctrl does not switch snapping off), and
+    // there is no axis lock.
+    let sel = drag_with(
+        &mut t,
+        &mut s,
+        sel,
+        v2(300.0, 100.0),
+        v2(333.0, 128.0),
+        |e| e.free = true,
+    );
+    assert_eq!(
+        point(&s, 1),
+        v2(350.0, 150.0),
+        "Ctrl-drag: both axes, on the grid"
+    );
+    undo(&mut s);
+    let sel = drag(
+        &mut t,
+        &mut s,
+        sel,
+        v2(300.0, 100.0),
+        v2(333.0, 128.0),
+        false,
+    );
+    assert_eq!(point(&s, 1), v2(350.0, 150.0), "the same without Ctrl");
+    t.set_snap(None);
+    // A handle end: Shift or Ctrl changes nothing; the point's kind still rules (a smooth
+    // point's other handle turns with the dragged one).
+    run(
+        &mut s,
+        &CommandRequest::new(
+            "object.setPointKind",
+            json!({ "id": id, "index": 2, "kind": "curve" }),
+        ),
+    );
+    let mut sel = click_at(&mut t, &mut s, sel, v2(300.0, 200.0), 1);
+    for (step, shift, free) in [(v2(31.0, 17.0), true, false), (v2(-9.0, 23.0), false, true)] {
+        let c = s.design().objects[0].contours[0].clone();
+        let from = c.curve(2).expect("the side after the curve point").c1;
+        let mut plain = c.clone();
+        plain.move_handle(2, true, from + step);
+        sel = drag_with(&mut t, &mut s, sel, from, from + step, |e| {
+            e.shift = shift;
+            e.free = free;
+        });
+        let now = s.design().objects[0].contours[0].clone();
+        let (z, other) = (now.curve(2).expect("curve"), now.curve(1).expect("curve"));
+        assert!(
+            z.c1.distance(from + step) < 0.2,
+            "the handle is where it was dropped, both axes: {:?}",
+            z.c1
+        );
+        let want = plain.curve(1).expect("curve").c2;
+        assert!(
+            other.c2.distance(want) < 0.2,
+            "the smooth point's other handle follows as without a key: {:?} / {want:?}",
+            other.c2
+        );
+        assert!(
+            other.c2.distance(c.curve(1).expect("curve").c2) > 1.0,
+            "it turned"
+        );
+    }
+}
+
+/// PE-DESIGN, the owner's hand check of 2026-11-19 (#1260): "shift + click allows the user to
+/// select more points".
+#[test]
+fn shift_click_adds_a_point_to_the_selection_and_ctrl_click_adds_or_takes_out() {
+    let mut s = session();
+    let id = outlined_rect(&mut s);
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let mut sel = click_at(&mut t, &mut s, sel, v2(100.0, 100.0), 1);
+    let shift_click = |t: &mut ToolController, s: &mut Session, sel: BTreeSet<u64>, at: Vec2| {
+        let sel = send(t, s, sel, PointerEvent::new(Phase::Down, at).shift());
+        send(t, s, sel, PointerEvent::new(Phase::Up, at).shift())
+    };
+    let picked = |t: &ToolController, s: &Session, sel: &BTreeSet<u64>| {
+        let design = s.design().clone();
+        t.selected_points(&ctx(&design, sel))
+            .iter()
+            .map(|p| p.index)
+            .collect::<Vec<_>>()
+    };
+    sel = shift_click(&mut t, &mut s, sel, v2(300.0, 200.0));
+    assert_eq!(picked(&t, &s, &sel), [2, 0]);
+    sel = shift_click(&mut t, &mut s, sel, v2(100.0, 200.0));
+    assert_eq!(picked(&t, &s, &sel), [3, 2, 0]);
+    // On a selected point it changes nothing: Shift+click only adds (Ctrl+click is what
+    // takes a selected point out, PE-DESIGN's manual).
+    sel = shift_click(&mut t, &mut s, sel, v2(300.0, 200.0));
+    assert_eq!(picked(&t, &s, &sel), [3, 2, 0]);
+    let mut e = PointerEvent::new(Phase::Down, v2(300.0, 200.0));
+    e.free = true;
+    sel = send(&mut t, &mut s, sel, e);
+    sel = send(
+        &mut t,
+        &mut s,
+        sel,
+        PointerEvent::new(Phase::Up, v2(300.0, 200.0)),
+    );
+    assert_eq!(picked(&t, &s, &sel), [3, 0], "Ctrl+click takes it out");
+    assert_eq!(
+        s.design().objects[0].contours[0].points[3],
+        v2(100.0, 200.0),
+        "a click moves nothing"
+    );
+}
+
+/// PE-DESIGN, the owner's hand check of 2026-11-19 (#1260): "dragging a box over two shapes
+/// selects points of both shapes". The selection then spans the shapes: a drag, the arrow
+/// keys, the menu and Delete act on every selected point, one command per outline.
+#[test]
+fn a_drag_box_over_two_shapes_selects_points_of_both_and_they_are_edited_together() {
+    use super::points::{PointAction as P, PointRef};
+    let mut s = session();
+    let a = outlined_rect(&mut s);
+    let b = run(
+        &mut s,
+        &CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 40, "y": 10, "width": 20, "height": 10, "outline": "#203040" }),
+        ),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let both = BTreeSet::from([a, b]);
+    let design = s.design().clone();
+    assert_eq!(
+        t.point_overlays(&ctx(&design, &both)).len(),
+        2,
+        "both show their points"
+    );
+    // A box over the right side of the first and the left side of the second.
+    let sel = drag(
+        &mut t,
+        &mut s,
+        both.clone(),
+        v2(280.0, 80.0),
+        v2(420.0, 220.0),
+        false,
+    );
+    assert_eq!(sel, both, "both stay selected");
+    let design = s.design().clone();
+    let mut picked: Vec<(u64, usize)> = t
+        .selected_points(&ctx(&design, &sel))
+        .iter()
+        .map(|p| (p.id, p.index))
+        .collect();
+    picked.sort_unstable();
+    assert_eq!(picked, [(a, 1), (a, 2), (b, 0), (b, 3)]);
+    let overlays = t.point_overlays(&ctx(&design, &sel));
+    assert!(
+        overlays
+            .iter()
+            .all(|o| o.selected.is_some() && o.also.len() == 1),
+        "two selected points drawn on each shape"
+    );
+    // The menu's greying is over all of them.
+    let m = menu(&t, &s, &sel);
+    assert_eq!(
+        m,
+        [
+            ("toStraight", false),
+            ("toCurve", true),
+            ("toSmooth", false),
+            ("toSymmetry", false),
+            ("toCusp", false),
+            ("splitAtPoint", false),
+            ("deletePoint", true),
+        ]
+    );
+    let points = |s: &Session, k: usize| s.design().objects[k].contours[0].points.clone();
+    // Dragging one selected point moves all four: one object.movePoints per outline, in one
+    // effect (the app runs an effect's commands as one undo step).
+    let design = s.design().clone();
+    let c = ctx(&design, &sel);
+    t.handle(PointerEvent::new(Phase::Down, v2(300.0, 100.0)), &c);
+    t.handle(PointerEvent::new(Phase::Dragged, v2(310.0, 120.0)), &c);
+    let effects = t.handle(PointerEvent::new(Phase::Up, v2(310.0, 120.0)), &c);
+    let [ToolEffect::Execute { requests, .. }] = effects.as_slice() else {
+        panic!("one effect: {effects:?}");
+    };
+    assert_eq!(
+        requests.iter().map(|r| r.command).collect::<Vec<_>>(),
+        ["object.movePoints", "object.movePoints"]
+    );
+    let sel = apply(&mut s, effects, sel);
+    assert_eq!(
+        (points(&s, 0)[1], points(&s, 0)[2], points(&s, 0)[0]),
+        (v2(310.0, 120.0), v2(310.0, 220.0), v2(100.0, 100.0))
+    );
+    assert_eq!(
+        (points(&s, 1)[0], points(&s, 1)[3], points(&s, 1)[1]),
+        (v2(410.0, 120.0), v2(410.0, 220.0), v2(600.0, 100.0))
+    );
+    // The arrow keys.
+    let design = s.design().clone();
+    let effects = t
+        .nudge_points(5.0, 0.0, &ctx(&design, &sel))
+        .expect("points selected");
+    assert!(
+        matches!(effects.as_slice(), [ToolEffect::Execute { requests, .. }] if requests.len() == 2)
+    );
+    let sel = apply(&mut s, effects, sel);
+    assert_eq!(
+        (points(&s, 0)[1], points(&s, 1)[0]),
+        (v2(315.0, 120.0), v2(415.0, 120.0))
+    );
+    // To Curve on all four; To Straight is then available, To Curve no longer.
+    assert_eq!(choose(&mut t, &mut s, &sel, P::ToCurve), 1, "one effect");
+    for (k, i) in [(0, 1), (0, 2), (1, 0), (1, 3)] {
+        assert!(
+            s.design().objects[k].contours[0].is_curve_point(i),
+            "{k} {i}"
+        );
+    }
+    let m = menu(&t, &s, &sel);
+    assert_eq!((m[0], m[1]), (("toStraight", true), ("toCurve", false)));
+    // Shift+click adds a point of the other shape; a mixed selection offers both.
+    let sel = send(
+        &mut t,
+        &mut s,
+        sel,
+        PointerEvent::new(Phase::Down, v2(600.0, 100.0)).shift(),
+    );
+    let sel = send(
+        &mut t,
+        &mut s,
+        sel,
+        PointerEvent::new(Phase::Up, v2(600.0, 100.0)).shift(),
+    );
+    let design = s.design().clone();
+    assert_eq!(t.selected_points(&ctx(&design, &sel)).len(), 5);
+    let m = menu(&t, &s, &sel);
+    assert_eq!((m[0], m[1]), (("toStraight", true), ("toCurve", true)));
+    // Delete removes the selected points of both shapes: the first keeps 2, the second 1 of
+    // its 4 would be too few (3 selected), so it is left as it is.
+    let design = s.design().clone();
+    let effects = t
+        .delete_point(&ctx(&design, &sel))
+        .expect("points selected");
+    let [ToolEffect::Execute { requests, .. }] = effects.as_slice() else {
+        panic!("one effect: {effects:?}");
+    };
+    assert_eq!(
+        requests.len(),
+        1,
+        "only the outline that can lose its points"
+    );
+    let sel = apply(&mut s, effects, sel);
+    assert_eq!((points(&s, 0).len(), points(&s, 1).len()), (2, 4));
+    // Points named across shapes, as ui.pointMenu selects them; one that does not exist
+    // selects nothing.
+    let design = s.design().clone();
+    let c = ctx(&design, &sel);
+    let at = |id, index| PointRef {
+        id,
+        contour: 0,
+        index,
+    };
+    assert!(!t.select_point_refs(&[at(a, 0), at(b, 9)], &c));
+    assert!(t.select_point_refs(&[at(b, 1), at(a, 0)], &c));
+    assert_eq!(
+        t.selected_by_outline(&c),
+        [(b, 0, vec![1]), (a, 0, vec![0])]
+    );
+    let effects = t.delete_point(&c).expect("points selected");
+    assert!(
+        matches!(effects.as_slice(), [ToolEffect::Execute { requests, .. }] if requests.len() == 1),
+        "the first shape is at 2 points and keeps them"
+    );
+}
+
+/// PE-DESIGN's manual (read 2026-11-19, #1260): Alt + drag of an end point onto another open
+/// line's end joins the two lines into one shape; a red square shows while the two points
+/// overlap, and the connectable ends are marked while Alt is held.
+#[test]
+fn alt_drag_onto_another_open_lines_end_joins_the_two_lines() {
+    let mut s = session();
+    let mut line = |points: serde_json::Value| {
+        run(
+            &mut s,
+            &CommandRequest::new(
+                "shape.polygon",
+                json!({ "points": points, "closed": false, "outline": "#203040" }),
+            ),
+        )["id"]
+            .as_u64()
+            .expect("id")
+    };
+    let a = line(json!([[10, 60], [40, 60], [40, 30]]));
+    let b = line(json!([[50, 30], [70, 30], [70, 60]]));
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([a]);
+    let event = |phase, at: Vec2, alt: bool| {
+        let mut e = PointerEvent::new(phase, at);
+        e.alt = alt;
+        e
+    };
+    // Without Alt the end only lies on the other line's end.
+    let sel = drag(
+        &mut t,
+        &mut s,
+        sel,
+        v2(400.0, 300.0),
+        v2(500.0, 300.0),
+        false,
+    );
+    assert_eq!(s.design().objects.len(), 2);
+    undo(&mut s);
+    // The marks: with Alt held and the end selected, its own other end and both ends of the
+    // other line; none without Alt, none for a middle point.
+    let design = s.design().clone();
+    let c = ctx(&design, &sel);
+    assert_eq!(
+        t.connect_marks(true, &c),
+        [v2(100.0, 600.0), v2(500.0, 300.0), v2(700.0, 600.0)]
+    );
+    assert!(t.connect_marks(false, &c).is_empty());
+    // Alt + drag: the red square while the dragged end lies on the other end.
+    t.handle(event(Phase::Down, v2(400.0, 300.0), true), &c);
+    t.handle(event(Phase::Dragged, v2(450.0, 320.0), true), &c);
+    assert_eq!(t.connect_overlap(), None, "not on an end yet");
+    assert_eq!(
+        t.connect_marks(false, &c).len(),
+        3,
+        "marked while the Alt drag runs"
+    );
+    t.handle(event(Phase::Dragged, v2(498.0, 301.0), true), &c);
+    assert_eq!(t.connect_overlap(), Some(v2(500.0, 300.0)));
+    let effects = t.handle(event(Phase::Up, v2(498.0, 301.0), true), &c);
+    assert_eq!(t.connect_overlap(), None);
+    let [ToolEffect::Execute { requests, .. }] = effects.as_slice() else {
+        panic!("one effect: {effects:?}");
+    };
+    assert_eq!(
+        requests.iter().map(|r| r.command).collect::<Vec<_>>(),
+        ["object.setPoint", "shape.joinLines"]
+    );
+    let sel = apply(&mut s, effects, sel);
+    let d = s.design();
+    assert_eq!((d.objects.len(), d.objects[0].id), (1, a));
+    assert_eq!(
+        d.objects[0].contours[0].points.len(),
+        5,
+        "the two ends are one point"
+    );
+    assert!(d.objects.iter().all(|o| o.id != b));
+    let design = s.design().clone();
+    assert!(t.selected_points(&ctx(&design, &sel)).is_empty());
+}
+
+/// PE-DESIGN capture f, 2026-11-19: a plain click on one of several selected points keeps the
+/// whole selection.
+#[test]
+fn a_plain_click_on_one_of_several_selected_points_keeps_the_selection() {
+    let mut s = session();
+    let id = outlined_rect(&mut s);
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let design = s.design().clone();
+    assert!(t.select_points(0, &[2, 0, 3], &ctx(&design, &sel)));
+    let before = s.design().clone();
+    // Press and release on point 0, no drag.
+    let sel = click_at(&mut t, &mut s, sel, v2(100.0, 100.0), 1);
+    let design = s.design().clone();
+    let mut picked: Vec<usize> = t
+        .selected_points(&ctx(&design, &sel))
+        .iter()
+        .map(|p| p.index)
+        .collect();
+    picked.sort_unstable();
+    assert_eq!(picked, [0, 2, 3], "all three stay selected");
+    assert_eq!(*s.design(), before, "nothing moved");
+    // On a point that is not selected it selects that one alone.
+    let sel = click_at(&mut t, &mut s, sel, v2(300.0, 100.0), 1);
+    let design = s.design().clone();
+    let picked: Vec<usize> = t
+        .selected_points(&ctx(&design, &sel))
+        .iter()
+        .map(|p| p.index)
+        .collect();
+    assert_eq!(picked, [1]);
+}
+
+/// Delete with nothing that can be deleted (every outline with selected points would keep
+/// fewer than 2) removes nothing and keeps the selection, as the menu's Delete does.
+#[test]
+fn delete_with_nothing_deletable_keeps_the_selection() {
+    let mut s = session();
+    let mut line = |points: serde_json::Value| {
+        run(
+            &mut s,
+            &CommandRequest::new(
+                "shape.polygon",
+                json!({ "points": points, "closed": false, "outline": "#203040" }),
+            ),
+        )["id"]
+            .as_u64()
+            .expect("id")
+    };
+    let a = line(json!([[10, 10], [30, 10]]));
+    let b = line(json!([[10, 30], [30, 30]]));
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([a, b]);
+    let design = s.design().clone();
+    let c = ctx(&design, &sel);
+    let at = |id, index| super::points::PointRef {
+        id,
+        contour: 0,
+        index,
+    };
+    // One outline, then two outlines.
+    for points in [vec![at(a, 0)], vec![at(a, 0), at(b, 1)]] {
+        assert!(t.select_point_refs(&points, &c));
+        assert_eq!(
+            t.delete_point(&c),
+            Some(vec![]),
+            "the key is taken, nothing is sent"
+        );
+        assert_eq!(t.selected_points(&c), points, "the selection stays");
+        assert!(
+            t.point_action(super::points::PointAction::Delete, &c)
+                .is_empty()
+        );
+        assert_eq!(t.selected_points(&c), points);
+    }
 }

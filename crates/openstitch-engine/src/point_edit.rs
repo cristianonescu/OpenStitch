@@ -45,7 +45,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "object.setPointKind",
-            "Change what kind of point a vertex is, as the Select Point tool's right-click menu does (To Straight, To Curve, To Smooth, To Symmetry, To Cusp). The kind belongs to the point, as in PE-DESIGN: a straight point has no handles, a curve point has two and is smooth, symmetric or a cusp; a side is a curve when either of its ends is a curve point. Answers 'changed', the number of points changed. The stitches change only where the outline does",
+            "Change what kind of point a vertex is, as the Select Point tool's right-click menu does (To Straight, To Curve, To Smooth, To Symmetry, To Cusp). The kind belongs to the point, as in PE-DESIGN: a straight point has no handles, a curve point has two and is smooth, symmetric or a cusp; a side is a curve when either of its ends is a curve point. Answers 'changed', the number of points changed. The stitches change only where the outline does. One outline of one object a call: for points on several outlines or objects send one call per outline (the editor's Point tool does, with all of them in one undo step)",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),
@@ -73,7 +73,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.movePoints",
-            "Move several vertices of one outline by the same offset, as dragging one of several selected points or pressing an arrow key with the Point tool does (PE-DESIGN's arrow keys move the selected points 0.5 mm). Each point's own curve handles move with it; a straight point beside a curve point has none. One undo step",
+            "Move several vertices of one outline by the same offset, as dragging one of several selected points or pressing an arrow key with the Point tool does (PE-DESIGN's arrow keys move the selected points 0.5 mm). Each point's own curve handles move with it; a straight point beside a curve point has none. One undo step. One outline of one object a call: for points on several outlines or objects send one call per outline (the editor's Point tool does, with all of them in one undo step)",
             Effect::Edit,
             vec![
                 req("id", "int", "Shape object"),

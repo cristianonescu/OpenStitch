@@ -889,6 +889,7 @@ impl EditorApp {
                     let drawn = requests.first().is_some_and(|r| {
                         openstitch_app::editor::new_objects::DRAWN.contains(&r.command)
                     });
+                    let groups_before = self.undo_groups.len();
                     let result = self.grouped(|app| {
                         let result = app.execute_all(&requests)?;
                         if drawn && !defaults.is_empty() {
@@ -915,11 +916,30 @@ impl EditorApp {
                         if select_result {
                             self.selection = CommandRequest::created_ids(&result);
                         }
+                        // A point put on an end and then connected to it (Alt + drag with the
+                        // Point tool) is named by what it did: the join or the close.
+                        let named = match requests.as_slice() {
+                            [first, .., last] if first.command == "object.setPoint" => last.command,
+                            _ => requests[0].command,
+                        };
                         // A command that reports what it changed (order.optimize, #547).
                         self.status = match result.get("summary").and_then(Value::as_str) {
-                            Some(summary) => format!("{} done: {summary}", requests[0].command),
-                            None => format!("{} done", requests[0].command),
+                            Some(summary) => format!("{named} done: {summary}"),
+                            None => format!("{named} done"),
                         };
+                    } else {
+                        // A gesture's commands are all or nothing: when one is refused, what
+                        // the earlier ones did is taken back (and not left for Redo), the
+                        // refusal stays in the status bar, and the Point tool gets back the
+                        // selection it gave up for the gesture.
+                        if self.undo_groups.len() > groups_before {
+                            let refusal = std::mem::take(&mut self.status);
+                            self.undo();
+                            self.redo_groups.pop();
+                            self.session.discard_redo();
+                            self.status = refusal;
+                        }
+                        self.tools.restore_points();
                     }
                 }
             }
@@ -2092,17 +2112,33 @@ impl EditorApp {
                 Some(grid) if e.nudge_grid => grid,
                 _ => e.nudge_mm * 10.0,
             };
+            // With points selected, Ctrl+arrow moves the selection to the next or previous
+            // point of the outline (Right and Down: next) and no point moves (#1260, PE-DESIGN
+            // capture f). Without selected points the key is left alone.
+            if crate::point_menu_ui::states(self).is_some()
+                && take(KeyboardShortcut::new(Modifiers::COMMAND, key))
+            {
+                self.with_tools(|tools, ctx| {
+                    tools.step_points(dx + dy > 0.0, false, ctx);
+                    vec![]
+                });
+            }
             for (mods, step) in [(Modifiers::SHIFT, base * 10.0), (Modifiers::NONE, base)] {
                 if take(KeyboardShortcut::new(mods, key)) && !self.refuse_locked() {
-                    // With points selected the arrows move the points, 0.5 mm a press, and
-                    // do nothing with Shift held, as PE-DESIGN's (#1260, capture e9).
+                    // With points selected the arrows move the points, 0.5 mm a press; with
+                    // Shift held they grow or shrink the selection by one point instead and
+                    // move nothing, as PE-DESIGN's (#1260, captures e9 and f).
                     let points = crate::point_menu_ui::POINT_NUDGE;
                     let plain = mods == Modifiers::NONE;
                     let mut moved = false;
                     self.with_tools(|tools, ctx| {
+                        if !plain {
+                            moved = tools.step_points(dx + dy > 0.0, true, ctx);
+                            return vec![];
+                        }
                         let effects = tools.nudge_points(dx * points, dy * points, ctx);
                         moved = effects.is_some();
-                        effects.filter(|_| plain).unwrap_or_default()
+                        effects.unwrap_or_default()
                     });
                     if !moved {
                         self.on_selection(|s| CommandRequest::move_by(s, dx * step, dy * step));
