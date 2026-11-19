@@ -89,6 +89,12 @@ the number of surfaces that lost at least one.
 Surfaces walked: 217 before, 242 after (the walk now also opens the ribbon's
 drop-down lists, the right-click menus and the other suite windows' menus).
 
+The "before" numbers are from the first version of the walk, on the release before: it turned
+the wheel only with the pointer on the control or on the nearest view of it, where today's
+walk also tries other places in the containers around it. A few of the controls it counted
+(a row of a list inside a pane, with the pointer resting on the list) could be reached by
+moving the pointer first; the menus, dialogs and panes it counted could not be scrolled at all.
+
 ## Every surface
 
 "Before" and "after" give the largest number of controls out of reach at any of the ten sizes
