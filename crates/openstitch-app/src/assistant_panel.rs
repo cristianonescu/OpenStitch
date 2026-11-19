@@ -1135,7 +1135,8 @@ fn close_hint_dialog(app: &mut EditorApp, ctx: &egui::Context) {
             "Don't show this again",
         );
         ui.add_space(4.0);
-        ok = ui.button(t("ui-ok")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter));
+        ok = crate::fit::buttons(ui, |ui| ui.button(t("ui-ok")).clicked())
+            || ui.input(|i| i.key_pressed(egui::Key::Enter));
     });
     if ok {
         close_hint_ok(app);

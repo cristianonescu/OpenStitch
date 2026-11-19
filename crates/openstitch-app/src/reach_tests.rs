@@ -203,8 +203,52 @@ impl Win {
     /// Scrolls with the wheel until `id` is shown in full; `ok` collects every control seen in
     /// full on the way.
     fn reach(&mut self, id: egui::Id, ok: &mut HashSet<egui::Id>) -> bool {
+        // First with the pointer on the control or the nearest view of it; then, as a person
+        // does when a list inside a scrolling pane takes the wheel, from other places in the
+        // containers around it.
+        (0..6).any(|from| self.reach_from(id, ok, from) == Some(true))
+    }
+
+    /// Other places to rest the pointer for [`Self::reach`]: in each container around `c`,
+    /// the end away from it.
+    fn other_wheel_points(&self, c: &Control) -> Vec<egui::Pos2> {
+        let screen = self.screen().shrink(2.0);
+        let centre = c.rect.center();
+        self.widgets(|all| {
+            let mut out: Vec<egui::Pos2> = Vec::new();
+            let mut id = c.parent;
+            for _ in 0..40 {
+                let Some(w) = all.get(id) else { break };
+                let r = w.interact_rect.intersect(screen).shrink(3.0);
+                if r.width() > 1.0 && r.height() > 1.0 {
+                    let far_y = if centre.y > r.center().y { r.min.y } else { r.max.y };
+                    let far_x = if centre.x > r.center().x { r.min.x } else { r.max.x };
+                    for p in [
+                        egui::pos2(centre.x.clamp(r.min.x, r.max.x), far_y),
+                        egui::pos2(far_x, centre.y.clamp(r.min.y, r.max.y)),
+                    ] {
+                        if out.iter().all(|q| q.distance(p) > 4.0) {
+                            out.push(p);
+                        }
+                    }
+                }
+                if w.parent_id == id {
+                    break;
+                }
+                id = w.parent_id;
+            }
+            out
+        })
+    }
+
+    /// `None` when there is no place number `from` to scroll from.
+    fn reach_from(&mut self, id: egui::Id, ok: &mut HashSet<egui::Id>, from: usize) -> Option<bool> {
         let (mut last, mut still) = (None, 0);
-        for _ in 0..400 {
+        // A control larger than the view it scrolls in (a button wider than a squeezed pane)
+        // cannot be shown at once: it is reached when both of its ends have been in view.
+        let mut ends = [false; 4];
+        let trace = std::env::var("REACH_TRACE").is_ok();
+        for _ in 0..if from == 0 { 400 } else { 120 } {
             let all = self.controls();
             for c in &all {
                 if self.shown(c) {
@@ -212,21 +256,38 @@ impl Win {
                 }
             }
             let Some(c) = all.iter().find(|c| c.id == id) else {
-                return false;
+                return Some(false);
             };
             if self.shown(c) {
-                return true;
+                return Some(true);
+            }
+            let v = self.visible(c);
+            let (wide, tall) = (v.width() >= c.rect.width() - 1.0, v.height() >= c.rect.height() - 1.0);
+            if v.width() >= c.rect.width().min(16.0) && v.height() >= c.rect.height().min(12.0) {
+                ends[0] |= v.min.x <= c.rect.min.x + 0.5;
+                ends[1] |= v.max.x >= c.rect.max.x - 0.5;
+                ends[2] |= v.min.y <= c.rect.min.y + 0.5;
+                ends[3] |= v.max.y >= c.rect.max.y - 0.5;
+            }
+            if (wide || (ends[0] && ends[1])) && (tall || (ends[2] && ends[3])) {
+                return Some(true);
             }
             if last == Some(c.rect) {
                 still += 1;
                 if still >= 2 {
-                    return false;
+                    return Some(false);
                 }
             } else {
                 still = 0;
             }
             last = Some(c.rect);
-            let at = self.wheel_point(c);
+            let at = match from {
+                0 => self.wheel_point(c),
+                n => *self.other_wheel_points(c).get(n - 1)?,
+            };
+            if trace {
+                eprintln!("    from {from} at {at:?}: rect {:?} seen {:?} ends {ends:?}", c.rect, c.seen);
+            }
             let v = self.visible(c);
             let part = v.width() > 1.0 && v.height() > 1.0;
             let axis = |lo: f32, hi: f32, vlo: f32, vhi: f32, p: f32| -> f32 {
@@ -261,7 +322,7 @@ impl Win {
             );
             self.frames(8, Vec::new());
         }
-        false
+        Some(false)
     }
 
     fn click(&mut self, at: egui::Pos2) {
@@ -275,6 +336,26 @@ impl Win {
         self.frames(1, vec![press(true)]);
         self.frames(1, vec![press(false)]);
         self.frames(4, Vec::new());
+    }
+
+    /// A click with the right button at a window position.
+    fn right_click(&mut self, at: egui::Pos2) {
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        self.frames(2, vec![egui::Event::PointerMoved(at)]);
+        self.frames(1, vec![press(true)]);
+        self.frames(1, vec![press(false)]);
+        self.frames(5, Vec::new());
+    }
+
+    /// Where a design point (mm) is in the window.
+    fn at_mm(&self, x: f64, y: f64) -> Option<egui::Pos2> {
+        let p = self.app.viewport?.to_screen(openstitch_design::v2(x * 10.0, y * 10.0));
+        Some(egui::pos2(p.x as f32, p.y as f32))
     }
 
     fn key(&mut self, key: egui::Key) {
@@ -338,6 +419,12 @@ impl Win {
                 continue;
             }
             if !self.reach(c.id, &mut ok) {
+                if let Some(now) = self.controls().into_iter().find(|n| n.id == c.id) {
+                    eprintln!(
+                        "  LOST in {surface}: {:?} '{}' rect {:?} seen {:?}",
+                        now.role, now.label, now.rect, now.seen
+                    );
+                }
                 lost.push(format!("{:?} '{}'", c.role, c.label));
             }
         }
@@ -629,6 +716,96 @@ fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
         });
         rows.push(w.audit(&format!("Main window, pane tab {pane}"), None));
     }
+    // Right clicks: on a shape and on its points with the Point tool, on the rulers.
+    for (name, tool, points) in [
+        ("Right click on a shape, Select tool", Tool::Select, false),
+        ("Right click on a shape, Point tool", Tool::Point, false),
+        ("Right click on a point, Point tool", Tool::Point, true),
+    ] {
+        let mut w = open(Launch {
+            tool: Some(tool),
+            ..demo()
+        });
+        if points {
+            let _ = w.app.ui_command("ui.pointMenu", Some(&json!({ "points": [0, 1] })));
+            w.frames(3, Vec::new());
+        }
+        let before = w.layers();
+        let Some(at) = w.at_mm(50.0, 50.0).filter(|p| w.screen().contains(*p)) else {
+            rows.push(Row {
+                surface: format!("{name} (the shape is not in view)"),
+                ..Row::default()
+            });
+            continue;
+        };
+        w.right_click(at);
+        let n = rows.len();
+        w.audit_new(name, &before, &mut rows);
+        if rows.len() == n {
+            rows.push(Row {
+                surface: format!("{name} (opens no menu)"),
+                ..Row::default()
+            });
+        }
+    }
+    for (name, dx, dy) in [("Right click on the top ruler", 80.0, 6.0), ("Right click on the left ruler", 6.0, 80.0)] {
+        let mut w = open(demo());
+        let before = w.layers();
+        let Some(canvas) = w.app.workspace.canvas else {
+            continue;
+        };
+        w.right_click(canvas.min + egui::vec2(dx, dy));
+        let n = rows.len();
+        w.audit_new(name, &before, &mut rows);
+        if rows.len() == n {
+            rows.push(Row {
+                surface: format!("{name} (opens no menu)"),
+                ..Row::default()
+            });
+        }
+    }
+    // The other windows of the suite: their File menu and, in the Design Database, the menu
+    // bar.
+    type Suite = fn(&mut EditorApp);
+    let suites: [(&str, Suite); 3] = [
+        ("Programmable Stitch Creator", |a| {
+            a.creator.open = true;
+            a.creator.open_app_menu = true;
+        }),
+        ("Stitch Design Factory", |a| {
+            a.sewing.open = true;
+            a.sewing.open_app_menu = true;
+        }),
+        ("Design Database", |a| a.database.show(None)),
+    ];
+    for (name, opener) in suites {
+        let mut plain = open(demo());
+        opener(&mut plain.app);
+        plain.app.creator.open_app_menu = false;
+        plain.app.sewing.open_app_menu = false;
+        plain.frames(5, Vec::new());
+        let before = plain.layers();
+        let mut w = open(demo());
+        opener(&mut w.app);
+        w.frames(5, Vec::new());
+        w.audit_new(&format!("{name}, File menu"), &before, &mut rows);
+        if name == "Design Database" {
+            let bar: Vec<Control> = w
+                .controls()
+                .into_iter()
+                .filter(|c| c.role == Role::Button && c.rect.max.y < 30.0)
+                .collect();
+            for c in bar {
+                let mut w = open(demo());
+                opener(&mut w.app);
+                w.frames(5, Vec::new());
+                let before = w.layers();
+                if w.click_label(&c.label) {
+                    w.audit_new(&format!("{name}, menu {}", c.label), &before, &mut rows);
+                }
+            }
+        }
+    }
     // What each command opens.
     let actions: Vec<Action> = openstitch_app::editor::ribbon::ribbon_actions()
         .into_iter()
@@ -767,8 +944,12 @@ fn probe() {
         return;
     }
     let all = w.controls();
+    let every = std::env::var("REACH_ALL").is_ok();
     for c in &all {
         if w.shown(c) {
+            if every {
+                eprintln!("seen {:?} '{}' rect {:?}", c.role, c.label, c.rect);
+            }
             continue;
         }
         let at = w.wheel_point(c);
@@ -852,4 +1033,53 @@ fn a_dialog_scrolls_its_content_and_keeps_its_buttons_in_view() {
         .filter(|c| dialog.contains(&c.layer) && !big.shown(c))
         .collect();
     assert!(cut.is_empty(), "{cut:?}");
+}
+
+/// The arrow keys walk the Options menu to its last entry, and the highlighted entry is in
+/// view at every step (the list scrolls with it).
+#[test]
+fn the_arrow_keys_keep_the_highlighted_options_entry_in_view() {
+    let mut w = Win::new(demo(), (640.0, 400.0), 100);
+    let before = w.layers();
+    assert!(w.click_label("Options"));
+    let menu: HashSet<egui::LayerId> = w.layers().difference(&before).copied().collect();
+    let entries: Vec<Control> =
+        w.controls().into_iter().filter(|c| menu.contains(&c.layer)).collect();
+    let last = entries
+        .iter()
+        .max_by(|a, b| a.rect.max.y.total_cmp(&b.rect.max.y))
+        .expect("entries")
+        .clone();
+    assert!(!w.shown(&last), "the last entry starts below the window: {last:?}");
+    let mut walked = HashSet::new();
+    let mut at = None;
+    for step in 0..80 {
+        w.key(egui::Key::ArrowDown);
+        w.frames(6, Vec::new());
+        if w.ctx.memory(|m| m.focused()) == at {
+            // A number field takes the arrows for its value: Tab goes on from it.
+            w.key(egui::Key::Tab);
+            w.frames(6, Vec::new());
+        }
+        at = w.ctx.memory(|m| m.focused());
+        let Some(id) = at else {
+            continue;
+        };
+        let all = w.controls();
+        let Some(c) = all.iter().find(|c| c.id == id) else {
+            continue;
+        };
+        assert!(w.shown(c), "step {step}: the highlighted entry is cut off: {c:?}");
+        walked.insert(id);
+        if id == last.id {
+            break;
+        }
+    }
+    let missed: Vec<String> = entries
+        .iter()
+        .filter(|c| !walked.contains(&c.id))
+        .map(|c| format!("{:?} '{}'", c.role, c.label))
+        .collect();
+    assert!(walked.contains(&last.id), "the keys reach the last entry; missed {missed:?}");
+    assert!(walked.len() >= 20, "walked {} entries", walked.len());
 }

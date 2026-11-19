@@ -144,7 +144,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.selectable_value(&mut d.paper, p, label);
                 }
             });
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui
                     .button(t("menu-print"))
                     .on_hover_text(t("ui-saves-the-job-fields-then-opens-tip"))
@@ -155,7 +155,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-save-pdf")).clicked() {
                     print = Some(false);
                 }
-            });
+            }));
         });
     d.open = open && print.is_none();
     // Printing prints the fields as edited: they are saved first (one undo step).

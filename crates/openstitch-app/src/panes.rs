@@ -151,6 +151,9 @@ fn panel(id: &'static str, side: openstitch_app::editor::prefs::Side) -> egui::P
 /// The height the work area and the panes at its sides keep beside a pane docked above or
 /// below them, in a window too small for all of it (#1276).
 const WORK_AREA_LEAST: f32 = 160.0;
+/// The width the Sewing Order and Attributes panes lay their content out at when they are
+/// squeezed narrower (panes on both sides of a small window): they scroll sideways then.
+const PANE_WIDTH_LEAST: f32 = 240.0;
 
 /// Docks the visible panes around the work area (call before the central panel).
 pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
@@ -185,7 +188,7 @@ pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
             .default_size(250.0)
             .max_size(crate::fit::pane_limit(ui.available_width(), WORK_AREA_LEAST))
             .show(ui, |ui| {
-                crate::fit::pane(ui, |ui| {
+                crate::fit::pane_at_least(ui, PANE_WIDTH_LEAST, |ui| {
                     header(app, ui, Pane::SewingOrder);
                     ui.separator();
                     crate::panels::object_list(app, ui);
@@ -196,7 +199,9 @@ pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
         panel("inspector", app.ui.prefs.panes.attributes.side)
             .default_size(330.0)
             .max_size(crate::fit::pane_limit(ui.available_width(), WORK_AREA_LEAST))
-            .show(ui, |ui| crate::fit::pane(ui, |ui| attributes(app, ui)));
+            .show(ui, |ui| {
+                crate::fit::pane_at_least(ui, PANE_WIDTH_LEAST, |ui| attributes(app, ui))
+            });
     }
 }
 
@@ -920,7 +925,7 @@ fn problem_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
             ui.label(t("ui-nothing-is-sent-from-openstitch"));
             ui.add_space(6.0);
-            ui.horizontal_wrapped(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal_wrapped(|ui| {
                 if ui.button(t("ui-open-the-issue-page")).clicked() {
                     ui.ctx().open_url(egui::OpenUrl::new_tab(crash::report_url(
                         &crate::update_ui::version_line(),
@@ -945,7 +950,7 @@ fn problem_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-close")).clicked() {
                     close = true;
                 }
-            });
+            }));
         });
     if !open || close {
         // The report is not shown again at the next start.

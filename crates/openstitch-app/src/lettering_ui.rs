@@ -161,10 +161,10 @@ fn fit_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.end_row();
             });
             ui.separator();
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 ok = ui.button(t("ui-ok")).clicked();
                 cancel = ui.button(t("ui-cancel")).clicked();
-            });
+            }));
         });
     if ok {
         let r = fit_request(&app.lettering.fit, text, outline);
@@ -892,7 +892,7 @@ fn text_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.weak(
                 "CJK, Arabic, Hebrew and other scripts need a TrueType font that has them (Load TrueType Font…); they are shaped and set right to left where needed.",
             );
-            if ui.button(t("ui-add")).clicked() {
+            if crate::fit::buttons(ui, |ui| ui.button(t("ui-add")).clicked()) {
                 add = f.request();
             }
         });
@@ -1172,7 +1172,7 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
             });
             ui.separator();
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui
                     .add_enabled(f.selected.is_some(), egui::Button::new(t("ui-use-selected-row")))
                     .on_hover_text(t("ui-put-the-row-s-text-into-tip"))
@@ -1196,7 +1196,7 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
                 {
                     action = Some(DropAction::ToFolder);
                 }
-            });
+            }));
         });
     app.lettering.name_drop.open = open;
     let f = app.lettering.name_drop.clone();

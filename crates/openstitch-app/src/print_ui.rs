@@ -103,7 +103,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 .weak()
                 .small(),
             );
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui
                     .button(t("menu-print"))
                     .on_hover_text(t("ui-open-the-system-print-dialog-or-tip"))
@@ -114,7 +114,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-save-pdf")).clicked() {
                     print = Some(false);
                 }
-            });
+            }));
         });
     d.open = open && print.is_none();
     ctx.data_mut(|m| m.insert_temp(id(), d.clone()));

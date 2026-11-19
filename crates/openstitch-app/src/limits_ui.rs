@@ -49,7 +49,8 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             );
             ui.hyperlink_to(format!("OpenStitch issue #{}", limit.issue()), url);
             ui.add_space(4.0);
-            ok = ui.button(t("ui-ok")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter));
+            ok = crate::fit::buttons(ui, |ui| ui.button(t("ui-ok")).clicked())
+                || ui.input(|i| i.key_pressed(egui::Key::Enter));
         });
     if !open || ok {
         app.ui.limit_notice = None;

@@ -675,9 +675,10 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.checkbox(&mut f.merge, t("ui-merge-overlapping-shapes"));
             ui.checkbox(&mut f.optimize, t("ui-optimize-sewing-order"));
             let ready = !app.selection.is_empty() && (!f.mode.needs_guide() || f.guide.is_some());
-            apply = ui
-                .add_enabled(ready, egui::Button::new(t("ui-arrange")))
-                .clicked();
+            apply = crate::fit::buttons(ui, |ui| {
+                ui.add_enabled(ready, egui::Button::new(t("ui-arrange")))
+                    .clicked()
+            });
         });
     if apply {
         let r = app.edit.arrange.request(&app.selection);
@@ -718,9 +719,11 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.end_row();
             });
             ui.checkbox(&mut f.rounded, t("ui-rounded-corners"));
-            apply = ui
-                .add_enabled(single(app).is_some(), egui::Button::new(t("ui-create")))
-                .clicked();
+            let one = single(app).is_some();
+            apply = crate::fit::buttons(ui, |ui| {
+                ui.add_enabled(one, egui::Button::new(t("ui-create")))
+                    .clicked()
+            });
         });
     if apply && let Some(id) = single(app) {
         let r = app.edit.offset.request(id);
@@ -740,9 +743,11 @@ fn floral_window(app: &mut EditorApp, ctx: &egui::Context) {
             let f = &mut app.edit.floral;
             ui.add(egui::Slider::new(&mut f.density, 1..=10).text("Density"));
             ui.add(egui::Slider::new(&mut f.pattern, 0..=251).text("Pattern"));
-            apply = ui
-                .add_enabled(single(app).is_some(), egui::Button::new(t("ui-create")))
-                .clicked();
+            let one = single(app).is_some();
+            apply = crate::fit::buttons(ui, |ui| {
+                ui.add_enabled(one, egui::Button::new(t("ui-create")))
+                    .clicked()
+            });
         });
     if apply && let Some(id) = single(app) {
         let r = app.edit.floral.request(id);

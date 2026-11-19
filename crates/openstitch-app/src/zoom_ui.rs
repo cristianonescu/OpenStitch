@@ -239,7 +239,7 @@ pub fn calibration_window(app: &mut EditorApp, ctx: &egui::Context) {
             let monitor = key.as_deref().unwrap_or("this screen");
             let now = app.ui.prefs.points_per_mm(key.as_deref());
             ui.weak(format!("{monitor}: 100 % is {:.2} points per mm", now));
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 let k = viewport::calibrated(f64::from(app.calibration.length), 100.0);
                 if ui
                     .add_enabled(k.is_some() && key.is_some(), egui::Button::new(t("ui-save")))
@@ -257,7 +257,7 @@ pub fn calibration_window(app: &mut EditorApp, ctx: &egui::Context) {
                     app.ui.prefs.calibrate(monitor, None);
                     app.ui.save_prefs();
                 }
-            });
+            }));
         });
     app.calibration.open = open;
 }

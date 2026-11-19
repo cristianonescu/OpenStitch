@@ -245,14 +245,14 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                 }
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 apply = ui
                     .add_enabled(plan.is_some(), egui::Button::new(t("menu-apply")))
                     .clicked();
                 undo = ui
                     .add_enabled(st.applied, egui::Button::new(t("ui-restore-original-colours")))
                     .clicked();
-            });
+            }));
         });
     if apply && apply_match(app) {
         app.status = openstitch_app::editor::ui_texts::t("ui-status-threads-matched-to-the-chart").into();
@@ -303,7 +303,7 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
                         }
                     });
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 apply = ui
                     .add_enabled(
                         plan.as_ref()
@@ -314,7 +314,7 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
                 undo = ui
                     .add_enabled(st.applied, egui::Button::new(t("ui-restore-original-colours")))
                     .clicked();
-            });
+            }));
         });
     if apply && apply_merge(app) {
         app.status = openstitch_app::editor::ui_texts::t("ui-status-similar-colours-merged").into();

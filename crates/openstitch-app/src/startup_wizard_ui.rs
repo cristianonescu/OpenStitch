@@ -163,7 +163,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
             });
             ui.separator();
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui
                     .checkbox(
                         &mut app.ui.prefs.startup_wizard,
@@ -176,7 +176,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-close-this-wizard")).clicked() {
                     close = true;
                 }
-            });
+            }));
         });
     if let Some(key) = picked {
         let _ = choose(app, key, ctx);

@@ -867,14 +867,14 @@ fn name_dialog(
             let r = ui.text_edit_singleline(&mut name);
             r.request_focus();
             ui.label(RichText::new(&app.database.status).weak().small());
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-ok")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     result = Some(name.clone());
                 }
                 if ui.button(t("ui-cancel")).clicked() {
                     app.database.dialog = Dialog::None;
                 }
-            });
+            }));
         });
     if !open {
         app.database.dialog = Dialog::None;
@@ -910,7 +910,7 @@ fn confirm_delete(app: &mut EditorApp, ctx: &egui::Context, paths: &[PathBuf]) {
             if paths.len() > 8 {
                 ui.label(RichText::new(format!("and {} more", paths.len() - 8)).weak());
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 // A browser has no system trash (#693).
                 #[cfg(not(target_arch = "wasm32"))]
                 if ui.button(t("ui-move-to-trash")).clicked() {
@@ -922,7 +922,7 @@ fn confirm_delete(app: &mut EditorApp, ctx: &egui::Context, paths: &[PathBuf]) {
                 if ui.button(t("ui-cancel")).clicked() {
                     app.database.dialog = Dialog::None;
                 }
-            });
+            }));
         });
     if !open {
         app.database.dialog = Dialog::None;
@@ -1048,14 +1048,14 @@ fn search_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                 });
             ui.checkbox(&mut f.subfolders, t("ui-search-subfolders"));
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-search")).clicked() {
                     run = true;
                 }
                 if ui.button(t("ui-reset")).clicked() {
                     app.database.search = Default::default();
                 }
-            });
+            }));
         });
     if run {
         match app.database.run_search() {
@@ -1123,10 +1123,11 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                     .weak()
                     .small(),
             );
-            if ui
-                .add_enabled(n > 0, egui::Button::new(t("ui-convert")))
-                .clicked()
-            {
+            let convert = crate::fit::buttons(ui, |ui| {
+                ui.add_enabled(n > 0, egui::Button::new(t("ui-convert")))
+                    .clicked()
+            });
+            if convert {
                 run = true;
             }
         });
@@ -1225,7 +1226,7 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                         .small(),
                 );
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if c.format == CatalogFormat::Pdf
                     && ui
                         .button(t("menu-print"))
@@ -1237,7 +1238,7 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-save-2")).clicked() {
                     save = true;
                 }
-            });
+            }));
         });
     if printing {
         print(app);

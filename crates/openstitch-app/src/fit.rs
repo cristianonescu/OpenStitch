@@ -41,7 +41,21 @@ pub fn scroll<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
         .min_scrolled_height(max)
         .min_scrolled_width(wide)
         .auto_shrink([true, true])
-        .show(ui, add);
+        .show(ui, |ui| {
+            let inner = add(ui);
+            follow_focus(ui);
+            inner
+        });
+    note(
+        ui.ctx(),
+        Surface {
+            kind: "menu",
+            rect: out.inner_rect,
+            content: out.content_size.y,
+            offset: out.state.clamped_offset().y,
+            buttons: None,
+        },
+    );
     if (out.content_size.x - last).abs() > 0.5 {
         ui.ctx().data_mut(|d| d.insert_temp(key, out.content_size.x));
         ui.ctx().request_repaint();
@@ -90,6 +104,87 @@ pub fn visible_bars(ui: &mut egui::Ui) {
     bars.dormant_background_opacity = 0.15;
     bars.floating_width = 4.0;
     ui.spacing_mut().scroll = bars;
+}
+
+/// A menu, pop-up or dialog drawn in a frame, as `ui.state` reports it (`surfaces`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Surface {
+    /// `menu` (a menu, list or pop-up) or `dialog`.
+    pub kind: &'static str,
+    /// The part of the window its content is seen through.
+    pub rect: egui::Rect,
+    /// The height of the content; more than the height of `rect` when it scrolls.
+    pub content: f32,
+    /// How far the content is scrolled down.
+    pub offset: f32,
+    /// The dialog's button row, when it is kept in view below the scrolled content.
+    pub buttons: Option<egui::Rect>,
+}
+
+/// The surfaces of one frame.
+#[derive(Clone, Default)]
+struct Drawn {
+    frame: u64,
+    list: Vec<Surface>,
+}
+
+fn drawn_id() -> egui::Id {
+    egui::Id::unique("fit-surfaces")
+}
+
+fn note(ctx: &egui::Context, surface: Surface) {
+    let frame = ctx.cumulative_frame_nr();
+    ctx.data_mut(|d| {
+        let drawn: &mut Drawn = d.get_temp_mut_or_default(drawn_id());
+        if drawn.frame != frame {
+            drawn.frame = frame;
+            drawn.list.clear();
+        }
+        drawn.list.push(surface);
+    });
+}
+
+/// The menus, pop-ups and dialogs drawn in this frame so far (call at the end of the frame).
+pub fn surfaces(ctx: &egui::Context) -> Vec<Surface> {
+    let frame = ctx.cumulative_frame_nr();
+    ctx.data(|d| d.get_temp::<Drawn>(drawn_id()))
+        .filter(|d| d.frame == frame)
+        .map(|d| d.list)
+        .unwrap_or_default()
+}
+
+/// Brings the control that has just taken the keyboard focus (Tab, the arrow keys) into view,
+/// when it is inside the scrolled content `ui`. The toolkit moves the focus without scrolling.
+fn follow_focus(ui: &egui::Ui) {
+    let ctx = ui.ctx();
+    let key = ui.scope_id().with("fit-focus");
+    let now = ctx.memory(|m| m.focused());
+    let last = ctx.data(|d| d.get_temp::<Option<egui::Id>>(key)).flatten();
+    if now == last {
+        return;
+    }
+    ctx.data_mut(|d| d.insert_temp(key, now));
+    let Some(id) = now else { return };
+    let inside = ui.unique_id();
+    let rect = ctx.viewport(|v| {
+        let all = &v.this_pass.widgets;
+        let found = all.get(id)?;
+        let mut up = found.parent_id;
+        for _ in 0..40 {
+            if up == inside {
+                return Some(found.rect);
+            }
+            let parent = all.get(up)?;
+            if parent.parent_id == up {
+                break;
+            }
+            up = parent.parent_id;
+        }
+        None
+    });
+    if let Some(rect) = rect {
+        ui.scroll_to_rect(rect.expand(2.0), None);
+    }
 }
 
 /// What a dialog measured in its last frame.
@@ -204,7 +299,11 @@ fn dialog<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
         .min_scrolled_height(view)
         .min_scrolled_width(width)
         .auto_shrink([true, true])
-        .show(ui, add);
+        .show(ui, |ui| {
+            let inner = add(ui);
+            follow_focus(ui);
+            inner
+        });
     let buttons = ctx
         .data(|d| d.get_temp::<Open>(open_id()))
         .map_or(0.0, |o| o.measured);
@@ -216,6 +315,16 @@ fn dialog<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
             .hline(rect.x_range(), rect.top() - gap / 2.0, line);
         ui.allocate_space(egui::vec2(out.inner_rect.width(), buttons - gap));
     }
+    note(
+        &ctx,
+        Surface {
+            kind: "dialog",
+            rect: out.inner_rect,
+            content: out.content_size.y,
+            offset: out.state.clamped_offset().y,
+            buttons: pinned.filter(|_| buttons > 0.0),
+        },
+    );
     let now = Sizes {
         content: out.content_size.y - if pin { 0.0 } else { buttons },
         buttons,
@@ -267,8 +376,8 @@ pub fn buttons<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R 
 /// What a pane measured in its last frame.
 #[derive(Clone, Copy, Default, PartialEq)]
 struct PaneSizes {
-    /// Its content did not fit: it is drawn scrolling.
-    scrolls: bool,
+    /// Its content was taller than the pane: it is drawn scrolling up and down.
+    tall: bool,
     /// The height the content takes when it scrolls (its lists at their least height).
     needed: f32,
 }
@@ -277,29 +386,49 @@ struct PaneSizes {
 /// pane is lower than its content, the whole content scrolls, so the rows below the edge can
 /// be reached. Lists inside that fill the pane are made with [`list`].
 pub fn pane<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    pane_at_least(ui, 0.0, add)
+}
+
+/// As [`pane`], for content that needs `width` points: in a pane squeezed narrower than that
+/// (panes on both sides of a small window) it is laid out at that width and scrolls sideways.
+pub fn pane_at_least<R>(ui: &mut egui::Ui, width: f32, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let ctx = ui.ctx().clone();
     let key = ui.scope_id().with("fit-pane");
     let last: PaneSizes = ctx.data(|d| d.get_temp(key)).unwrap_or_default();
-    let room = ui.available_height();
-    let scrolls = last.scrolls && last.needed > room + 0.5;
-    let (inner, now) = if scrolls {
+    let room = ui.available_size();
+    let down = last.tall && last.needed > room.y + 0.5;
+    let sideways = width > room.x + 0.5;
+    let (inner, now) = if down || sideways {
         visible_bars(ui);
-        let out = egui::ScrollArea::vertical()
+        let out = egui::ScrollArea::new([sideways, down])
             .id_salt("fit-pane")
             .auto_shrink([false, false])
-            .show(ui, add);
+            .show(ui, |ui| {
+                if sideways {
+                    ui.set_min_width(width);
+                    ui.set_max_width(width);
+                }
+                let inner = add(ui);
+                follow_focus(ui);
+                inner
+            });
+        let tall = down || out.content_size.y > out.inner_rect.height() + 1.0;
         let now = PaneSizes {
-            scrolls: true,
-            needed: out.content_size.y,
+            tall,
+            needed: match (down, tall) {
+                (true, _) => out.content_size.y,
+                (false, true) => f32::INFINITY,
+                (false, false) => 0.0,
+            },
         };
         (out.inner, now)
     } else {
         let bottom = ui.max_rect().bottom();
         let inner = add(ui);
-        let over = ui.min_rect().bottom() > bottom + 1.0;
+        let tall = ui.min_rect().bottom() > bottom + 1.0;
         let now = PaneSizes {
-            scrolls: over,
-            needed: if over { f32::INFINITY } else { 0.0 },
+            tall,
+            needed: if tall { f32::INFINITY } else { 0.0 },
         };
         (inner, now)
     };

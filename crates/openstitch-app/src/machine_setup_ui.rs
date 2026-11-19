@@ -164,13 +164,13 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 .weak(),
             );
             ui.add_space(6.0);
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 save = ui.button(t("ui-save")).clicked();
                 skip = ui
                     .button(t("ui-not-now"))
                     .on_hover_text(t("ui-help-machine-setup-asks-again-tip"))
                     .clicked();
-            });
+            }));
         });
     app.machine_setup.draft = Some(d.clone());
     if save {

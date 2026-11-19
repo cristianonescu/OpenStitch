@@ -714,7 +714,7 @@ fn new_guide_window(app: &mut EditorApp, ctx: &egui::Context) {
             if let Some(e) = &d.error {
                 ui.colored_label(ui.visuals().error_fg_color, e);
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-ok")).clicked() || enter {
                     match new_guide_at(app, d.vertical, &d.text) {
                         Ok(()) => done = true,
@@ -724,7 +724,7 @@ fn new_guide_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-cancel")).clicked() {
                     done = true;
                 }
-            });
+            }));
         });
     if open && !done {
         app.workspace.view.new_guide = Some(d);
@@ -860,7 +860,7 @@ fn guide_layout_window(app: &mut EditorApp, ctx: &egui::Context) {
             if let Some(e) = d.error.as_ref().or(problem.as_ref()) {
                 ui.colored_label(ui.visuals().error_fg_color, e);
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-ok")).clicked() {
                     match apply_guide_layout(app, &d) {
                         Ok(()) => done = true,
@@ -870,7 +870,7 @@ fn guide_layout_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-cancel")).clicked() {
                     done = true;
                 }
-            });
+            }));
         });
     if open && !done {
         app.workspace.view.guide_layout = Some(d);
@@ -988,7 +988,7 @@ fn guide_window(app: &mut EditorApp, ctx: &egui::Context) {
             if let Some(e) = &d.error {
                 ui.colored_label(ui.visuals().error_fg_color, e);
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-ok")).clicked() || enter {
                     match set_guide_position(app, d.vertical, d.index, &d.text) {
                         Ok(()) => done = true,
@@ -998,7 +998,7 @@ fn guide_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-cancel")).clicked() {
                     done = true;
                 }
-            });
+            }));
         });
     if open && !done {
         app.workspace.view.guide_dialog = Some(d);
@@ -1503,7 +1503,7 @@ fn realistic_window(app: &mut EditorApp, ctx: &egui::Context) {
                     .changed();
                 ui.end_row();
             });
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-default")).clicked() {
                     *r = RealisticSettings::default();
                     changed = true;
@@ -1512,7 +1512,7 @@ fn realistic_window(app: &mut EditorApp, ctx: &egui::Context) {
                     app.workspace.realistic = true;
                     app.workspace.solid = false;
                 }
-            });
+            }));
         });
     app.workspace.view.realistic_open = open;
     if changed {
@@ -1590,7 +1590,7 @@ fn font_filter_window(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                 });
             ui.separator();
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui
                     .button(t("ui-default"))
                     .on_hover_text(t("ui-show-every-font-tip"))
@@ -1601,7 +1601,7 @@ fn font_filter_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-ok")).clicked() {
                     apply = true;
                 }
-            });
+            }));
         });
     if apply {
         draft.on = true;
@@ -1771,12 +1771,12 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
                 .weak()
                 .small(),
             );
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 let can = chosen.is_some() && (all || !selected.is_empty());
                 if ui.add_enabled(can, egui::Button::new(t("ui-ok"))).clicked() {
                     ok = true;
                 }
-            });
+            }));
         });
     v.fabric = chosen.clone();
     v.fabric_all = Some(all);

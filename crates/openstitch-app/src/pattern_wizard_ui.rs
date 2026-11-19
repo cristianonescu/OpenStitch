@@ -49,7 +49,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
                 WizardKind::Cutwork => cutwork(app, ui),
             }
             ui.separator();
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 let ready = app.pattern_wizards.request(kind, &app.selection).is_some();
                 apply = ui.add_enabled(ready, egui::Button::new(t("ui-ok"))).clicked();
                 if ui.button(t("ui-default")).clicked() {
@@ -62,7 +62,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
                         WizardKind::Cutwork => app.pattern_wizards.cutwork = Default::default(),
                     }
                 }
-            });
+            }));
         });
     if let Some(shown) = shown {
         app.dialog_rect_next = Some(shown.response.rect);

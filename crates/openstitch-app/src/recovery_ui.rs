@@ -330,11 +330,12 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
             }
             ui.separator();
-            if ui
-                .button("Later")
-                .on_hover_text("Ask again at the next start")
-                .clicked()
-            {
+            let asked = crate::fit::buttons(ui, |ui| {
+                ui.button("Later")
+                    .on_hover_text("Ask again at the next start")
+                    .clicked()
+            });
+            if asked {
                 later = true;
             }
         });

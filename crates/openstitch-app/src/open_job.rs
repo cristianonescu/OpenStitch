@@ -331,11 +331,11 @@ fn progress_window(app: &mut EditorApp, ctx: &egui::Context) {
         ));
         ui.add(egui::ProgressBar::new((stage as f32 + 0.5) / STAGES.len() as f32).animate(true));
         ui.add_space(6.0);
-        cancel = ui
-            .button(t("ui-cancel"))
-            .on_hover_text(t("ui-stop-opening-the-current-design-stays-tip"))
-            .clicked()
-            || ui.input(|i| i.key_pressed(egui::Key::Escape));
+        cancel = crate::fit::buttons(ui, |ui| {
+            ui.button(t("ui-cancel"))
+                .on_hover_text(t("ui-stop-opening-the-current-design-stays-tip"))
+                .clicked()
+        }) || ui.input(|i| i.key_pressed(egui::Key::Escape));
     });
     if cancel {
         app.cancel_job();

@@ -293,8 +293,10 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
             ui.separator();
             ui.weak("Approximations of PE-DESIGN's wizards; results are editable and one Undo.");
-            ui.add_enabled_ui(w.path.is_some(), |ui| {
-                convert = ui.button(t("ui-convert")).clicked();
+            crate::fit::buttons(ui, |ui| {
+                ui.add_enabled_ui(w.path.is_some(), |ui| {
+                    convert = ui.button(t("ui-convert")).clicked();
+                })
             });
         });
     app.wizard.open = open;

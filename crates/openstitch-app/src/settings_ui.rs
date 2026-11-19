@@ -74,7 +74,7 @@ fn sets_window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
             }
             ui.separator();
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 crate::a11y::name(
                     &ui.text_edit_singleline(&mut app.settings.set_name),
                     "Attribute set name",
@@ -93,7 +93,7 @@ fn sets_window(app: &mut EditorApp, ctx: &egui::Context) {
                         json!({ "name": app.settings.set_name.trim(), "from": from }),
                     ));
                 }
-            });
+            }));
         });
     if let Some(r) = request
         && app.execute(&r).is_some()
@@ -296,7 +296,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.text_edit_singleline(&mut st.description);
                 ui.end_row();
             });
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-add-colour")).clicked() {
                     let [r, g, b] = st.color;
                     let mut p =
@@ -364,7 +364,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     app.colour_match.target = crate::colour_match_ui::Target::User(name.clone());
                     app.colour_match.match_open = true;
                 }
-            });
+            }));
         });
     if let Some(r) = request
         && app.execute(&r).is_some()
