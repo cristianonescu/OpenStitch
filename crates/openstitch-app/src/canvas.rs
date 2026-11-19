@@ -934,9 +934,8 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
         }
         return;
     }
-    let Some(overlay) = app.tools.point_overlay(&ctx) else {
-        return;
-    };
+    // Every shape whose points show (#1260: with several shapes selected, all of them).
+    for overlay in app.tools.point_overlays(&ctx) {
     for (ci, c) in overlay.contours.iter().enumerate() {
         draw_contour(
             painter,
@@ -975,6 +974,28 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
                 StrokeKind::Middle,
             );
         }
+    }
+    }
+    // Alt held with an end point of an open line selected: an x on every end it can connect
+    // to; a red square where the dragged end lies on one (PE-DESIGN's manual, #1260).
+    let alt = painter.ctx().input(|i| i.modifiers.alt);
+    let ink = Color32::from_gray(16);
+    for at in app.tools.connect_marks(alt, &ctx) {
+        let p = pos(vp.to_screen(at));
+        for (dx, dy) in [(6.0, 6.0), (6.0, -6.0)] {
+            painter.line_segment(
+                [p - egui::vec2(dx, dy), p + egui::vec2(dx, dy)],
+                Stroke::new(1.5, ink),
+            );
+        }
+    }
+    if let Some(at) = app.tools.connect_overlap() {
+        painter.rect_stroke(
+            egui::Rect::from_center_size(pos(vp.to_screen(at)), egui::vec2(13.0, 13.0)),
+            CornerRadius::ZERO,
+            Stroke::new(2.0, Color32::from_rgb(0xe0, 0x20, 0x20)),
+            StrokeKind::Middle,
+        );
     }
 }
 

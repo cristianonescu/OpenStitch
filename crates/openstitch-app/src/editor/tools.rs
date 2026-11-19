@@ -3,7 +3,7 @@ use super::hit::{bounds_of, object_at, object_at_opts, objects_in, rect_from};
 use super::pen::{PenNode, is_valid, path_request, pen_contour};
 use super::points::{
     Control, PointAction, PointHit, PointRef, can_delete_points, point_actions_enabled,
-    point_at_selected, smooth_curve, with_control, with_vertex,
+    point_at_selected, smooth_curve, with_control,
 };
 use super::request::{CommandRequest, mm};
 use super::snap::{SnapGuide, SnapLines, TOLERANCE_POINTS, snap_move};
@@ -249,6 +249,37 @@ impl ToolContext<'_> {
             .find(|o| o.id == id && o.kind == ObjectKind::Shape && o.visible && !o.locked)
     }
 
+    /// The shapes whose points the Point tool shows and edits (#1260): the one selected shape
+    /// or, with several objects selected, every plain shape among them (visible, not locked,
+    /// and not a Manual Punch column or a satin line, which have handles of their own).
+    pub fn point_targets(&self) -> Vec<&DesignObject> {
+        if self.selection.len() <= 1 {
+            return self.point_target().into_iter().collect();
+        }
+        self.design
+            .objects
+            .iter()
+            .filter(|o| {
+                self.selection.contains(&o.id)
+                    && o.kind == ObjectKind::Shape
+                    && o.visible
+                    && !o.locked
+                    && punch_rungs::rungs(o).is_none()
+                    && !satin_width::is_satin_line(o)
+            })
+            .collect()
+    }
+
+    /// The Point tool's target with this id.
+    pub fn point_target_of(&self, id: u64) -> Option<&DesignObject> {
+        self.point_targets().into_iter().find(|o| o.id == id)
+    }
+
+    /// The outline `p` names on one of the Point tool's targets.
+    pub fn point_contour(&self, p: PointRef) -> Option<&Contour> {
+        self.point_target_of(p.id)?.contours.get(p.contour)
+    }
+
     /// Whether the selection holds a locked object (#502): no handles, no dragging.
     pub fn locked(&self) -> bool {
         super::objects::any_locked(self.design, self.selection)
@@ -329,7 +360,9 @@ enum Gesture {
     Vertex {
         point: PointRef,
         start: Vec2,
-        edited: Option<Contour>,
+        /// Every outline with a selected point, as moved: (object id, contour) and the
+        /// outline; the dragged point's outline first.
+        edited: Option<Vec<((u64, usize), Contour)>>,
     },
     /// Point tool: a curve handle being dragged.
     Control {
@@ -399,7 +432,8 @@ pub struct PointOverlay {
     pub id: u64,
     pub contours: Vec<Contour>,
     pub selected: Option<(usize, usize)>,
-    /// Further selected vertices (Ctrl+click adds them): the menu's entries act on all.
+    /// Further selected vertices of this shape (Ctrl+click or Shift+click adds them): the
+    /// menu's entries act on all.
     pub also: Vec<(usize, usize)>,
 }
 
@@ -426,11 +460,22 @@ pub struct ToolController {
     corner_radii: Option<[f64; 4]>,
     /// Point tool: the selected vertex.
     point: Option<PointRef>,
-    /// Point tool: further vertices selected with Ctrl+click, on the same contour.
+    /// Point tool: further selected vertices (Ctrl+click, Shift+click, a drag box), on any
+    /// outline of any shape whose points show.
     more_points: Vec<PointRef>,
-    /// Point tool: the vertex pressed with Ctrl held, and what was selected then; released
-    /// without a drag it is added to that selection or taken out of it.
-    ctrl_press: Option<(PointRef, Vec<PointRef>)>,
+    /// Point tool: the vertex pressed with Ctrl or Shift held, and what was selected then;
+    /// released without a drag it is added to that selection. With Ctrl (the flag) a vertex
+    /// that was selected is taken out instead; with Shift alone it stays selected.
+    ctrl_press: Option<(PointRef, Vec<PointRef>, bool)>,
+    /// Point tool: the run of points Shift+arrow selected: the point it started at and how
+    /// many points it reaches from there (positive: toward the next points of the outline,
+    /// negative: toward the previous ones). It counts only while the selection is still that
+    /// run.
+    point_run: Option<(PointRef, i64)>,
+    /// Point tool: the end the Alt-dragged end point lies on (a red square shows there), and
+    /// whether the running point drag has Alt held.
+    connect_hover: Option<Vec2>,
+    alt_drag: bool,
     /// Last pointer location (for the Point tool's segment shortcuts).
     hover: Option<Vec2>,
     /// Point tool on a stitch pattern: selected needle point indexes, and whose they are.
@@ -616,6 +661,8 @@ impl ToolController {
     /// Escape: abandon the gesture, polygon or pen path in progress.
     pub fn cancel(&mut self) {
         self.gesture = None;
+        self.connect_hover = None;
+        self.alt_drag = false;
         self.snap_lines = None;
         self.guides.clear();
         self.polygon.clear();
@@ -668,66 +715,185 @@ impl ToolController {
 
     // MARK: point tool
 
-    /// The selected vertex, if it still exists on the Point tool's target.
+    /// The selected vertex, if it still exists on one of the Point tool's targets.
     pub fn selected_point(&self, ctx: &ToolContext) -> Option<PointRef> {
         let p = self.point?;
-        let o = ctx.point_target().filter(|o| o.id == p.id)?;
-        (p.index < o.contours.get(p.contour)?.points.len()).then_some(p)
+        (p.index < ctx.point_contour(p)?.points.len()).then_some(p)
     }
 
-    /// What of `o` lies under `p` for the Point tool: a vertex, a handle of a selected vertex
-    /// (no other handle shows) or a side.
-    fn point_hit(&self, o: &DesignObject, p: Vec2, ctx: &ToolContext) -> Option<PointHit> {
-        let selected: Vec<(usize, usize)> = self
-            .selected_points(ctx)
-            .iter()
-            .map(|q| (q.contour, q.index))
-            .collect();
-        point_at_selected(o, p, ctx.point_radius(), ctx.tolerance(), &selected)
+    /// What lies under `p` for the Point tool, on which of its targets: a vertex, a handle of
+    /// a selected vertex (no other handle shows) or, when neither is there, a side.
+    fn point_hit<'a>(&self, p: Vec2, ctx: &'a ToolContext) -> Option<(&'a DesignObject, PointHit)> {
+        let selected = self.selected_points(ctx);
+        let mut side = None;
+        for o in ctx.point_targets() {
+            let own: Vec<(usize, usize)> = selected
+                .iter()
+                .filter(|q| q.id == o.id)
+                .map(|q| (q.contour, q.index))
+                .collect();
+            match point_at_selected(o, p, ctx.point_radius(), ctx.tolerance(), &own) {
+                Some(hit @ PointHit::Segment { .. }) => {
+                    side = side.or(Some((o, hit)));
+                }
+                Some(hit) => return Some((o, hit)),
+                None => {}
+            }
+        }
+        side
     }
 
-    /// Every selected vertex: the one clicked last first, then those added with Ctrl+click
-    /// (same object and contour, still existing).
+    /// Every selected vertex: the one clicked last first, then the others (Ctrl+click,
+    /// Shift+click, a drag box), on any outline of any shape whose points show (#1260), as
+    /// long as they still exist.
     pub fn selected_points(&self, ctx: &ToolContext) -> Vec<PointRef> {
         let Some(first) = self.selected_point(ctx) else {
             return vec![];
         };
-        let n = ctx
-            .point_target()
-            .and_then(|o| o.contours.get(first.contour))
-            .map_or(0, |c| c.points.len());
         let mut out = vec![first];
         for p in &self.more_points {
-            if p.id == first.id && p.contour == first.contour && p.index < n && !out.contains(p) {
+            if !out.contains(p)
+                && ctx
+                    .point_contour(*p)
+                    .is_some_and(|c| p.index < c.points.len())
+            {
                 out.push(*p);
             }
         }
         out
     }
 
-    /// Selects vertices `indexes` of contour `contour` of the Point tool's target (the first
-    /// as the clicked one). False, changing nothing, when there is no target or a vertex does
-    /// not exist.
+    /// The points of the run from `anchor` over `span` further points of its outline, the
+    /// anchor first; a closed outline's order goes round.
+    fn run_points(anchor: PointRef, span: i64, c: &Contour) -> Vec<PointRef> {
+        let n = c.points.len() as i64;
+        (0..=span.abs())
+            .map(|j| {
+                let i = anchor.index as i64 + j * span.signum();
+                PointRef {
+                    index: if c.closed {
+                        i.rem_euclid(n)
+                    } else {
+                        i.clamp(0, n - 1)
+                    } as usize,
+                    ..anchor
+                }
+            })
+            .collect()
+    }
+
+    /// Ctrl+arrow and Shift+arrow with points selected (PE-DESIGN capture f, 2026-11-19). No
+    /// point moves. `forward` (Right, Down) goes toward the next point in the outline's order,
+    /// otherwise (Left, Up) toward the previous one.
+    ///
+    /// - Ctrl+arrow (`extend` false) moves the selection to the neighbouring point of the
+    ///   point the selection started at, and only that point is selected then. At the end of
+    ///   an open line it stays on the end point.
+    /// - Shift+arrow (`extend`) grows the selection by one point a press from the point it
+    ///   started at, and shrinks it again when pressed the other way; past the start it grows
+    ///   on the other side. It stops at the ends of an open line.
+    ///
+    /// Not captured, chosen here: on a closed outline the order goes round (Ctrl+arrow from
+    /// the last point selects the first; Shift+arrow grows until every point is selected);
+    /// the point the selection started at is the one selected first (of a drag box's points,
+    /// the last in the outline's order); with points on several outlines or shapes the keys
+    /// work on the outline of that point and leave only its run selected.
+    ///
+    /// False, changing nothing, when no outline point is selected with the Point tool.
+    pub fn step_points(&mut self, forward: bool, extend: bool, ctx: &ToolContext) -> bool {
+        if self.tool() != Tool::Point {
+            return false;
+        }
+        let selected = self.selected_points(ctx);
+        let Some(&oldest) = selected.last() else {
+            return false;
+        };
+        // The run so far, while the selection is still exactly it.
+        let run = self.point_run.filter(|&(a, k)| {
+            ctx.point_contour(a).is_some_and(|c| {
+                let points = Self::run_points(a, k, c);
+                points.len() == selected.len() && points.iter().all(|p| selected.contains(p))
+            })
+        });
+        let (anchor, span) = run.unwrap_or((oldest, 0));
+        let Some(c) = ctx.point_contour(anchor) else {
+            return false;
+        };
+        let n = c.points.len() as i64;
+        let step = if forward { 1 } else { -1 };
+        if extend {
+            let (low, high) = if c.closed {
+                (1 - n, n - 1)
+            } else {
+                (-(anchor.index as i64), n - 1 - anchor.index as i64)
+            };
+            let span = (span + step).clamp(low, high);
+            let points = Self::run_points(anchor, span, c);
+            self.point = Some(anchor);
+            self.more_points = points.into_iter().skip(1).collect();
+            self.point_run = Some((anchor, span));
+        } else {
+            let to = Self::run_points(anchor, step, c)
+                .last()
+                .copied()
+                .unwrap_or(anchor);
+            self.point = Some(to);
+            self.more_points.clear();
+            self.point_run = Some((to, 0));
+        }
+        true
+    }
+
+    /// The selected vertices by outline: (object id, contour, indexes ascending), the outline
+    /// of the vertex clicked last first. The engine's point commands take one outline a call,
+    /// so an edit of points on several outlines is one command per outline, in one undo step.
+    pub fn selected_by_outline(&self, ctx: &ToolContext) -> Vec<(u64, usize, Vec<usize>)> {
+        let mut out: Vec<(u64, usize, Vec<usize>)> = Vec::new();
+        for p in self.selected_points(ctx) {
+            match out.iter_mut().find(|g| g.0 == p.id && g.1 == p.contour) {
+                Some(g) => g.2.push(p.index),
+                None => out.push((p.id, p.contour, vec![p.index])),
+            }
+        }
+        for g in &mut out {
+            g.2.sort_unstable();
+        }
+        out
+    }
+
+    /// Selects vertices `indexes` of contour `contour` of the Point tool's one target (the
+    /// first as the clicked one). False, changing nothing, when there is not exactly one
+    /// target or a vertex does not exist.
     pub fn select_points(&mut self, contour: usize, indexes: &[usize], ctx: &ToolContext) -> bool {
         let Some(o) = ctx.point_target() else {
             return false;
         };
-        let Some(c) = o.contours.get(contour) else {
-            return false;
-        };
+        let refs: Vec<PointRef> = indexes
+            .iter()
+            .map(|&index| PointRef {
+                id: o.id,
+                contour,
+                index,
+            })
+            .collect();
+        self.select_point_refs(&refs, ctx)
+    }
+
+    /// Selects `points` (the first as the clicked one), on any outline of any shape whose
+    /// points the Point tool shows. False, changing nothing, when the list is empty or one of
+    /// them does not exist there.
+    pub fn select_point_refs(&mut self, points: &[PointRef], ctx: &ToolContext) -> bool {
         if self.tool() != Tool::Point
-            || indexes.is_empty()
-            || indexes.iter().any(|&i| i >= c.points.len())
+            || points.is_empty()
+            || points.iter().any(|p| {
+                !ctx.point_contour(*p)
+                    .is_some_and(|c| p.index < c.points.len())
+            })
         {
             return false;
         }
-        let mut refs = indexes.iter().map(|&index| PointRef {
-            id: o.id,
-            contour,
-            index,
-        });
-        self.point = refs.next();
-        self.more_points = refs.collect();
+        self.point = Some(points[0]);
+        self.more_points = points[1..].to_vec();
         true
     }
 
@@ -743,10 +909,7 @@ impl ToolController {
         {
             return false;
         }
-        let Some(o) = ctx.point_target() else {
-            return false;
-        };
-        let Some(PointHit::Vertex { contour, index }) = self.point_hit(o, at, ctx) else {
+        let Some((o, PointHit::Vertex { contour, index })) = self.point_hit(at, ctx) else {
             return false;
         };
         let point = PointRef {
@@ -773,7 +936,7 @@ impl ToolController {
         Some(match selected.as_slice() {
             [] => S::None,
             [p] => {
-                let c = ctx.point_target()?.contours.get(p.contour)?;
+                let c = ctx.point_contour(*p)?;
                 let end = !c.closed && (p.index == 0 || p.index + 1 == c.points.len());
                 if end {
                     S::LineEnd
@@ -791,7 +954,7 @@ impl ToolController {
     /// column's rungs, a satin line's widths or a text's characters).
     pub fn shows_outline_points(&self, ctx: &ToolContext) -> bool {
         self.tool() == Tool::Point
-            && ctx.point_target().is_some()
+            && !ctx.point_targets().is_empty()
             && ctx.needle_target().is_none()
             && ctx.rung_target().is_none()
             && ctx.satin_target().is_none()
@@ -799,98 +962,158 @@ impl ToolController {
     }
 
     /// Which entries of the point menu are available for the selected vertices, in
-    /// [`PointAction::MENU`] order; `None` when no vertex is selected.
+    /// [`PointAction::MENU`] order; `None` when no vertex is selected. With points on several
+    /// outlines or shapes an entry is available when it is for the points of one of them
+    /// ([`point_actions_enabled`]); Split at Point needs exactly one point in all.
     pub fn point_actions(&self, ctx: &ToolContext) -> Option<[bool; 7]> {
         if self.tool() != Tool::Point {
             return None;
         }
-        let selected = self.selected_points(ctx);
-        let first = selected.first()?;
-        let c = ctx.point_target()?.contours.get(first.contour)?;
-        let indexes: Vec<usize> = selected.iter().map(|p| p.index).collect();
-        Some(point_actions_enabled(c, &indexes))
-    }
-
-    /// Runs one entry of the point menu on the selected vertices: one command, one Undo.
-    /// Nothing happens when the entry is not available.
-    pub fn point_action(&mut self, action: PointAction, ctx: &ToolContext) -> Vec<ToolEffect> {
-        let slot = PointAction::MENU.iter().position(|a| *a == action);
-        let enabled = self.point_actions(ctx);
-        if !slot.zip(enabled).is_some_and(|(i, e)| e[i]) {
-            return vec![];
-        }
-        let selected = self.selected_points(ctx);
-        let first = selected[0];
-        let mut indexes: Vec<usize> = selected.iter().map(|p| p.index).collect();
-        indexes.sort_unstable();
-        // Delete stays available where the outline cannot lose a point, and does nothing
-        // there (PE-DESIGN's does nothing at two points).
-        if action == PointAction::Delete
-            && !ctx
-                .point_target()
-                .and_then(|o| o.contours.get(first.contour))
-                .is_some_and(|c| can_delete_points(c, &indexes))
-        {
-            return vec![];
-        }
-        let request = match action.kind() {
-            Some(kind) => CommandRequest::new(
-                "object.setPointKind",
-                json!({ "id": first.id, "contour": first.contour, "indexes": indexes, "kind": kind }),
-            ),
-            None if action == PointAction::Split => {
-                self.point = None;
-                self.more_points.clear();
-                CommandRequest::new(
-                    "object.splitAtPoint",
-                    json!({ "id": first.id, "contour": first.contour, "index": first.index }),
-                )
-            }
-            None => {
-                self.point = None;
-                self.more_points.clear();
-                CommandRequest::new(
-                    "object.deletePoint",
-                    json!({ "id": first.id, "contour": first.contour, "indexes": indexes }),
-                )
-            }
-        };
-        vec![ToolEffect::run(request, false)]
-    }
-
-    /// The vertices and handles to draw while the Point tool is active.
-    pub fn point_overlay(&self, ctx: &ToolContext) -> Option<PointOverlay> {
-        if self.tool() != Tool::Point || ctx.rung_target().is_some() || ctx.satin_target().is_some()
-        {
+        let groups = self.selected_by_outline(ctx);
+        if groups.is_empty() {
             return None;
         }
-        let o = ctx.point_target()?;
-        let mut contours = o.contours.clone();
-        match &self.gesture {
-            Some(Gesture::Vertex {
-                point,
-                edited: Some(c),
-                ..
-            }) if point.id == o.id => contours[point.contour] = c.clone(),
-            Some(Gesture::Control {
+        let total: usize = groups.iter().map(|g| g.2.len()).sum();
+        let mut out = [false; 7];
+        for (id, contour, indexes) in &groups {
+            let c = ctx.point_contour(PointRef {
+                id: *id,
+                contour: *contour,
+                index: 0,
+            })?;
+            for (o, e) in out.iter_mut().zip(point_actions_enabled(c, indexes)) {
+                *o |= e;
+            }
+        }
+        out[5] &= total == 1;
+        Some(out)
+    }
+
+    /// Runs one entry of the point menu on the selected vertices: one command per outline
+    /// that has selected points the entry applies to, all in one Undo. Nothing happens when
+    /// the entry is not available.
+    pub fn point_action(&mut self, action: PointAction, ctx: &ToolContext) -> Vec<ToolEffect> {
+        let Some(slot) = PointAction::MENU.iter().position(|a| *a == action) else {
+            return vec![];
+        };
+        if !self.point_actions(ctx).is_some_and(|e| e[slot]) {
+            return vec![];
+        }
+        let mut requests = Vec::new();
+        for (id, contour, indexes) in self.selected_by_outline(ctx) {
+            let Some(c) = ctx.point_contour(PointRef {
                 id,
                 contour,
-                edited: Some(c),
-                ..
-            }) if *id == o.id => contours[*contour] = c.clone(),
-            _ => {}
+                index: 0,
+            }) else {
+                continue;
+            };
+            match action.kind() {
+                Some(kind) => {
+                    if point_actions_enabled(c, &indexes)[slot] {
+                        requests.push(CommandRequest::new(
+                            "object.setPointKind",
+                            json!({ "id": id, "contour": contour, "indexes": indexes, "kind": kind }),
+                        ));
+                    }
+                }
+                None if action == PointAction::Split => requests.push(CommandRequest::new(
+                    "object.splitAtPoint",
+                    json!({ "id": id, "contour": contour, "index": indexes[0] }),
+                )),
+                // Delete stays available where the outline cannot lose a point, and does
+                // nothing there (PE-DESIGN's does nothing at two points).
+                None => {
+                    if can_delete_points(c, &indexes) {
+                        requests.push(CommandRequest::new(
+                            "object.deletePoint",
+                            json!({ "id": id, "contour": contour, "indexes": indexes }),
+                        ));
+                    }
+                }
+            }
         }
-        Some(PointOverlay {
-            id: o.id,
-            contours,
-            selected: self.selected_point(ctx).map(|p| (p.contour, p.index)),
-            also: self
-                .selected_points(ctx)
-                .into_iter()
-                .skip(1)
-                .map(|p| (p.contour, p.index))
-                .collect(),
-        })
+        if requests.is_empty() {
+            return vec![];
+        }
+        if action.kind().is_none() {
+            self.point = None;
+            self.more_points.clear();
+        }
+        vec![ToolEffect::Execute {
+            requests,
+            select_result: false,
+        }]
+    }
+
+    /// The vertices and handles to draw while the Point tool is active: one overlay per shape
+    /// whose points show (#1260: every selected plain shape).
+    pub fn point_overlays(&self, ctx: &ToolContext) -> Vec<PointOverlay> {
+        if self.tool() != Tool::Point || ctx.rung_target().is_some() || ctx.satin_target().is_some()
+        {
+            return vec![];
+        }
+        let selected = self.selected_points(ctx);
+        ctx.point_targets()
+            .into_iter()
+            .map(|o| {
+                let mut contours = o.contours.clone();
+                match &self.gesture {
+                    Some(Gesture::Vertex {
+                        edited: Some(list), ..
+                    }) => {
+                        for ((id, k), c) in list {
+                            if *id == o.id && *k < contours.len() {
+                                contours[*k] = c.clone();
+                            }
+                        }
+                    }
+                    Some(Gesture::Control {
+                        id,
+                        contour,
+                        edited: Some(c),
+                        ..
+                    }) if *id == o.id && *contour < contours.len() => {
+                        contours[*contour] = c.clone();
+                    }
+                    _ => {}
+                }
+                let mut own = selected
+                    .iter()
+                    .filter(|p| p.id == o.id)
+                    .map(|p| (p.contour, p.index));
+                PointOverlay {
+                    id: o.id,
+                    contours,
+                    selected: own.next(),
+                    also: own.collect(),
+                }
+            })
+            .collect()
+    }
+
+    /// The overlay of the first shape whose points show ([`Self::point_overlays`]).
+    pub fn point_overlay(&self, ctx: &ToolContext) -> Option<PointOverlay> {
+        self.point_overlays(ctx).into_iter().next()
+    }
+
+    /// Where a point at `from` lands for a drag from `start` to `p`: on the grid with Snap to
+    /// Grid on. With Shift (`axis_lock`) the drag runs only along the axis it mostly follows
+    /// from its start, horizontally or vertically, and the point's other coordinate stays
+    /// what it was (the grid does not move it either), as PE-DESIGN's does (the owner's hand
+    /// check, 2026-11-19). Ctrl changes nothing.
+    fn point_drag_target(&self, from: Vec2, start: Vec2, p: Vec2, axis_lock: bool) -> Vec2 {
+        let d = move_delta(start, p, axis_lock);
+        let mut to = self.snapped(from + d);
+        if axis_lock {
+            if d.x == 0.0 {
+                to.x = from.x;
+            }
+            if d.y == 0.0 {
+                to.y = from.y;
+            }
+        }
+        to
     }
 
     fn point_tool(&mut self, e: PointerEvent, ctx: &ToolContext) -> Vec<ToolEffect> {
@@ -909,18 +1132,18 @@ impl ToolController {
         let p = e.location;
         match (e.phase, self.gesture.clone()) {
             (Phase::Down, _) => {
-                let target = ctx.point_target();
-                let hit = target.and_then(|o| self.point_hit(o, p, ctx).map(|h| (o, h)));
-                match hit {
+                match self.point_hit(p, ctx) {
                     Some((o, PointHit::Vertex { contour, index })) => {
                         let point = PointRef {
                             id: o.id,
                             contour,
                             index,
                         };
-                        // Ctrl+click (PE-DESIGN's gesture) adds the vertex to the selection or
-                        // takes it out, on release; a Ctrl-drag still moves the vertex freely.
-                        self.ctrl_press = e.free.then(|| (point, self.selected_points(ctx)));
+                        // Ctrl+click or Shift+click (PE-DESIGN's gestures) adds the vertex to
+                        // the selection (Ctrl+click takes a selected one out), on release; a drag with either key
+                        // held still moves the vertex (Shift along one axis, Ctrl as without).
+                        self.ctrl_press =
+                            (e.free || e.shift).then(|| (point, self.selected_points(ctx), e.free));
                         if !self.selected_points(ctx).contains(&point) {
                             self.more_points.clear();
                         }
@@ -1005,63 +1228,81 @@ impl ToolController {
                 self.gesture = None;
                 if self.preview.take().is_none() {
                     return match object_at(ctx.design, p, ctx.tolerance()) {
-                        Some(id) if ctx.selection.len() == 1 && ctx.selection.contains(&id) => {
-                            vec![]
-                        }
+                        Some(id) if ctx.selection.contains(&id) => vec![],
                         Some(id) => vec![ToolEffect::Select(BTreeSet::from([id]))],
                         None => vec![ToolEffect::Select(BTreeSet::new())],
                     };
                 }
-                // Every point inside the box, of the contour that has the most of them.
+                // Every point inside the box, on every outline of every shape whose points
+                // show (PE-DESIGN: "dragging a box over two shapes selects points of both
+                // shapes", the owner's hand check, 2026-11-19).
                 let r = rect_from(start, p);
-                let inside = |q: Vec2| {
-                    (r.min_x..=r.max_x).contains(&q.x) && (r.min_y..=r.max_y).contains(&q.y)
-                };
-                let picked = ctx.point_target().and_then(|o| {
-                    o.contours
-                        .iter()
-                        .enumerate()
-                        .map(|(contour, c)| {
-                            c.points
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, q)| inside(**q))
-                                .map(|(index, _)| PointRef {
+                let mut picked = Vec::new();
+                for o in ctx.point_targets() {
+                    for (contour, c) in o.contours.iter().enumerate() {
+                        for (index, q) in c.points.iter().enumerate() {
+                            if (r.min_x..=r.max_x).contains(&q.x)
+                                && (r.min_y..=r.max_y).contains(&q.y)
+                            {
+                                picked.push(PointRef {
                                     id: o.id,
                                     contour,
                                     index,
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                        .max_by_key(Vec::len)
-                });
-                let mut picked = picked.unwrap_or_default().into_iter();
+                                });
+                            }
+                        }
+                    }
+                }
+                let mut picked = picked.into_iter();
                 self.point = picked.next();
                 self.more_points = picked.collect();
                 vec![]
             }
             (Phase::Dragged, Some(Gesture::Vertex { point, start, .. })) => {
-                let Some(c) = ctx
-                    .point_target()
-                    .and_then(|o| o.contours.get(point.contour))
-                    .filter(|c| point.index < c.points.len())
+                let Some(from) = ctx
+                    .point_contour(point)
+                    .and_then(|c| c.points.get(point.index).copied())
                 else {
                     return vec![];
                 };
                 let edited =
                     (p.distance(start) >= DRAG_THRESHOLD * ctx.units_per_point).then(|| {
-                        let d = move_delta(start, p, e.shift);
-                        let to = self.snapped(c.points[point.index] + d);
-                        // Dragging one of several selected points moves them all.
-                        let d = to - c.points[point.index];
-                        let mut moved = with_vertex(c, point.index, to);
-                        for q in self.selected_points(ctx) {
-                            if q != point {
-                                moved.move_point(q.index, moved.points[q.index] + d);
+                        let to = self.point_drag_target(from, start, p, e.shift);
+                        // Dragging one of several selected points moves them all, on every
+                        // outline and shape, by what the dragged one moves.
+                        let d = to - from;
+                        let mut out = Vec::new();
+                        for (id, contour, indexes) in self.selected_by_outline(ctx) {
+                            let Some(c) = ctx.point_contour(PointRef {
+                                id,
+                                contour,
+                                index: 0,
+                            }) else {
+                                continue;
+                            };
+                            let mut moved = c.clone();
+                            for i in indexes {
+                                let here = id == point.id && contour == point.contour;
+                                let at = if here && i == point.index {
+                                    to
+                                } else {
+                                    moved.points[i] + d
+                                };
+                                moved.move_point(i, at);
                             }
+                            out.push(((id, contour), moved));
                         }
-                        moved
+                        out
                     });
+                // Alt held: the dragged end point connects to an end it lies on.
+                self.alt_drag = e.alt;
+                self.connect_hover = edited
+                    .as_ref()
+                    .and_then(|list| list.first())
+                    .and_then(|(_, c)| c.points.get(point.index).copied())
+                    .filter(|_| e.alt && self.selected_points(ctx).len() == 1)
+                    .and_then(|v| self.connect_target(point, v, ctx))
+                    .map(|t| t.2);
                 self.gesture = Some(Gesture::Vertex {
                     point,
                     start,
@@ -1080,9 +1321,15 @@ impl ToolController {
                     ..
                 }),
             ) => {
-                let Some(c) = ctx.point_target().and_then(|o| o.contours.get(contour)) else {
+                let Some(c) = ctx.point_contour(PointRef {
+                    id,
+                    contour,
+                    index: 0,
+                }) else {
                     return vec![];
                 };
+                // Shift or Ctrl held changes nothing for a handle (PE-DESIGN: "no diff", the
+                // owner's hand check, 2026-11-19): no axis lock, the same snapping.
                 let edited = (p.distance(start) >= DRAG_THRESHOLD * ctx.units_per_point)
                     .then(|| with_control(c, segment, control, self.snapped(p)));
                 self.gesture = Some(Gesture::Control {
@@ -1097,17 +1344,20 @@ impl ToolController {
             }
             (Phase::Up, Some(g)) => {
                 self.gesture = None;
-                if let (Some((point, mut all)), Gesture::Vertex { edited: None, .. }) =
+                self.connect_hover = None;
+                self.alt_drag = false;
+                if let (Some((point, mut all, ctrl)), Gesture::Vertex { edited: None, .. }) =
                     (self.ctrl_press.take(), &g)
                 {
+                    // Ctrl+click on a selected point takes it out (PE-DESIGN's manual, read
+                    // 2026-11-19); Shift+click only adds (the owner's hand check of the same
+                    // day; whether it also takes out is not known yet).
                     match all.iter().position(|p| *p == point) {
-                        Some(k) => {
+                        Some(k) if ctrl => {
                             all.remove(k);
                         }
-                        None if all.first().is_none_or(|f| f.contour == point.contour) => {
-                            all.insert(0, point);
-                        }
-                        None => all = vec![point],
+                        Some(_) => {}
+                        None => all.insert(0, point),
                     }
                     self.point = all.first().copied();
                     self.more_points = all.into_iter().skip(1).collect();
@@ -1116,45 +1366,48 @@ impl ToolController {
                 match g {
                     Gesture::Vertex {
                         point,
-                        edited: Some(c),
+                        edited: Some(list),
                         ..
                     } => {
-                        let v = c.points[point.index];
-                        let selected = self.selected_points(ctx);
+                        let Some(v) = list
+                            .first()
+                            .and_then(|(_, c)| c.points.get(point.index).copied())
+                        else {
+                            return vec![];
+                        };
+                        let groups = self.selected_by_outline(ctx);
+                        let total: usize = groups.iter().map(|g| g.2.len()).sum();
                         let from = ctx
-                            .point_target()
-                            .and_then(|o| o.contours.get(point.contour))
+                            .point_contour(point)
                             .and_then(|c| c.points.get(point.index).copied());
-                        if let (true, Some(from)) = (selected.len() > 1, from) {
-                            let mut indexes: Vec<usize> =
-                                selected.iter().map(|q| q.index).collect();
-                            indexes.sort_unstable();
-                            return vec![ToolEffect::run(
-                                CommandRequest::new(
-                                    "object.movePoints",
-                                    json!({ "id": point.id, "contour": point.contour, "indexes": indexes, "dx": mm(v.x - from.x), "dy": mm(v.y - from.y) }),
-                                ),
-                                false,
-                            )];
+                        if let (true, Some(from)) = (total > 1, from) {
+                            // One object.movePoints per outline, all in one undo step.
+                            let requests = groups
+                                .into_iter()
+                                .map(|(id, contour, indexes)| {
+                                    CommandRequest::new(
+                                        "object.movePoints",
+                                        json!({ "id": id, "contour": contour, "indexes": indexes, "dx": mm(v.x - from.x), "dy": mm(v.y - from.y) }),
+                                    )
+                                })
+                                .collect();
+                            return vec![ToolEffect::Execute {
+                                requests,
+                                select_result: false,
+                            }];
                         }
                         let mut requests = vec![CommandRequest::new(
                             "object.setPoint",
                             json!({ "id": point.id, "contour": point.contour, "index": point.index, "x": mm(v.x), "y": mm(v.y) }),
                         )];
                         // Alt held on release: an end point dropped on the line's other end is
-                        // connected to it: the line is closed as Close closes it, the two ends
-                        // one point.
+                        // connected to it (the line is closed as Close closes it, the two ends
+                        // one point); dropped on an end of another open line, the two lines
+                        // become one object.
                         if e.alt
                             && let Some(to) = self.connect_target(point, v, ctx)
                         {
-                            requests[0] = CommandRequest::new(
-                                "object.setPoint",
-                                json!({ "id": point.id, "contour": point.contour, "index": point.index, "x": mm(to.x), "y": mm(to.y) }),
-                            );
-                            requests.push(CommandRequest::new(
-                                "object.closeOutline",
-                                json!({ "id": point.id, "contour": point.contour }),
-                            ));
+                            requests = Self::connect_requests(point, to);
                             self.point = None;
                             self.more_points.clear();
                         }
@@ -1186,26 +1439,139 @@ impl ToolController {
         }
     }
 
-    /// Where an end point of an open line dropped at `at` with Alt held connects: the
-    /// line's other end, when it is within the point radius (the owner's hand check of
-    /// PE-DESIGN, 2026-11-18: Alt + drag connects the two ends of a shape that has two ends).
-    /// `None` when `point` is not an end of an open one-outline line of three points or more,
-    /// or the other end is not near.
-    fn connect_target(&self, point: PointRef, at: Vec2, ctx: &ToolContext) -> Option<Vec2> {
-        let own = ctx.point_target().filter(|o| o.id == point.id)?;
-        let [c] = own.contours.as_slice() else {
+    /// The two ends of `o` when it is an open line the Point tool can connect: a plain shape
+    /// (visible, not locked, not a Manual Punch column or a satin line) of one open outline.
+    fn open_line_ends(o: &DesignObject) -> Option<[(usize, Vec2); 2]> {
+        if o.kind != ObjectKind::Shape
+            || !o.visible
+            || o.locked
+            || punch_rungs::rungs(o).is_some()
+            || satin_width::is_satin_line(o)
+        {
+            return None;
+        }
+        let [c] = o.contours.as_slice() else {
             return None;
         };
         let n = c.points.len();
-        if c.closed || n < 3 {
+        (!c.closed && n >= 2).then(|| [(0, c.points[0]), (n - 1, c.points[n - 1])])
+    }
+
+    /// The end points `point` can be connected to with Alt + drag, as (object id, vertex
+    /// index, position): PE-DESIGN marks each with an x while Alt is held (its manual, read
+    /// 2026-11-19). `point` must be an end of an open line whose points show. They are the
+    /// same line's other end (a line of three points or more: connecting closes it) and both
+    /// ends of every other open line of the design, selected or not.
+    pub fn connect_ends(&self, point: PointRef, ctx: &ToolContext) -> Vec<(u64, usize, Vec2)> {
+        let Some(own) = ctx.point_target_of(point.id) else {
+            return vec![];
+        };
+        let Some(ends) = Self::open_line_ends(own) else {
+            return vec![];
+        };
+        let Some(other) = ends.iter().find(|e| e.0 != point.index) else {
+            return vec![];
+        };
+        if !ends.iter().any(|e| e.0 == point.index) {
+            return vec![];
+        }
+        let mut out = Vec::new();
+        if own.contours[0].points.len() >= 3 {
+            out.push((own.id, other.0, other.1));
+        }
+        for o in &ctx.design.objects {
+            if o.id != own.id
+                && let Some(ends) = Self::open_line_ends(o)
+            {
+                out.extend(ends.map(|(index, at)| (o.id, index, at)));
+            }
+        }
+        out
+    }
+
+    /// Where an end point of an open line dropped at `at` with Alt held connects: the nearest
+    /// of [`Self::connect_ends`] within the point radius.
+    fn connect_target(
+        &self,
+        point: PointRef,
+        at: Vec2,
+        ctx: &ToolContext,
+    ) -> Option<(u64, usize, Vec2)> {
+        self.connect_ends(point, ctx)
+            .into_iter()
+            .filter(|e| e.2.distance(at) <= ctx.point_radius())
+            .min_by(|a, b| a.2.distance(at).total_cmp(&b.2.distance(at)))
+    }
+
+    /// The commands that connect end point `point` to the end `to`: the point is put on it,
+    /// then the line is closed as Close closes it (its own other end) or the two lines are
+    /// joined into one object (`shape.joinLines`: the dragged line keeps its id, sewing
+    /// attributes and place in the sewing order; the two ends become one point).
+    fn connect_requests(point: PointRef, to: (u64, usize, Vec2)) -> Vec<CommandRequest> {
+        vec![
+            CommandRequest::new(
+                "object.setPoint",
+                json!({ "id": point.id, "contour": point.contour, "index": point.index, "x": mm(to.2.x), "y": mm(to.2.y) }),
+            ),
+            if to.0 == point.id {
+                CommandRequest::new(
+                    "object.closeOutline",
+                    json!({ "id": point.id, "contour": point.contour }),
+                )
+            } else {
+                CommandRequest::new(
+                    "shape.joinLines",
+                    json!({ "ids": [point.id, to.0], "tolerance": 0.1 }),
+                )
+            },
+        ]
+    }
+
+    /// Connects the one selected end point to the end `to` (object id, vertex index), as
+    /// Alt + drag onto it does: one undo step. `None`, changing nothing, unless exactly one
+    /// point is selected and `to` is one of its [`Self::connect_ends`].
+    pub fn connect_point(
+        &mut self,
+        to: (u64, usize),
+        ctx: &ToolContext,
+    ) -> Option<Vec<ToolEffect>> {
+        if self.tool() != Tool::Point {
             return None;
         }
-        let other_end = match point.index {
-            0 => c.points[n - 1],
-            i if i + 1 == n => c.points[0],
-            _ => return None,
+        let [point] = self.selected_points(ctx)[..] else {
+            return None;
         };
-        (other_end.distance(at) <= ctx.point_radius()).then_some(other_end)
+        let target = self
+            .connect_ends(point, ctx)
+            .into_iter()
+            .find(|e| (e.0, e.1) == to)?;
+        self.point = None;
+        self.more_points.clear();
+        Some(vec![ToolEffect::Execute {
+            requests: Self::connect_requests(point, target),
+            select_result: false,
+        }])
+    }
+
+    /// The x marks to draw: every end the one selected end point can connect to, while Alt
+    /// is held (`alt`) or an Alt + drag of it is running.
+    pub fn connect_marks(&self, alt: bool, ctx: &ToolContext) -> Vec<Vec2> {
+        if self.tool() != Tool::Point || !(alt || self.alt_drag) {
+            return vec![];
+        }
+        let [point] = self.selected_points(ctx)[..] else {
+            return vec![];
+        };
+        self.connect_ends(point, ctx)
+            .into_iter()
+            .map(|e| e.2)
+            .collect()
+    }
+
+    /// The end the Alt-dragged point lies on now: a red square is drawn there, and releasing
+    /// connects the two.
+    pub fn connect_overlap(&self) -> Option<Vec2> {
+        self.connect_hover
     }
 
     /// Arrow keys with the Point tool: moves the selected vertices by (`dx`, `dy`) (0.1 mm
@@ -1215,17 +1581,24 @@ impl ToolController {
         if self.tool() != Tool::Point {
             return None;
         }
-        let selected = self.selected_points(ctx);
-        let first = *selected.first()?;
-        let mut indexes: Vec<usize> = selected.iter().map(|q| q.index).collect();
-        indexes.sort_unstable();
-        Some(vec![ToolEffect::run(
-            CommandRequest::new(
-                "object.movePoints",
-                json!({ "id": first.id, "contour": first.contour, "indexes": indexes, "dx": mm(dx), "dy": mm(dy) }),
-            ),
-            false,
-        )])
+        let groups = self.selected_by_outline(ctx);
+        if groups.is_empty() {
+            return None;
+        }
+        // One object.movePoints per outline with selected points, all in one undo step.
+        let requests = groups
+            .into_iter()
+            .map(|(id, contour, indexes)| {
+                CommandRequest::new(
+                    "object.movePoints",
+                    json!({ "id": id, "contour": contour, "indexes": indexes, "dx": mm(dx), "dy": mm(dy) }),
+                )
+            })
+            .collect();
+        Some(vec![ToolEffect::Execute {
+            requests,
+            select_result: false,
+        }])
     }
 
     /// Whether a right-click at `at` with the Point tool opens the object's menu (Add,
@@ -1238,8 +1611,8 @@ impl ToolController {
         let Some(o) = ctx.point_target() else {
             return false;
         };
-        match self.point_hit(o, at, ctx) {
-            Some(PointHit::Vertex { .. }) => false,
+        match self.point_hit(at, ctx) {
+            Some((_, PointHit::Vertex { .. })) => false,
             Some(_) => true,
             None => object_at(ctx.design, at, ctx.tolerance()) == Some(o.id),
         }
@@ -1260,18 +1633,42 @@ impl ToolController {
         if let Some(effects) = self.delete_width_key(ctx) {
             return Some(effects);
         }
-        let p = self.selected_point(ctx)?;
-        let mut indexes: Vec<usize> = self.selected_points(ctx).iter().map(|q| q.index).collect();
-        indexes.sort_unstable();
+        let groups = self.selected_by_outline(ctx);
+        if groups.is_empty() {
+            return None;
+        }
+        // One object.deletePoint per outline, all in one undo step. With points on several
+        // outlines, an outline that cannot lose its selected points (it keeps 2) is left as
+        // it is and the others lose theirs; one outline alone is asked as before.
+        let several = groups.len() > 1;
+        let requests: Vec<CommandRequest> = groups
+            .into_iter()
+            .filter(|(id, contour, indexes)| {
+                !several
+                    || ctx
+                        .point_contour(PointRef {
+                            id: *id,
+                            contour: *contour,
+                            index: 0,
+                        })
+                        .is_some_and(|c| can_delete_points(c, indexes))
+            })
+            .map(|(id, contour, indexes)| {
+                CommandRequest::new(
+                    "object.deletePoint",
+                    json!({ "id": id, "contour": contour, "indexes": indexes }),
+                )
+            })
+            .collect();
         self.point = None;
         self.more_points.clear();
-        Some(vec![ToolEffect::run(
-            CommandRequest::new(
-                "object.deletePoint",
-                json!({ "id": p.id, "contour": p.contour, "indexes": indexes }),
-            ),
-            false,
-        )])
+        if requests.is_empty() {
+            return Some(vec![]);
+        }
+        Some(vec![ToolEffect::Execute {
+            requests,
+            select_result: false,
+        }])
     }
 
     /// Point tool shortcut: makes the segment under the pointer a smooth curve (`curved`) or

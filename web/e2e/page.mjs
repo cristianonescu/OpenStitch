@@ -344,6 +344,18 @@ async function extraChecks(browser, type, label) {
       if (stray !== 0 || context.pages().length !== 1) {
         throw new Error(`Ctrl+click was the browser's: ${stray} menu(s), ${context.pages().length} page(s)`);
       }
+      // Shift+click adds a point too (PE-DESIGN's, the owner's hand check of 2026-11-19);
+      // the browser selects no text and opens nothing.
+      const third = await onScreen(3);
+      await onScreen(0);
+      await page.mouse.click(box.x + far[0], box.y + far[1], { modifiers: ["Control"] });
+      await until("Ctrl+click adds the second point again (2 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2);
+      await page.mouse.click(box.x + third[0], box.y + third[1], { modifiers: ["Shift"] });
+      await until("Shift+click adds a third point (3 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 3);
+      const shiftPicked = await page.evaluate(() => String(window.getSelection?.() ?? ""));
+      if (shiftPicked !== "" || context.pages().length !== 1) {
+        throw new Error(`Shift+click was the browser's: "${shiftPicked}", ${context.pages().length} page(s)`);
+      }
       await onScreen(0);
       // Right-click on the point: our menu, with PE-DESIGN's seven entries, not the browser's.
       await page.mouse.click(at[0], at[1], { button: "right" });
@@ -381,14 +393,28 @@ async function extraChecks(browser, type, label) {
         y0 + 0.5,
       );
       const moved = (await menu()).selected[0];
-      // With Shift the arrows leave the points where they are (PE-DESIGN's). No state changes
-      // to wait for, so a plain ArrowLeft follows: after both the point must be 0.5 mm to the
-      // left of where it was, which it is not if Shift+ArrowRight moved it.
+      // With Shift or Ctrl the arrows move no point and change the selection instead
+      // (PE-DESIGN capture f): Shift+arrow grows it by one point and shrinks it again,
+      // Ctrl+arrow moves it to the neighbouring point. The browser must not take them.
+      const pickedNow = () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.map((p) => p.index).sort().join(",");
+      const untilPicked = (step, want) => until(step, `(${pickedNow.toString()})() === "${want}"`);
+      const i0 = moved.index;
+      const count = (await menu()).pointCount;
+      const next = (i0 + 1) % count;
       await page.keyboard.press("Shift+ArrowRight");
+      await untilPicked("Shift+ArrowRight adds the next point", [i0, next].sort().join(","));
+      await page.keyboard.press("Shift+ArrowLeft");
+      await untilPicked("Shift+ArrowLeft shrinks the selection back", `${i0}`);
+      await page.keyboard.press("Control+ArrowRight");
+      await untilPicked("Ctrl+ArrowRight selects the next point", `${next}`);
+      await page.keyboard.press("Control+ArrowLeft");
+      await untilPicked("Ctrl+ArrowLeft selects the point before it", `${i0}`);
+      const still = (await menu()).selected[0];
+      if (Math.abs(still.x - moved.x) > 1e-6 || Math.abs(still.y - moved.y) > 1e-6) {
+        throw new Error(`Shift+arrow or Ctrl+arrow moved the point: ${JSON.stringify([moved, still])}`);
+      }
       await page.keyboard.press("ArrowLeft");
-      await until("Shift+ArrowRight moves nothing, then ArrowLeft moves 0.5 mm back", near(moved.x - 0.5));
-      await page.waitForTimeout(200);
-      if (Math.abs((await menu()).selected[0].x - (moved.x - 0.5)) > 1e-6) throw new Error("Shift+ArrowRight moved the point");
+      await until("ArrowLeft moves the point 0.5 mm back", near(moved.x - 0.5));
       // Delete: the point goes, the keyboard stays with the editor.
       await page.keyboard.press("Delete");
       await until("Delete removes the point (3 points)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.pointCount === 3);
@@ -426,6 +452,24 @@ async function extraChecks(browser, type, label) {
       await ok({ command: "ui.run", params: { action: "openOutline" } });
       const opened = (await ok({ command: "object.list" })).find((o) => o.id === made.id);
       if (!opened || opened.region) throw new Error(`Open: ${JSON.stringify(opened).slice(0, 300)}`);
+      // Alt + drag of a line's end onto another open line's end joins the two lines; Alt is
+      // not the browser's here (no menu bar opens, the page stays).
+      const lineA = await ok({ command: "shape.polygon", params: { points: [[10, 64], [30, 64], [30, 56]], closed: false, outline: "#203040" } });
+      const lineB = await ok({ command: "shape.polygon", params: { points: [[45, 56], [60, 56], [60, 64]], closed: false, outline: "#203040" } });
+      await ok({ command: "ui.select", params: { ids: [lineA.id] } });
+      const endAt = await onScreen(2);
+      const target = (await menu()).connectable.find((e) => e.id === lineB.id && e.index === 0);
+      if (!target?.screen) throw new Error(`connectable: ${JSON.stringify((await menu()).connectable).slice(0, 300)}`);
+      await page.keyboard.down("Alt");
+      await page.mouse.move(box.x + endAt[0], box.y + endAt[1]);
+      await page.mouse.down();
+      await page.mouse.move(box.x + target.screen[0], box.y + target.screen[1], { steps: 8 });
+      await page.mouse.up();
+      await page.keyboard.up("Alt");
+      await until("Alt + drag onto the other line's end joins the two lines (5 points show)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.pointCount === 5);
+      const lines = (await ok({ command: "object.list" })).filter((o) => o.id === lineA.id || o.id === lineB.id);
+      if (lines.length !== 1 || lines[0].id !== lineA.id) throw new Error(`Alt + drag: ${JSON.stringify(lines).slice(0, 300)}`);
+      if (new URL(page.url()).pathname !== "/") throw new Error(`the page went elsewhere: ${page.url()}`);
       noErrors("point tool", errors);
     } finally {
       await context.close();

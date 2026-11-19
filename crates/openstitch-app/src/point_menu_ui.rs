@@ -440,9 +440,10 @@ pub fn state(app: &EditorApp) -> Value {
         .selected_points(&ctx)
         .iter()
         .filter_map(|p| {
-            let at = *ctx.point_target()?.contours.get(p.contour)?.points.get(p.index)?;
+            let at = *ctx.point_contour(*p)?.points.get(p.index)?;
             let screen = app.viewport.map(|vp| vp.to_screen(at));
             Some(json!({
+                "id": p.id,
                 "contour": p.contour,
                 "index": p.index,
                 "x": at.x / 10.0,
@@ -451,10 +452,15 @@ pub fn state(app: &EditorApp) -> Value {
             }))
         })
         .collect();
-    let point_count = ctx
-        .point_target()
-        .and_then(|o| o.contours.first())
-        .map(|c| c.points.len());
+    // The points that show: of every outline of every shape the Point tool edits.
+    let targets = ctx.point_targets();
+    let point_count = (!targets.is_empty()).then(|| {
+        targets
+            .iter()
+            .flat_map(|o| &o.contours)
+            .map(|c| c.points.len())
+            .sum::<usize>()
+    });
     // Where the open menu (the point's or the object's) was painted, in window points, and
     // its panel colour; null while no menu is open or its first frame has not painted it.
     let drawn = app
@@ -463,7 +469,27 @@ pub fn state(app: &EditorApp) -> Value {
         .point_menu
         .as_ref()
         .and_then(|m| m.drawn);
+    // The ends the one selected end point can connect to (Alt + drag; the x marks).
+    let connectable: Vec<Value> = match app.tools.selected_points(&ctx)[..] {
+        [p] => app
+            .tools
+            .connect_ends(p, &ctx)
+            .into_iter()
+            .map(|(id, index, at)| {
+                let screen = app.viewport.map(|vp| vp.to_screen(at));
+                json!({
+                    "id": id,
+                    "index": index,
+                    "x": at.x / 10.0,
+                    "y": at.y / 10.0,
+                    "screen": screen.map(|s| [s.x, s.y]),
+                })
+            })
+            .collect(),
+        _ => vec![],
+    };
     json!({
+        "connectable": connectable,
         "menuRect": drawn.map(|(r, _)| [r.min.x, r.min.y, r.width(), r.height()]),
         "menuFill": drawn.map(|(_, c)| format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())),
         "hint": hint(app),
@@ -482,33 +508,101 @@ pub fn state(app: &EditorApp) -> Value {
     })
 }
 
-/// `ui.pointMenu`: `{ points, contour }` selects vertices with the Point tool; `{ action }` runs one entry on the selected points, as a click in the menu
-/// does; without `action` it reports the menu ([`state`]).
+/// `ui.pointMenu`: `{ points, contour, id }` selects vertices with the Point tool (a point is
+/// an index, or `{ id, contour, index }` to name points of several shapes or outlines);
+/// `{ action }` runs one entry on the selected points, as a click in the menu does; without
+/// `action` it reports the menu ([`state`]).
 pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, String> {
     if let Some(list) = params.and_then(|p| p.get("points")) {
-        let indexes: Vec<usize> = list
-            .as_array()
-            .and_then(|l| {
-                l.iter()
-                    .map(|v| v.as_u64().map(|i| i as usize))
-                    .collect::<Option<_>>()
-            })
-            .ok_or("points: must be a list of vertex indexes")?;
+        const SHAPE: &str = "points: must be a list of vertex indexes, or of {id, contour, index}";
         let contour = params
             .and_then(|p| p.get("contour"))
             .and_then(Value::as_u64)
             .unwrap_or(0) as usize;
+        let id = params.and_then(|p| p.get("id")).and_then(Value::as_u64);
+        // (object id when named, contour, index) per point.
+        let mut named: Vec<(Option<u64>, usize, usize)> = Vec::new();
+        for v in list.as_array().ok_or(SHAPE)? {
+            if let Some(index) = v.as_u64() {
+                named.push((id, contour, index as usize));
+            } else if let Some(index) = v.get("index").and_then(Value::as_u64) {
+                named.push((
+                    v.get("id").and_then(Value::as_u64).or(id),
+                    v.get("contour")
+                        .and_then(Value::as_u64)
+                        .map_or(contour, |c| c as usize),
+                    index as usize,
+                ));
+            } else {
+                return Err(SHAPE.into());
+            }
+        }
         app.tools.set_tool(openstitch_app::editor::Tool::Point);
         let mut ok = false;
         app.with_tools(|tools, ctx| {
-            ok = tools.select_points(contour, &indexes, ctx);
+            // A point without an id is on the one selected shape.
+            let only = ctx.point_target().map(|o| o.id);
+            let refs: Option<Vec<openstitch_app::editor::points::PointRef>> = named
+                .iter()
+                .map(|&(id, contour, index)| {
+                    Some(openstitch_app::editor::points::PointRef {
+                        id: id.or(only)?,
+                        contour,
+                        index,
+                    })
+                })
+                .collect();
+            ok = refs.is_some_and(|r| tools.select_point_refs(&r, ctx));
             vec![]
         });
         if !ok {
             return Err(
-                "points: select exactly one unlocked shape first, and name vertices it has"
+                "points: select the shape first (or several plain shapes: then each point names its shape, {id, contour, index}), unlocked, and name vertices it has"
                     .into(),
             );
+        }
+    }
+    // Alt + drag of the selected end point onto another end, as a command.
+    if let Some(to) = params.and_then(|p| p.get("connectTo")) {
+        let (Some(id), Some(index)) = (
+            to.get("id").and_then(Value::as_u64),
+            to.get("index").and_then(Value::as_u64),
+        ) else {
+            return Err("connectTo: must be {id, index}, an entry of connectable".into());
+        };
+        let mut done = false;
+        app.with_tools(|tools, ctx| {
+            let effects = tools.connect_point((id, index as usize), ctx);
+            done = effects.is_some();
+            effects.unwrap_or_default()
+        });
+        if !done {
+            return Err(
+                "connectTo: select one end point of an open line first, and name an end listed in connectable"
+                    .into(),
+            );
+        }
+        return Ok(state(app));
+    }
+    // Ctrl+arrow (step) and Shift+arrow (step with extend): the selection moves or grows along
+    // the outline; no point moves.
+    if let Some(step) = params.and_then(|p| p.get("step")) {
+        let forward = match step.as_str() {
+            Some("next") => true,
+            Some("previous") => false,
+            _ => return Err("step: must be next or previous".into()),
+        };
+        let extend = params
+            .and_then(|p| p.get("extend"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let mut ok = false;
+        app.with_tools(|tools, ctx| {
+            ok = tools.step_points(forward, extend, ctx);
+            vec![]
+        });
+        if !ok {
+            return Err("step: no point is selected with the Point tool".into());
         }
     }
     let Some(key) = params.and_then(|p| p.get("action")).and_then(Value::as_str) else {
@@ -937,6 +1031,292 @@ mod tests {
             );
         }
         assert!(!hint(&mut app, json!([1])).contains("Alt"));
+    }
+
+    /// PE-DESIGN's manual (read 2026-11-19): with an end point selected and Alt held, the
+    /// ends it can connect to are the same line's other end and the ends of other open
+    /// lines; Alt + drag onto another line's end joins the two into one shape.
+    #[test]
+    fn an_end_point_connects_to_another_open_lines_end_in_one_undo_step() {
+        let mut app = EditorApp::new(Launch::default());
+        let line = |app: &mut EditorApp, points: Value| {
+            app.execute(&CommandRequest::new(
+                "shape.polygon",
+                json!({ "points": points, "closed": false, "outline": "#203040" }),
+            ))
+            .expect("line")["id"]
+                .as_u64()
+                .expect("id")
+        };
+        let a = line(&mut app, json!([[10, 60], [40, 60], [40, 30]]));
+        let b = line(&mut app, json!([[50, 30], [70, 30], [70, 60]]));
+        app.selection = BTreeSet::from([a]);
+        let before = app.session.design().clone();
+        let ends = |s: &Value| {
+            s["connectable"]
+                .as_array()
+                .expect("connectable")
+                .iter()
+                .map(|e| (e["id"].as_u64().expect("id"), e["index"].as_u64().expect("index")))
+                .collect::<Vec<_>>()
+        };
+        // A middle point connects to nothing; an end to its own other end and both ends of
+        // the other line (which is not selected).
+        let s = app
+            .ui_command("ui.pointMenu", Some(&json!({ "points": [1] })))
+            .expect("points");
+        assert!(ends(&s).is_empty());
+        assert!(
+            app.ui_command("ui.pointMenu", Some(&json!({ "connectTo": { "id": b, "index": 0 } })))
+                .is_err()
+        );
+        let s = app
+            .ui_command("ui.pointMenu", Some(&json!({ "points": [2] })))
+            .expect("points");
+        assert_eq!(ends(&s), [(a, 0), (b, 0), (b, 2)]);
+        assert_eq!(s["connectable"][1]["x"], 50.0);
+        assert!(s["hint"].as_str().expect("hint").contains("another open line"));
+        // Connected to the other line's near end: one object, the two ends one point.
+        app.ui_command("ui.pointMenu", Some(&json!({ "connectTo": { "id": b, "index": 0 } })))
+            .expect("connect");
+        let d = app.session.design();
+        assert_eq!(d.objects.len(), 1, "the two lines are one object");
+        assert_eq!(d.objects[0].id, a, "the dragged line's id is kept");
+        let c = &d.objects[0].contours[0];
+        assert_eq!(c.points.len(), 5);
+        assert!(!c.closed);
+        assert_eq!(
+            (c.points[0].x, c.points[2].x, c.points[4].x),
+            (100.0, 500.0, 700.0)
+        );
+        app.undo();
+        assert_eq!(*app.session.design(), before, "one Undo");
+        // Its own other end: the line is closed, as before.
+        app.ui_command("ui.pointMenu", Some(&json!({ "points": [2] })))
+            .expect("points");
+        app.ui_command("ui.pointMenu", Some(&json!({ "connectTo": { "id": a, "index": 0 } })))
+            .expect("close");
+        assert!(app.session.design().objects[0].contours[0].closed);
+        assert_eq!(app.session.design().objects.len(), 2);
+        app.undo();
+        assert_eq!(*app.session.design(), before, "one Undo");
+        let spec = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.pointMenu")
+            .expect("ui.pointMenu");
+        for words in ["connectable", "connectTo", "shape.joinLines", "keeps its id"] {
+            assert!(spec.summary.contains(words), "summary: {words}");
+        }
+        assert!(spec.params.iter().any(|p| p.name == "connectTo"));
+    }
+
+    /// PE-DESIGN capture f, 2026-11-19, on an open L line of 3 points (left end, corner, top
+    /// end), row by row, through `ui.pointMenu` `step` as the keys run it.
+    #[test]
+    fn the_arrow_keys_with_ctrl_and_shift() {
+        let mut app = EditorApp::new(Launch::default());
+        let id = app
+            .execute(&CommandRequest::new(
+                "shape.polygon",
+                json!({ "points": [[10, 60], [40, 60], [40, 30]], "closed": false, "outline": "#203040" }),
+            ))
+            .expect("line")["id"]
+            .as_u64()
+            .expect("id");
+        app.selection = BTreeSet::from([id]);
+        let before = app.session.design().clone();
+        let picked = |s: &Value| {
+            let mut out: Vec<u64> = s["selected"]
+                .as_array()
+                .expect("selected")
+                .iter()
+                .map(|p| p["index"].as_u64().expect("index"))
+                .collect();
+            out.sort_unstable();
+            out
+        };
+        let select = |app: &mut EditorApp, points: Value| {
+            picked(
+                &app.ui_command("ui.pointMenu", Some(&json!({ "points": points })))
+                    .expect("points"),
+            )
+        };
+        let key = |app: &mut EditorApp, step: &str, shift: bool| {
+            picked(
+                &app.ui_command("ui.pointMenu", Some(&json!({ "step": step, "extend": shift })))
+                    .expect("step"),
+            )
+        };
+        // Corner selected. Ctrl+Right: only the top end; again: still the top end (no wrap
+        // at the end of the line); Ctrl+Left: only the corner.
+        assert_eq!(select(&mut app, json!([1])), [1]);
+        assert_eq!(key(&mut app, "next", false), [2]);
+        assert_eq!(key(&mut app, "next", false), [2]);
+        assert_eq!(key(&mut app, "previous", false), [1]);
+        // Corner selected. Shift+Right: corner and top end; Shift+Left: corner only;
+        // Shift+Left again: corner and left end.
+        assert_eq!(key(&mut app, "next", true), [1, 2]);
+        assert_eq!(key(&mut app, "previous", true), [1]);
+        assert_eq!(key(&mut app, "previous", true), [0, 1]);
+        assert_eq!(key(&mut app, "previous", true), [0, 1], "it stops at the line's end");
+        // Corner and left end selected, Ctrl+Down: only the top end (it steps from the
+        // starting point, the corner); Ctrl+Up: the corner; Shift+Up: corner and left end.
+        assert_eq!(key(&mut app, "next", false), [2]);
+        assert_eq!(key(&mut app, "previous", false), [1]);
+        assert_eq!(key(&mut app, "previous", true), [0, 1]);
+        // The same from a selection made by clicks: the corner first, then the left end.
+        assert_eq!(select(&mut app, json!([0, 1])), [0, 1]);
+        assert_eq!(key(&mut app, "next", false), [2], "from the point selected first");
+        assert_eq!(*app.session.design(), before, "no point moved");
+        // Not captured, chosen: a closed outline's order goes round.
+        let (mut app, _) = with_rectangle();
+        assert_eq!(select(&mut app, json!([3])), [3]);
+        assert_eq!(key(&mut app, "next", false), [0]);
+        assert_eq!(key(&mut app, "previous", false), [3]);
+        assert_eq!(key(&mut app, "next", true), [0, 3]);
+        assert_eq!(key(&mut app, "next", true), [0, 1, 3]);
+        assert_eq!(key(&mut app, "next", true), [0, 1, 2, 3]);
+        assert_eq!(key(&mut app, "next", true), [0, 1, 2, 3], "every point: no further");
+        assert_eq!(key(&mut app, "previous", true), [0, 1, 3]);
+        // No point selected: refused.
+        app.tools.set_tool(openstitch_app::editor::Tool::Point);
+        assert!(
+            app.ui_command("ui.pointMenu", Some(&json!({ "step": "next" })))
+                .is_err()
+        );
+        let spec = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.pointMenu")
+            .expect("ui.pointMenu");
+        for words in ["Ctrl+arrow", "Shift+arrow", "no point moves", "goes round"] {
+            assert!(spec.summary.contains(words), "summary: {words}");
+        }
+        assert!(spec.params.iter().any(|p| p.name == "step"));
+        assert!(spec.params.iter().any(|p| p.name == "extend"));
+    }
+
+    /// #1260, the owner's hand check of 2026-11-19: points of two shapes are selected
+    /// together. `ui.pointMenu` names them by shape, runs an entry on all of them in one
+    /// undo step, and its summary says how.
+    #[test]
+    fn ui_point_menu_selects_and_edits_points_of_two_shapes_in_one_undo_step() {
+        let (mut app, a) = with_rectangle();
+        let b = app
+            .execute(&CommandRequest::new(
+                "shape.rectangle",
+                json!({ "x": 40, "y": 10, "width": 20, "height": 10, "outline": "#203040" }),
+            ))
+            .expect("rectangle")["id"]
+            .as_u64()
+            .expect("id");
+        app.selection = BTreeSet::from([a, b]);
+        // Indexes alone do not say which shape.
+        let e = app
+            .ui_command("ui.pointMenu", Some(&json!({ "points": [1] })))
+            .expect_err("two shapes");
+        assert!(e.contains("{id, contour, index}"), "{e}");
+        let s = app
+            .ui_command(
+                "ui.pointMenu",
+                Some(&json!({ "points": [{ "id": a, "index": 1 }, { "id": b, "contour": 0, "index": 0 }] })),
+            )
+            .expect("points of both");
+        assert_eq!(s["pointCount"], 8, "the points that show: both shapes'");
+        let selected: Vec<(u64, u64, u64)> = s["selected"]
+            .as_array()
+            .expect("selected")
+            .iter()
+            .map(|p| {
+                (
+                    p["id"].as_u64().expect("id"),
+                    p["contour"].as_u64().expect("contour"),
+                    p["index"].as_u64().expect("index"),
+                )
+            })
+            .collect();
+        assert_eq!(selected, [(a, 0, 1), (b, 0, 0)]);
+        let enabled = |s: &Value, key: &str| {
+            s["entries"]
+                .as_array()
+                .expect("entries")
+                .iter()
+                .find(|e| e["key"] == key)
+                .expect("entry")["enabled"]
+                == true
+        };
+        assert!(enabled(&s, "toCurve") && enabled(&s, "deletePoint"));
+        assert!(!enabled(&s, "toStraight") && !enabled(&s, "splitAtPoint"));
+        assert!(s["hint"].as_str().expect("hint").contains("move them all"));
+        let curve = |app: &EditorApp| {
+            let d = app.session.design();
+            (
+                d.objects[0].contours[0].is_curve_point(1),
+                d.objects[1].contours[0].is_curve_point(0),
+            )
+        };
+        let s = app
+            .ui_command("ui.pointMenu", Some(&json!({ "action": "toCurve" })))
+            .expect("To Curve");
+        assert_eq!(curve(&app), (true, true));
+        assert!(enabled(&s, "toStraight") && !enabled(&s, "toCurve"));
+        app.undo();
+        assert_eq!(curve(&app), (false, false), "one Undo for both shapes");
+        let count = |app: &EditorApp| {
+            let d = app.session.design();
+            (
+                d.objects[0].contours[0].points.len(),
+                d.objects[1].contours[0].points.len(),
+            )
+        };
+        app.ui_command("ui.pointMenu", Some(&json!({ "action": "deletePoint" })))
+            .expect("Delete");
+        assert_eq!(count(&app), (3, 3));
+        app.undo();
+        assert_eq!(count(&app), (4, 4), "one Undo for both shapes");
+        // The arrow keys and the Delete key, as the window runs them: one undo step each.
+        app.ui_command(
+            "ui.pointMenu",
+            Some(&json!({ "points": [{ "id": a, "index": 1 }, { "id": b, "index": 0 }] })),
+        )
+        .expect("points of both");
+        let x = |app: &EditorApp| {
+            let d = app.session.design();
+            (
+                d.objects[0].contours[0].points[1].x,
+                d.objects[1].contours[0].points[0].x,
+            )
+        };
+        let before = x(&app);
+        app.with_tools(|tools, ctx| tools.nudge_points(POINT_NUDGE, 0.0, ctx).unwrap_or_default());
+        assert_eq!(x(&app), (before.0 + 5.0, before.1 + 5.0), "0.5 mm, both shapes");
+        app.undo();
+        assert_eq!(x(&app), before, "one Undo for both shapes");
+        app.with_tools(|tools, ctx| tools.delete_point(ctx).unwrap_or_default());
+        assert_eq!(count(&app), (3, 3));
+        app.undo();
+        assert_eq!(count(&app), (4, 4), "one Undo for both shapes");
+        // Ctrl+arrow and Shift+arrow as commands: see `the_arrow_keys_with_ctrl_and_shift`.
+        assert!(
+            app.ui_command("ui.pointMenu", Some(&json!({ "step": "sideways" })))
+                .is_err()
+        );
+        // What a model reads.
+        let spec = openstitch_app::editor::assistant::UI_COMMANDS
+            .iter()
+            .find(|c| c.id == "ui.pointMenu")
+            .expect("ui.pointMenu");
+        for words in [
+            "{id, contour, index}",
+            "Shift+clicks",
+            "one engine command per outline",
+            "all in one undo step",
+            "splitAtPoint only with exactly one point",
+            "id of the shape",
+        ] {
+            assert!(spec.summary.contains(words), "ui.pointMenu's summary names {words:?}");
+        }
+        let points = spec.params.iter().find(|p| p.name == "points").expect("points");
+        assert!(points.summary.contains("several shapes and outlines"));
     }
 
     /// The menus as PE-DESIGN draws them: an icon in front of Split at Point and of Delete,

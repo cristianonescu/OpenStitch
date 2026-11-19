@@ -50,7 +50,15 @@ pub fn table(tool: Tool) -> (&'static str, [Option<&'static str>; 3]) {
         ),
         Tool::Point => (
             "Click the outline to add a point · drag points or handles; Ctrl+click or a drag box selects several, which move together · arrow keys move them 0.5 mm · right-click a point for its menu, the shape for Open and Close · Delete removes the selected points · C curve / S straight under the pointer · on a text: click a character, drag it, its top handle turns it, the others resize it",
-            [None, FREE, None],
+            [
+                Some(
+                    "Shift: drag a point only horizontally or vertically · Shift+click adds a point to the selection · Shift+arrow grows the selection to the next or previous point, and shrinks it again · a handle moves as without Shift",
+                ),
+                Some(
+                    "Ctrl: Ctrl+click adds a point to the selection or takes it out · Ctrl+arrow selects the next or previous point · a drag moves a point or a handle as without Ctrl",
+                ),
+                None,
+            ],
         ),
         Tool::Pen => (
             "Click for a corner, drag for a smooth point · click the first point to close · Return finishes open · Esc cancels",
@@ -120,19 +128,19 @@ pub enum PointSelection {
 pub fn point_hint(selection: PointSelection) -> &'static str {
     match selection {
         PointSelection::None => {
-            "Click a point to select it, or the outline to add one there · a drag box selects several · right-click the shape for Open and Close"
+            "Click a point to select it, or the outline to add one there · a drag box selects the points inside it, on every selected shape · right-click the shape for Open and Close"
         }
         PointSelection::Straight => {
-            "Drag the point, or move it 0.5 mm with the arrow keys · right-click it for To Curve, Split at Point and Delete · Ctrl+click adds another point"
+            "Drag the point (Shift: only horizontally or vertically), or move it 0.5 mm with the arrow keys · right-click it for To Curve, Split at Point and Delete · Ctrl+click or Shift+click adds another point"
         }
         PointSelection::Curve => {
             "Drag the point, or the ends of its two handle lines to shape the curve · right-click it for To Straight, To Smooth, To Symmetry and To Cusp · arrow keys move it 0.5 mm"
         }
         PointSelection::LineEnd => {
-            "Hold Alt and drag this end point onto the line's other end to connect the two ends into a closed shape · arrow keys move it 0.5 mm · right-click it for To Curve and Delete"
+            "Hold Alt and drag this end point onto the line's other end to connect the two ends into a closed shape, or onto an end of another open line to join the two lines into one (Alt marks each such end with an x) · arrow keys move it 0.5 mm · right-click it for To Curve and Delete"
         }
         PointSelection::Several => {
-            "Drag one of the selected points to move them all, or use the arrow keys (0.5 mm) · Delete removes them · right-click one for what applies to all"
+            "Drag one of the selected points to move them all (Shift: only horizontally or vertically), or use the arrow keys (0.5 mm) · Delete removes them · Ctrl+click or Shift+click adds a point, Ctrl+click on a selected one takes it out · right-click one for what applies to all"
         }
     }
 }
@@ -167,6 +175,16 @@ mod tests {
             assert_eq!(hint(t, alt) != hint(t, none), keys[2].is_some(), "{t:?}");
         }
         assert!(hint(Tool::Select, shift).starts_with("Shift"));
+        // #1260: with the Point tool Shift locks a point's drag to an axis and Ctrl changes
+        // no drag (PE-DESIGN's, the owner's hand check of 2026-11-19); both add by a click.
+        let ctrl = Held {
+            command: true,
+            ..none
+        };
+        assert!(hint(Tool::Point, shift).contains("only horizontally or vertically"));
+        assert!(hint(Tool::Point, shift).contains("Shift+click adds"));
+        assert!(hint(Tool::Point, ctrl).contains("as without Ctrl"));
+        assert!(!hint(Tool::Point, ctrl).contains("Snap"));
         assert!(hint(Tool::ShapeBuilder, alt).contains("removed"));
     }
 }

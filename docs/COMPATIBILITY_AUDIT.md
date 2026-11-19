@@ -4916,9 +4916,21 @@ saved files, not in the repository).
 | One click on a side | Inserts a point there and selects it: a straight point on a straight side; on a curved side a smooth curve point, the curve split exactly (a click at t = 0.826 of a side from 50.1 to 70 mm with one handle at 58.85: the point at 65.1 mm, its handles at 58.59 and 66.47, the first point's handle drawn back to 57.33). The straight end of that side stays a straight point. | e5 |
 | Press and drag on a side | Inserts only; the point does not move. There is no segment drag. A right click on a side inserts nothing. | e3, e5 |
 | Selecting | Click a point; Ctrl+click adds; a click on a selected point keeps the selection; a drag box from empty space selects the points inside; a click on empty space clears. | screen |
+| Shift+click on a point | Adds it to the selection ("shift + click allows the user to select more points"). | owner's hand check, 2026-11-19 |
+| A drag box over two shapes | Selects points of both shapes ("dragging a box over two shapes selects points of both shapes"). | owner's hand check, 2026-11-19 |
 | Dragging one of several selected points | Moves all of them by the same offset. | e1 |
-| Arrow keys | Move the selected points 0.5 mm a press, in all four directions (ten presses right: 30.0 → 35.0 mm exactly; ten up, ten left, four down: −5.0 and −3.0 mm). With Shift or Ctrl held they do not move the points. | e2, e9 |
+| Ctrl+click on a point | Adds it to the selection; on a selected point, takes it out. | PE-DESIGN instruction manual, read 2026-11-19 |
+| Ctrl+arrow with a point selected | The selection moves to one neighbouring point: Right and Down to the next point in the outline's order, Left and Up to the previous one (by the order of the points, not by where they lie). It stops at the end of an open line. With several points selected it steps from the point the selection started at and only the new point is selected. No point moves. | PE-DESIGN capture f, 2026-11-19 |
+| Shift+arrow with a point selected | The selection grows by one point a press from the point it started at (Right, Down: toward the next; Left, Up: toward the previous) and shrinks again when pressed the other way: corner; Shift+Right: corner and top end; Shift+Left: corner; Shift+Left: corner and left end. No point moves. | PE-DESIGN capture f, 2026-11-19 |
+| Ctrl+click, Shift+click, plain click | Ctrl+click adds an unselected point and takes a selected one out. Shift+click adds an unselected point and leaves a selected one selected. A plain click on one of several selected points keeps the whole selection. | PE-DESIGN capture f, 2026-11-19 |
+| Ctrl+arrow and Shift+arrow on a closed shape, and with points of two shapes selected | Not known. | not captured |
+| Shift held while dragging a point | The point moves only horizontally or vertically ("dragging with shift held drags it only horizontally / vertically"). | owner's hand check, 2026-11-19 |
+| Ctrl held while dragging a point | Nothing special: it is dragged as without the key. | owner's hand check, 2026-11-19 |
+| Shift or Ctrl held while dragging a handle end of a curve point | No difference from a drag without the key. | owner's hand check, 2026-11-19 |
+| Arrow keys | Move the selected points 0.5 mm a press, in all four directions (ten presses right: 30.0 → 35.0 mm exactly; ten up, ten left, four down: −5.0 and −3.0 mm). With Shift or Ctrl held they do not move the points (they change the selection: the two rows below, capture f). | e2, e9 |
 | Alt + drag of an end point onto the line's other end | Connects the two ends: the open line becomes a closed shape, the two ends one point, with a fill as Close gives it. Owner's hand check, 2026-11-18 (the capture tool cannot hold Alt in a drag). | owner |
+| Alt held with an end point selected | Every point it can connect to is drawn as an x: the other end of the same shape and the end points of other open shapes. | PE-DESIGN instruction manual, read 2026-11-19 |
+| Alt + drag of an end point onto another open shape's end point | Joins the two shapes into one. A red square shows when the two points overlap; releasing connects. | PE-DESIGN instruction manual, read 2026-11-19 |
 | Delete key | Removes the selected points in one step; one Undo brings them back. | screen |
 | To Curve on a point in the middle of a straight side | Both handles on the side: the outline does not change (the same rule, point ∓ (next − previous) / 4). | e5 |
 | Right click on the shape, not on a point | The object's menu: Add Direction Line, Delete Direction Line (a sub-menu: Delete Selected Line, Delete Lines Not Selected), Reverse Direction Line, separator, Open, Close. Add and Reverse carry an icon, Delete Direction Line none. Delete Direction Line is always available; on an open line its two sub-menu entries are grey. Open line: Add and Reverse grey, Open grey, Close available. Closed shape with a region: Add, Reverse and Open available, Close grey. | screen |
@@ -4931,9 +4943,54 @@ saved files, not in the repository).
 - `object.insertPoint` inserts as above (`Contour::insert_point_edit`; the sewing code keeps
   the exact split, `insert_point`). The Point tool inserts on one click and never drags a side.
 - A drag from empty space is a box over the points; a click there clears. Dragging one of several
-  selected points, and the arrow keys (0.5 mm; nothing with Shift or Ctrl held), are one
+  selected points, and the arrow keys (0.5 mm; with Shift or Ctrl held no point moves), are one
   `object.movePoints`. Delete removes every selected point, down to two on any outline; at two
   it stays available and does nothing.
+- Alt-connect across shapes (PE-DESIGN instruction manual, read 2026-11-19): with one end
+  point of an open line selected and Alt held, an x is drawn on every end it can connect to:
+  the line's own other end and both ends of every other open line (a plain shape of one open
+  outline, visible and not locked; selected or not). While the Alt-dragged end lies on one of
+  them a red square shows there, and releasing connects: its own end closes the line as
+  before; another line's end joins the two lines into one object (`object.setPoint`, then
+  `shape.joinLines`), one undo step. `ui.pointMenu` lists the ends as `connectable` and
+  connects with `{connectTo}`
+  (`alt_drag_onto_another_open_lines_end_joins_the_two_lines`,
+  `an_end_point_connects_to_another_open_lines_end_in_one_undo_step`). Chosen, not stated by
+  the manual: the joined object keeps the dragged line's id, sewing attributes and place in
+  the sewing order, and the two ends become one point. PE-DESIGN's pointer change is not
+  made.
+- Keys during a mouse drag (owner's hand check, 2026-11-19): Shift locks a point's drag to the
+  axis it mostly runs along from its start, and the other coordinate stays the point's own
+  (Snap to Grid used to pull that coordinate onto the grid as well; it no longer does). Ctrl
+  changes nothing for a point: the drag is as without it, Snap to Grid included (the Point tool
+  never switched snapping off with Ctrl for outline points; only its hint line said so, and
+  that text is corrected). A handle end moves the same with Shift or Ctrl held as without: no
+  axis lock, the same snapping, and the point's kind still turns the other handle
+  (`shift_locks_a_point_drag_to_an_axis_and_ctrl_and_handles_are_as_without_a_key`).
+- Shift+click adds a point to the selection (owner's hand check, 2026-11-19); Ctrl+click adds
+  one and, on a selected point, takes it out (PE-DESIGN instruction manual, read 2026-11-19).
+  Shift+click on a selected point leaves it selected (PE-DESIGN capture f, 2026-11-19)
+  (`shift_click_adds_a_point_to_the_selection_and_ctrl_click_adds_or_takes_out`).
+- Ctrl+arrow and Shift+arrow change the selection as in capture f and move no point
+  (`ToolController::step_points`, `ui.pointMenu` `{step, extend}`,
+  `the_arrow_keys_with_ctrl_and_shift`). Chosen where it is not captured: on a closed outline
+  the order goes round (Ctrl+arrow from the last point selects the first; Shift+arrow grows
+  until every point is selected); the point a selection started at is the one selected first
+  (of a drag box's points, the last in the outline's order); with points of several outlines
+  or shapes selected the keys work on the outline of that point and leave only its points
+  selected. The plain arrows still move the points 0.5 mm.
+- The Point tool's selection spans every selected shape and every outline of a shape (owner's
+  hand check, 2026-11-19): with several plain shapes selected all of them show their points,
+  and the drag box takes every point inside it on all of them. Dragging one selected point,
+  the arrow keys, the Delete key and the right-click menu act on all the selected points. The
+  engine's point commands take one outline a call (`object.movePoints`, `object.setPointKind`,
+  `object.deletePoint`, and their registry text says so): the editor sends one per outline,
+  all in one undo step. The menu's greying is over all the selected points: To Straight when
+  one is a curve point, To Curve when one is straight, Split at Point only with exactly one
+  point, Delete always. `ui.pointMenu` lists `id` and `contour` per selected point and takes
+  `points` as `{id, contour, index}` across shapes
+  (`a_drag_box_over_two_shapes_selects_points_of_both_and_they_are_edited_together`,
+  `ui_point_menu_selects_and_edits_points_of_two_shapes_in_one_undo_step`).
 - A right click on the shape beside its points opens the object's menu with PE-DESIGN's entries
   and greying. `object.closeOutline` adds Fill Stitch at 45° in the line's thread when the object
   has no region (`region: false` leaves it out); `object.openOutline` removes the closing side
@@ -4986,16 +5043,19 @@ Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_mak
   after a split on line and region: an open line, no region. PE-DESIGN's shape tools always
   make a line, so it has no such case on its own shapes; it is not captured on an imported
   region-only shape.
-- Shift or Ctrl held while dragging a point with the mouse is not captured; here Shift locks the
-  drag to an axis and Ctrl drags without snapping, as before.
-- The drag box selects the points of one outline of the shape (the one with the most points in
-  the box); PE-DESIGN's shapes in the captures had one outline.
+- The drag box takes the points of the shapes that are selected (select them with the Select
+  tool, then switch to the Point tool). Whether PE-DESIGN's box also takes the points of a
+  shape that was not selected before is not known from the hand check.
+- With points selected on several outlines or shapes: Delete leaves an outline that would keep
+  fewer than 2 points as it is and removes the selected points of the others; the object's
+  menu (a right click beside the points) works with exactly one shape selected, and Alt + drag
+  connects with exactly one point selected. None of these is checked on PE-DESIGN.
 
 **In the browser:** the web editor runs the same editor code, so all of the above is there. The
 page test (`web/e2e/page.mjs`, CI job `web`: Chromium, Firefox and WebKit) checks what a browser
 could take away (first run 2026-11-18, Chromium and Firefox): one click on the outline inserts
 a point; a mouse drag moves a point without scrolling the page or selecting text; Ctrl+click
-adds a second point and the browser opens no menu or tab of its own; a right-click on a point opens the editor's menu with the seven entries and the
+adds a second point and the browser opens no menu or tab of its own; Shift+click adds a third and the browser selects no text; Shift+arrow and Ctrl+arrow change the selection and move no point; Alt + drag of a line's end onto another line's end joins the two lines; a right-click on a point opens the editor's menu with the seven entries and the
 page's `contextmenu` event is cancelled (the browser's own menu stays shut), likewise beside the
 points for the object's menu; the arrow keys move the selected point 0.5 mm, do nothing with
 Shift, are taken from the browser and do not scroll the page; Delete removes the point, the

@@ -18,6 +18,9 @@ use std::sync::Arc;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Action {
     Drag(Vec2, Vec2),
+    /// A drag whose button stays down: press at the first point, move to the second, no
+    /// release (a screenshot then shows the drag in progress).
+    Hold(Vec2, Vec2),
     Click(Vec2),
     /// A click with the right button (the Point tool's menus, the guideline menus).
     RightClick(Vec2),
@@ -77,6 +80,10 @@ pub fn parse(script: &str) -> Result<Vec<Step>, String> {
                 }
             }
             let action = match verb {
+                "hold" => {
+                    let p = point(arg, 2)?;
+                    Action::Hold(p[0], p[1])
+                }
                 "drag" => {
                     let p = point(arg, 2)?;
                     Action::Drag(p[0], p[1])
@@ -154,6 +161,15 @@ pub fn frames(step: &Step, vp: &Viewport) -> Vec<Vec<Event>> {
             vec![button(*p, true)],
             vec![button(*p, false)],
         ],
+        Action::Hold(a, b) => {
+            let mut f = vec![vec![Event::PointerMoved(at(*a))], vec![button(*a, true)]];
+            for k in 1..=8 {
+                f.push(vec![Event::PointerMoved(
+                    at(a.lerp(*b, f64::from(k) / 8.0)),
+                )]);
+            }
+            f
+        }
         Action::Drag(a, b) => {
             let mut f = vec![vec![Event::PointerMoved(at(*a))], vec![button(*a, true)]];
             for k in 1..=8 {
@@ -308,6 +324,17 @@ mod tests {
             }
         ));
         assert!(parse("drag:1,2,3").is_err());
+        // A drag left down: press, moves, no release.
+        let hold = parse("alt+hold:1,2,3,4").expect("ok");
+        assert_eq!(hold[0].action, Action::Hold(v2(10.0, 20.0), v2(30.0, 40.0)));
+        assert_eq!(hold[0].modifiers, Modifiers::ALT);
+        let f = frames(&hold[0], &Viewport::default());
+        assert!(matches!(f[1][..], [Event::PointerButton { pressed: true, .. }]));
+        assert!(
+            !f.iter()
+                .flatten()
+                .any(|e| matches!(e, Event::PointerButton { pressed: false, .. }))
+        );
         assert!(parse("hover:1,2").is_err());
         assert!(parse("ctrl+click:1,2").is_err());
         assert!(parse("key:NoSuchKey").is_err());

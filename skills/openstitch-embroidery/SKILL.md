@@ -448,8 +448,19 @@ then style them in the next.
   the selected points with their page and window positions as `selected`, and the status
   bar's hint for that selection as `hint`; while a menu is open on screen `menuRect` is where
   it was painted, null until then). Each is one undo step. In the window `ui.pointMenu`
-  `{points, contour}` selects points as Ctrl+click does and reports the seven entries with
-  what is greyed out; `{action}` runs one (`ui.run pointToCurve` and the other ribbon
+  `{points, contour}` selects points as Ctrl+click or Shift+click does and reports the seven
+  entries with what is greyed out. With several plain shapes selected (`ui.select`) all of
+  them show their points and one selection spans them, as a drag box over them makes it:
+  `{points: [{id, contour, index}, …]}` names points of any of them, `selected` lists `id`
+  and `contour` per point, and an entry then runs on all of them, one engine command per
+  outline (`object.movePoints`, `object.setPointKind` and `object.deletePoint` take one
+  outline a call) in one undo step. `{step: "next" | "previous"}` moves the selection to the
+  neighbouring point as Ctrl+arrow does, and with `extend: true` grows or shrinks it by one
+  point as Shift+arrow does (no point moves). With one end point of an open line selected,
+  `connectable` lists the ends it can be connected to (its own other end, and the ends of
+  every other open line) and `{connectTo: {id, index}}` connects it as Alt + drag does: its
+  own end closes the line, another line's end joins the two lines into one object
+  (`shape.joinLines` joins lines by their nearest ends without the window); `{action}` runs one (`ui.run pointToCurve` and the other ribbon
   buttons do the same).
 - Clean up: `shape.simplify` `{ids, tolerance: 0.2}` removes nodes within a tolerance (mm; a
   Manual Punch column loses one direction line per call; `ui.run smoothShape` uses the

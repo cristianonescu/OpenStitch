@@ -2092,17 +2092,33 @@ impl EditorApp {
                 Some(grid) if e.nudge_grid => grid,
                 _ => e.nudge_mm * 10.0,
             };
+            // With points selected, Ctrl+arrow moves the selection to the next or previous
+            // point of the outline (Right and Down: next) and no point moves (#1260, PE-DESIGN
+            // capture f). Without selected points the key is left alone.
+            if crate::point_menu_ui::states(self).is_some()
+                && take(KeyboardShortcut::new(Modifiers::COMMAND, key))
+            {
+                self.with_tools(|tools, ctx| {
+                    tools.step_points(dx + dy > 0.0, false, ctx);
+                    vec![]
+                });
+            }
             for (mods, step) in [(Modifiers::SHIFT, base * 10.0), (Modifiers::NONE, base)] {
                 if take(KeyboardShortcut::new(mods, key)) && !self.refuse_locked() {
-                    // With points selected the arrows move the points, 0.5 mm a press, and
-                    // do nothing with Shift held, as PE-DESIGN's (#1260, capture e9).
+                    // With points selected the arrows move the points, 0.5 mm a press; with
+                    // Shift held they grow or shrink the selection by one point instead and
+                    // move nothing, as PE-DESIGN's (#1260, captures e9 and f).
                     let points = crate::point_menu_ui::POINT_NUDGE;
                     let plain = mods == Modifiers::NONE;
                     let mut moved = false;
                     self.with_tools(|tools, ctx| {
+                        if !plain {
+                            moved = tools.step_points(dx + dy > 0.0, true, ctx);
+                            return vec![];
+                        }
                         let effects = tools.nudge_points(dx * points, dy * points, ctx);
                         moved = effects.is_some();
-                        effects.filter(|_| plain).unwrap_or_default()
+                        effects.unwrap_or_default()
                     });
                     if !moved {
                         self.on_selection(|s| CommandRequest::move_by(s, dx * step, dy * step));

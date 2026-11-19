@@ -1037,3 +1037,29 @@ fn a_new_ellipse_has_smooth_points_as_pe_designs_circle() {
             .any(|c| c.id == "shape.ellipse" && c.summary.contains("stored as smooth"))
     );
 }
+
+/// #1260: the Point tool's selection spans shapes and outlines; the point commands take one
+/// outline a call, and the registry says how several are edited.
+#[test]
+fn the_registry_says_the_point_commands_take_one_outline_a_call() {
+    let s = Session::new(std::env::temp_dir());
+    let commands = s.commands();
+    for id in [
+        "object.movePoints",
+        "object.setPointKind",
+        "object.deletePoint",
+    ] {
+        let summary = commands
+            .iter()
+            .find(|c| c.id == id)
+            .unwrap_or_else(|| panic!("{id} is registered"))
+            .summary;
+        for words in [
+            "One outline of one object a call",
+            "one call per outline",
+            "in one undo step",
+        ] {
+            assert!(summary.contains(words), "{id}: {words}");
+        }
+    }
+}
