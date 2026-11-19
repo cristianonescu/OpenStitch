@@ -467,6 +467,29 @@ async function extraChecks(browser, type, label) {
       await ok({ command: "ui.run", params: { action: "openOutline" } });
       const opened = (await ok({ command: "object.list" })).find((o) => o.id === made.id);
       if (!opened || opened.region) throw new Error(`Open: ${JSON.stringify(opened).slice(0, 300)}`);
+      // The direction line of a filled shape (PE-DESIGN capture g): a click on its start
+      // square selects it (the square turns black on the page); Delete then removes nothing.
+      const filled = await ok({ command: "shape.rectangle", params: { x: 62, y: 62, width: 20, height: 14, fill: "#2e8b57", outline: "#203040" } });
+      await ok({ command: "object.setRegion", params: { id: filled.id, angle: 45 } });
+      await ok({ command: "ui.select", params: { ids: [filled.id] } });
+      await until("the filled shape shows its direction line", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.directionLine?.screenFrom != null);
+      const square = (await menu()).directionLine.screenFrom;
+      const centre = async () => png(await page.screenshot()).pixel(Math.round(box.x + square[0]), Math.round(box.y + square[1]));
+      const empty = await centre();
+      if (empty[0] < 200 || empty[1] < 200 || empty[2] < 200) throw new Error(`the unselected square is not white inside: ${empty}`);
+      await page.mouse.click(box.x + square[0], box.y + square[1]);
+      await until("a click on the square selects the direction line", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.directionLine?.selected === true);
+      let black = [];
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        black = await centre();
+        if (black[0] < 80 && black[1] < 80 && black[2] < 80) break;
+        await page.waitForTimeout(250);
+      }
+      if (!(black[0] < 80 && black[1] < 80 && black[2] < 80)) throw new Error(`the selected square is not black on the page: ${black}`);
+      if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-direction-line.png`) });
+      await page.keyboard.press("Delete");
+      await page.waitForTimeout(300);
+      if (!(await ok({ command: "object.list" })).some((o) => o.id === filled.id)) throw new Error("Delete with the direction line selected removed the shape");
       // Alt + drag of a line's end onto another open line's end joins the two lines; Alt is
       // not the browser's here (no menu bar opens, the page stays).
       const lineA = await ok({ command: "shape.polygon", params: { points: [[10, 64], [30, 64], [30, 56]], closed: false, outline: "#203040" } });

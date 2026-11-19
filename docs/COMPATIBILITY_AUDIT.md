@@ -4972,7 +4972,9 @@ saved files, not in the repository).
 - The direction line (PE-DESIGN capture g, 2026-11-19): the Point tool draws the selected
   shape's straight sewing direction as PE-DESIGN does, a thin red line through the middle of
   the shape's bounds at the region's direction angle, from a square turned 45 degrees to an
-  arrow head, each 5 mm outside the bounds. Nothing new is stored: the line IS the angle
+  arrow head, each 5 mm outside the bounds, both white inside and outlined in the line's red
+  (`the_direction_line_is_painted_red_and_its_selected_square_black`; in the browser
+  `web/e2e/page.mjs` clicks the square and reads its pixel). Nothing new is stored: the line IS the angle
   (`ToolController::direction_line`). It shows for one selected shape whose region has one
   straight direction (not Auto direction, not a curved direction, not several direction
   lines). A click on either end selects it (the square turns black) and deselects the
