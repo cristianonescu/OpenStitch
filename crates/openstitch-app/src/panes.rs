@@ -151,6 +151,9 @@ fn panel(id: &'static str, side: openstitch_app::editor::prefs::Side) -> egui::P
 /// The height the work area and the panes at its sides keep beside a pane docked above or
 /// below them, in a window too small for all of it (#1276).
 const WORK_AREA_LEAST: f32 = 160.0;
+/// The height the main window's bars and that work area take: a window lower than this (in
+/// points, so sooner at a large Text size) scrolls as a page (`fit::page`).
+pub const PAGE_HEIGHT_LEAST: f32 = 340.0;
 /// The width the Sewing Order and Attributes panes lay their content out at when they are
 /// squeezed narrower (panes on both sides of a small window): they scroll sideways then.
 const PANE_WIDTH_LEAST: f32 = 240.0;

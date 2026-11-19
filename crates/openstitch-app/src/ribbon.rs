@@ -2091,6 +2091,9 @@ fn menu_button(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
     let r = ui
         .add(egui::Button::new((info.label, crate::icons::ui_image(ui, "menu_caret"))).frame(false))
         .on_hover_text(info.screen_tip(MAC));
+    if a == Action::Options {
+        crate::fit::anchor(ui.ctx(), "options", r.rect);
+    }
     crate::fit::menu(&r, |ui| menu(app, a, ui));
 }
 
@@ -2116,6 +2119,7 @@ fn app_button(app: &mut EditorApp, ui: &mut egui::Ui) {
             .open_memory(cmd)
             .layout(egui::Layout::top_down(egui::Align::Min))
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+        &resp,
         |ui| application_menu(app, ui));
 }
 

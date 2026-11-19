@@ -238,6 +238,8 @@ pub struct EditorApp {
     /// (#565: the dialogs hid part of the design in the documentation images).
     pub dialog_rect: Option<egui::Rect>,
     pub dialog_rect_next: Option<egui::Rect>,
+    /// The menus and dialogs the last frame drew (#1276), for `ui.state`.
+    pub drawn: crate::fit::Drawn,
     player: Option<crate::script::Player>,
     /// The Stitch Table window (#501).
     pub stitch_table: crate::stitch_table_ui::StitchTable,
@@ -409,6 +411,7 @@ impl EditorApp {
             view_canvas: None,
             dialog_rect: None,
             dialog_rect_next: None,
+            drawn: Default::default(),
             player: None,
             stitch_table: Default::default(),
             keyboard: Default::default(),
@@ -2511,22 +2514,16 @@ impl eframe::App for EditorApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
         }
         self.update_title(&ctx);
-        if !self.bare {
-            egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
-            if self.tab_count() > 1 || self.ui.prefs.open_in_tabs {
-                egui::Panel::top("documents").show(ui, |ui| documents::strip(self, ui));
-            }
-            if self.ui.prefs.editing.precision_bar {
-                egui::Panel::top("precision")
-                    .show(ui, |ui| crate::arrange_ui::precision_bar(self, ui));
-            }
-            egui::Panel::bottom("status").show(ui, |ui| crate::panes::status_bar(self, ui));
-            crate::assistant_panel::panel(self, ui);
-            crate::panes::docked(self, ui);
-        }
-        egui::CentralPanel::default()
-            .frame(egui::Frame::NONE)
-            .show(ui, |ui| crate::canvas::canvas(self, ui));
+        // A window lower than the bars and a least work area need (#1276: a small browser
+        // window, a large Text size) scrolls as a page; over the canvas the wheel stays its.
+        let pointer = ctx.input(|i| i.pointer.interact_pos().or(i.pointer.hover_pos()));
+        let on_canvas = self
+            .workspace
+            .canvas
+            .zip(pointer)
+            .is_some_and(|(c, p)| c.contains(p));
+        let least = if self.bare { 0.0 } else { crate::panes::PAGE_HEIGHT_LEAST };
+        crate::fit::page(ui, least, !on_canvas, |ui| self.main_layout(ui));
         crate::start_ui::cards(self, &ctx);
         crate::start_ui::windows(self, &ctx);
         crate::limits_ui::poll(self);
@@ -2554,7 +2551,30 @@ impl eframe::App for EditorApp {
         crate::quality_ui::window(self, &ctx);
         let canvas = self.workspace.canvas;
         crate::workspace_ui::reference_window(self, &ctx, canvas);
+        self.drawn = crate::fit::drawn(&ctx);
         self.screenshot_step(&ctx);
+    }
+}
+
+impl EditorApp {
+    /// The main window's bars, panes and work area.
+    fn main_layout(&mut self, ui: &mut egui::Ui) {
+        if !self.bare {
+            egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
+            if self.tab_count() > 1 || self.ui.prefs.open_in_tabs {
+                egui::Panel::top("documents").show(ui, |ui| documents::strip(self, ui));
+            }
+            if self.ui.prefs.editing.precision_bar {
+                egui::Panel::top("precision")
+                    .show(ui, |ui| crate::arrange_ui::precision_bar(self, ui));
+            }
+            egui::Panel::bottom("status").show(ui, |ui| crate::panes::status_bar(self, ui));
+            crate::assistant_panel::panel(self, ui);
+            crate::panes::docked(self, ui);
+        }
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| crate::canvas::canvas(self, ui));
     }
 }
 

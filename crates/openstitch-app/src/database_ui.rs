@@ -490,7 +490,7 @@ fn item_interaction(app: &mut EditorApp, ui: &egui::Ui, r: &egui::Response, p: &
         open_in_editor(app, p);
         return;
     }
-    crate::fit::context_menu(&r, |ui| {
+    crate::fit::context_menu(r, |ui| {
         if !app.database.selection.contains(p) {
             app.database.click(p, false, false);
         }

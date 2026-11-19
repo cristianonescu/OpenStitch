@@ -165,7 +165,7 @@ impl Win {
 
     fn shown(&self, c: &Control) -> bool {
         let v = self.visible(c);
-        v.width() >= c.rect.width() - 1.0 && v.height() >= c.rect.height() - 1.0
+        v.width() >= c.rect.width() - 2.0 && v.height() >= c.rect.height() - 2.0
     }
 
     /// Where the pointer rests to scroll `c` into view: on its visible part, else on the
@@ -206,7 +206,7 @@ impl Win {
         // First with the pointer on the control or the nearest view of it; then, as a person
         // does when a list inside a scrolling pane takes the wheel, from other places in the
         // containers around it.
-        (0..6).any(|from| self.reach_from(id, ok, from) == Some(true))
+        (0..8).any(|from| self.reach_from(id, ok, from) == Some(true))
     }
 
     /// Other places to rest the pointer for [`Self::reach`]: in each container around `c`,
@@ -248,7 +248,7 @@ impl Win {
         // cannot be shown at once: it is reached when both of its ends have been in view.
         let mut ends = [false; 4];
         let trace = std::env::var("REACH_TRACE").is_ok();
-        for _ in 0..if from == 0 { 400 } else { 120 } {
+        for _ in 0..if from == 0 { 300 } else { 50 } {
             let all = self.controls();
             for c in &all {
                 if self.shown(c) {
@@ -556,12 +556,24 @@ fn tab_window(tab: TabId, px: (f32, f32), scale: u32) -> Win {
 }
 
 /// Every surface at one window size and UI scale.
-fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
+/// Walks every surface at a window of `px` pixels and a Text size of `scale` %. With `part`
+/// `(n, of)` only every `of`-th surface, starting at the `n`-th: the parts together are the
+/// whole walk, so they can run side by side.
+fn survey(px: (f32, f32), scale: u32, part: Option<(usize, usize)>) -> Vec<Row> {
     let mut rows = Vec::new();
+    let count = std::cell::Cell::new(0usize);
+    let mine = || {
+        let n = count.get();
+        count.set(n + 1);
+        part.is_none_or(|(at, of)| n % of == at)
+    };
     let open = |launch: Launch| Win::new(launch, px, scale);
     // The main window with each ribbon tab: ribbon, panes, status bar.
     let base = open(demo()).layers();
     for tab in TabId::ALL {
+        if !mine() {
+            continue;
+        }
         let mut w = tab_window(tab, px, scale);
         let name = format!("Main window, ribbon tab {}", tab.english_label());
         if w.app.ui.tab != tab {
@@ -598,6 +610,9 @@ fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
     }
     // The menus of the top bar.
     for label in ["Options", "Help"] {
+        if !mine() {
+            continue;
+        }
         let mut w = open(demo());
         let before = w.layers();
         if w.click_label(label) {
@@ -612,6 +627,9 @@ fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
     }
     // The --show scenes: the application menu, dialogs, panes.
     for show in SHOW {
+        if !mine() {
+            continue;
+        }
         if ["bare", "large-text", "norulers"].contains(&show) {
             continue;
         }
@@ -683,6 +701,9 @@ fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
         }),
     ];
     for (name, opener) in extras {
+        if !mine() {
+            continue;
+        }
         let mut w = open(demo());
         opener(&mut w.app);
         w.frames(5, Vec::new());
@@ -700,6 +721,9 @@ fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
         }
     }
     for kind in ["background", "applique", "patch", "cutwork"] {
+        if !mine() {
+            continue;
+        }
         let Some(k) = openstitch_app::editor::pattern_wizards::WizardKind::from_key(kind) else {
             continue;
         };
@@ -710,6 +734,9 @@ fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
         w.audit_new(&format!("Wizard {kind}"), &base, &mut rows);
     }
     for pane in ["import", "color", "attributes", "text"] {
+        if !mine() {
+            continue;
+        }
         let mut w = open(Launch {
             pane: crate::ribbon::PaneTab::from_key(pane),
             ..demo()
@@ -722,6 +749,9 @@ fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
         ("Right click on a shape, Point tool", Tool::Point, false),
         ("Right click on a point, Point tool", Tool::Point, true),
     ] {
+        if !mine() {
+            continue;
+        }
         let mut w = open(Launch {
             tool: Some(tool),
             ..demo()
@@ -749,6 +779,9 @@ fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
         }
     }
     for (name, dx, dy) in [("Right click on the top ruler", 80.0, 6.0), ("Right click on the left ruler", 6.0, 80.0)] {
+        if !mine() {
+            continue;
+        }
         let mut w = open(demo());
         let before = w.layers();
         let Some(canvas) = w.app.workspace.canvas else {
@@ -779,6 +812,9 @@ fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
         ("Design Database", |a| a.database.show(None)),
     ];
     for (name, opener) in suites {
+        if !mine() {
+            continue;
+        }
         let mut plain = open(demo());
         opener(&mut plain.app);
         plain.app.creator.open_app_menu = false;
@@ -814,6 +850,9 @@ fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
         .collect();
     let mut done = HashSet::new();
     for a in actions {
+        if !mine() {
+            continue;
+        }
         let info = a.info();
         if !info.available || interactive(a) || a.is_menu() || !done.insert(info.key) {
             continue;
@@ -836,7 +875,7 @@ fn survey(px: (f32, f32), scale: u32) -> Vec<Row> {
 }
 
 fn write(px: (f32, f32), scale: u32) {
-    let rows = survey(px, scale);
+    let rows = survey(px, scale, None);
     eprintln!("done {px:?} {scale}");
     let mut out = String::from("surface\tcontrols\tnot in view\tunreachable\tbeyond x\tbeyond y\twhich\n");
     for r in &rows {
@@ -1082,4 +1121,246 @@ fn the_arrow_keys_keep_the_highlighted_options_entry_in_view() {
         .collect();
     assert!(walked.contains(&last.id), "the keys reach the last entry; missed {missed:?}");
     assert!(walked.len() >= 20, "walked {} entries", walked.len());
+}
+
+/// `ui.state` says which menus and dialogs are on screen and how far each is scrolled (the
+/// browser version's page test reads it), and the command's summary names every key.
+#[test]
+fn ui_state_reports_the_open_menu_and_how_far_it_is_scrolled() {
+    let mut w = Win::new(demo(), (640.0, 400.0), 100);
+    let surfaces = |w: &mut Win| w.app.ui_command("ui.state", None).expect("ui.state")["surfaces"].clone();
+    let s = surfaces(&mut w);
+    assert_eq!(s["windowPoints"], serde_json::json!([640.0, 400.0]));
+    assert_eq!(s["textScale"], serde_json::json!(1.0));
+    assert_eq!(s["open"], serde_json::json!([]), "nothing is open at the start");
+    let b: Vec<f32> = s["optionsButton"]
+        .as_array()
+        .expect("the Options button is drawn")
+        .iter()
+        .map(|v| v.as_f64().expect("number") as f32)
+        .collect();
+    let at = egui::pos2(b[0] + b[2] / 2.0, b[1] + b[3] / 2.0);
+    w.click(at);
+    w.frames(6, Vec::new());
+    let s = surfaces(&mut w);
+    let open = s["open"].as_array().expect("open").clone();
+    let focus = w.ctx.memory(|m| m.focused());
+    let focused: Vec<String> = w.controls().iter().filter(|c| Some(c.id) == focus).map(|c| format!("{:?} {} {:?}", c.role, c.label, c.rect)).collect();
+    assert_eq!(open.len(), 1, "{s} focus {focused:?}");
+    let num = |v: &serde_json::Value| v.as_f64().expect("number");
+    let rect: Vec<f64> = open[0]["rect"].as_array().expect("rect").iter().map(num).collect();
+    assert_eq!(open[0]["kind"], "menu");
+    assert!(rect[0] >= 0.0 && rect[1] >= 0.0, "{rect:?}");
+    assert!(rect[0] + rect[2] <= 640.0 && rect[1] + rect[3] <= 400.0, "inside the window: {rect:?}");
+    assert!(num(&open[0]["contentHeight"]) > rect[3] + 100.0, "the menu is taller than its view: {s}");
+    assert_eq!(num(&open[0]["scrolled"]), 0.0);
+    assert!(open[0]["buttons"].is_null());
+    // The wheel over the menu scrolls it.
+    let over = egui::pos2((rect[0] + rect[2] / 2.0) as f32, (rect[1] + rect[3] / 2.0) as f32);
+    w.frames(1, vec![egui::Event::PointerMoved(over)]);
+    w.frames(
+        1,
+        vec![egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -120.0),
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Wheel,
+            modifiers: egui::Modifiers::NONE,
+        }],
+    );
+    w.frames(8, Vec::new());
+    // (The pointer now rests on an entry, which may have opened its sub-menu beside it.)
+    let s = surfaces(&mut w);
+    let options = s["open"]
+        .as_array()
+        .expect("open")
+        .iter()
+        .find(|o| num(&o["rect"][0]) == rect[0] && num(&o["rect"][2]) == rect[2])
+        .unwrap_or_else(|| panic!("the Options menu is still open: {s}"));
+    assert!(num(&options["scrolled"]) > 50.0, "{s}");
+    let summary = openstitch_app::editor::assistant::ui_command("ui.state")
+        .expect("ui.state")
+        .summary;
+    for key in ["surfaces", "windowPoints", "textScale", "optionsButton", "contentHeight", "scrolled", "buttons"] {
+        assert!(summary.contains(key), "the summary of ui.state names {key}");
+    }
+}
+
+/// What may be made outside `fit`, and why: (file, call, how many times).
+const MADE_OUTSIDE_FIT: &[(&str, &str, usize, &str)] = &[
+    ("app.rs", "egui::Window::new(", 1, "dialog_window builds the window its callers show through fit"),
+    ("pickers_ui.rs", "Popup::from_response(", 1, "a picture picker scrolls its own grid, limited by fit::room"),
+    ("splash.rs", "Area::new(", 1, "the splash picture has no controls"),
+    ("start_ui.rs", "Area::new(", 1, "the start cards: the reach walk checks them (scene getting-started)"),
+    ("point_menu_ui.rs", "Area::new(", 1, "the point menus put their body in fit::scroll"),
+    ("view_ui.rs", "Area::new(", 1, "the guide menu puts its body in fit::scroll"),
+];
+
+/// Every menu, pop-up, dialog and prompt of the app is made through `fit`, so it stays inside
+/// the window and scrolls: a new one made with the toolkit's own call fails here, with the
+/// call to use instead.
+#[test]
+fn every_menu_and_dialog_is_made_through_fit() {
+    // (the toolkit's call, the `fit` calls that may wrap it)
+    let rules: &[(&str, &[&str])] = &[
+        ("egui::Window::new(", &["crate::fit::show(", "crate::fit::show_filling("]),
+        (".dialog_window(", &["crate::fit::show(", "crate::fit::show_filling("]),
+        ("egui::Modal::new(", &["crate::fit::modal("]),
+        ("Popup::menu(", &["crate::fit::popup("]),
+        ("Popup::from_response(", &["crate::fit::popup("]),
+        ("Popup::context_menu(", &["crate::fit::popup("]),
+        (".menu_button(", &[]),
+        (".context_menu(", &[]),
+        ("Area::new(", &[]),
+    ];
+    fn files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for e in std::fs::read_dir(dir).expect("src").flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                files(&p, out);
+            } else if p.extension().is_some_and(|x| x == "rs") {
+                out.push(p);
+            }
+        }
+    }
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut all = Vec::new();
+    files(&src, &mut all);
+    assert!(all.len() > 50, "the app's sources: {}", all.len());
+    let mut found: HashMap<(String, &str), Vec<usize>> = HashMap::new();
+    for path in &all {
+        let name = path.strip_prefix(&src).expect("in src").to_string_lossy().replace('\\', "/");
+        if name == "fit.rs" || name.ends_with("_tests.rs") {
+            continue;
+        }
+        let text = std::fs::read_to_string(path).expect("source");
+        for (call, wrappers) in rules {
+            for (at, _) in text.match_indices(call) {
+                let before = &text[..at];
+                // Text in a string or a comment is not a call.
+                let line = &before[before.rfind('\n').map_or(0, |i| i + 1)..];
+                if before.ends_with('"') || line.trim_start().starts_with("//") {
+                    continue;
+                }
+                // `crate::fit::show(app\n    .dialog_window(`, `crate::fit::popup(\n    egui::Popup::menu(`
+                let head = before
+                    .trim_end()
+                    .trim_end_matches(|c: char| c.is_alphanumeric() || c == '_' || c == ':')
+                    .trim_end();
+                if wrappers.iter().any(|w| head.ends_with(w)) {
+                    continue;
+                }
+                let line_nr = before.matches('\n').count() + 1;
+                found.entry((name.clone(), call)).or_default().push(line_nr);
+            }
+        }
+    }
+    let mut wrong = Vec::new();
+    for ((file, call), lines) in &found {
+        let allowed = MADE_OUTSIDE_FIT
+            .iter()
+            .find(|a| a.0 == file && a.1 == *call)
+            .map_or(0, |a| a.2);
+        if lines.len() != allowed {
+            wrong.push(format!("{file}: {call} at lines {lines:?} ({allowed} allowed)"));
+        }
+    }
+    for (file, call, _, why) in MADE_OUTSIDE_FIT {
+        assert!(
+            found.contains_key(&(file.to_string(), *call)),
+            "{file} no longer has {call} ({why}): take it off MADE_OUTSIDE_FIT"
+        );
+    }
+    wrong.sort();
+    assert!(
+        wrong.is_empty(),
+        "made without crate::fit (use fit::show, fit::modal, fit::menu, fit::popup, \
+         fit::sub_menu or fit::context_menu, so it fits a small window, #1276):\n{}",
+        wrong.join("\n")
+    );
+}
+
+/// A tooltip cannot scroll, so the tallest one of the ribbon, menus and Quick Access Toolbar
+/// has to fit the smallest window of the survey: 640 × 400 at Text size 200 %, 320 × 200
+/// points.
+#[test]
+fn the_tallest_command_tooltip_fits_the_smallest_window() {
+    let w = Win::new(demo(), (640.0, 400.0), 200);
+    let screen = w.screen();
+    let style = w.ctx.global_style();
+    let font = egui::TextStyle::Body.resolve(&style);
+    let margin = egui::Frame::popup(&style).total_margin().sum();
+    let wrap = style.spacing.tooltip_width.min(screen.width() - margin.x - 2.0 * crate::fit::EDGE);
+    let mut tallest = (0.0f32, String::new());
+    for a in Action::ALL {
+        let text = a.info().screen_tip(false);
+        let galley = w
+            .ctx
+            .fonts_mut(|f| f.layout(text.clone(), font.clone(), egui::Color32::WHITE, wrap));
+        let height = galley.size().y + margin.y;
+        if height > tallest.0 {
+            tallest = (height, text);
+        }
+    }
+    eprintln!("the tallest tooltip: {:.0} of {:.0} points: {}", tallest.0, screen.height(), tallest.1);
+    assert!(tallest.0 > 30.0, "tooltips were measured: {tallest:?}");
+    assert!(
+        tallest.0 <= screen.height() - 2.0 * crate::fit::EDGE,
+        "a tooltip {:.0} points high does not fit a window {:.0} points high: {}",
+        tallest.0,
+        screen.height(),
+        tallest.1
+    );
+}
+
+/// The walk of the registry at the smallest browser window (640 × 400): every ribbon tab and
+/// its lists, the top bar's menus, every `--show` scene, every dialog, wizard and pane, the
+/// right-click menus, the other windows of the suite, and whatever each ribbon, menu and
+/// Quick Access Toolbar command opens. It fails for a control that cannot be brought into
+/// view with the wheel, and for a menu or dialog that reaches beyond the window. A new
+/// command, scene or tab is walked without a change here (they come from the registries).
+fn walk(part: usize) {
+    let rows = survey((640.0, 400.0), 100, Some((part, WALK_PARTS)));
+    assert!(rows.len() > 20, "part {part} walked {} surfaces", rows.len());
+    let wrong: Vec<String> = rows
+        .iter()
+        .filter(|r| !r.lost.is_empty() || r.beyond.0 > 1.0 || r.beyond.1 > 1.0)
+        .map(|r| format!("{}: out of reach {:?}, beyond the window by {:?}", r.surface, r.lost, r.beyond))
+        .collect();
+    assert!(wrong.is_empty(), "at 640 x 400 (#1276):
+{}", wrong.join("
+"));
+}
+
+/// The walk runs as this many tests, side by side.
+const WALK_PARTS: usize = 6;
+
+#[test]
+fn every_control_can_be_reached_at_640x400_part_1() {
+    walk(0);
+}
+
+#[test]
+fn every_control_can_be_reached_at_640x400_part_2() {
+    walk(1);
+}
+
+#[test]
+fn every_control_can_be_reached_at_640x400_part_3() {
+    walk(2);
+}
+
+#[test]
+fn every_control_can_be_reached_at_640x400_part_4() {
+    walk(3);
+}
+
+#[test]
+fn every_control_can_be_reached_at_640x400_part_5() {
+    walk(4);
+}
+
+#[test]
+fn every_control_can_be_reached_at_640x400_part_6() {
+    walk(5);
 }

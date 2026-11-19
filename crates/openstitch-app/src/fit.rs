@@ -3,8 +3,9 @@
 //! reached at a small window or a large Text size.
 //!
 //! Every menu and pop-up of the app opens through [`menu`], [`popup`], [`sub_menu`] or
-//! [`context_menu`], and every dialog puts its content in [`body`]; `fit_tests.rs` fails for a
-//! menu or a window made without them.
+//! [`context_menu`], every dialog through [`show`] or [`modal`], every pane puts its content
+//! in [`pane`], and the window's own content is a [`page`]; `reach_tests.rs` fails for a menu
+//! or a window made without them, and walks every one of them at a small window.
 
 use eframe::egui;
 
@@ -12,6 +13,8 @@ use eframe::egui;
 pub const EDGE: f32 = 4.0;
 /// A list is never squeezed below this height, however small the window.
 const LEAST: f32 = 40.0;
+/// A menu stays below (or above) its button while that leaves it this height.
+const BESIDE_LEAST: f32 = 100.0;
 
 /// The height the content of a pop-up may take in this window: the window's, less the gap at
 /// both edges and the pop-up's own frame.
@@ -27,6 +30,21 @@ pub fn room(ctx: &egui::Context) -> f32 {
 /// taller than the window.
 pub fn scroll<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let max = room(ui.ctx());
+    scroll_in(ui, max, add)
+}
+
+/// The height the content of a pop-up opened from `button` may take: the room below the
+/// button, or above it, so the pop-up does not open over its own button and the pointer; the
+/// whole window's where neither leaves [`BESIDE_LEAST`].
+fn room_beside(ctx: &egui::Context, button: egui::Rect) -> f32 {
+    let screen = ctx.content_rect();
+    let all = room(ctx);
+    let chrome = screen.height() - all;
+    let side = (screen.bottom() - button.bottom()).max(button.top() - screen.top()) - chrome;
+    if side >= BESIDE_LEAST { side.min(all) } else { all }
+}
+
+fn scroll_in<R>(ui: &mut egui::Ui, max: f32, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let frame = egui::Frame::menu(ui.style()).total_margin().sum().x;
     let wide = (ui.ctx().content_rect().width() - frame - 2.0 * EDGE).max(LEAST);
     visible_bars(ui);
@@ -50,7 +68,12 @@ pub fn scroll<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
         ui.ctx(),
         Surface {
             kind: "menu",
-            rect: out.inner_rect,
+            // (A pop-up's first frame is as high as it may get; its content says how high
+            // it is.)
+            rect: egui::Rect::from_min_size(
+                out.inner_rect.min,
+                egui::vec2(out.inner_rect.width(), out.inner_rect.height().min(out.content_size.y)),
+            ),
             content: out.content_size.y,
             offset: out.state.clamped_offset().y,
             buttons: None,
@@ -63,12 +86,15 @@ pub fn scroll<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     out.inner
 }
 
-/// Shows `popup` with its content in [`scroll`].
+/// Shows `popup`, opened from `button`, with its content scrolling in the room beside the
+/// button.
 pub fn popup<R>(
     popup: egui::Popup<'_>,
+    button: &egui::Response,
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> Option<egui::InnerResponse<R>> {
-    popup.show(|ui| scroll(ui, add))
+    let max = room_beside(&button.ctx, button.rect);
+    popup.show(|ui| scroll_in(ui, max, add))
 }
 
 /// The menu of a button: opens on its click, below it or where there is room.
@@ -76,7 +102,7 @@ pub fn menu<R>(
     button: &egui::Response,
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> Option<egui::InnerResponse<R>> {
-    popup(egui::Popup::menu(button), add)
+    popup(egui::Popup::menu(button), button, add)
 }
 
 /// A row of a menu that opens a sub-menu, on the side that has room.
@@ -121,11 +147,34 @@ pub struct Surface {
     pub buttons: Option<egui::Rect>,
 }
 
-/// The surfaces of one frame.
+/// What one frame drew, for `ui.state`: its menus, pop-ups and dialogs, and where the named
+/// buttons that open one are.
 #[derive(Clone, Default)]
-struct Drawn {
+pub struct Drawn {
     frame: u64,
-    list: Vec<Surface>,
+    /// The window's size in points.
+    pub window: egui::Vec2,
+    pub list: Vec<Surface>,
+    pub anchors: Vec<(&'static str, egui::Rect)>,
+}
+
+fn drawn_mut(ctx: &egui::Context, change: impl FnOnce(&mut Drawn)) {
+    let frame = ctx.cumulative_frame_nr();
+    ctx.data_mut(|d| {
+        let drawn: &mut Drawn = d.get_temp_mut_or_default(drawn_id());
+        if drawn.frame != frame {
+            *drawn = Drawn {
+                frame,
+                ..Drawn::default()
+            };
+        }
+        change(drawn);
+    });
+}
+
+/// Notes where the button called `name` is in this frame (the top bar's Options).
+pub fn anchor(ctx: &egui::Context, name: &'static str, rect: egui::Rect) {
+    drawn_mut(ctx, |d| d.anchors.push((name, rect)));
 }
 
 fn drawn_id() -> egui::Id {
@@ -133,24 +182,18 @@ fn drawn_id() -> egui::Id {
 }
 
 fn note(ctx: &egui::Context, surface: Surface) {
-    let frame = ctx.cumulative_frame_nr();
-    ctx.data_mut(|d| {
-        let drawn: &mut Drawn = d.get_temp_mut_or_default(drawn_id());
-        if drawn.frame != frame {
-            drawn.frame = frame;
-            drawn.list.clear();
-        }
-        drawn.list.push(surface);
-    });
+    drawn_mut(ctx, |d| d.list.push(surface));
 }
 
-/// The menus, pop-ups and dialogs drawn in this frame so far (call at the end of the frame).
-pub fn surfaces(ctx: &egui::Context) -> Vec<Surface> {
+/// What this frame has drawn so far (call at the end of the frame).
+pub fn drawn(ctx: &egui::Context) -> Drawn {
     let frame = ctx.cumulative_frame_nr();
-    ctx.data(|d| d.get_temp::<Drawn>(drawn_id()))
+    let mut drawn = ctx
+        .data(|d| d.get_temp::<Drawn>(drawn_id()))
         .filter(|d| d.frame == frame)
-        .map(|d| d.list)
-        .unwrap_or_default()
+        .unwrap_or_default();
+    drawn.window = ctx.content_rect().size();
+    drawn
 }
 
 /// Brings the control that has just taken the keyboard focus (Tab, the arrow keys) into view,
@@ -455,6 +498,48 @@ pub fn list(ui: &egui::Ui, least: f32) -> egui::ScrollArea {
 /// the panes beside it keep `rest` points.
 pub fn pane_limit(height: f32, rest: f32) -> f32 {
     (height - rest).max(LEAST)
+}
+
+/// The whole content of a window (its bars, panes and work area): laid out as it is while the
+/// window is at least `least` points high, and in a page that high which scrolls up and down
+/// once the window is lower, so the bars at its bottom can be reached. `wheel` is false while
+/// the pointer is over something that takes the wheel and a drag for itself (the canvas):
+/// the page then scrolls by its bar only.
+pub fn page<R>(
+    ui: &mut egui::Ui,
+    least: f32,
+    wheel: bool,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let room = ui.available_rect_before_wrap();
+    if room.height() >= least {
+        return add(ui);
+    }
+    visible_bars(ui);
+    let source = egui::scroll_area::ScrollSource {
+        mouse_wheel: wheel,
+        drag: if wheel {
+            egui::scroll_area::DragScroll::OnTouch
+        } else {
+            egui::scroll_area::DragScroll::Never
+        },
+        ..egui::scroll_area::ScrollSource::ALL
+    };
+    egui::ScrollArea::vertical()
+        .id_salt("fit-page")
+        .auto_shrink([false, false])
+        .scroll_source(source)
+        .show(ui, |ui| {
+            let rect = egui::Rect::from_min_size(
+                ui.cursor().min,
+                egui::vec2(room.width(), least),
+            );
+            let mut body = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+            let inner = add(&mut body);
+            ui.allocate_rect(rect, egui::Sense::hover());
+            inner
+        })
+        .inner
 }
 
 /// A row of controls that may be wider than its place (a status bar, a tab row, a toolbar):

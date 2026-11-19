@@ -906,6 +906,7 @@ fn thread_picker(
                 .id(popup_id)
                 .open_memory(open.then_some(egui::SetOpenCommand::Toggle))
                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+            &button,
             |ui| {
                 chosen = thread_grid(ui, id, current, user);
             },

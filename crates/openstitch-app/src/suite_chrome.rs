@@ -167,6 +167,7 @@ pub fn ribbon<A: Command, H: Host<A>>(
                 .open_memory(cmd)
                 .layout(egui::Layout::top_down(egui::Align::Min))
                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+            &resp,
             |ui| application_menu(h, ui, w));
         ui.add_space(6.0);
         for (i, t) in w.tabs.iter().enumerate() {
