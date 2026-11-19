@@ -252,6 +252,13 @@ impl Session {
         !self.redo.is_empty()
     }
 
+    /// Forgets what Redo would bring back. For a caller that has just undone its own
+    /// half-finished group of commands (one of them was refused): the document is as it was
+    /// before the group, and Redo must not replay the part that ran.
+    pub fn discard_redo(&mut self) {
+        self.redo.clear();
+    }
+
     pub fn commands(&self) -> Vec<&CommandSpec> {
         let mut v: Vec<_> = self.registry.values().collect();
         v.sort_by_key(|c| c.id);

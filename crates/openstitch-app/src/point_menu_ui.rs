@@ -469,6 +469,11 @@ pub fn state(app: &EditorApp) -> Value {
         .point_menu
         .as_ref()
         .and_then(|m| m.drawn);
+    // The end the Alt-dragged end point lies on now (the red square), mm and window.
+    let overlap = app.tools.connect_overlap().map(|at| {
+        let screen = app.viewport.map(|vp| vp.to_screen(at));
+        json!({ "x": at.x / 10.0, "y": at.y / 10.0, "screen": screen.map(|s| [s.x, s.y]) })
+    });
     // The ends the one selected end point can connect to (Alt + drag; the x marks).
     let connectable: Vec<Value> = match app.tools.selected_points(&ctx)[..] {
         [p] => app
@@ -489,6 +494,7 @@ pub fn state(app: &EditorApp) -> Value {
         _ => vec![],
     };
     json!({
+        "connectOverlap": overlap,
         "connectable": connectable,
         "menuRect": drawn.map(|(r, _)| [r.min.x, r.min.y, r.width(), r.height()]),
         "menuFill": drawn.map(|(_, c)| format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())),
@@ -564,6 +570,13 @@ pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, Str
     }
     // Alt + drag of the selected end point onto another end, as a command.
     if let Some(to) = params.and_then(|p| p.get("connectTo")) {
+        // The connected point is gone afterwards, so an entry could not run on it.
+        if params.is_some_and(|p| p.get("action").is_some() || p.get("step").is_some()) {
+            return Err(
+                "connectTo cannot be combined with action or step: send them in separate calls"
+                    .into(),
+            );
+        }
         let (Some(id), Some(index)) = (
             to.get("id").and_then(Value::as_u64),
             to.get("index").and_then(Value::as_u64),
@@ -1079,6 +1092,11 @@ mod tests {
         // Connected to the other line's near end: one object, the two ends one point.
         app.ui_command("ui.pointMenu", Some(&json!({ "connectTo": { "id": b, "index": 0 } })))
             .expect("connect");
+        assert!(
+            app.status.contains("shape.joinLines"),
+            "the status names the join: {}",
+            app.status
+        );
         let d = app.session.design();
         assert_eq!(d.objects.len(), 1, "the two lines are one object");
         assert_eq!(d.objects[0].id, a, "the dragged line's id is kept");
@@ -1091,6 +1109,43 @@ mod tests {
         );
         app.undo();
         assert_eq!(*app.session.design(), before, "one Undo");
+        // A refused join changes nothing: the end is not left moved, Redo holds nothing,
+        // the point is still selected and the status bar says why. (Here the join is made
+        // to fail by naming an object that does not exist.)
+        app.ui_command("ui.pointMenu", Some(&json!({ "points": [2] })))
+            .expect("points");
+        app.with_tools(|tools, ctx| {
+            let mut effects = tools.connect_point((b, 0), ctx).expect("connect");
+            let openstitch_app::editor::ToolEffect::Execute { requests, .. } = &mut effects[0]
+            else {
+                panic!("an Execute effect");
+            };
+            assert_eq!(requests[1].command, "shape.joinLines");
+            requests[1].params = json!({ "ids": [a, 987_654], "tolerance": 0.1 });
+            effects
+        });
+        assert_eq!(*app.session.design(), before, "the moved end is taken back");
+        assert!(!app.session.can_redo(), "nothing is left for Redo");
+        assert!(app.status.contains("987654"), "the refusal is shown: {}", app.status);
+        let s = app.ui_command("ui.pointMenu", None).expect("state");
+        assert_eq!(s["selected"][0]["index"], 2, "the point is still selected");
+        app.undo();
+        assert_eq!(
+            app.session.design().objects.len(),
+            1,
+            "Undo goes on to the step before (the second line), not to a half-done join"
+        );
+        app.redo();
+        assert_eq!(*app.session.design(), before);
+        // connectTo with action or step in one call is refused, and nothing is connected.
+        let e = app
+            .ui_command(
+                "ui.pointMenu",
+                Some(&json!({ "connectTo": { "id": b, "index": 0 }, "action": "toCurve" })),
+            )
+            .expect_err("refused");
+        assert!(e.contains("cannot be combined"), "{e}");
+        assert_eq!(*app.session.design(), before);
         // Its own other end: the line is closed, as before.
         app.ui_command("ui.pointMenu", Some(&json!({ "points": [2] })))
             .expect("points");
@@ -1104,7 +1159,15 @@ mod tests {
             .iter()
             .find(|c| c.id == "ui.pointMenu")
             .expect("ui.pointMenu");
-        for words in ["connectable", "connectTo", "shape.joinLines", "keeps its id"] {
+        for words in [
+            "connectable",
+            "connectTo",
+            "shape.joinLines",
+            "keeps its id",
+            "cannot be combined with action or step",
+            "refused join changes nothing",
+            "connectOverlap",
+        ] {
             assert!(spec.summary.contains(words), "summary: {words}");
         }
         assert!(spec.params.iter().any(|p| p.name == "connectTo"));
@@ -1273,6 +1336,34 @@ mod tests {
         assert_eq!(count(&app), (3, 3));
         app.undo();
         assert_eq!(count(&app), (4, 4), "one Undo for both shapes");
+        // A drag of one selected point moves the points of both shapes; ONE Undo brings
+        // both back.
+        app.ui_command(
+            "ui.pointMenu",
+            Some(&json!({ "points": [{ "id": a, "index": 1 }, { "id": b, "index": 0 }] })),
+        )
+        .expect("points of both");
+        let corners = |app: &EditorApp| {
+            let d = app.session.design();
+            (d.objects[0].contours[0].points[1], d.objects[1].contours[0].points[0])
+        };
+        let start = corners(&app);
+        for (phase, at) in [
+            (openstitch_app::editor::Phase::Down, start.0),
+            (openstitch_app::editor::Phase::Dragged, start.0 + v2(30.0, 40.0)),
+            (openstitch_app::editor::Phase::Up, start.0 + v2(30.0, 40.0)),
+        ] {
+            app.with_tools(|tools, ctx| {
+                tools.handle(openstitch_app::editor::PointerEvent::new(phase, at), ctx)
+            });
+        }
+        assert_eq!(
+            corners(&app),
+            (start.0 + v2(30.0, 40.0), start.1 + v2(30.0, 40.0)),
+            "both shapes' points moved"
+        );
+        app.undo();
+        assert_eq!(corners(&app), start, "one Undo for both shapes");
         // The arrow keys and the Delete key, as the window runs them: one undo step each.
         app.ui_command(
             "ui.pointMenu",

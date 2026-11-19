@@ -472,6 +472,9 @@ pub struct ToolController {
     /// negative: toward the previous ones). It counts only while the selection is still that
     /// run.
     point_run: Option<(PointRef, i64)>,
+    /// Point tool: the selection a connect gave up (the connected point is gone afterwards);
+    /// put back by [`Self::restore_points`] when the connect was refused.
+    given_up: Option<(PointRef, Vec<PointRef>)>,
     /// Point tool: the end the Alt-dragged end point lies on (a red square shows there), and
     /// whether the running point drag has Alt held.
     connect_hover: Option<Vec2>,
@@ -1132,6 +1135,7 @@ impl ToolController {
         let p = e.location;
         match (e.phase, self.gesture.clone()) {
             (Phase::Down, _) => {
+                self.given_up = None;
                 match self.point_hit(p, ctx) {
                     Some((o, PointHit::Vertex { contour, index })) => {
                         let point = PointRef {
@@ -1144,14 +1148,15 @@ impl ToolController {
                         // held still moves the vertex (Shift along one axis, Ctrl as without).
                         self.ctrl_press =
                             (e.free || e.shift).then(|| (point, self.selected_points(ctx), e.free));
-                        if !self.selected_points(ctx).contains(&point) {
-                            self.more_points.clear();
-                        }
-                        let rest: Vec<PointRef> = self
-                            .selected_points(ctx)
-                            .into_iter()
-                            .filter(|p| *p != point)
-                            .collect();
+                        // A press on a selected point keeps the whole selection (a drag moves
+                        // them all); on another point it selects that one alone. (It used to
+                        // keep the point clicked before selected as well, #1260.)
+                        let selected = self.selected_points(ctx);
+                        let rest: Vec<PointRef> = if selected.contains(&point) {
+                            selected.into_iter().filter(|p| *p != point).collect()
+                        } else {
+                            Vec::new()
+                        };
                         self.point = Some(point);
                         self.more_points = rest;
                         self.gesture = Some(Gesture::Vertex {
@@ -1408,8 +1413,7 @@ impl ToolController {
                             && let Some(to) = self.connect_target(point, v, ctx)
                         {
                             requests = Self::connect_requests(point, to);
-                            self.point = None;
-                            self.more_points.clear();
+                            self.give_up_points();
                         }
                         vec![ToolEffect::Execute {
                             requests,
@@ -1545,12 +1549,28 @@ impl ToolController {
             .connect_ends(point, ctx)
             .into_iter()
             .find(|e| (e.0, e.1) == to)?;
-        self.point = None;
-        self.more_points.clear();
+        self.give_up_points();
         Some(vec![ToolEffect::Execute {
             requests: Self::connect_requests(point, target),
             select_result: false,
         }])
+    }
+
+    /// Drops the point selection for a connect, remembering it for [`Self::restore_points`].
+    fn give_up_points(&mut self) {
+        self.given_up = self.point.map(|p| (p, self.more_points.clone()));
+        self.point = None;
+        self.more_points.clear();
+    }
+
+    /// Puts back the selection the last connect gave up: the app calls it when the connect's
+    /// commands were refused, so a refused connect leaves the selection as it was. Nothing
+    /// happens when no connect gave one up.
+    pub fn restore_points(&mut self) {
+        if let Some((point, more)) = self.given_up.take() {
+            self.point = Some(point);
+            self.more_points = more;
+        }
     }
 
     /// The x marks to draw: every end the one selected end point can connect to, while Alt
@@ -1637,21 +1657,19 @@ impl ToolController {
         if groups.is_empty() {
             return None;
         }
-        // One object.deletePoint per outline, all in one undo step. With points on several
-        // outlines, an outline that cannot lose its selected points (it keeps 2) is left as
-        // it is and the others lose theirs; one outline alone is asked as before.
-        let several = groups.len() > 1;
+        // One object.deletePoint per outline, all in one undo step. An outline that cannot
+        // lose its selected points (it keeps 2) is left as it is and the others lose theirs.
+        // When no outline can, nothing is deleted and the selection stays (PE-DESIGN's
+        // Delete does nothing at two points), as with the menu's Delete.
         let requests: Vec<CommandRequest> = groups
             .into_iter()
             .filter(|(id, contour, indexes)| {
-                !several
-                    || ctx
-                        .point_contour(PointRef {
-                            id: *id,
-                            contour: *contour,
-                            index: 0,
-                        })
-                        .is_some_and(|c| can_delete_points(c, indexes))
+                ctx.point_contour(PointRef {
+                    id: *id,
+                    contour: *contour,
+                    index: 0,
+                })
+                .is_some_and(|c| can_delete_points(c, indexes))
             })
             .map(|(id, contour, indexes)| {
                 CommandRequest::new(
@@ -1660,11 +1678,11 @@ impl ToolController {
                 )
             })
             .collect();
-        self.point = None;
-        self.more_points.clear();
         if requests.is_empty() {
             return Some(vec![]);
         }
+        self.point = None;
+        self.more_points.clear();
         Some(vec![ToolEffect::Execute {
             requests,
             select_result: false,

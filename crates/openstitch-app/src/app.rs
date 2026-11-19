@@ -889,6 +889,7 @@ impl EditorApp {
                     let drawn = requests.first().is_some_and(|r| {
                         openstitch_app::editor::new_objects::DRAWN.contains(&r.command)
                     });
+                    let groups_before = self.undo_groups.len();
                     let result = self.grouped(|app| {
                         let result = app.execute_all(&requests)?;
                         if drawn && !defaults.is_empty() {
@@ -915,11 +916,30 @@ impl EditorApp {
                         if select_result {
                             self.selection = CommandRequest::created_ids(&result);
                         }
+                        // A point put on an end and then connected to it (Alt + drag with the
+                        // Point tool) is named by what it did: the join or the close.
+                        let named = match requests.as_slice() {
+                            [first, .., last] if first.command == "object.setPoint" => last.command,
+                            _ => requests[0].command,
+                        };
                         // A command that reports what it changed (order.optimize, #547).
                         self.status = match result.get("summary").and_then(Value::as_str) {
-                            Some(summary) => format!("{} done: {summary}", requests[0].command),
-                            None => format!("{} done", requests[0].command),
+                            Some(summary) => format!("{named} done: {summary}"),
+                            None => format!("{named} done"),
                         };
+                    } else {
+                        // A gesture's commands are all or nothing: when one is refused, what
+                        // the earlier ones did is taken back (and not left for Redo), the
+                        // refusal stays in the status bar, and the Point tool gets back the
+                        // selection it gave up for the gesture.
+                        if self.undo_groups.len() > groups_before {
+                            let refusal = std::mem::take(&mut self.status);
+                            self.undo();
+                            self.redo_groups.pop();
+                            self.session.discard_redo();
+                            self.status = refusal;
+                        }
+                        self.tools.restore_points();
                     }
                 }
             }

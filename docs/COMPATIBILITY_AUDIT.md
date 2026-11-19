@@ -4927,7 +4927,7 @@ saved files, not in the repository).
 | Shift held while dragging a point | The point moves only horizontally or vertically ("dragging with shift held drags it only horizontally / vertically"). | owner's hand check, 2026-11-19 |
 | Ctrl held while dragging a point | Nothing special: it is dragged as without the key. | owner's hand check, 2026-11-19 |
 | Shift or Ctrl held while dragging a handle end of a curve point | No difference from a drag without the key. | owner's hand check, 2026-11-19 |
-| Arrow keys | Move the selected points 0.5 mm a press, in all four directions (ten presses right: 30.0 → 35.0 mm exactly; ten up, ten left, four down: −5.0 and −3.0 mm). With Shift or Ctrl held they do not move the points (they change the selection: the two rows below, capture f). | e2, e9 |
+| Arrow keys | Move the selected points 0.5 mm a press, in all four directions (ten presses right: 30.0 → 35.0 mm exactly; ten up, ten left, four down: −5.0 and −3.0 mm). With Shift or Ctrl held they do not move the points (they change the selection: the Ctrl+arrow and Shift+arrow rows above, capture f). | e2, e9 |
 | Alt + drag of an end point onto the line's other end | Connects the two ends: the open line becomes a closed shape, the two ends one point, with a fill as Close gives it. Owner's hand check, 2026-11-18 (the capture tool cannot hold Alt in a drag). | owner |
 | Alt held with an end point selected | Every point it can connect to is drawn as an x: the other end of the same shape and the end points of other open shapes. | PE-DESIGN instruction manual, read 2026-11-19 |
 | Alt + drag of an end point onto another open shape's end point | Joins the two shapes into one. A red square shows when the two points overlap; releasing connects. | PE-DESIGN instruction manual, read 2026-11-19 |
@@ -4945,7 +4945,8 @@ saved files, not in the repository).
 - A drag from empty space is a box over the points; a click there clears. Dragging one of several
   selected points, and the arrow keys (0.5 mm; with Shift or Ctrl held no point moves), are one
   `object.movePoints`. Delete removes every selected point, down to two on any outline; at two
-  it stays available and does nothing.
+  it stays available and does nothing, and the selection stays
+  (`delete_with_nothing_deletable_keeps_the_selection`).
 - Alt-connect across shapes (PE-DESIGN instruction manual, read 2026-11-19): with one end
   point of an open line selected and Alt held, an x is drawn on every end it can connect to:
   the line's own other end and both ends of every other open line (a plain shape of one open
@@ -4958,7 +4959,11 @@ saved files, not in the repository).
   `an_end_point_connects_to_another_open_lines_end_in_one_undo_step`). Chosen, not stated by
   the manual: the joined object keeps the dragged line's id, sewing attributes and place in
   the sewing order, and the two ends become one point. PE-DESIGN's pointer change is not
-  made.
+  made. A refused join changes nothing: the moved end is taken back (and is not left for
+  Redo) and the point stays selected. On Windows the AltGr key counts as Alt (it is sent as
+  Ctrl + Alt), so the marks show with AltGr held as well. The marks and the square are
+  checked as painted shapes (`the_alt_connect_marks_and_the_red_square_are_painted`) and, in
+  the browser, as pixels (`web/e2e/page.mjs`).
 - Keys during a mouse drag (owner's hand check, 2026-11-19): Shift locks a point's drag to the
   axis it mostly runs along from its start, and the other coordinate stays the point's own
   (Snap to Grid used to pull that coordinate onto the grid as well; it no longer does). Ctrl
@@ -4971,6 +4976,12 @@ saved files, not in the repository).
   one and, on a selected point, takes it out (PE-DESIGN instruction manual, read 2026-11-19).
   Shift+click on a selected point leaves it selected (PE-DESIGN capture f, 2026-11-19)
   (`shift_click_adds_a_point_to_the_selection_and_ctrl_click_adds_or_takes_out`).
+- A plain click on a point that is not selected selects that point alone, and on one of
+  several selected points keeps them all (capture f). Before this change a plain click kept
+  the point clicked before selected as well; the browser test had not seen it because its
+  Ctrl+click never held the key (`page.mouse.click` takes no modifiers; the keys are now
+  held down around the click)
+  (`a_plain_click_on_one_of_several_selected_points_keeps_the_selection`).
 - Ctrl+arrow and Shift+arrow change the selection as in capture f and move no point
   (`ToolController::step_points`, `ui.pointMenu` `{step, extend}`,
   `the_arrow_keys_with_ctrl_and_shift`). Chosen where it is not captured: on a closed outline
@@ -5057,8 +5068,8 @@ could take away (first run 2026-11-18, Chromium and Firefox): one click on the o
 a point; a mouse drag moves a point without scrolling the page or selecting text; Ctrl+click
 adds a second point and the browser opens no menu or tab of its own; Shift+click adds a third and the browser selects no text; Shift+arrow and Ctrl+arrow change the selection and move no point; Alt + drag of a line's end onto another line's end joins the two lines; a right-click on a point opens the editor's menu with the seven entries and the
 page's `contextmenu` event is cancelled (the browser's own menu stays shut), likewise beside the
-points for the object's menu; the arrow keys move the selected point 0.5 mm, do nothing with
-Shift, are taken from the browser and do not scroll the page; Delete removes the point, the
+points for the object's menu; the arrow keys move the selected point 0.5 mm, with Shift or
+Ctrl change the selection and move no point, are taken from the browser and do not scroll the page; Delete removes the point, the
 page stays where it is and the keyboard focus stays on the editor (a browser does nothing of
 its own with Delete on a canvas, and the editor does not cancel that key); Open runs through the ribbon command. A screenshot of each menu per browser is kept
 with the job's artifacts. `ui.pointMenu` reports each selected point's place in the window

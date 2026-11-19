@@ -3028,3 +3028,82 @@ fn alt_drag_onto_another_open_lines_end_joins_the_two_lines() {
     let design = s.design().clone();
     assert!(t.selected_points(&ctx(&design, &sel)).is_empty());
 }
+
+/// PE-DESIGN capture f, 2026-11-19: a plain click on one of several selected points keeps the
+/// whole selection.
+#[test]
+fn a_plain_click_on_one_of_several_selected_points_keeps_the_selection() {
+    let mut s = session();
+    let id = outlined_rect(&mut s);
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let design = s.design().clone();
+    assert!(t.select_points(0, &[2, 0, 3], &ctx(&design, &sel)));
+    let before = s.design().clone();
+    // Press and release on point 0, no drag.
+    let sel = click_at(&mut t, &mut s, sel, v2(100.0, 100.0), 1);
+    let design = s.design().clone();
+    let mut picked: Vec<usize> = t
+        .selected_points(&ctx(&design, &sel))
+        .iter()
+        .map(|p| p.index)
+        .collect();
+    picked.sort_unstable();
+    assert_eq!(picked, [0, 2, 3], "all three stay selected");
+    assert_eq!(*s.design(), before, "nothing moved");
+    // On a point that is not selected it selects that one alone.
+    let sel = click_at(&mut t, &mut s, sel, v2(300.0, 100.0), 1);
+    let design = s.design().clone();
+    let picked: Vec<usize> = t
+        .selected_points(&ctx(&design, &sel))
+        .iter()
+        .map(|p| p.index)
+        .collect();
+    assert_eq!(picked, [1]);
+}
+
+/// Delete with nothing that can be deleted (every outline with selected points would keep
+/// fewer than 2) removes nothing and keeps the selection, as the menu's Delete does.
+#[test]
+fn delete_with_nothing_deletable_keeps_the_selection() {
+    let mut s = session();
+    let mut line = |points: serde_json::Value| {
+        run(
+            &mut s,
+            &CommandRequest::new(
+                "shape.polygon",
+                json!({ "points": points, "closed": false, "outline": "#203040" }),
+            ),
+        )["id"]
+            .as_u64()
+            .expect("id")
+    };
+    let a = line(json!([[10, 10], [30, 10]]));
+    let b = line(json!([[10, 30], [30, 30]]));
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([a, b]);
+    let design = s.design().clone();
+    let c = ctx(&design, &sel);
+    let at = |id, index| super::points::PointRef {
+        id,
+        contour: 0,
+        index,
+    };
+    // One outline, then two outlines.
+    for points in [vec![at(a, 0)], vec![at(a, 0), at(b, 1)]] {
+        assert!(t.select_point_refs(&points, &c));
+        assert_eq!(
+            t.delete_point(&c),
+            Some(vec![]),
+            "the key is taken, nothing is sent"
+        );
+        assert_eq!(t.selected_points(&c), points, "the selection stays");
+        assert!(
+            t.point_action(super::points::PointAction::Delete, &c)
+                .is_empty()
+        );
+        assert_eq!(t.selected_points(&c), points);
+    }
+}

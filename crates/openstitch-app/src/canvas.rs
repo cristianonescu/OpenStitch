@@ -936,45 +936,45 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
     }
     // Every shape whose points show (#1260: with several shapes selected, all of them).
     for overlay in app.tools.point_overlays(&ctx) {
-    for (ci, c) in overlay.contours.iter().enumerate() {
-        draw_contour(
-            painter,
-            vp,
-            c,
-            Stroke::new(1.5, crate::theme::accent()),
-            None,
-        );
-        // As PE-DESIGN's Select Point draws them (#1260): every point a small hollow square,
-        // a selected point a filled black one, and a selected curve point its two handle
-        // lines, each ending in a small filled square. Other points' handles do not show.
-        let chosen: Vec<usize> = overlay
-            .selected
-            .iter()
-            .chain(&overlay.also)
-            .filter(|(k, _)| *k == ci)
-            .map(|(_, i)| *i)
-            .collect();
-        let ink = Color32::from_gray(16);
-        for h in openstitch_app::editor::points::handle_lines_of(c, &chosen) {
-            let (a, at) = (pos(vp.to_screen(h.anchor)), pos(vp.to_screen(h.at)));
-            painter.line_segment([a, at], Stroke::new(1.0, ink));
-            painter.rect_filled(
-                egui::Rect::from_center_size(at, egui::vec2(5.0, 5.0)),
-                CornerRadius::ZERO,
-                ink,
+        for (ci, c) in overlay.contours.iter().enumerate() {
+            draw_contour(
+                painter,
+                vp,
+                c,
+                Stroke::new(1.5, crate::theme::accent()),
+                None,
             );
+            // As PE-DESIGN's Select Point draws them (#1260): every point a small hollow square,
+            // a selected point a filled black one, and a selected curve point its two handle
+            // lines, each ending in a small filled square. Other points' handles do not show.
+            let chosen: Vec<usize> = overlay
+                .selected
+                .iter()
+                .chain(&overlay.also)
+                .filter(|(k, _)| *k == ci)
+                .map(|(_, i)| *i)
+                .collect();
+            let ink = Color32::from_gray(16);
+            for h in openstitch_app::editor::points::handle_lines_of(c, &chosen) {
+                let (a, at) = (pos(vp.to_screen(h.anchor)), pos(vp.to_screen(h.at)));
+                painter.line_segment([a, at], Stroke::new(1.0, ink));
+                painter.rect_filled(
+                    egui::Rect::from_center_size(at, egui::vec2(5.0, 5.0)),
+                    CornerRadius::ZERO,
+                    ink,
+                );
+            }
+            for (i, &p) in c.points.iter().enumerate() {
+                let selected = chosen.contains(&i);
+                painter.rect(
+                    egui::Rect::from_center_size(pos(vp.to_screen(p)), egui::vec2(7.0, 7.0)),
+                    CornerRadius::ZERO,
+                    if selected { ink } else { Color32::WHITE },
+                    Stroke::new(1.0, ink),
+                    StrokeKind::Middle,
+                );
+            }
         }
-        for (i, &p) in c.points.iter().enumerate() {
-            let selected = chosen.contains(&i);
-            painter.rect(
-                egui::Rect::from_center_size(pos(vp.to_screen(p)), egui::vec2(7.0, 7.0)),
-                CornerRadius::ZERO,
-                if selected { ink } else { Color32::WHITE },
-                Stroke::new(1.0, ink),
-                StrokeKind::Middle,
-            );
-        }
-    }
     }
     // Alt held with an end point of an open line selected: an x on every end it can connect
     // to; a red square where the dragged end lies on one (PE-DESIGN's manual, #1260).

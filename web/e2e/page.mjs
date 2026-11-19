@@ -338,7 +338,13 @@ async function extraChecks(browser, type, label) {
       // Ctrl+click on a second point adds it to the selection; the browser opens no menu and
       // no tab of its own.
       await onScreen(0);
-      await page.mouse.click(box.x + far[0], box.y + far[1], { modifiers: ["Control"] });
+      // The key is held down around the click: page.mouse.click takes no modifiers.
+      const clickWith = async (key, x, y) => {
+        await page.keyboard.down(key);
+        await page.mouse.click(x, y);
+        await page.keyboard.up(key);
+      };
+      await clickWith("Control", box.x + far[0], box.y + far[1]);
       await until("Ctrl+click adds a second point (2 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2);
       const stray = await page.evaluate(() => window.__menus.length);
       if (stray !== 0 || context.pages().length !== 1) {
@@ -348,10 +354,19 @@ async function extraChecks(browser, type, label) {
       // the browser selects no text and opens nothing.
       const third = await onScreen(3);
       await onScreen(0);
-      await page.mouse.click(box.x + far[0], box.y + far[1], { modifiers: ["Control"] });
+      await clickWith("Control", box.x + far[0], box.y + far[1]);
       await until("Ctrl+click adds the second point again (2 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2);
-      await page.mouse.click(box.x + third[0], box.y + third[1], { modifiers: ["Shift"] });
+      await clickWith("Shift", box.x + third[0], box.y + third[1]);
       await until("Shift+click adds a third point (3 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 3);
+      // Ctrl+click on a selected point takes it out; a plain click on a point that is not
+      // selected selects that one alone.
+      await clickWith("Control", box.x + third[0], box.y + third[1]);
+      await until("Ctrl+click on a selected point takes it out (2 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2);
+      await page.mouse.click(box.x + third[0], box.y + third[1]);
+      await until("a plain click on another point selects it alone", (i) => {
+        const s = window.openstitch.run({ command: "ui.pointMenu" }).result?.selected;
+        return s?.length === 1 && s[0].index === i;
+      }, 3);
       const shiftPicked = await page.evaluate(() => String(window.getSelection?.() ?? ""));
       if (shiftPicked !== "" || context.pages().length !== 1) {
         throw new Error(`Shift+click was the browser's: "${shiftPicked}", ${context.pages().length} page(s)`);
@@ -464,6 +479,32 @@ async function extraChecks(browser, type, label) {
       await page.mouse.move(box.x + endAt[0], box.y + endAt[1]);
       await page.mouse.down();
       await page.mouse.move(box.x + target.screen[0], box.y + target.screen[1], { steps: 8 });
+      // While the drag is held on the other end: the red square is painted there and an x on
+      // each other connectable end (pixels of the page, as the menu check reads them).
+      await until("the Alt-dragged end lies on the other line's end", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.connectOverlap != null);
+      const others = (await menu()).connectable.filter((e) => !(e.id === target.id && e.index === target.index));
+      if (others.length !== 2) throw new Error(`connectable during the drag: ${JSON.stringify(others).slice(0, 300)}`);
+      const red = (p) => p[0] > 170 && p[1] < 100 && p[2] < 100;
+      const dark = (p) => p[0] < 110 && p[1] < 110 && p[2] < 110;
+      let marks = "";
+      for (let attempt = 0; attempt < 40 && marks !== "ok"; attempt += 1) {
+        const shot = png(await page.screenshot());
+        const near = (x, y, test) => {
+          for (let dy = -1; dy <= 1; dy += 1) {
+            for (let dx = -1; dx <= 1; dx += 1) {
+              if (test(shot.pixel(Math.round(x) + dx, Math.round(y) + dy))) return true;
+            }
+          }
+          return false;
+        };
+        const count = (at, offsets, test) => offsets.filter(([dx, dy]) => near(box.x + at[0] + dx, box.y + at[1] + dy, test)).length;
+        const square = count(target.screen, [[6.5, 0], [-6.5, 0], [0, 6.5], [0, -6.5]], red);
+        const crosses = others.map((e) => count(e.screen, [[4, 4], [4, -4], [-4, 4], [-4, -4]], dark));
+        marks = square >= 3 && crosses.every((n) => n >= 3) ? "ok" : `red sides ${square} of 4, x arms ${JSON.stringify(crosses)} of 4 each`;
+        if (marks !== "ok") await page.waitForTimeout(250);
+      }
+      if (marks !== "ok") throw new Error(`point tool, the Alt-connect marks are not on screen: ${marks}`);
+      if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-alt-connect.png`) });
       await page.mouse.up();
       await page.keyboard.up("Alt");
       await until("Alt + drag onto the other line's end joins the two lines (5 points show)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.pointCount === 5);
