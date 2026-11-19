@@ -471,10 +471,32 @@ async function extraChecks(browser, type, label) {
       // not the browser's here (no menu bar opens, the page stays).
       const lineA = await ok({ command: "shape.polygon", params: { points: [[10, 64], [30, 64], [30, 56]], closed: false, outline: "#203040" } });
       const lineB = await ok({ command: "shape.polygon", params: { points: [[45, 56], [60, 56], [60, 64]], closed: false, outline: "#203040" } });
+      // Every open line of the document has connectable ends: the two new lines, and the
+      // first shape, which Open made an open line above. Its ends are read from the editor.
+      await ok({ command: "ui.select", params: { ids: [made.id] } });
+      const madeLast = (await menu()).pointCount - 1;
+      const endOf = async (index) => {
+        await onScreen(index);
+        const p = (await menu()).selected[0];
+        return { id: made.id, index, x: p.x, y: p.y };
+      };
+      const expected = [
+        { id: lineA.id, index: 0, x: 10, y: 64 },
+        await endOf(0),
+        await endOf(madeLast),
+        { id: lineB.id, index: 0, x: 45, y: 56 },
+        { id: lineB.id, index: 2, x: 60, y: 64 },
+      ];
+      const sameEnds = (list, want) => {
+        const key = (e) => `${e.id}:${e.index}:${e.x.toFixed(2)}:${e.y.toFixed(2)}`;
+        return JSON.stringify(list.map(key).sort()) === JSON.stringify(want.map(key).sort());
+      };
       await ok({ command: "ui.select", params: { ids: [lineA.id] } });
       const endAt = await onScreen(2);
-      const target = (await menu()).connectable.find((e) => e.id === lineB.id && e.index === 0);
-      if (!target?.screen) throw new Error(`connectable: ${JSON.stringify((await menu()).connectable).slice(0, 300)}`);
+      const offered = (await menu()).connectable;
+      if (!sameEnds(offered, expected)) throw new Error(`connectable: ${JSON.stringify(offered).slice(0, 400)}, expected ${JSON.stringify(expected)}`);
+      const target = offered.find((e) => e.id === lineB.id && e.index === 0);
+      if (!target?.screen) throw new Error(`connectable: ${JSON.stringify(offered).slice(0, 300)}`);
       await page.keyboard.down("Alt");
       await page.mouse.move(box.x + endAt[0], box.y + endAt[1]);
       await page.mouse.down();
@@ -483,7 +505,8 @@ async function extraChecks(browser, type, label) {
       // each other connectable end (pixels of the page, as the menu check reads them).
       await until("the Alt-dragged end lies on the other line's end", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.connectOverlap != null);
       const others = (await menu()).connectable.filter((e) => !(e.id === target.id && e.index === target.index));
-      if (others.length !== 2) throw new Error(`connectable during the drag: ${JSON.stringify(others).slice(0, 300)}`);
+      const expectedOthers = expected.filter((e) => !(e.id === target.id && e.index === target.index));
+      if (!sameEnds(others, expectedOthers)) throw new Error(`connectable during the drag: ${JSON.stringify(others).slice(0, 400)}, expected ${JSON.stringify(expectedOthers)}`);
       const red = (p) => p[0] > 170 && p[1] < 100 && p[2] < 100;
       const dark = (p) => p[0] < 110 && p[1] < 110 && p[2] < 110;
       let marks = "";
