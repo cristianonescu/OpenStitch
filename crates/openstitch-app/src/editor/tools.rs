@@ -1446,7 +1446,14 @@ impl ToolController {
                 self.more_points = picked.collect();
                 vec![]
             }
-            (Phase::Dragged, Some(Gesture::Vertex { point, start, .. })) => {
+            (
+                Phase::Dragged,
+                Some(Gesture::Vertex {
+                    point,
+                    start,
+                    edited: last,
+                }),
+            ) => {
                 let Some(from) = ctx
                     .point_contour(point)
                     .and_then(|c| c.points.get(point.index).copied())
@@ -1482,6 +1489,13 @@ impl ToolController {
                         }
                         out
                     });
+                // A point of a hole-sewn shape (or of the shape it is sewn around) does not
+                // cross the other outline (#1271, PE-DESIGN's manual): the drag stops at the
+                // last place where it did not, and the engine refuses the same move.
+                let edited = match edited {
+                    Some(list) if Self::crosses_hole_partner(&list, ctx) => last,
+                    other => other,
+                };
                 // Alt held: the dragged end point connects to an end it lies on.
                 self.alt_drag = e.alt;
                 self.connect_hover = edited
@@ -1624,6 +1638,25 @@ impl ToolController {
             }
             _ => vec![],
         }
+    }
+
+    /// Whether the outlines as dragged (`edited`: (object id, contour) and the moved outline)
+    /// take an object's outline across the outline of its hole-sewing partner.
+    fn crosses_hole_partner(edited: &[((u64, usize), Contour)], ctx: &ToolContext) -> bool {
+        let mut ids: Vec<u64> = edited.iter().map(|e| e.0.0).collect();
+        ids.dedup();
+        ids.into_iter().any(|id| {
+            let Some(i) = ctx.design.index_of(id) else {
+                return false;
+            };
+            let mut contours = ctx.design.objects[i].contours.clone();
+            for ((object, k), c) in edited {
+                if *object == id && *k < contours.len() {
+                    contours[*k] = c.clone();
+                }
+            }
+            openstitch_design::holes::moves_across_partner(ctx.design, id, &contours)
+        })
     }
 
     /// The two ends of `o` when it is an open line the Point tool can connect: a plain shape

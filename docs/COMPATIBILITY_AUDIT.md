@@ -4917,7 +4917,8 @@ saved files, not in the repository).
 | Press and drag on a side | Inserts only; the point does not move. There is no segment drag. A right click on a side inserts nothing. | e3, e5 |
 | Selecting | Click a point; Ctrl+click adds; a click on a selected point keeps the selection; a drag box from empty space selects the points inside; a click on empty space clears. | screen |
 | Shift+click on a point | Adds it to the selection ("shift + click allows the user to select more points"). | owner's hand check, 2026-11-19 |
-| A drag box over two shapes | Selects points of both shapes ("dragging a box over two shapes selects points of both shapes"). | owner's hand check, 2026-11-19 |
+| A drag box over two shapes, both selected | Selects points of both shapes ("dragging a box over two shapes selects points of both shapes"; both shapes were selected). | owner's hand check, 2026-11-19 |
+| A drag box over a shape that is not selected | Not known. | not captured |
 | Dragging one of several selected points | Moves all of them by the same offset. | e1 |
 | Ctrl+click on a point | Adds it to the selection; on a selected point, takes it out. | PE-DESIGN instruction manual, read 2026-11-19 |
 | Ctrl+arrow with a point selected | The selection moves to one neighbouring point: Right and Down to the next point in the outline's order, Left and Up to the previous one (by the order of the points, not by where they lie). It stops at the end of an open line. With several points selected it steps from the point the selection started at and only the new point is selected. No point moves. | PE-DESIGN capture f, 2026-11-19 |
@@ -4932,6 +4933,9 @@ saved files, not in the repository).
 | Alt held with an end point selected | Every point it can connect to is drawn as an x: the other end of the same shape and the end points of other open shapes. | PE-DESIGN instruction manual, read 2026-11-19 |
 | Alt + drag of an end point onto another open shape's end point | Joins the two shapes into one. A red square shows when the two points overlap; releasing connects. | PE-DESIGN instruction manual, read 2026-11-19 |
 | Delete key | Removes the selected points in one step; one Undo brings them back. | screen |
+| Split at Point on a shape with hole sewing | The split cancels hole sewing. | PE-DESIGN instruction manual, read 2026-11-19; not captured |
+| Split at Point on a shape that carries text fitted to its outline | The text loses that fit. | PE-DESIGN instruction manual, read 2026-11-19; not captured |
+| Dragging a point of a shape with hole sewing across an outline | Not possible; hole sewing has to be cancelled first. | PE-DESIGN instruction manual, read 2026-11-19; not captured |
 | A filled shape selected with the tool | Shows its outline points and ONE straight direction line: a thin red line right across the shape, from an empty square (drawn turned 45 degrees) about 5 mm outside the shape to an empty arrow head about 5 mm outside the far side. It is the fill angle (Sewing Attributes: Direction "Manual straight line", 45 degrees). | PE-DESIGN capture g, 2026-11-19 |
 | Ribbon with the shape selected | Add Direction Line available, Delete Direction Line grey, Reverse Direction Line available. | PE-DESIGN capture g, 2026-11-19 |
 | A click on the line's start square | Selects the line (the square turns black). With the only line selected Delete Direction Line stays grey: the last line cannot be deleted. | PE-DESIGN capture g, 2026-11-19 |
@@ -4992,6 +4996,26 @@ saved files, not in the repository).
   direction (its own command, kept), and the sub-menu's Delete Selected Line and Delete Lines
   Not Selected do not yet work on selected lines (Delete Selected Line is grey; Delete Lines
   Not Selected removes a curved direction or a Manual Punch shape's lines, as before).
+- Hole sewing and fitted text (#1271; PE-DESIGN instruction manual, read 2026-11-19, none of
+  it captured yet): `object.splitAtPoint` and `object.openOutline` cancel hole sewing on the
+  object's pair, whether it is the outer shape or the inner one, so no piece keeps the flags
+  (`holeSewingOff`), and take text fitted to the outline off it, where it stays as laid out
+  (`textOff`), as the Knife does; one undo step with the split
+  (`split_and_open_cancel_hole_sewing_and_take_fitted_text_off`). Before, the flags stayed
+  on the object and on the second piece of a cut line, and the text was laid out again along
+  the opened outline. The manual speaks of a split; Open is treated the same here.
+- A point of a hole-sewing pair is not moved across the other shape's outline:
+  `object.setPoint` and `object.movePoints` refuse a move after which the two objects'
+  outlines cross (and did not before), with a message that says to cancel hole sewing first;
+  the Point tool's drag stops at the last place where they did not cross, and an arrow-key
+  step that would cross is refused the same way
+  (`a_point_of_a_hole_sewn_pair_is_not_moved_across_the_other_outline`,
+  `a_dragged_point_of_a_hole_sewn_shape_stops_before_the_other_outline`). Chosen here: the
+  rule holds for the inner shape's points as well as the outer one's; a handle drag
+  (`object.setSegment`) and inserting or deleting a point are not checked.
+- `ui.run` of an entry of the point menu or the object menu closes an open menu, as a click
+  on the entry does (`ui_run_of_a_menu_entry_closes_the_open_menu`); a refused entry leaves it
+  open.
 - Keys during a mouse drag (owner's hand check, 2026-11-19): Shift locks a point's drag to the
   axis it mostly runs along from its start, and the other coordinate stays the point's own
   (Snap to Grid used to pull that coordinate onto the grid as well; it no longer does). Ctrl
@@ -5047,9 +5071,11 @@ saved files, not in the repository).
   Delete Direction Line none, as in PE-DESIGN's); Delete Direction Line is always available
   and opens PE-DESIGN's sub-menu, Delete Selected Line and Delete Lines Not Selected. What
   those two do with direction lines present is not captured, so they are built from their
-  names: no direction line can be selected on the canvas here, so Delete Selected Line has
-  nothing to act on and stays grey, and Delete Lines Not Selected removes them all (back to
-  one straight direction); both are grey on a shape without direction lines. On the canvas every
+  names (the entries on real lines: capture g, #1273): Delete Selected Line stays grey, since
+  the one line that can be selected is a shape's only direction line, which cannot be
+  deleted, and of a curved direction or a Manual Punch shape's lines none can be selected
+  yet; Delete Lines Not Selected removes those (back to one straight direction); both are
+  grey on a shape without them. On the canvas every
   point is a small hollow square and a selected point a filled black one; a selected curve
   point shows its two handle lines, each ending in a small filled square, and no other handle
   shows or can be grabbed. With the points showing and none selected, Edit Point, Delete Point
@@ -5083,8 +5109,9 @@ Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_mak
   make a line, so it has no such case on its own shapes; it is not captured on an imported
   region-only shape.
 - The drag box takes the points of the shapes that are selected (select them with the Select
-  tool, then switch to the Point tool). Whether PE-DESIGN's box also takes the points of a
-  shape that was not selected before is not known from the hand check.
+  tool, then switch to the Point tool), which is the owner's hand check: both shapes were
+  selected. A box over a shape that is not selected is not captured; here it takes none of
+  that shape's points.
 - With points selected on several outlines or shapes: Delete leaves an outline that would keep
   fewer than 2 points as it is and removes the selected points of the others; the object's
   menu (a right click beside the points) works with exactly one shape selected, and Alt + drag
