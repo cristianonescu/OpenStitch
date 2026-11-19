@@ -58,6 +58,19 @@ pub fn open_or_close(app: &mut EditorApp, close: bool) {
     });
 }
 
+/// Opens the point menu (`object`: the object's menu) at `at`, as a right-click there does;
+/// for tests of what closes it.
+#[cfg(test)]
+pub(crate) fn open_for_test(app: &mut EditorApp, at: Pos2, object: bool) {
+    app.workspace.view.point_menu = Some(PointMenu {
+        at,
+        fresh: false,
+        object,
+        sub: false,
+        drawn: None,
+    });
+}
+
 /// The entry's text, PE-DESIGN's words.
 pub fn label(a: PointAction) -> &'static str {
     t(match a {

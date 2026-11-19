@@ -3190,3 +3190,48 @@ fn the_direction_line_is_the_fill_angle_and_a_dragged_end_turns_it() {
     let design = s.design().clone();
     assert!(t.direction_line(&ctx(&design, &sel)).is_none());
 }
+
+/// Zoomed out, an end of the direction line (5 mm outside the shape) and a corner of the
+/// outline are within reach of one press: the press goes to the nearer one. (In the browser
+/// test a press on the square selected the corner beside it, #1260.)
+#[test]
+fn a_press_on_the_direction_lines_end_wins_over_a_corner_within_reach() {
+    let mut s = session();
+    let id = outlined_rect(&mut s);
+    run(
+        &mut s,
+        &CommandRequest::new("object.setRegion", json!({ "id": id, "angle": 45 })),
+    );
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let design = s.design().clone();
+    // One screen point is 1.2 mm: the hit radius is wider than the 5 mm to the corner.
+    let far = ToolContext {
+        design: &design,
+        selection: &sel,
+        units_per_point: 12.0,
+        scale_takes_origin: false,
+    };
+    let l = t.direction_line(&far).expect("the line");
+    let corner = v2(100.0, 200.0);
+    assert!(
+        l.from.distance(corner) < far.point_radius(),
+        "both within reach"
+    );
+    // On the square: the line is selected, no point is.
+    t.handle(PointerEvent::new(Phase::Down, l.from), &far);
+    t.handle(PointerEvent::new(Phase::Up, l.from), &far);
+    assert!(t.direction_line(&far).expect("line").selected);
+    assert!(t.selected_points(&far).is_empty());
+    // On the corner: the corner is selected, the line is not.
+    t.handle(PointerEvent::new(Phase::Down, corner), &far);
+    t.handle(PointerEvent::new(Phase::Up, corner), &far);
+    assert!(!t.direction_line(&far).expect("line").selected);
+    assert_eq!(t.selected_points(&far).len(), 1);
+    // Between them, nearer the square: the line.
+    let between = l.from.lerp(corner, 0.3);
+    t.handle(PointerEvent::new(Phase::Down, between), &far);
+    t.handle(PointerEvent::new(Phase::Up, between), &far);
+    assert!(t.direction_line(&far).expect("line").selected);
+}

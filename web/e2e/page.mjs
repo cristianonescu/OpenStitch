@@ -22,7 +22,7 @@
 import { createServer } from "node:http";
 import { inflateSync } from "node:zlib";
 import { mkdirSync, readFileSync } from "node:fs";
-import { basename, dirname, extname, join, normalize, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, firefox, webkit } from "playwright";
 
@@ -43,7 +43,8 @@ const types = { ".html": "text/html", ".js": "text/javascript", ".wasm": "applic
 
 // A static server for WEB_DIR on a free loopback port.
 const server = createServer((req, res) => {
-  const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));
+  // A URL path, so with forward slashes on every system (Windows: the page test runs there too).
+  const path = posix.normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));
   const file = join(root, path.endsWith("/") ? `${path}index.html` : path);
   if (!file.startsWith(root)) return res.writeHead(403).end();
   try {

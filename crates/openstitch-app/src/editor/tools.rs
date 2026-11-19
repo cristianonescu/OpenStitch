@@ -1248,13 +1248,25 @@ impl ToolController {
                 // Any press drops the direction line's selection; one on its ends sets it.
                 self.direction_end = None;
                 let hit = self.point_hit(p, ctx);
-                if !matches!(
-                    hit,
-                    Some((_, PointHit::Vertex { .. } | PointHit::Handle { .. }))
-                ) && let Some(l) = self.direction_line(ctx)
+                // An end of the direction line wins over a point of the outline when the
+                // press is nearer to it: zoomed out, the end (5 mm outside the shape) and a
+                // corner are within reach of one press. A handle keeps the press.
+                let point_at = match hit {
+                    Some((o, PointHit::Vertex { contour, index })) => o
+                        .contours
+                        .get(contour)
+                        .and_then(|c| c.points.get(index))
+                        .map_or(0.0, |v| v.distance(p)),
+                    Some((_, PointHit::Handle { .. })) => 0.0,
+                    _ => f64::INFINITY,
+                };
+                if let Some(l) = self.direction_line(ctx)
                     && let Some((_, arrow)) = [(l.from, false), (l.to, true)]
                         .into_iter()
-                        .find(|(q, _)| q.distance(p) <= 1.5 * ctx.point_radius())
+                        .filter(|(q, _)| {
+                            q.distance(p) <= 1.5 * ctx.point_radius() && q.distance(p) < point_at
+                        })
+                        .min_by(|a, b| a.0.distance(p).total_cmp(&b.0.distance(p)))
                 {
                     // An end of the direction line: the line is selected (its square turns
                     // black), and a drag turns the sewing direction.
