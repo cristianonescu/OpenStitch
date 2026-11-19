@@ -122,6 +122,15 @@ pub fn context_menu(
     on.context_menu(|ui| scroll(ui, add))
 }
 
+/// Call first in the list of a combo box with long entries: the list is as wide as the window
+/// at most and an entry too long for that wraps.
+pub fn combo_list(ui: &mut egui::Ui) {
+    let frame = egui::Frame::menu(ui.style()).total_margin().sum().x;
+    let wide = (ui.ctx().content_rect().width() - frame - 2.0 * EDGE).max(LEAST);
+    ui.set_max_width(wide);
+    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+}
+
 /// Scroll bars that show while at rest, thin and over the content, so a list that goes on is
 /// seen to go on.
 pub fn visible_bars(ui: &mut egui::Ui) {
@@ -398,9 +407,14 @@ pub fn buttons<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R 
         Some(rect) => {
             let mut row = ui.new_child(builder.max_rect(rect));
             row.set_clip_rect(open.clip);
-            let inner = add(&mut row);
+            // (A row wider than a narrow window scrolls sideways.)
+            visible_bars(&mut row);
+            let out = egui::ScrollArea::horizontal()
+                .id_salt("fit-buttons-row")
+                .auto_shrink([false, true])
+                .show(&mut row, add);
             open.measured = row.min_rect().height() + gap;
-            inner
+            out.inner
         }
         None => {
             let mut row = ui.new_child(builder.max_rect(ui.available_rect_before_wrap()));
@@ -423,39 +437,63 @@ struct PaneSizes {
     tall: bool,
     /// The height the content takes when it scrolls (its lists at their least height).
     needed: f32,
+    /// The width its content took when that was more than the pane had, else 0.
+    wide: f32,
+    /// The width the pane had then.
+    room: f32,
 }
 
 /// The content of a pane (docked or floating). While it fits it is laid out as it is; once the
 /// pane is lower than its content, the whole content scrolls, so the rows below the edge can
 /// be reached. Lists inside that fill the pane are made with [`list`].
 pub fn pane<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    pane_at_least(ui, 0.0, add)
+    pane_in(ui, None, add)
 }
 
-/// As [`pane`], for content that needs `width` points: in a pane squeezed narrower than that
-/// (panes on both sides of a small window) it is laid out at that width and scrolls sideways.
+/// As [`pane`], for a pane at the side that may be squeezed narrower than its content (panes
+/// on both sides of a small window): the content is then laid out at the width it needs, at
+/// least `width` points, and scrolls sideways. A pane that can grow to its content (the
+/// toolkit widens it in the next frame) is left to.
 pub fn pane_at_least<R>(ui: &mut egui::Ui, width: f32, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    pane_in(ui, Some(width), add)
+}
+
+fn pane_in<R>(ui: &mut egui::Ui, width: Option<f32>, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let ctx = ui.ctx().clone();
     let key = ui.scope_id().with("fit-pane");
     let last: PaneSizes = ctx.data(|d| d.get_temp(key)).unwrap_or_default();
     let room = ui.available_size();
     let down = last.tall && last.needed > room.y + 0.5;
-    let sideways = width > room.x + 0.5;
+    // Wider content than the pane, and the pane has not grown since it was measured.
+    let stuck = last.wide > room.x + 0.5 && room.x <= last.room + 0.5;
+    let lay = width.map(|w| if stuck { last.wide.max(w) } else { w });
+    let sideways = lay.is_some_and(|w| w > room.x + 0.5);
     let (inner, now) = if down || sideways {
         visible_bars(ui);
         let out = egui::ScrollArea::new([sideways, down])
             .id_salt("fit-pane")
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                if sideways {
-                    ui.set_min_width(width);
-                    ui.set_max_width(width);
+                if let Some(w) = lay.filter(|_| sideways) {
+                    ui.set_min_width(w);
+                    ui.set_max_width(w);
                 }
                 let inner = add(ui);
                 follow_focus(ui);
                 inner
             });
         let tall = down || out.content_size.y > out.inner_rect.height() + 1.0;
+        // The width the content took beyond what it was given (a row that does not wrap), or
+        // the width it is kept at while it scrolls sideways: the pane leaves that when it
+        // has the room.
+        let given = if sideways { lay.unwrap_or(room.x) } else { room.x };
+        let wide = if width.is_some() && out.content_size.x > given + 1.0 {
+            out.content_size.x
+        } else if sideways && stuck {
+            last.wide
+        } else {
+            0.0
+        };
         let now = PaneSizes {
             tall,
             needed: match (down, tall) {
@@ -463,15 +501,25 @@ pub fn pane_at_least<R>(ui: &mut egui::Ui, width: f32, add: impl FnOnce(&mut egu
                 (false, true) => f32::INFINITY,
                 (false, false) => 0.0,
             },
+            wide,
+            room: match (wide > 0.0, stuck) {
+                (false, _) => 0.0,
+                (true, true) => last.room.min(room.x),
+                (true, false) => room.x,
+            },
         };
         (out.inner, now)
     } else {
-        let bottom = ui.max_rect().bottom();
+        let max = ui.max_rect();
         let inner = add(ui);
-        let tall = ui.min_rect().bottom() > bottom + 1.0;
+        let used = ui.min_rect();
+        let tall = used.bottom() > max.bottom() + 1.0;
+        let over = width.is_some() && used.right() > max.right() + 1.0;
         let now = PaneSizes {
             tall,
             needed: if tall { f32::INFINITY } else { 0.0 },
+            wide: if over { used.right() - max.left() } else { 0.0 },
+            room: if over { room.x } else { 0.0 },
         };
         (inner, now)
     };

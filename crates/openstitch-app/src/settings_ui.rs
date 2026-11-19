@@ -173,6 +173,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 let r = egui::ComboBox::from_label("Chart")
                     .selected_text(st.chart.clone().unwrap_or_else(|| "—".into()))
                     .show_ui(ui, |ui| {
+                        crate::fit::combo_list(ui);
                         for c in &charts {
                             ui.selectable_value(&mut st.chart, Some(c.name.clone()), &c.name);
                         }

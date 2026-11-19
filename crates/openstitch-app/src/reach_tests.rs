@@ -405,6 +405,13 @@ impl Win {
 
     /// Checks the controls of `layers` (all layers when `None`).
     fn audit(&mut self, surface: &str, layers: Option<&HashSet<egui::LayerId>>) -> Row {
+        // (By hand: REACH_ONLY=text audits only the surfaces whose name has it.)
+        if std::env::var("REACH_ONLY").is_ok_and(|only| !surface.contains(&only)) {
+            return Row {
+                surface: surface.to_string(),
+                ..Row::default()
+            };
+        }
         let mine = |c: &Control| layers.is_none_or(|l| l.contains(&c.layer));
         let all: Vec<Control> = self.controls().into_iter().filter(mine).collect();
         let screen = self.screen();

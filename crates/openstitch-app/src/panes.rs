@@ -10,7 +10,7 @@ use openstitch_app::editor::prefs::PaneState;
 use openstitch_app::editor::ribbon::Action;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Pane {
+pub enum Pane {
     SewingOrder,
     Attributes,
     Simulator,
@@ -160,6 +160,27 @@ pub const PAGE_HEIGHT_LEAST: f32 = 340.0;
 /// to its content as it always did.
 const PANE_WIDTH_LEAST: f32 = 200.0;
 
+/// The width a panel at the side leaves free in `available` points: the work area's least and
+/// [`PANE_WIDTH_LEAST`] for each of `panes` that is docked at a side, so the panes drawn after
+/// it are not squeezed to nothing in a small window (#1276). The panel itself keeps at least
+/// [`PANE_WIDTH_LEAST`].
+pub fn side_limit(app: &EditorApp, available: f32, panes: &[Pane]) -> f32 {
+    use openstitch_app::editor::prefs::Side;
+    let p = &app.ui.prefs.panes;
+    let docked = panes
+        .iter()
+        .filter(|pane| {
+            let s = match pane {
+                Pane::SewingOrder => p.sewing_order,
+                Pane::Attributes => p.attributes,
+                Pane::Simulator => p.simulator,
+            };
+            s.visible && !s.floating && matches!(s.side, Side::Left | Side::Right)
+        })
+        .count() as f32;
+    (available - WORK_AREA_LEAST - docked * PANE_WIDTH_LEAST).max(PANE_WIDTH_LEAST)
+}
+
 /// Docks the visible panes around the work area (call before the central panel).
 pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
     use openstitch_app::editor::prefs::Side;
@@ -191,7 +212,7 @@ pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
     if docked(app, Pane::SewingOrder) {
         panel("objects", app.ui.prefs.panes.sewing_order.side)
             .default_size(250.0)
-            .max_size(crate::fit::pane_limit(ui.available_width(), WORK_AREA_LEAST))
+            .max_size(side_limit(app, ui.available_width(), &[Pane::Attributes]))
             .show(ui, |ui| {
                 crate::fit::pane_at_least(ui, PANE_WIDTH_LEAST, |ui| {
                     header(app, ui, Pane::SewingOrder);

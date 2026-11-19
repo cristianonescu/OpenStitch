@@ -3058,8 +3058,16 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     /// The room the Assistant's heading, conversation and composer need.
     const PANEL_LEAST: egui::Vec2 = egui::vec2(260.0, 220.0);
+    // (In a small window it leaves the work area and the docked panes their least width.)
+    let most = if openstitch_app::editor::workspace::narrow(ui.ctx().content_rect().width()) {
+        f32::INFINITY
+    } else {
+        let panes = [crate::panes::Pane::SewingOrder, crate::panes::Pane::Attributes];
+        crate::panes::side_limit(app, ui.available_width(), &panes)
+    };
     egui::Panel::right("assistant")
         .default_size(380.0)
+        .max_size(most)
         .show(ui, |ui| {
             // In a panel too low or too narrow for the heading and the composer (#1276: a small window, a
             // large Text size) they keep their height and the panel scrolls.

@@ -95,6 +95,8 @@ pub fn cards(app: &mut EditorApp, ctx: &egui::Context) {
         .fixed_pos(canvas.center())
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
+                // (In a window smaller than the cards, #1276, they scroll.)
+                crate::fit::scroll(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(t("ui-start-your-design")).heading());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -128,6 +130,7 @@ pub fn cards(app: &mut EditorApp, ctx: &egui::Context) {
                             .weak()
                             .small(),
                     );
+                });
                 });
             });
         });

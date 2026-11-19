@@ -397,7 +397,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         .current
         .as_ref()
         .map_or_else(version_line, |c| c.tag.clone());
-    crate::fit::show_filling(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-openstitch-update")).id(egui::Id::unique("window-openstitch-update"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-openstitch-update")).id(egui::Id::unique("window-openstitch-update"))
         .open(&mut open)
         .collapsible(false)
         .default_width(600.0)
@@ -420,9 +420,11 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.label(RichText::new(why).color(ui.visuals().warn_fg_color));
                 }
                 ui.separator();
-                let notes_height = ui.available_height() - 64.0;
+                // The notes take what the window leaves beside the heading and the buttons
+                // (#1276: in a small window the whole content scrolls as well).
+                let notes_height = (crate::fit::room(ui.ctx()) - 220.0).clamp(80.0, 320.0);
                 egui::ScrollArea::vertical()
-                    .max_height(notes_height.max(120.0))
+                    .max_height(notes_height)
                     .auto_shrink([false, true])
                     .show(ui, |ui| {
                         for (i, r) in update.notes.iter().enumerate() {
@@ -446,7 +448,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.separator();
                 ui.checkbox(&mut st.skip, t("ui-don-t-remind-me-about-this"))
                     .on_hover_text(t("ui-stays-quiet-about-this-version-a-tip"));
-                ui.horizontal(|ui| {
+                crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                     let can = update.applicable() && !dirty;
                     let b = ui.add_enabled(can, egui::Button::new(t("ui-update")));
                     let b = if dirty {
@@ -463,7 +465,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     if !update.release.html_url.is_empty() {
                         ui.hyperlink_to("Release page", &update.release.html_url);
                     }
-                });
+                }));
                 if dirty {
                     ui.label(
                         RichText::new(t("ui-save-your-design-before-updating"))

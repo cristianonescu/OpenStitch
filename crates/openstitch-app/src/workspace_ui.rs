@@ -545,6 +545,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                     .selected_text(text)
                     .width(230.0)
                     .show_ui(ui, |ui| {
+                        crate::fit::combo_list(ui);
                         // Grouped by brand, Brother first (#514); the filter matches brand or
                         // name and is kept for the session.
                         let fid = egui::Id::unique("hoop-filter");
