@@ -183,6 +183,7 @@ pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
     if docked(app, Pane::SewingOrder) {
         panel("objects", app.ui.prefs.panes.sewing_order.side)
             .default_size(250.0)
+            .max_size(crate::fit::pane_limit(ui.available_width(), WORK_AREA_LEAST))
             .show(ui, |ui| {
                 crate::fit::pane(ui, |ui| {
                     header(app, ui, Pane::SewingOrder);
@@ -194,6 +195,7 @@ pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
     if docked(app, Pane::Attributes) {
         panel("inspector", app.ui.prefs.panes.attributes.side)
             .default_size(330.0)
+            .max_size(crate::fit::pane_limit(ui.available_width(), WORK_AREA_LEAST))
             .show(ui, |ui| crate::fit::pane(ui, |ui| attributes(app, ui)));
     }
 }
@@ -231,7 +233,7 @@ pub fn floating_panes(app: &mut EditorApp, ctx: &egui::Context) {
 
 /// Import / Color / Sewing Attributes / Text Attributes, as tabs.
 pub fn attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
+    crate::fit::row(ui, "pane-tabs", |ui| {
         ui.spacing_mut().item_spacing.x = 1.0;
         ui.spacing_mut().button_padding.x = 3.0;
         for t in PaneTab::ALL {
@@ -643,9 +645,8 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
         });
     });
     if narrow {
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            status_controls(app, ui);
-        });
+        // Wider than the window (#1276): the row scrolls sideways.
+        crate::fit::row_from_right(ui, "status", |ui| status_controls(app, ui));
     }
 }
 

@@ -2347,17 +2347,17 @@ pub fn body<A: Copy>(
             // With a larger Text size (#499) the groups that do not fit scroll into view
             // under a solid scroll bar, so none is out of reach unseen; at 100 % a narrow
             // window scrolls them without a bar as before.
+            // At 100 % a thin bar shows that the groups go on (#1276: it was hidden, and the
+            // groups past the edge looked as if they were not there).
             let large = ui.ctx().zoom_factor() > 1.0;
             if large {
                 ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
+            } else {
+                crate::fit::visible_bars(ui);
             }
             egui::ScrollArea::horizontal()
                 .id_salt("ribbon-body")
-                .scroll_bar_visibility(if large {
-                    egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded
-                } else {
-                    egui::scroll_area::ScrollBarVisibility::AlwaysHidden
-                })
+                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
                 .show(ui, |ui| ui.horizontal(|ui| row(ui, &mut draw)));
         });
 }

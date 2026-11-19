@@ -1656,7 +1656,7 @@ pub fn sim_controls(
     speed: &mut f64,
     total: usize,
 ) {
-    ui.horizontal(|ui| {
+    crate::fit::row(ui, "simulator-controls", |ui| {
         let play = if *playing { "Pause" } else { "Play" };
         if ui.add_enabled(total > 0, egui::Button::new(play)).clicked() {
             *playing = !*playing;
@@ -1744,7 +1744,7 @@ pub fn simulator(app: &mut EditorApp, ui: &mut egui::Ui) {
         total,
     );
     player_strip(app, ui);
-    ui.horizontal(|ui| {
+    crate::fit::row(ui, "simulator-counts", |ui| {
         let s = &app.stats;
         ui.label(format!(
             "Stitches {}   Jumps {}   Trims {}   Colour changes {}   Size {}",

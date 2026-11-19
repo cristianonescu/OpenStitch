@@ -84,9 +84,11 @@ pub fn context_menu(
 
 /// Scroll bars that show while at rest, thin and over the content, so a list that goes on is
 /// seen to go on.
-fn visible_bars(ui: &mut egui::Ui) {
+pub fn visible_bars(ui: &mut egui::Ui) {
     let mut bars = egui::style::ScrollStyle::floating();
-    bars.dormant_handle_opacity = 0.5;
+    bars.dormant_handle_opacity = 0.6;
+    bars.dormant_background_opacity = 0.15;
+    bars.floating_width = 4.0;
     ui.spacing_mut().scroll = bars;
 }
 
@@ -324,4 +326,65 @@ pub fn list(ui: &egui::Ui, least: f32) -> egui::ScrollArea {
 /// the panes beside it keep `rest` points.
 pub fn pane_limit(height: f32, rest: f32) -> f32 {
     (height - rest).max(LEAST)
+}
+
+/// A row of controls that may be wider than its place (a status bar, a tab row, a toolbar):
+/// drawn as it is while it fits, and scrolling sideways (wheel, touchpad, a thin bar under
+/// it) once it does not, so the controls at its end can be reached.
+pub fn row<R>(ui: &mut egui::Ui, salt: &'static str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let key = ui.scope_id().with(("fit-row", salt));
+    let last: f32 = ui.ctx().data(|d| d.get_temp(key)).unwrap_or(0.0);
+    let room = ui.available_width();
+    let (inner, width) = if last > room + 1.0 {
+        visible_bars(ui);
+        let out = egui::ScrollArea::horizontal()
+            .id_salt(("fit-row", salt))
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                // Laid out for the room there is, as when it fits: what sizes itself by the
+                // room left (a slider) keeps its size.
+                ui.set_max_width(room);
+                ui.horizontal(add).inner
+            });
+        (out.inner, out.content_size.x)
+    } else {
+        let r = ui.horizontal(add);
+        (r.inner, r.response.rect.width())
+    };
+    if (width - last).abs() > 0.5 {
+        ui.ctx().data_mut(|d| d.insert_temp(key, width));
+        ui.ctx().request_repaint();
+    }
+    inner
+}
+
+/// As [`row`], for a row laid out from the right edge (a status bar's controls).
+pub fn row_from_right<R>(
+    ui: &mut egui::Ui,
+    salt: &'static str,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let key = ui.scope_id().with(("fit-row-right", salt));
+    let last: f32 = ui.ctx().data(|d| d.get_temp(key)).unwrap_or(0.0);
+    let room = ui.available_width();
+    let from_right = egui::Layout::right_to_left(egui::Align::Center);
+    let (inner, width) = if last > room + 1.0 {
+        visible_bars(ui);
+        let height = ui.spacing().interact_size.y;
+        let out = egui::ScrollArea::horizontal()
+            .id_salt(("fit-row-right", salt))
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                ui.allocate_ui_with_layout(egui::vec2(last, height), from_right, add)
+            });
+        (out.inner.inner, out.inner.response.rect.width())
+    } else {
+        let r = ui.with_layout(from_right, add);
+        (r.inner, r.response.rect.width())
+    };
+    if (width - last).abs() > 0.5 {
+        ui.ctx().data_mut(|d| d.insert_temp(key, width));
+        ui.ctx().request_repaint();
+    }
+    inner
 }
