@@ -262,6 +262,11 @@ async function extraChecks(browser, type, label) {
                 keys: (window.__keys ?? []).slice(-16).map((k) => `${k.ctrlKey ? "Ctrl+" : ""}${k.altKey ? "Alt+" : ""}${k.shiftKey ? "Shift+" : ""}${k.key}`),
                 menus: (window.__menus ?? []).length,
                 focus: document.activeElement?.id || document.activeElement?.tagName,
+                canvasOnPage: (() => {
+                  const r = document.getElementById("openstitch")?.getBoundingClientRect();
+                  return r && [r.x, r.y, r.width, r.height];
+                })(),
+                scroll: [window.scrollX, window.scrollY],
               });
             })
             .catch(() => "?");
@@ -360,13 +365,22 @@ async function extraChecks(browser, type, label) {
       // Ctrl+click on a second point adds it to the selection; the browser opens no menu and
       // no tab of its own.
       await onScreen(0);
-      // The key is held down around the click: page.mouse.click takes no modifiers.
-      const clickWith = async (key, x, y) => {
+      // The key is held down around the click: page.mouse.click takes no modifiers. The
+      // place is given on the canvas (the editor's window points) and the canvas's place on
+      // the page is read again for the click: `box` was read once, before the steps above,
+      // and CI's Firefox clicked 90 points left of a corner it had read right (#1272). A
+      // canvas that moved on the page is said in the log.
+      const clickWith = async (key, [cx, cy]) => {
+        const now = await page.locator("#openstitch").boundingBox();
+        if (Math.abs(now.x - box.x) > 0.5 || Math.abs(now.y - box.y) > 0.5) {
+          const scrolled = await page.evaluate(() => [window.scrollX, window.scrollY]);
+          console.log(`${label}: the canvas moved on the page from ${box.x}, ${box.y} to ${now.x}, ${now.y} (page scrolled ${scrolled})`);
+        }
         await page.keyboard.down(key);
-        await page.mouse.click(x, y);
+        await page.mouse.click(now.x + cx, now.y + cy);
         await page.keyboard.up(key);
       };
-      await clickWith("Control", box.x + far[0], box.y + far[1]);
+      await clickWith("Control", far);
       await until("Ctrl+click adds a second point (2 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2);
       const stray = await page.evaluate(() => window.__menus.length);
       if (stray !== 0 || context.pages().length !== 1) {
@@ -376,13 +390,13 @@ async function extraChecks(browser, type, label) {
       // the browser selects no text and opens nothing.
       const third = await onScreen(3);
       await onScreen(0);
-      await clickWith("Control", box.x + far[0], box.y + far[1]);
+      await clickWith("Control", far);
       await until("Ctrl+click adds the second point again (2 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2);
-      await clickWith("Shift", box.x + third[0], box.y + third[1]);
+      await clickWith("Shift", third);
       await until("Shift+click adds a third point (3 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 3);
       // Ctrl+click on a selected point takes it out; a plain click on a point that is not
       // selected selects that one alone.
-      await clickWith("Control", box.x + third[0], box.y + third[1]);
+      await clickWith("Control", third);
       await until("Ctrl+click on a selected point takes it out (2 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2);
       await page.mouse.click(box.x + third[0], box.y + third[1]);
       await until("a plain click on another point selects it alone", (i) => {
@@ -650,7 +664,7 @@ async function extraChecks(browser, type, label) {
       await ok({ command: "history.undo" });
       // Ctrl+click adds a needle point to the selection.
       await stitch({ select: [pts[k - 1].index] });
-      await clickWith("Control", box.x + a2[0], box.y + a2[1]);
+      await clickWith("Control", a2);
       await until("Ctrl+click adds a needle point", () => (window.openstitch.run({ command: "ui.stitchPoints" }).result?.selected?.length ?? 0) === 2);
       // Tab selects every needle point of the selected point's colour block (PE-DESIGN capture
       // k6), and stays with the editor; Tab again selects none.
