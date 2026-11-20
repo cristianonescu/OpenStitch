@@ -1226,22 +1226,15 @@ impl FanWarp {
             .map(|c| self.contour(c))
             .flat_map(|c| c.edges())
             .collect();
-        let n = edges.len();
-        for i in 0..n {
-            for j in i + 2..n {
-                // The first and last edge of a ring meet at its first point.
-                if i == 0 && j == n - 1 {
-                    continue;
-                }
-                let (a, b) = (edges[i], edges[j]);
-                if let Some(m) = crossing([a.0, a.1], [b.0, b.1])
-                    && [a.0, a.1, b.0, b.1].iter().all(|e| e.distance(m) > 0.01)
-                {
-                    return true;
-                }
-            }
-        }
-        false
+        crosses_itself(&edges)
+    }
+
+    /// How many pieces the shape is cut into: the zones between lines, before the first and
+    /// beyond the last, and the pieces their cuts make. Each piece that fans casts
+    /// [`FAN_SAMPLES`] rays at the outline once, and every needle point is placed by looking
+    /// through the pieces, so this is what a fill with direction lines costs.
+    pub fn pieces(&self) -> usize {
+        self.zones.len()
     }
 
     /// `c` in the warped plane, as a polygon: its outline is followed in steps of at most
@@ -1266,6 +1259,65 @@ impl FanWarp {
         // needless ones would add stitches.
         crate::simplify::contour(&Contour::new(out, c.closed), WARP_TOLERANCE)
     }
+}
+
+/// Whether any two of `edges` cross away from their ends. The edges are put into a grid of
+/// about one cell per edge, and only edges that share a cell are compared, so a shape of
+/// tens of thousands of edges (a 200 mm outline followed in 0.3 mm steps) is checked in
+/// about as many steps, not their square.
+fn crosses_itself(edges: &[(Vec2, Vec2)]) -> bool {
+    let n = edges.len();
+    if n < 4 {
+        return false;
+    }
+    let (mut lo, mut hi) = (
+        v2(f64::INFINITY, f64::INFINITY),
+        v2(f64::NEG_INFINITY, f64::NEG_INFINITY),
+    );
+    for (a, b) in edges {
+        for p in [a, b] {
+            lo = v2(lo.x.min(p.x), lo.y.min(p.y));
+            hi = v2(hi.x.max(p.x), hi.y.max(p.y));
+        }
+    }
+    let side = (n as f64).sqrt().ceil().max(1.0) as usize;
+    let (w, h) = ((hi.x - lo.x).max(1e-9), (hi.y - lo.y).max(1e-9));
+    let cell = |p: Vec2| {
+        (
+            (((p.x - lo.x) / w * side as f64) as usize).min(side - 1),
+            (((p.y - lo.y) / h * side as f64) as usize).min(side - 1),
+        )
+    };
+    let mut grid: Vec<Vec<usize>> = vec![Vec::new(); side * side];
+    for (i, (a, b)) in edges.iter().enumerate() {
+        let (c0, c1) = (
+            cell(v2(a.x.min(b.x), a.y.min(b.y))),
+            cell(v2(a.x.max(b.x), a.y.max(b.y))),
+        );
+        for gx in c0.0..=c1.0 {
+            for gy in c0.1..=c1.1 {
+                grid[gy * side + gx].push(i);
+            }
+        }
+    }
+    for bucket in &grid {
+        for (k, &i) in bucket.iter().enumerate() {
+            for &j in &bucket[k + 1..] {
+                let (i, j) = (i.min(j), i.max(j));
+                // Neighbours share an end; the first and last edge of a ring do too.
+                if j == i + 1 || (i == 0 && j == n - 1) {
+                    continue;
+                }
+                let (a, b) = (edges[i], edges[j]);
+                if let Some(m) = crossing([a.0, a.1], [b.0, b.1])
+                    && [a.0, a.1, b.0, b.1].iter().all(|e| e.distance(m) > 0.01)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
 
 /// How far outside the shape's bounds a direction line is drawn and stored when it is made
@@ -1535,5 +1587,101 @@ mod tests {
         ];
         let warp = FanWarp::new(&outside, &square, &[]).expect("warp");
         assert!(warp.zones.iter().any(|z| matches!(z, Zone::Fan { .. })));
+    }
+
+    /// The cuts are kept only together: none when two of them cross, or one crosses one of
+    /// the zone's lines, though each lies inside the shape.
+    #[test]
+    fn crossing_cuts_keep_the_zone_whole() {
+        let square = [polygon(&[
+            (0.0, 0.0),
+            (1000.0, 0.0),
+            (1000.0, 1000.0),
+            (0.0, 1000.0),
+        ])];
+        let lines = [
+            [v2(100.0, 0.0), v2(100.0, 1000.0)],
+            [v2(900.0, 0.0), v2(900.0, 1000.0)],
+        ];
+        let apart = vec![
+            [v2(300.0, 0.0), v2(300.0, 1000.0)],
+            [v2(600.0, 0.0), v2(600.0, 1000.0)],
+        ];
+        assert_eq!(lying_inside(apart.clone(), &square, &lines), apart);
+        // Two cuts that cross each other.
+        let crossed = vec![
+            [v2(300.0, 0.0), v2(600.0, 1000.0)],
+            [v2(600.0, 0.0), v2(300.0, 1000.0)],
+        ];
+        assert!(lying_inside(crossed, &square, &lines).is_empty());
+        // A cut that crosses one of the zone's lines.
+        let over = vec![
+            [v2(300.0, 0.0), v2(300.0, 1000.0)],
+            [v2(50.0, 0.0), v2(600.0, 1000.0)],
+        ];
+        assert!(lying_inside(over, &square, &lines).is_empty());
+    }
+
+    /// No piece fans through a point between its two chords that is outside the shape (in
+    /// a U's notch): the rows of that fan would cross there.
+    #[test]
+    fn a_meeting_point_in_a_notch_gives_no_fan() {
+        // A U: two arms of 200 units, the notch 400 wide; a line across each arm, the two
+        // leaning toward each other so that they meet in the notch.
+        let u = [polygon(&[
+            (100.0, 100.0),
+            (300.0, 100.0),
+            (300.0, 700.0),
+            (700.0, 700.0),
+            (700.0, 100.0),
+            (900.0, 100.0),
+            (900.0, 900.0),
+            (100.0, 900.0),
+        ])];
+        let lines = [
+            [v2(50.0, 450.0), v2(350.0, 400.0)],
+            [v2(950.0, 450.0), v2(650.0, 400.0)],
+        ];
+        let p = meeting(chord(lines[0], &u, &[]), chord(lines[1], &u, &[])).expect("meet");
+        assert!(!contains(p, &u) && (300.0..700.0).contains(&p.x), "{p:?}");
+        if let Some(warp) = FanWarp::new(&lines, &u, &[]) {
+            for z in &warp.zones {
+                if let Zone::Fan { p: q, .. } = z {
+                    assert!(q.distance(p) > 1.0, "a fan through the notch point {q:?}");
+                }
+            }
+        }
+    }
+
+    /// The fold check of a large shape is about as many steps as edges: a 200 mm circle of
+    /// 2000 points followed in 0.3 mm steps (about 21,000 edges) in well under a second, in
+    /// a debug build too.
+    #[test]
+    fn the_fold_check_of_a_large_shape_is_quick() {
+        let circle: Vec<(f64, f64)> = (0..2000)
+            .map(|k| {
+                let a = std::f64::consts::TAU * f64::from(k) / 2000.0;
+                (1000.0 + 1000.0 * a.cos(), 1000.0 + 1000.0 * a.sin())
+            })
+            .collect();
+        let closed = [polygon(&circle)];
+        let lines = [
+            [v2(100.0, 300.0), v2(600.0, -100.0)],
+            [v2(1400.0, 2100.0), v2(2100.0, 1400.0)],
+        ];
+        let warp = FanWarp::new(&lines, &closed, &[]).expect("warp");
+        let started = std::time::Instant::now();
+        assert!(!warp.folds(&closed, &[]));
+        let took = started.elapsed().as_secs_f64();
+        assert!(took < 2.0, "{took:.2} s");
+        // And a ring that does cross itself is found.
+        let bow = [polygon(&[
+            (0.0, 0.0),
+            (100.0, 100.0),
+            (100.0, 0.0),
+            (0.0, 100.0),
+        ])];
+        let edges: Vec<(Vec2, Vec2)> = bow[0].edges();
+        assert!(crosses_itself(&edges));
     }
 }

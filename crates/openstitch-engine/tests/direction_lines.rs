@@ -321,7 +321,7 @@ fn zones_of(s: &Session, lines: &[[f64; 4]]) -> Vec<(usize, f64)> {
 fn the_fill_with_direction_lines_is_pe_designs_within_the_stated_tolerance() {
     for r in REFERENCES {
         let mut s = Session::new(std::env::temp_dir());
-        build(&mut s, r);
+        let id = build(&mut s, r);
         let sewn = Compiler::for_design(s.design())
             .compile(s.design())
             .stitches
@@ -351,6 +351,13 @@ fn the_fill_with_direction_lines_is_pe_designs_within_the_stated_tolerance() {
                 r.name
             );
         }
+        // No two rows of the top stitching cross.
+        assert_eq!(
+            crossing_rows(&mut s, id),
+            0,
+            "{}: rows cross each other",
+            r.name
+        );
         // Every needle point is in the square (to the fill's own overshoot).
         assert!(
             needle_points(&s)
@@ -658,6 +665,14 @@ fn delete_and_reverse_direction_lines() {
     );
     assert_eq!(r["lines"], 1);
     let one = region(&s);
+    // With 'index' given too, 'keep' wins (the same line is kept).
+    s.execute("history.undo", None).expect("undo");
+    run(
+        &mut s,
+        "object.deleteDirectionLine",
+        json!({ "id": id, "keep": 2, "index": 0 }),
+    );
+    assert_eq!(region(&s), one, "keep wins over index");
     // The line that is left stays where it was (PE-DESIGN capture g): it is the shape's one
     // direction, kept at its place, and the fill is sewn at its angle.
     assert_eq!(one.angle_lines, vec![three.angle_lines[2]]);
@@ -981,6 +996,19 @@ fn the_registry_says_what_the_direction_line_commands_store() {
             "{id}: the line is turned to run the way of the shape's lines"
         );
     }
+    // object.setRegion says that a new angle and Auto direction drop the kept line.
+    let region = command("object.setRegion");
+    for name in ["angle", "autoDirection"] {
+        let p = region
+            .params
+            .iter()
+            .find(|p| p.name == name)
+            .expect("param");
+        assert!(
+            p.summary.contains("kept at a place") && p.summary.contains("is dropped"),
+            "object.setRegion {name}"
+        );
+    }
     let rule = command("object.setAngleLines")
         .params
         .iter()
@@ -992,6 +1020,7 @@ fn the_registry_says_what_the_direction_line_commands_store() {
         "far ends",
         "not converted",
         "what object.addDirectionLine refuses is refused here too",
+        "autoDirectionOff",
     ] {
         assert!(rule.summary.contains(words), "rule: {words}");
     }
@@ -1263,7 +1292,7 @@ fn parallel_collinear_and_nearly_parallel_lines() {
     let plain_not_level = not_level(&s);
     // The plain fill's own count of crossing rows (the U is sewn in parts, with moves
     // between them): the lines must add none.
-    let plain_crossing = rows_that_cross(&s);
+    let plain_crossing = crossing_rows(&mut s, id);
     // The shape's one line is level with the middle of its bounds (y = 50 mm), across one
     // arm. A line at that height, across the same arm or the other one, is on its line.
     for line in [[[5, 50], [35, 50]], [[65, 50], [95, 50]]] {
@@ -1275,11 +1304,8 @@ fn parallel_collinear_and_nearly_parallel_lines() {
         assert!(e.contains("lie on one straight line"), "{e}");
     }
     let sewn_like_plain = |s: &Session, what: &str, within: f64| {
-        assert!(
-            rows_that_cross(s) <= plain_crossing,
-            "{what}: {} rows cross each other, the plain fill {plain_crossing}",
-            rows_that_cross(s)
-        );
+        assert_eq!(plain_crossing, 0, "the plain fill's rows cross");
+        assert_eq!(top_rows_crossing(s), 0, "{what}: rows cross each other");
         let p = needle_points(s);
         assert!(
             p.iter().all(|q| q.x.is_finite() && q.y.is_finite()),
@@ -1377,7 +1403,7 @@ fn a_shape_whose_middle_is_outside_it_takes_direction_lines() {
         json!({ "id": id, "line": [[5, 65], [35, 65]] }),
     );
     assert_eq!(r["lines"], 2);
-    let o = object(&s, id);
+    let o = object(&s, id).clone();
     let lines = &o.region.as_ref().expect("region").angle_lines;
     let closed: Vec<_> = o.contours.iter().filter(|c| c.closed).cloned().collect();
     for l in lines {
@@ -1387,21 +1413,7 @@ fn a_shape_whose_middle_is_outside_it_takes_direction_lines() {
         );
     }
     assert!(openstitch_design::angle_lines::check_fan(lines, &closed, &[]).is_ok());
-    let plain = {
-        let mut t = Session::new(std::env::temp_dir());
-        let other = u_shape(&mut t);
-        run(
-            &mut t,
-            "object.setRegion",
-            json!({ "id": other, "angle": 45 }),
-        );
-        rows_that_cross(&t)
-    };
-    assert!(
-        rows_that_cross(&s) <= plain,
-        "{} rows cross each other, the plain fill {plain}",
-        rows_that_cross(&s)
-    );
+    assert_eq!(crossing_rows(&mut s, id), 0, "rows cross each other");
     let first = lines
         .iter()
         .find(|l| (l[0].y - l[1].y).abs() > 1.0)
@@ -1530,16 +1542,7 @@ fn lines_are_in_order_round_the_outline_wherever_their_middles_are() {
     assert_eq!(r["index"], 1, "between the two arms' lines");
     let lines = object(&s, id).region.clone().expect("region").angle_lines;
     assert!((lines[1][0].x - 500.0).abs() < 1e-6 && (lines[1][1].x - 500.0).abs() < 1e-6);
-    let plain = {
-        let mut t = Session::new(std::env::temp_dir());
-        u_shape(&mut t);
-        rows_that_cross(&t)
-    };
-    assert!(
-        rows_that_cross(&s) <= plain,
-        "{} rows cross each other, the plain fill {plain}",
-        rows_that_cross(&s)
-    );
+    assert_eq!(crossing_rows(&mut s, id), 0, "rows cross each other");
     let p = needle_points(&s);
     assert!(p.len() > 2000 && p.iter().all(|q| q.x.is_finite() && q.y.is_finite()));
     // Three lines that do not follow one another are refused: a corner cut of each of three
@@ -1607,22 +1610,39 @@ fn lines_are_in_order_round_the_outline_wherever_their_middles_are() {
     assert!(e.contains("object.setRegion"), "{e}");
 }
 
-/// How many pairs of rows cross each other inside the shape: rows longer than 5 mm, each
-/// against the eight rows sewn after the next one (the next one shares its turn; the under
-/// sewing, sewn long before, lies across the top rows by design), that run within 15
-/// degrees of each other (rows of one fan; a move across the shape or the edge run beside
-/// the rows runs at another angle) and cross away from their ends. Rows of one fan whose meeting
-/// point lay inside the piece would cross their neighbours so. A shape sewn in parts (a U)
-/// has some of its own, where a move to the next part passes rows: the tests compare with
-/// the plain fill of the same shape.
-fn rows_that_cross(s: &Session) -> usize {
+/// How many pairs of the top stitching's rows cross each other: the design's object `id`
+/// sewn without under sewing (whose rows and zigzag lie across the top rows by design; the
+/// setting is taken back after), every pair of rows longer than 5 mm that run within 15
+/// degrees of each other (rows of a fan or of neighbouring pieces; a move across the shape
+/// runs at another angle) and cross away from their ends. A piece whose rows fanned through
+/// a point between their ends would cross them all there.
+fn crossing_rows(s: &mut Session, id: u64) -> usize {
+    // Only when the under sewing is on: a call that changes nothing adds no undo step, and
+    // the undo would take back the step before it.
+    if !object(s, id).region.as_ref().is_some_and(|r| r.underlay) {
+        return top_rows_crossing(s);
+    }
+    let before = s.design().clone();
+    run(
+        s,
+        "object.setRegion",
+        json!({ "id": id, "underlay": false }),
+    );
+    let n = top_rows_crossing(s);
+    s.execute("history.undo", None).expect("undo");
+    assert_eq!(*s.design(), before, "the under sewing is back");
+    n
+}
+
+/// [`crossing_rows`] on the design as it is.
+fn top_rows_crossing(s: &Session) -> usize {
     let long: Vec<[Vec2; 2]> = rows(s)
         .into_iter()
         .filter(|r| r[0].distance(r[1]) > 5.0)
         .collect();
     let mut crossings = 0;
     for (i, a) in long.iter().enumerate() {
-        for b in long.iter().skip(i + 2).take(8) {
+        for b in long.iter().skip(i + 2) {
             let (r, q) = (a[1] - a[0], b[1] - b[0]);
             let den = r.x * q.y - r.y * q.x;
             let along = (r.x * q.x + r.y * q.y).abs() / (r.length() * q.length());
@@ -1641,10 +1661,9 @@ fn rows_that_cross(s: &Session) -> usize {
 }
 
 /// The cost of direction lines: a shape with lines is cut into pieces, and each piece casts
-/// rays at the outline. The steep three-line square (two fans, five pieces) and a circle of
-/// 200 points with three lines (cuts at the points of its outline, thinned to about 96 a
-/// zone) are sewn within ten times the same shape without lines; in a release build each
-/// within a second.
+/// rays at the outline. The steep three-line square and a circle of 200 points with three
+/// lines (cuts at the points of its outline, thinned to about 96 a zone) are cut into at
+/// most 300 pieces each and sewn within 3 s in a debug build (both measured well under it).
 #[test]
 fn a_fill_with_direction_lines_is_sewn_in_reasonable_time() {
     let sew = |s: &Session| {
@@ -1701,12 +1720,100 @@ fn a_fill_with_direction_lines_is_sewn_in_reasonable_time() {
             plain * 1e3,
             with_lines * 1e3
         );
-        assert!(
-            with_lines <= 10.0 * plain + 0.05,
-            "{name}: {with_lines:.3} s with lines against {plain:.3} s without"
-        );
-        if !cfg!(debug_assertions) {
-            assert!(with_lines < 1.0, "{name}: {with_lines:.3} s");
-        }
+        // The work, counted: the pieces the shape is cut into (each casts its rays once,
+        // and every needle point looks through them). At most about 96 a zone between two
+        // lines, whatever the outline.
+        let o = object(&s, id);
+        let closed: Vec<_> = o.contours.iter().filter(|c| c.closed).cloned().collect();
+        let warp = openstitch_design::angle_lines::FanWarp::new(
+            &o.region.as_ref().expect("region").angle_lines,
+            &closed,
+            &[],
+        )
+        .expect("warp");
+        assert!(warp.pieces() <= 3 * 100, "{name}: {} pieces", warp.pieces());
+        // And a time bound that holds in a debug build, with margin (measured: under 0.3 s).
+        assert!(with_lines < 3.0, "{name}: {with_lines:.3} s");
     }
+}
+
+/// A fill without direction lines is written as main (bd433dcd, before #1273) wrote it, byte
+/// for byte, except the two position lists: those now hold the line the fill angle draws
+/// through the middle of the shape, as PE-DESIGN's own files do (capture p; g12), where main
+/// wrote the 45 degree square's corner entries for every fill. The fixture is main's export
+/// of a 40 mm square on a 260 x 160 page, filled at 30 degrees (`stitchtool exec` of
+/// design.new, shape.rectangle, object.setRegion angle 30, design.export pesVersion 11).
+#[test]
+fn a_fill_without_lines_is_written_as_before_but_for_its_own_line() {
+    let dir = std::env::temp_dir().join(format!("openstitch-plain-fill-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("scratch folder");
+    let mut s = Session::new(dir.clone());
+    run(
+        &mut s,
+        "design.new",
+        json!({ "name": "plain-fill-30", "width": 260, "height": 160 }),
+    );
+    let id = run(
+        &mut s,
+        "shape.rectangle",
+        json!({ "x": 30, "y": 30, "width": 40, "height": 40, "fill": "#2e8b57" }),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    run(&mut s, "object.setRegion", json!({ "id": id, "angle": 30 }));
+    run(
+        &mut s,
+        "design.export",
+        json!({ "path": "plain-fill-30.pes", "pesVersion": "11" }),
+    );
+    let ours = std::fs::read(dir.join("plain-fill-30.pes")).expect("file");
+    let main = include_bytes!("fixtures/plain-fill-30-main.pes");
+    let _ = std::fs::remove_dir_all(&dir);
+    // The two lists, one entry each: (side u32, fraction f64) after a count of 1.
+    let entry = |side: u32, t: f64| {
+        let mut b = 1_u32.to_le_bytes().to_vec();
+        b.extend(side.to_le_bytes());
+        b.extend(t.to_le_bytes());
+        b
+    };
+    let main_lists = [entry(0, 1.0), entry(2, 1.0)].concat();
+    let at = main
+        .windows(main_lists.len())
+        .position(|w| w == main_lists)
+        .expect("main's corner entries");
+    assert_eq!(ours.len(), main.len(), "the same length");
+    assert_eq!(&ours[..at], &main[..at], "everything before the lists");
+    assert_eq!(
+        &ours[at + main_lists.len()..],
+        &main[at + main_lists.len()..],
+        "everything after the lists"
+    );
+    // Ours: the 30 degree line through the middle of the square, from the left side to the
+    // right side (the outline is written from the middle of its bottom side: side 1 the
+    // left side from its lower end, side 3 the right side from its upper end).
+    let side_at = |k: usize| -> (u32, f64) {
+        let b = &ours[at + k * 16 + 4..at + k * 16 + 16];
+        (
+            u32::from_le_bytes(b[..4].try_into().expect("side")),
+            f64::from_le_bytes(b[4..].try_into().expect("fraction")),
+        )
+    };
+    let (start, end) = (side_at(0), side_at(1));
+    let rise = 20.0 * 30_f64.to_radians().tan() / 40.0;
+    assert_eq!((start.0, end.0), (1, 3), "{start:?} {end:?}");
+    assert!((start.1 - (0.5 - rise)).abs() < 1e-6, "{start:?}");
+    assert!((end.1 - (0.5 - rise)).abs() < 1e-6, "{end:?}");
+    // Read back: no line is kept (it is where the fill angle's own line lies).
+    let mut back = Session::new(std::env::temp_dir());
+    let path = std::env::temp_dir().join(format!("plain-fill-30-{}.pes", std::process::id()));
+    std::fs::write(&path, &ours).expect("write");
+    run(
+        &mut back,
+        "import.pes",
+        json!({ "path": path.display().to_string() }),
+    );
+    let _ = std::fs::remove_file(&path);
+    let r = back.design().objects[0].region.clone().expect("region");
+    assert!(r.angle_lines.is_empty() && r.angle_rule == AngleRule::Sides);
+    assert!((r.angle - 30.0).abs() < 0.6, "{}", r.angle);
 }

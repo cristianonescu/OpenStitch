@@ -515,19 +515,38 @@ fn shape(object: &DesignObject, table: &mut Vec<Thread>) -> Result<Shape, String
 /// each line's two crossings of the outline as written (`contour`), each as (side, fraction
 /// along it by length). A crossing at a vertex is the end of the side before it (fraction
 /// 1), as in PE-DESIGN's files. One line: the shape's one direction kept at a place (the
-/// last line left after the others were deleted). Empty for every other object: the writer
-/// then writes the entries of a new shape.
+/// last line left after the others were deleted). A fill without lines (and without Auto
+/// direction) has the one line its fill angle draws through the middle of the shape, as the
+/// Point tool draws it: PE-DESIGN's Select Point draws a shape's line from these entries, and
+/// its own files hold that line's crossings (g12, the 40 mm square at 0 degrees: (1, 0.5) and
+/// (3, 0.5); d0 at 45 degrees: (0, 1.0) and (2, 1.0)); the fixed entries written before put a
+/// 45 degree line on every fill (capture p). Empty for every other object (other region
+/// types, Auto direction, open shapes): the writer then writes the entries of a new shape.
 fn fan_lines(object: &DesignObject, contour: &Contour) -> Vec<[(u32, f64); 2]> {
-    let Some(r) = object.region.as_ref().filter(|r| {
-        r.kind == RegionType::Fill
-            && r.angle_rule == openstitch_design::AngleRule::Fan
-            && !r.angle_lines.is_empty()
-    }) else {
+    let Some(r) = object
+        .region
+        .as_ref()
+        .filter(|r| r.kind == RegionType::Fill)
+    else {
         return Vec::new();
     };
     if !contour.closed {
         return Vec::new();
     }
+    let closed = [contour.clone()];
+    let own;
+    let lines: &[[openstitch_design::Vec2; 2]] =
+        if r.angle_rule == openstitch_design::AngleRule::Fan && !r.angle_lines.is_empty() {
+            &r.angle_lines
+        } else if r.angle_lines.is_empty() && !r.auto_direction && r.gradient.is_none() {
+            own = openstitch_design::angle_lines::angle_line(&closed, r.angle);
+            match &own {
+                Some(l) => std::slice::from_ref(l),
+                None => return Vec::new(),
+            }
+        } else {
+            return Vec::new();
+        };
     let sides = contour.segment_count();
     let crossing = |p: openstitch_design::Vec2| {
         // The side the point lies on, and how far along it.
@@ -558,8 +577,7 @@ fn fan_lines(object: &DesignObject, contour: &Contour) -> Vec<[(u32, f64); 2]> {
             (side as u32, t.min(1.0))
         }
     };
-    let closed = [contour.clone()];
-    r.angle_lines
+    lines
         .iter()
         .map(|l| {
             let c = openstitch_design::angle_lines::chord(*l, &closed, &[]);

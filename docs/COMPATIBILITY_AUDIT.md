@@ -5120,14 +5120,25 @@ saved files, not in the repository).
   (`the_direction_field_is_greyed_with_two_or_more_direction_lines`). Adding a line to a
   shape with Auto direction switches it off and the status bar says so.
 - Robustness, not captured on PE-DESIGN: corners always cut a zone, only the points of a
-  flattened curve are thinned (to about 96 a zone); where one cut would leave the shape
-  none is made and the zone stays one piece (dropping only that one left the pieces beside
-  it bounded by cuts that cross outside the shape; it sewed a U twice over in a test); a piece whose bounding lines meet inside the outline has parallel
+  flattened curve are thinned (to about 96 a zone); where one cut would leave the shape,
+  or two cuts cross, or a cut crosses one of the zone's lines, none is made and the zone stays
+  one piece (dropping only the cut that leaves the shape left the pieces beside it bounded
+  by cuts that cross outside the shape: a U with a line across each arm was sewn with
+  11,874 needle points against 6,046 for its plain fill); a piece whose bounding lines meet inside the outline has parallel
   rows (a fan there would cross itself), and so has one whose meeting point lies between its
   two chords (in a notch); a shape that folds over itself in the warp (a U with lines in
-  both arms) is sewn as the plain fill at its fill angle. Sew time (debug build): the steep three-line
-  square 17 ms against 16 ms without lines, a circle of 200 points with three lines 255 ms
-  against 28 ms (`a_fill_with_direction_lines_is_sewn_in_reasonable_time`).
+  both arms) is sewn as the plain fill at its fill angle. The work is bounded by the pieces: the
+  steep three-line square and a circle of 200 points with three lines are cut into at most
+  300 pieces (`a_fill_with_direction_lines_is_sewn_in_reasonable_time`, which also holds
+  each under 3 s in a debug build; measured on 2026-11-20, debug: 12 against 9 ms without
+  lines for the square, 137 against 18 ms for the circle). The fold check uses a grid of
+  buckets, about as many steps as outline edges (`the_fold_check_of_a_large_shape_is_quick`:
+  a 200 mm circle, about 21,000 edges).
+- A fill without direction lines is written to PES 0110 with the one line its fill angle
+  draws through the middle of the shape, as PE-DESIGN's own files hold it (g12, 0 degrees:
+  (1, 0.5) and (3, 0.5)); before, every fill was written with the 45 degree square's
+  corner entries, and PE-DESIGN's Select Point drew a 45 degree line on it whatever its
+  angle (capture p: the fill itself sewed at its angle). Only those list entries change.
 - After Delete Lines Not Selected (or deleting down to one line) the line that is left
   stays where it was, as PE-DESIGN keeps it (capture g); the fill is sewn at its angle, as a
   plain fill. PES 0110 holds that line's two crossings in the lists' one entry each, as

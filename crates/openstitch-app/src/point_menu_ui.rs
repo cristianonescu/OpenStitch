@@ -1337,6 +1337,45 @@ mod tests {
         }
     }
 
+    /// Adding a line to a shape with Auto direction switches Auto direction off, and the
+    /// status bar says so after the command's name.
+    #[test]
+    fn adding_a_line_says_that_auto_direction_went_off() {
+        let mut app = EditorApp::new(Launch::default());
+        let id = app
+            .execute(&CommandRequest::new(
+                "shape.rectangle",
+                json!({ "x": 30, "y": 30, "width": 40, "height": 40, "fill": "#2e8b57" }),
+            ))
+            .expect("square")["id"]
+            .as_u64()
+            .expect("id");
+        app.execute(&CommandRequest::new(
+            "object.setRegion",
+            json!({ "id": id, "autoDirection": true }),
+        ))
+        .expect("auto");
+        app.selection = BTreeSet::from([id]);
+        app.ui_command("ui.run", Some(&json!({ "action": "addDirection" })))
+            .expect("Add Direction Line");
+        for at in [v2(252.0, 384.0), v2(501.7, 280.0)] {
+            app.with_tools(|tools, ctx| {
+                tools.handle(
+                    openstitch_app::editor::PointerEvent::new(openstitch_app::editor::Phase::Down, at),
+                    ctx,
+                )
+            });
+        }
+        assert!(
+            app.status.contains("object.addDirectionLine")
+                && app.status.contains("Auto direction is off"),
+            "{}",
+            app.status
+        );
+        let r = app.session.design().objects[0].region.clone().expect("region");
+        assert!(!r.auto_direction && r.angle_lines.len() == 2);
+    }
+
     /// An entry of the point menu or the object menu run through `ui.run` closes an open menu,
     /// as a click on the entry does (a script could leave it open, and the next click then
     /// landed on a row of it); a refused entry leaves the menu open.

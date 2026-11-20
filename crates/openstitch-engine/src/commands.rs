@@ -1705,7 +1705,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "angle",
                     "degrees",
-                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); setting it turns Auto direction off (PE-DESIGN's straight direction, as the Fill Angle tool does) unless autoDirection is given in the same call; ignored by cross stitch, which PE-DESIGN 11.50 sews on the page axes with no Direction; it turns a net or zigzag net, and a switch to either starts at 0 (PE-DESIGN's default for the types) unless angle is given in the same call",
+                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); setting it turns Auto direction off (PE-DESIGN's straight direction, as the Fill Angle tool does) unless autoDirection is given in the same call; ignored by cross stitch, which PE-DESIGN 11.50 sews on the page axes with no Direction; it turns a net or zigzag net, and a switch to either starts at 0 (PE-DESIGN's default for the types) unless angle is given in the same call. A fill's one direction line kept at a place (the last line left after object.deleteDirectionLine) is dropped: the line goes through the middle of the shape at the new angle",
                 ),
                 opt(
                     "density",
@@ -1751,7 +1751,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "autoDirection",
                     "bool",
-                    "Choose the direction from the shape (rows across its narrow side)",
+                    "Choose the direction from the shape (rows across its narrow side). On (true), a fill's one direction line kept at a place (the last line left after object.deleteDirectionLine) is dropped",
                 ),
                 opt(
                     "gradation",

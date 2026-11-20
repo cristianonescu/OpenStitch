@@ -481,8 +481,11 @@ then style them in the next.
   through the meeting point of its two bounding lines; the fill angle has no effect then.
   The outline's points matter: a rectangle imported from PE-DESIGN has five points, ours
   four, and the same lines can sew differently on the two.
-  `object.deleteDirectionLine` `{id, index}` deletes one, `{id, keep}` all but one; the last
-  line is the fill angle again. `object.get` returns the lines in its `region` as `angleLines`
+  `object.deleteDirectionLine` `{id, index}` deletes one, `{id, keep}` all but one (with
+  both, `keep` wins); the line that is left is the fill angle again and stays where it is,
+  as PE-DESIGN keeps it (`object.get` still lists it), until a new angle or Auto direction
+  puts it through the middle of the shape. Adding a line to a shape with Auto direction
+  switches it off (`autoDirectionOff` in the answer). `object.get` returns the lines in its `region` as `angleLines`
   (a line's index is its place in the list; ends in 0.1 mm) with `angleRule`; in
   the window `ui.pointMenu` lists them as `directionLines` (`index`, `stored`, `angle`,
   `from`, `to`, `selected`) and `{selectDirectionLine: <index>}` selects one (`true` the
