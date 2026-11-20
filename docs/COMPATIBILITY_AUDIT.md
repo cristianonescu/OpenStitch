@@ -5042,14 +5042,25 @@ saved files, not in the repository).
   counted (under sewing and moves too). Needle points, PE-DESIGN / here: 2773 / 2779,
   2980 / 3005, 2591 / 2595, 2722 / 2658, 2716 / 2711, 2659 / 2659, 2597 / 2547 (worst
   -2.4 %). Of the 22 zones 15 are within the tolerance and held to it by the test. **Seven
-  are not, and are listed in the test with their numbers, not asserted with a wider one:**
-  g3 and g4 zone 0, the corner beyond the steep line (31 rows against 31, but 60.8 against
-  62.9 degrees: rows of 2 to 17 mm sewn from the other end); g8 and g11 zone 0, the strip
-  below the 0 degree line (106 and 107 rows against 100: PE-DESIGN's start walk and edge
-  run put five rows along the bottom side, this fill two; the plain fill at 0 degrees,
-  g12, has no such difference); g9 zone 0 (37 against 33, not explained); g11 zones 1 and
-  2 (84 and 62 against 88 and 59). The three-line design of the first captures (g2) has
-  its third line all but parallel to the first and is not used.
+  are not: a known difference, shipped by the owner's decision of 2026-11-20 and tracked
+  in #1287.** They are listed in the test, not asserted with a wider number; the numbers
+  (rows longer than 2 mm; angle of the rows longer than 10 mm):
+
+  | Design, zone | PE-DESIGN rows / angle | OpenStitch rows / angle | Outside by | Cause, as far as known |
+  |---|---|---|---|---|
+  | g3, zone 0 (corner beyond the steep line) | 31 / 60.8° | 31 / 62.9° | angle 2.1° | rows of 2 to 17 mm sewn from the other end |
+  | g4, zone 0 (the same corner) | 31 / 60.8° | 31 / 62.9° | angle 2.1° | as g3 |
+  | g8, zone 0 (strip below the 0° line) | 106 / 0.3° | 100 / -0.3° | 6 rows | PE-DESIGN's start walk and 0.5 mm edge run put five rows along the bottom side, this fill two; the plain fill at 0° (g12) has no such difference |
+  | g9, zone 0 (corner beyond the added line) | 37 / 13.4° | 33 / 14.4° | 4 rows | not explained |
+  | g11, zone 0 (strip below the 0° line) | 107 / 0.3° | 100 / -0.3° | 7 rows | as g8 |
+  | g11, zone 1 (fan) | 84 / 4.4° | 88 / 4.1° | 4 rows | the rows next to the last line (146 against 147 with zone 2) |
+  | g11, zone 2 (beyond the last line) | 62 / 12.4° | 59 / 11.8° | 3 rows | as zone 1; this part follows rule 4, a fit to g11 only |
+
+  The first three-line capture (g2) is kept in the test as a weak case: its third line is
+  all but parallel to the first (44.7 against 45 degrees), so it sews almost as g1. Its two
+  zones around that line are outside the tolerance as well and are listed the same way, not
+  counted in the 22: zone 0 24 rows / 43.6° against 26 / 45.9°, zone 1 119 / 45.2° against
+  116 / 44.7°.
   Only the fill follows direction lines; other region types refuse Add Direction Line.
 - Where the rows of a fan would come closer than a quarter of their spacing (the lines meet
   on or just outside the outline) every other pair of rows ends early, and again at each
@@ -5105,14 +5116,29 @@ saved files, not in the repository).
   `delete_and_reverse_direction_lines`).
 - Add Direction Line turns the new line to run the way the shape's lines already run,
   whichever end is clicked first, as PE-DESIGN does (its capture k). With two or more lines
-  PE-DESIGN greys the Direction angle field; here the field is not shown (the inspector
-  has no greyed state), and the angle has no effect until one line is left.
-- After Delete Lines Not Selected the line that is left is the fill angle: it keeps its
-  angle and is drawn through the middle of the shape, since one line is stored as an angle
-  only. Whether PE-DESIGN leaves it where it was is not captured.
-- Not known: PE-DESIGN's under sewing with several lines (here the plain fill's, warped with
-  the rows); how PE-DESIGN orders lines that do not lie in a row across the shape; the
-  pointer shape while adding.
+  PE-DESIGN greys the Direction angle field with the value it last had; so here
+  (`the_direction_field_is_greyed_with_two_or_more_direction_lines`). Adding a line to a
+  shape with Auto direction switches it off and the status bar says so.
+- Robustness, not captured on PE-DESIGN: corners always cut a zone, only the points of a
+  flattened curve are thinned (to about 96 a zone); where one cut would leave the shape
+  none is made and the zone stays one piece (dropping only that one left the pieces beside
+  it bounded by cuts that cross outside the shape; it sewed a U twice over in a test); a piece whose bounding lines meet inside the outline has parallel
+  rows (a fan there would cross itself), and so has one whose meeting point lies between its
+  two chords (in a notch); a shape that folds over itself in the warp (a U with lines in
+  both arms) is sewn as the plain fill at its fill angle. Sew time (debug build): the steep three-line
+  square 17 ms against 16 ms without lines, a circle of 200 points with three lines 255 ms
+  against 28 ms (`a_fill_with_direction_lines_is_sewn_in_reasonable_time`).
+- After Delete Lines Not Selected (or deleting down to one line) the line that is left
+  stays where it was, as PE-DESIGN keeps it (capture g); the fill is sewn at its angle, as a
+  plain fill. PES 0110 holds that line's two crossings in the lists' one entry each, as
+  PE-DESIGN's own files hold a single line's (d0: (0, 1.0) and (2, 1.0); the same square at
+  0 degrees, g12: (1, 0.5) and (3, 0.5)). A typed angle or Auto direction puts the line
+  through the middle of the shape again. A shape made here without a kept line is written
+  with the entries of PE-DESIGN's new shapes, as before (whatever its angle; an existing
+  difference, not changed here).
+- Not known: PE-DESIGN's start walk and 0.5 mm edge run with direction lines (here the
+  plain fill's edge run, then the zigzag along the fill); how PE-DESIGN orders lines that do
+  not lie in a row across the shape; the pointer shape while adding.
 - Hole sewing and fitted text (#1271; PE-DESIGN instruction manual, read 2026-11-19, none of
   it captured yet): `object.splitAtPoint` and `object.openOutline` cancel hole sewing on the
   object's pair, whether it is the outer shape or the inner one, so no piece keeps the flags

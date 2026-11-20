@@ -1945,9 +1945,13 @@ pub enum AngleRule {
     /// the same fraction along the two outline sides, so the rows turn with the shape.
     #[default]
     Sides,
-    /// PE-DESIGN's direction lines (#1273): between two lines the rows are a fan through the
-    /// point where the two lines meet when extended; beyond the first and last line they are
-    /// parallel to it (see `crate::angle_lines::FanWarp`).
+    /// PE-DESIGN's direction lines (#1273): the zone between two lines, and the parts of the
+    /// shape before the first and beyond the last, are cut at the outline's points, and in
+    /// each piece the rows are a fan through the point where its two bounding lines meet
+    /// (see `crate::angle_lines::FanWarp`). ONE line with this rule is the shape's one
+    /// direction at a place: where PE-DESIGN keeps the last line after the others are
+    /// deleted. The fill is sewn at `angle` then; only where the line is drawn, and what a
+    /// PES 0110 file holds, depend on it.
     Fan,
 }
 

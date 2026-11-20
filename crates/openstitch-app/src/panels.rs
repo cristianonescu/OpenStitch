@@ -1633,6 +1633,11 @@ fn control(app: &mut EditorApp, ui: &mut egui::Ui, c: &Control) -> Option<Value>
                 changed = Some(json!(on));
             }
         }
+        Control::Greyed { label, text, .. } => {
+            ui.add_enabled(false, egui::Label::new(*label));
+            let shown = ui.add_enabled(false, egui::Button::new(text.as_str()));
+            crate::a11y::name(&shown, label);
+        }
     }
     ui.end_row();
     changed

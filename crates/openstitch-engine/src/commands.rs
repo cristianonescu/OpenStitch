@@ -2152,6 +2152,16 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     // this call says otherwise (#826; the Fill Angle tool sends both).
                     let auto = if p.has("angle") { false } else { r.auto_direction };
                     r.auto_direction = p.bool("autoDirection", Some(auto))?;
+                    // The one direction line kept at a place (#1273) goes through the
+                    // middle of the shape again when an angle is given or Auto direction is
+                    // on, as PE-DESIGN's own line does for a typed angle.
+                    if (p.has("angle") || r.auto_direction)
+                        && r.angle_rule == openstitch_design::AngleRule::Fan
+                        && r.angle_lines.len() == 1
+                    {
+                        r.angle_lines.clear();
+                        r.angle_rule = openstitch_design::AngleRule::Sides;
+                    }
                     if p.has("gradation") {
                         let g = p.req("gradation", 5.0, 100.0)?;
                         r.gradation = (g < 100.0).then(|| Gradation::continuous(g));

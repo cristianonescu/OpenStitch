@@ -123,8 +123,8 @@ const L0: [f64; 4] = [30.0, 50.0, 70.0, 50.0];
 ///   (The outline in the files' object section lies 0.5 mm lower; it is not used.)
 /// - A row ([`all_rows`]): the needle points in sewing order, cut where a stitch makes more
 ///   than about 72.5 degrees (cosine under 0.3) with the line from the row's first needle
-///   point to that stitch's start; the row is its first and last needle point. EVERY row
-///   counts: under sewing, edge run and the moves across the shape too. Rows of 2 mm and
+///   point to that stitch's start; the row is its first and last needle point. Every row longer than 2 mm
+///   counts, whatever it is: under sewing, edge run and the moves across the shape too. Rows of 2 mm and
 ///   less are left out.
 /// - A zone, by the row's middle: the two outer zones start 0.28 mm outside the first and
 ///   the last line (a row on one of those lines belongs to the fan next to it); a border
@@ -132,12 +132,16 @@ const L0: [f64; 4] = [30.0, 50.0, 70.0, 50.0];
 /// - The angle of a zone: of its rows longer than 10 mm in sewing order, taken in -45 to
 ///   135 degrees, the median of the averages of two rows in a row.
 ///
-/// Tolerance, stated once and not widened: the fill's needle points within 3 %, the rows of
-/// a zone within 2, the angle of a zone within 1.5 degrees.
+/// Tolerance, stated once and not widened: the fill's needle points within 3 %; the rows of
+/// a zone longer than 2 mm (rows of 2 mm and less are not counted at all) within 2; the
+/// angle of a zone, taken from its rows longer than 10 mm, within 1.5 degrees.
 ///
 /// ZONES NOT HELD TO IT (`false` below; measured on 2026-11-19, PE-DESIGN against this
 /// fill), each with what is known of the cause. They are listed, not asserted with a wider
 /// number:
+/// - g2, zones 0 and 1 (beyond its third line, and between it and the 45 degree line, which
+///   are 0.3 degrees apart): rows 24 and 119 against 26 and 116, angle of zone 0 43.6 against
+///   45.9 (its rows are 2 to 12 mm long).
 /// - g3 and g4, zone 0 (the corner beyond the steep line): rows 31 against 31, angle 60.8
 ///   against 62.9. The rows are 2 to 17 mm long and are sewn from the other end, so the
 ///   stitch along the outline leans them the other way.
@@ -158,6 +162,21 @@ const REFERENCES: &[Reference] = &[
         lines: &[L45, L_SECOND],
         needle_points: 2773.0,
         zones: &[(140, 45.24, true), (144, 35.06, true), (23, 22.53, true)],
+    },
+    // The first three-line capture: its third line is all but parallel to the first (44.7
+    // against 45 degrees), so PE-DESIGN sews it almost as g1; a weak three-line case.
+    Reference {
+        name: "g2-three-lines",
+        outline: SQUARE,
+        angle: 45.0,
+        lines: &[[61.053, 70.0, 70.0, 61.135], L45, L_SECOND],
+        needle_points: 2773.0,
+        zones: &[
+            (24, 43.55, false),
+            (119, 45.23, false),
+            (141, 34.85, true),
+            (23, 22.53, true),
+        ],
     },
     Reference {
         name: "g3-three-lines-steep",
@@ -639,14 +658,59 @@ fn delete_and_reverse_direction_lines() {
     );
     assert_eq!(r["lines"], 1);
     let one = region(&s);
-    assert!(one.angle_lines.is_empty() && one.angle_rule == AngleRule::Sides);
+    // The line that is left stays where it was (PE-DESIGN capture g): it is the shape's one
+    // direction, kept at its place, and the fill is sewn at its angle.
+    assert_eq!(one.angle_lines, vec![three.angle_lines[2]]);
+    assert_eq!(one.angle_rule, AngleRule::Fan);
     assert!((one.angle - 22.6).abs() < 0.2, "{}", one.angle);
+    assert!(!one.auto_direction);
+    let plain_at_that_angle = {
+        let mut t = Session::new(std::env::temp_dir());
+        let other = square(&mut t);
+        run(
+            &mut t,
+            "object.setRegion",
+            json!({ "id": other, "angle": one.angle }),
+        );
+        needle_points(&t)
+    };
+    assert_eq!(
+        needle_points(&s),
+        plain_at_that_angle,
+        "one line, wherever it lies, sews as the plain fill at its angle"
+    );
     let e = fails(
         &mut s,
         "object.deleteDirectionLine",
         json!({ "id": id, "index": 0 }),
     );
     assert!(e.contains("last line cannot be deleted"), "{e}");
+    // A line added now starts from the kept line, where it lies (a second line goes after
+    // the first).
+    run(
+        &mut s,
+        "object.addDirectionLine",
+        json!({ "id": id, "line": [[25, 75], [75, 25]] }),
+    );
+    let again = region(&s);
+    assert_eq!(again.angle_lines.len(), 2);
+    assert_eq!(again.angle_lines[0], three.angle_lines[2]);
+    s.execute("history.undo", None).expect("undo");
+    // A new angle puts the shape's line through its middle again: no line is kept.
+    run(&mut s, "object.setRegion", json!({ "id": id, "angle": 30 }));
+    let typed = region(&s);
+    assert!(typed.angle_lines.is_empty() && typed.angle_rule == AngleRule::Sides);
+    assert_eq!(typed.angle, 30.0);
+    s.execute("history.undo", None).expect("undo");
+    // So does Auto direction.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({ "id": id, "autoDirection": true }),
+    );
+    assert!(region(&s).angle_lines.is_empty());
+    s.execute("history.undo", None).expect("undo");
+    assert_eq!(region(&s), one);
     s.execute("history.undo", None).expect("undo");
     // Reverse: every line turned round, the angle by 180 degrees.
     run(&mut s, "object.reverseDirection", json!({ "ids": [id] }));
@@ -755,6 +819,42 @@ fn pes_0110_keeps_direction_lines() {
             "{lines:?}"
         );
     }
+    // One line kept at its place (the others deleted): the file holds its two crossings in
+    // the lists' one entry each, as PE-DESIGN's own files hold a single line's (d0, 45
+    // degrees: (0, 1.0) and (2, 1.0); the same square at 0 degrees, g12: (1, 0.5) and
+    // (3, 0.5)), and it reads back at its place.
+    run(
+        &mut s,
+        "object.deleteDirectionLine",
+        json!({ "id": id, "keep": 2 }),
+    );
+    run(
+        &mut s,
+        "design.export",
+        json!({ "path": "kept.pes", "pesVersion": "11" }),
+    );
+    let bytes = std::fs::read(dir.join("kept.pes")).expect("file");
+    let shapes = openstitch_formats::pes::read_objects(&bytes)
+        .expect("objects")
+        .shapes;
+    let kept = &shapes[0].direction_lines;
+    assert_eq!(kept.len(), 1);
+    assert!(
+        about(kept[0][0], (1, 0.84)) && about(kept[0][1], (2, 0.3843)),
+        "{kept:?}"
+    );
+    let mut back = Session::new(dir.clone());
+    run(&mut back, "import.pes", json!({ "path": "kept.pes" }));
+    let r = back.design().objects[0].region.clone().expect("region");
+    assert_eq!((r.angle_lines.len(), r.angle_rule), (1, AngleRule::Fan));
+    assert!(
+        r.angle_lines[0][0].distance(v2(300.0, 364.0)) < 1.0
+            && r.angle_lines[0][1].distance(v2(453.7, 300.0)) < 1.0,
+        "{:?}",
+        r.angle_lines
+    );
+    // (PES 0110 holds the direction in whole degrees.)
+    assert!((r.angle - 22.6).abs() < 0.6, "{}", r.angle);
     // A shape without added lines is written as before: one entry in each list. (That its
     // lists are the bytes of PE-DESIGN's own file is the formats crate's test
     // `direction_line_lists_are_read_and_written_as_pe_design_holds_them`.)
@@ -764,8 +864,14 @@ fn pes_0110_keeps_direction_lines() {
             .expect("objects")
             .shapes[0]
             .direction_lines
-            .is_empty()
+            .is_empty(),
+        "a new shape's entries: no line of its own"
     );
+    // Read back, nothing is kept.
+    let mut back = Session::new(dir.clone());
+    run(&mut back, "import.pes", json!({ "path": "plain.pes" }));
+    let r = back.design().objects[0].region.clone().expect("region");
+    assert!(r.angle_lines.is_empty() && r.angle_rule == AngleRule::Sides);
     // OpenStitch's own angle lines (rule sides) are still refused in PES 0110.
     let mut sides = Session::new(dir.clone());
     let id = square(&mut sides);
@@ -830,6 +936,8 @@ fn the_registry_says_what_the_direction_line_commands_store() {
     for (id, words) in [
         ("object.addDirectionLine", "object.get returns them"),
         ("object.addDirectionLine", "Auto direction is switched off"),
+        ("object.addDirectionLine", "autoDirectionOff"),
+        ("object.deleteDirectionLine", "stays where it is"),
         ("object.addDirectionLine", "on one straight line"),
         (
             "object.addDirectionLine",
@@ -1130,7 +1238,13 @@ fn removing_the_lines_resets_their_rule() {
 fn parallel_collinear_and_nearly_parallel_lines() {
     let mut s = Session::new(std::env::temp_dir());
     let id = u_shape(&mut s);
-    run(&mut s, "object.setRegion", json!({ "id": id, "angle": 0 }));
+    // Without under sewing, so that the rows compared are the top stitching's (the under
+    // sewing's first row begins on the edge run's corner and crosses it there, by design).
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({ "id": id, "angle": 0, "underlay": false }),
+    );
     let plain = needle_points(&s).len() as f64;
     // Rows longer than 5 mm that are not level: in the plain fill these are the moves from
     // one part of the U to the next and the under sewing along the outline. Level is within
@@ -1147,6 +1261,9 @@ fn parallel_collinear_and_nearly_parallel_lines() {
             .count()
     };
     let plain_not_level = not_level(&s);
+    // The plain fill's own count of crossing rows (the U is sewn in parts, with moves
+    // between them): the lines must add none.
+    let plain_crossing = rows_that_cross(&s);
     // The shape's one line is level with the middle of its bounds (y = 50 mm), across one
     // arm. A line at that height, across the same arm or the other one, is on its line.
     for line in [[[5, 50], [35, 50]], [[65, 50], [95, 50]]] {
@@ -1158,6 +1275,11 @@ fn parallel_collinear_and_nearly_parallel_lines() {
         assert!(e.contains("lie on one straight line"), "{e}");
     }
     let sewn_like_plain = |s: &Session, what: &str, within: f64| {
+        assert!(
+            rows_that_cross(s) <= plain_crossing,
+            "{what}: {} rows cross each other, the plain fill {plain_crossing}",
+            rows_that_cross(s)
+        );
         let p = needle_points(s);
         assert!(
             p.iter().all(|q| q.x.is_finite() && q.y.is_finite()),
@@ -1265,6 +1387,21 @@ fn a_shape_whose_middle_is_outside_it_takes_direction_lines() {
         );
     }
     assert!(openstitch_design::angle_lines::check_fan(lines, &closed, &[]).is_ok());
+    let plain = {
+        let mut t = Session::new(std::env::temp_dir());
+        let other = u_shape(&mut t);
+        run(
+            &mut t,
+            "object.setRegion",
+            json!({ "id": other, "angle": 45 }),
+        );
+        rows_that_cross(&t)
+    };
+    assert!(
+        rows_that_cross(&s) <= plain,
+        "{} rows cross each other, the plain fill {plain}",
+        rows_that_cross(&s)
+    );
     let first = lines
         .iter()
         .find(|l| (l[0].y - l[1].y).abs() > 1.0)
@@ -1316,8 +1453,57 @@ fn auto_direction_gives_its_angle_to_the_first_line() {
         (r["lines"].clone(), r["index"].clone()),
         (json!(2), json!(1))
     );
+    // The answer says that Auto direction went off, in a field and in words (the editor
+    // shows the words in the status bar).
+    assert_eq!(r["autoDirectionOff"], true);
+    assert!(
+        r["summary"]
+            .as_str()
+            .is_some_and(|t| t.contains("Auto direction is off")),
+        "{r}"
+    );
     let region = object(&s, id).region.clone().expect("region");
     assert!(!region.auto_direction);
+    // The same through object.setAngleLines with the fan rule, and not said when Auto
+    // direction was off already.
+    let other = run(
+        &mut s,
+        "shape.rectangle",
+        json!({ "x": 20, "y": 40, "width": 60, "height": 20, "fill": "#2e8b57" }),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({ "id": other, "autoDirection": true }),
+    );
+    let fan = json!({ "id": other, "lines": [[[15, 50], [85, 50]], [[15, 50], [30, 35]]], "rule": "fan" });
+    let r2 = run(&mut s, "object.setAngleLines", fan.clone());
+    assert_eq!(r2["autoDirectionOff"], true);
+    assert!(
+        !object(&s, other)
+            .region
+            .clone()
+            .expect("region")
+            .auto_direction
+    );
+    let r3 = run(&mut s, "object.setAngleLines", fan);
+    assert_eq!(r3["autoDirectionOff"], false);
+    assert!(r3.get("summary").is_none(), "{r3}");
+    // Deleting back to one line leaves Auto direction off too.
+    run(
+        &mut s,
+        "object.deleteDirectionLine",
+        json!({ "id": other, "keep": 0 }),
+    );
+    assert!(
+        !object(&s, other)
+            .region
+            .clone()
+            .expect("region")
+            .auto_direction
+    );
     let first = openstitch_design::angle_lines::line_angle(region.angle_lines[0]);
     let apart = ((first - auto + 90.0).rem_euclid(180.0) - 90.0).abs();
     assert!(apart < 0.11, "first line {first}, Auto {auto}");
@@ -1344,6 +1530,16 @@ fn lines_are_in_order_round_the_outline_wherever_their_middles_are() {
     assert_eq!(r["index"], 1, "between the two arms' lines");
     let lines = object(&s, id).region.clone().expect("region").angle_lines;
     assert!((lines[1][0].x - 500.0).abs() < 1e-6 && (lines[1][1].x - 500.0).abs() < 1e-6);
+    let plain = {
+        let mut t = Session::new(std::env::temp_dir());
+        u_shape(&mut t);
+        rows_that_cross(&t)
+    };
+    assert!(
+        rows_that_cross(&s) <= plain,
+        "{} rows cross each other, the plain fill {plain}",
+        rows_that_cross(&s)
+    );
     let p = needle_points(&s);
     assert!(p.len() > 2000 && p.iter().all(|q| q.x.is_finite() && q.y.is_finite()));
     // Three lines that do not follow one another are refused: a corner cut of each of three
@@ -1409,4 +1605,108 @@ fn lines_are_in_order_round_the_outline_wherever_their_middles_are() {
         json!({ "id": one, "index": 0, "line": SECOND }),
     );
     assert!(e.contains("object.setRegion"), "{e}");
+}
+
+/// How many pairs of rows cross each other inside the shape: rows longer than 5 mm, each
+/// against the eight rows sewn after the next one (the next one shares its turn; the under
+/// sewing, sewn long before, lies across the top rows by design), that run within 15
+/// degrees of each other (rows of one fan; a move across the shape or the edge run beside
+/// the rows runs at another angle) and cross away from their ends. Rows of one fan whose meeting
+/// point lay inside the piece would cross their neighbours so. A shape sewn in parts (a U)
+/// has some of its own, where a move to the next part passes rows: the tests compare with
+/// the plain fill of the same shape.
+fn rows_that_cross(s: &Session) -> usize {
+    let long: Vec<[Vec2; 2]> = rows(s)
+        .into_iter()
+        .filter(|r| r[0].distance(r[1]) > 5.0)
+        .collect();
+    let mut crossings = 0;
+    for (i, a) in long.iter().enumerate() {
+        for b in long.iter().skip(i + 2).take(8) {
+            let (r, q) = (a[1] - a[0], b[1] - b[0]);
+            let den = r.x * q.y - r.y * q.x;
+            let along = (r.x * q.x + r.y * q.y).abs() / (r.length() * q.length());
+            if den.abs() < 1e-9 || along < 0.966 {
+                continue;
+            }
+            let w = b[0] - a[0];
+            let t = (w.x * q.y - w.y * q.x) / den;
+            let u = (w.x * r.y - w.y * r.x) / den;
+            if (0.05..=0.95).contains(&t) && (0.05..=0.95).contains(&u) {
+                crossings += 1;
+            }
+        }
+    }
+    crossings
+}
+
+/// The cost of direction lines: a shape with lines is cut into pieces, and each piece casts
+/// rays at the outline. The steep three-line square (two fans, five pieces) and a circle of
+/// 200 points with three lines (cuts at the points of its outline, thinned to about 96 a
+/// zone) are sewn within ten times the same shape without lines; in a release build each
+/// within a second.
+#[test]
+fn a_fill_with_direction_lines_is_sewn_in_reasonable_time() {
+    let sew = |s: &Session| {
+        let started = std::time::Instant::now();
+        let n = Compiler::for_design(s.design())
+            .compile(s.design())
+            .stitches
+            .len();
+        (started.elapsed().as_secs_f64(), n)
+    };
+    let circle: Vec<[f64; 2]> = (0..200)
+        .map(|k| {
+            let a = std::f64::consts::TAU * f64::from(k) / 200.0;
+            [50.0 + 20.0 * a.cos(), 50.0 + 20.0 * a.sin()]
+        })
+        .collect();
+    type Case = (&'static str, Value, Vec<[[f64; 2]; 2]>);
+    let cases: [Case; 2] = [
+        (
+            "the steep three-line square",
+            json!(SQUARE),
+            vec![
+                [[25.2, 38.4], [50.17, 28.0]],
+                [[59.81, 73.53], [71.89, 50.94]],
+            ],
+        ),
+        (
+            "a circle of 200 points",
+            json!(circle),
+            vec![[[25.0, 40.0], [60.0, 25.0]], [[40.0, 75.0], [75.0, 60.0]]],
+        ),
+    ];
+    for (name, outline, lines) in cases {
+        let mut s = Session::new(std::env::temp_dir());
+        let id = run(
+            &mut s,
+            "shape.polygon",
+            json!({ "points": outline, "closed": true, "fill": "#2e8b57" }),
+        )["id"]
+            .as_u64()
+            .expect("id");
+        run(&mut s, "object.setRegion", json!({ "id": id, "angle": 45 }));
+        let (plain, plain_points) = sew(&s);
+        for line in lines {
+            run(
+                &mut s,
+                "object.addDirectionLine",
+                json!({ "id": id, "line": line }),
+            );
+        }
+        let (with_lines, points) = sew(&s);
+        println!(
+            "{name}: {plain_points} needle points in {:.0} ms without lines, {points} in {:.0} ms with three",
+            plain * 1e3,
+            with_lines * 1e3
+        );
+        assert!(
+            with_lines <= 10.0 * plain + 0.05,
+            "{name}: {with_lines:.3} s with lines against {plain:.3} s without"
+        );
+        if !cfg!(debug_assertions) {
+            assert!(with_lines < 1.0, "{name}: {with_lines:.3} s");
+        }
+    }
 }

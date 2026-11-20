@@ -514,12 +514,14 @@ fn shape(object: &DesignObject, table: &mut Vec<Thread>) -> Result<Shape, String
 /// PE-DESIGN's direction lines of `object` (`AngleRule::Fan`, #1273) as the file holds them:
 /// each line's two crossings of the outline as written (`contour`), each as (side, fraction
 /// along it by length). A crossing at a vertex is the end of the side before it (fraction
-/// 1), as in PE-DESIGN's files. Empty for every other object.
+/// 1), as in PE-DESIGN's files. One line: the shape's one direction kept at a place (the
+/// last line left after the others were deleted). Empty for every other object: the writer
+/// then writes the entries of a new shape.
 fn fan_lines(object: &DesignObject, contour: &Contour) -> Vec<[(u32, f64); 2]> {
     let Some(r) = object.region.as_ref().filter(|r| {
         r.kind == RegionType::Fill
             && r.angle_rule == openstitch_design::AngleRule::Fan
-            && r.angle_lines.len() >= 2
+            && !r.angle_lines.is_empty()
     }) else {
         return Vec::new();
     };

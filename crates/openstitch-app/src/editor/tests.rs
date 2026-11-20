@@ -1174,6 +1174,7 @@ fn hand_made_line_controls_reach_the_engine() {
                 Control::Number { value, .. } => json!(value),
                 Control::Choice { value, .. } => json!(value),
                 Control::Toggle { value, .. } => json!(value),
+                Control::Greyed { .. } => continue,
             };
             let mut p = c.params(v);
             p["id"] = json!(1);
@@ -1204,6 +1205,7 @@ fn every_line_type_has_inspector_controls_the_engine_accepts() {
                 Control::Number { value, .. } => json!(value),
                 Control::Choice { options, .. } => json!(options.last().expect("options").0),
                 Control::Toggle { value, .. } => json!(!value),
+                Control::Greyed { .. } => continue,
             };
             let mut params = c.params(v);
             params["id"] = json!(1);
@@ -1282,6 +1284,7 @@ fn region_option_controls_are_accepted_by_the_engine() {
                 }
                 Control::Choice { options, .. } => json!(options.last().expect("options").0),
                 Control::Toggle { value, .. } => json!(!value),
+                Control::Greyed { .. } => continue,
             };
             let mut params = c.params(v);
             params["id"] = json!(1);
@@ -3577,5 +3580,61 @@ fn a_selected_direction_line_follows_the_line_and_a_dragged_end_obeys_the_rules(
     undo(&mut s);
     assert_eq!(*s.design(), before, "one Undo");
     assert!(lines(&t, &s)[1].selected, "selected where it was again");
+    let _ = sel2;
+
+    // An end dragged so far round that the line would run the other way: the engine turns
+    // it to run the way the shape's other line does, and it stays selected. A square at
+    // fill angle 0 (its line runs to the right) with a line across its top-left corner;
+    // the line's square end is dragged right of the right side, so the line would run
+    // from the right side up to the left.
+    let mut s = session();
+    let id = run(
+        &mut s,
+        &CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 30, "y": 30, "width": 40, "height": 40, "fill": "#2e8b57" }),
+        ),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    run(
+        &mut s,
+        &CommandRequest::new("object.setRegion", json!({ "id": id, "angle": 0 })),
+    );
+    run(
+        &mut s,
+        &CommandRequest::new(
+            "object.addDirectionLine",
+            json!({ "id": id, "line": [[25.0, 40.0], [52.0, 25.0]] }),
+        ),
+    );
+    let sel = BTreeSet::from([id]);
+    let lines = |t: &ToolController, s: &Session| {
+        let design = s.design().clone();
+        t.direction_lines(&ctx(&design, &sel))
+    };
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let added = lines(&t, &s)[1];
+    let sel2 = drag(
+        &mut t,
+        &mut s,
+        sel.clone(),
+        added.from,
+        v2(750.0, 350.0),
+        false,
+    );
+    let shown = lines(&t, &s);
+    let turned = shown[1];
+    assert!(turned.selected && turned.stored, "{turned:?}");
+    assert!(
+        turned.from.x < turned.to.x,
+        "turned: it runs to the right, as the 0 degree line: {turned:?}"
+    );
+    let (d, e) = (turned.to - turned.from, shown[0].to - shown[0].from);
+    assert!(
+        d.x * e.x + d.y * e.y > 0.0,
+        "runs the way the other line does"
+    );
     let _ = sel2;
 }

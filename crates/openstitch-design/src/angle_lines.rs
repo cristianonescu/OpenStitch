@@ -546,6 +546,13 @@ fn meeting(a: [Vec2; 2], b: [Vec2; 2]) -> Option<Vec2> {
 /// a fan each. On a curved outline the vertices are those of its flattened path, at most
 /// [`MAX_CUTS`] of them. Empty when the chords' ends are not on one outline.
 fn cuts(rings: &[Ring], closed: &[Contour], a: [Vec2; 2], b: [Vec2; 2]) -> Vec<[Vec2; 2]> {
+    // Lines that end on a hole have no outline run between their ends.
+    if ![a[0], a[1], b[0], b[1]]
+        .iter()
+        .all(|p| on_outline(rings, *p))
+    {
+        return Vec::new();
+    }
     let (Some(first), Some(second)) = (
         side(rings, a[0], b[0], &[a[1], b[1]]),
         side(rings, a[1], b[1], &[a[0], b[0]]),
@@ -554,49 +561,108 @@ fn cuts(rings: &[Ring], closed: &[Contour], a: [Vec2; 2], b: [Vec2; 2]) -> Vec<[
     };
     // Vertices nearer than this to a run's end are the lines' own crossings (0.01 mm).
     const AT_END: f64 = 0.1;
-    let mut at: Vec<f64> = Vec::new();
+    let mut at: Vec<(f64, bool)> = Vec::new();
     for run in [&first, &second] {
         if run.len <= 2.0 * AT_END {
             continue;
         }
         let total = run.ring.len();
-        for &v in &run.ring.at[..run.ring.at.len() - 1] {
+        for (i, &v) in run.ring.at[..run.ring.at.len() - 1].iter().enumerate() {
             let along = (run.dir * (v - run.s0)).rem_euclid(total);
             if along > AT_END && along < run.len - AT_END {
-                at.push(along / run.len);
+                at.push((along / run.len, corner(run.ring, i)));
             }
         }
     }
-    at.sort_by(f64::total_cmp);
-    at.dedup_by(|x, y| (*x - *y).abs() < 1e-6);
-    if at.len() > MAX_CUTS {
-        let step = at.len() as f64 / MAX_CUTS as f64;
-        at = (0..MAX_CUTS)
-            .map(|k| at[(k as f64 * step) as usize])
-            .collect();
-    }
+    let at = thinned(at);
     let found: Vec<[Vec2; 2]> = at
         .into_iter()
         .map(|f| [first.at(f), second.at(f)])
         .filter(|c| c[0].distance(c[1]) > 1.0)
         .collect();
-    lying_inside(found, closed)
+    lying_inside(found, closed, &[a, b])
 }
 
-/// `found` when every cut lies inside the shape, else none: where a cut would leave the
-/// shape (the zone between lines across the two arms of a U) the zone stays in one piece.
-/// PE-DESIGN's sewing of such a zone is not captured.
-fn lying_inside(found: Vec<[Vec2; 2]>, closed: &[Contour]) -> Vec<[Vec2; 2]> {
+/// Whether `p` lies on one of the outlines (within 0.1 mm).
+fn on_outline(rings: &[Ring], p: Vec2) -> bool {
+    nearest(rings, p).is_some_and(|(_, _, d)| d < 1.0)
+}
+
+/// `found` when every cut lies inside the shape (a point every 0.5 mm of each is looked
+/// at) and no two of them, nor a cut and one of the zone's `lines`, cross each other; else
+/// none: the zone then stays in one piece. Not only the cut that leaves the shape
+/// is dropped, because the cuts only make sense together: without one of them the pieces
+/// beside it span its vertex, and their bounding lines (the cuts left on either side) can
+/// pass outside the shape or cross each other there, which sewed a U with direction lines
+/// across both arms twice over in a test. PE-DESIGN's sewing where a cut would leave the
+/// shape is not captured.
+fn lying_inside(found: Vec<[Vec2; 2]>, closed: &[Contour], lines: &[[Vec2; 2]]) -> Vec<[Vec2; 2]> {
     let inside = |c: &[Vec2; 2]| {
-        [0.1, 0.3, 0.5, 0.7, 0.9]
-            .iter()
-            .all(|&t| contains(c[0].lerp(c[1], t), closed))
+        let steps = ((c[0].distance(c[1]) / 5.0).ceil() as usize).max(4);
+        (1..steps).all(|k| contains(c[0].lerp(c[1], k as f64 / steps as f64), closed))
     };
-    if found.iter().all(inside) {
+    // Two segments crossing away from their ends (a shared end is not a crossing).
+    let cross = |p: &[Vec2; 2], q: &[Vec2; 2]| {
+        crossing(*p, *q)
+            .is_some_and(|m| [p[0], p[1], q[0], q[1]].iter().all(|e| e.distance(m) > 0.1))
+    };
+    let tangled = found.iter().enumerate().any(|(i, c)| {
+        found[i + 1..].iter().any(|d| cross(c, d)) || lines.iter().any(|l| cross(c, l))
+    });
+    if !tangled && found.iter().all(inside) {
         found
     } else {
         Vec::new()
     }
+}
+
+/// Whether vertex `i` of `ring` is a corner (the outline turns there by more than 5
+/// degrees), and not just a point on a straight or gently curved run.
+fn corner(ring: &Ring, i: usize) -> bool {
+    let n = ring.pts.len() - 1;
+    let (p, q, r) = (
+        ring.pts[(i + n - 1) % n],
+        ring.pts[i % n],
+        ring.pts[(i + 1) % n],
+    );
+    let (a, b) = (q - p, r - q);
+    let (la, lb) = (a.length(), b.length());
+    la > 0.0 && lb > 0.0 && (a.x * b.x + a.y * b.y) / (la * lb) < 0.996
+}
+
+/// `at` (fractions with whether each is a corner's) thinned to about [`MAX_CUTS`]: every
+/// corner stays, of the other points (those of a flattened curve) evenly spaced ones.
+fn thinned(mut at: Vec<(f64, bool)>) -> Vec<f64> {
+    at.sort_by(|p, q| p.0.total_cmp(&q.0));
+    at.dedup_by(|p, q| {
+        let same = (p.0 - q.0).abs() < 1e-6;
+        if same {
+            q.1 |= p.1;
+        }
+        same
+    });
+    let plain = at.iter().filter(|v| !v.1).count();
+    if at.len() <= MAX_CUTS || plain == 0 {
+        return at.into_iter().map(|v| v.0).collect();
+    }
+    let keep = MAX_CUTS.saturating_sub(at.len() - plain).max(1);
+    let step = plain as f64 / keep as f64;
+    let mut seen = 0_usize;
+    let mut next = 0.0_f64;
+    at.into_iter()
+        .filter(|v| {
+            if v.1 {
+                return true;
+            }
+            let take = seen as f64 >= next;
+            if take {
+                next += step;
+            }
+            seen += 1;
+            take
+        })
+        .map(|v| v.0)
+        .collect()
 }
 
 /// The cuts of the part of the shape beyond chord `x`, on the side away from its neighbour
@@ -610,6 +676,9 @@ fn lying_inside(found: Vec<[Vec2; 2]>, closed: &[Contour]) -> Vec<[Vec2; 2]> {
 /// parallel to that row. A corner cut off by `x` has no vertex but the corner: no cuts, and
 /// rows parallel to `x`.
 fn end_cuts(rings: &[Ring], closed: &[Contour], x: [Vec2; 2], other: [Vec2; 2]) -> Vec<[Vec2; 2]> {
+    if ![x[0], x[1]].iter().all(|p| on_outline(rings, *p)) {
+        return Vec::new();
+    }
     let Some(arc) = side(rings, x[0], x[1], &[other[0], other[1]]) else {
         return Vec::new();
     };
@@ -621,12 +690,12 @@ fn end_cuts(rings: &[Ring], closed: &[Contour], x: [Vec2; 2], other: [Vec2; 2]) 
     let len = d.length().max(1e-9);
     let signed = |p: Vec2| ((p.x - x[0].x) * d.y - (p.y - x[0].y) * d.x) / len;
     // (distance along the arc from `x`'s first end, distance from `x`'s line)
-    let mut inside: Vec<(f64, f64)> = Vec::new();
+    let mut inside: Vec<(f64, f64, bool)> = Vec::new();
     let mut rest: Vec<f64> = Vec::new();
     for (i, &v) in arc.ring.at[..arc.ring.at.len() - 1].iter().enumerate() {
         let along = (arc.dir * (v - arc.s0)).rem_euclid(total);
         if along > AT_END && along < arc.len - AT_END {
-            inside.push((along, signed(arc.ring.pts[i])));
+            inside.push((along, signed(arc.ring.pts[i]), corner(arc.ring, i)));
         } else if along > arc.len + AT_END && along < total - AT_END {
             rest.push(signed(arc.ring.pts[i]));
         }
@@ -655,27 +724,20 @@ fn end_cuts(rings: &[Ring], closed: &[Contour], x: [Vec2; 2], other: [Vec2; 2]) 
     if run1 <= AT_END || run2 <= AT_END {
         return Vec::new();
     }
-    let mut at: Vec<f64> = inside
+    let at: Vec<(f64, bool)> = inside
         .iter()
-        .filter_map(|&(along, _)| {
+        .filter_map(|&(along, _, turns)| {
             if along < first - AT_END {
-                Some(along / run1)
+                Some((along / run1, turns))
             } else if along > last + AT_END {
-                Some((arc.len - along) / run2)
+                Some(((arc.len - along) / run2, turns))
             } else {
                 None
             }
         })
-        .filter(|f| *f < 0.999)
+        .filter(|f| f.0 < 0.999)
         .collect();
-    at.sort_by(f64::total_cmp);
-    at.dedup_by(|p, q| (*p - *q).abs() < 1e-6);
-    if at.len() > MAX_CUTS {
-        let step = at.len() as f64 / MAX_CUTS as f64;
-        at = (0..MAX_CUTS)
-            .map(|k| at[(k as f64 * step) as usize])
-            .collect();
-    }
+    let at = thinned(at);
     let found: Vec<[Vec2; 2]> = at
         .into_iter()
         .map(|f| {
@@ -686,11 +748,12 @@ fn end_cuts(rings: &[Ring], closed: &[Contour], x: [Vec2; 2], other: [Vec2; 2]) 
         })
         .filter(|c| c[0].distance(c[1]) > 1.0)
         .collect();
-    lying_inside(found, closed)
+    lying_inside(found, closed, &[x])
 }
 
-/// The most cuts between two lines (a curved outline has a vertex every fraction of a
-/// millimetre of its flattened path).
+/// About the most cuts between two lines: a curved outline has a point every fraction of a
+/// millimetre of its flattened path, and those are thinned to this many; corners are all
+/// kept, however many.
 const MAX_CUTS: usize = 96;
 
 /// The farthest crossing of the ray from `p` along unit `u` with the outlines, as a distance
@@ -773,7 +836,8 @@ enum Zone {
 /// and closer toward it. PE-DESIGN 11.50's rule, read from its files `g1` to `g11`: the rows
 /// of every piece pass its meeting point within 0.05 to 0.2 mm. Distances along a row are kept. The shape is warped, the plain fill
 /// is laid out on it with horizontal rows, and its needle points are brought back, so the
-/// under sewing, the stitch pattern and the travel are the plain fill's.
+/// stitch pattern and the travel of the top stitching are the plain fill's. (The under
+/// sewing is not laid out through the plain fill: see `region::fan_zigzag`.)
 #[derive(Clone, Debug)]
 pub struct FanWarp {
     zones: Vec<Zone>,
@@ -856,16 +920,25 @@ impl FanWarp {
         for i in 0..n - 1 {
             let (a, b) = (chords[i], chords[i + 1]);
             anchors.push(mid(a).lerp(mid(b), 0.5));
-            let fan = meeting(a, b).and_then(|p| {
-                let toward = |c: [Vec2; 2]| {
-                    let d = mid(c) - p;
-                    d.y.datan2(d.x)
-                };
-                let (t0, t1) = (toward(a), toward(b));
-                let sweep = (t1 - t0 + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU)
-                    - std::f64::consts::PI;
-                (sweep.abs() > 1e-9).then_some((p, t0, sweep))
-            });
+            // A meeting point inside the shape, or between the two chords (in a concave
+            // outline's notch), would have the rows of the piece cross each other there:
+            // such a piece has parallel rows instead.
+            let between = |p: Vec2| {
+                contains(p, &[Contour::new(vec![a[0], a[1], b[1], b[0]], true)])
+                    || contains(p, &[Contour::new(vec![a[0], a[1], b[0], b[1]], true)])
+            };
+            let fan = meeting(a, b)
+                .filter(|p| !contains(*p, closed) && !between(*p))
+                .and_then(|p| {
+                    let toward = |c: [Vec2; 2]| {
+                        let d = mid(c) - p;
+                        d.y.datan2(d.x)
+                    };
+                    let (t0, t1) = (toward(a), toward(b));
+                    let sweep = (t1 - t0 + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU)
+                        - std::f64::consts::PI;
+                    (sweep.abs() > 1e-9).then_some((p, t0, sweep))
+                });
             match fan {
                 Some((p, t0, sweep)) => {
                     let fallback = a[0]
@@ -1142,6 +1215,35 @@ impl FanWarp {
         out
     }
 
+    /// Whether the shape folds over itself in the warped plane: its warped outlines cross
+    /// themselves or each other. On a concave shape (a U with lines in both arms) the zones
+    /// of the warp can overlap, and rows laid out on a folded outline would cross each other
+    /// when brought back; such a shape is not sewn through the warp (see `region`).
+    pub fn folds(&self, closed: &[Contour], holes: &[Contour]) -> bool {
+        let edges: Vec<(Vec2, Vec2)> = closed
+            .iter()
+            .chain(holes)
+            .map(|c| self.contour(c))
+            .flat_map(|c| c.edges())
+            .collect();
+        let n = edges.len();
+        for i in 0..n {
+            for j in i + 2..n {
+                // The first and last edge of a ring meet at its first point.
+                if i == 0 && j == n - 1 {
+                    continue;
+                }
+                let (a, b) = (edges[i], edges[j]);
+                if let Some(m) = crossing([a.0, a.1], [b.0, b.1])
+                    && [a.0, a.1, b.0, b.1].iter().all(|e| e.distance(m) > 0.01)
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// `c` in the warped plane, as a polygon: its outline is followed in steps of at most
     /// 0.3 mm, since a straight side is a curve there.
     pub fn contour(&self, c: &Contour) -> Contour {
@@ -1303,4 +1405,135 @@ pub fn place_for(lines: &[[Vec2; 2]], new: [Vec2; 2], closed: &[Contour]) -> usi
         .rev()
         .min_by(|a, b| length(*a).total_cmp(&length(*b)))
         .unwrap_or(lines.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn polygon(points: &[(f64, f64)]) -> Contour {
+        Contour::new(points.iter().map(|&(x, y)| v2(x, y)).collect(), true)
+    }
+
+    /// A corner inside a curved run always cuts the zone, however many points the curve
+    /// has: only the curve's own points are thinned.
+    #[test]
+    fn a_corner_inside_a_curved_run_always_cuts() {
+        // A flat bottom, two straight sides, and a top of two arcs of 300 points each that
+        // meet in a peak at (500, 700), a corner; every other top point turns the outline
+        // by a fraction of a degree.
+        let mut pts = vec![(0.0, 0.0), (1000.0, 0.0), (1000.0, 400.0)];
+        for k in 1..300 {
+            let t = f64::from(k) / 300.0;
+            pts.push((1000.0 - 500.0 * t, 400.0 + 300.0 * t * t));
+        }
+        pts.push((500.0, 700.0));
+        for k in 1..300 {
+            let t = 1.0 - f64::from(k) / 300.0;
+            pts.push((500.0 * t, 400.0 + 300.0 * t * t));
+        }
+        pts.push((0.0, 400.0));
+        let closed = [polygon(&pts)];
+        let rings: Vec<Ring> = closed.iter().filter_map(Ring::new).collect();
+        let a = chord([v2(100.0, -50.0), v2(100.0, 800.0)], &closed, &[]);
+        let b = chord([v2(900.0, -50.0), v2(900.0, 800.0)], &closed, &[]);
+        let found = cuts(&rings, &closed, a, b);
+        assert!(
+            found.len() <= MAX_CUTS + 1,
+            "{} cuts for about 480 points between the lines",
+            found.len()
+        );
+        assert!(found.len() > MAX_CUTS / 2, "{}", found.len());
+        assert!(
+            found
+                .iter()
+                .any(|c| c.iter().any(|p| p.distance(v2(500.0, 700.0)) < 1e-6)),
+            "the peak cuts the zone"
+        );
+    }
+
+    /// Where one cut would leave the shape none is made: the zone stays one piece (see
+    /// [`lying_inside`] for why not only that cut is dropped). The same zone without the
+    /// notch is cut at the corners as usual.
+    #[test]
+    fn a_cut_that_leaves_the_shape_keeps_the_zone_in_one_piece() {
+        // A rectangle with a notch from its top that leans right: its tip at (700, 150)
+        // lies under the top side.
+        let closed = [polygon(&[
+            (0.0, 0.0),
+            (1000.0, 0.0),
+            (1000.0, 500.0),
+            (600.0, 500.0),
+            (700.0, 150.0),
+            (400.0, 500.0),
+            (0.0, 500.0),
+        ])];
+        let rings: Vec<Ring> = closed.iter().filter_map(Ring::new).collect();
+        let a = chord([v2(100.0, -50.0), v2(100.0, 550.0)], &closed, &[]);
+        let b = chord([v2(900.0, -50.0), v2(900.0, 550.0)], &closed, &[]);
+        // The cut from the notch's right corner would pass through the notch.
+        assert!(cuts(&rings, &closed, a, b).is_empty());
+        // A plain rectangle with a point inserted on its top side: cut there.
+        let plain = [polygon(&[
+            (0.0, 0.0),
+            (1000.0, 0.0),
+            (1000.0, 500.0),
+            (500.0, 500.0),
+            (0.0, 500.0),
+        ])];
+        let rings: Vec<Ring> = plain.iter().filter_map(Ring::new).collect();
+        let a = chord([v2(100.0, -50.0), v2(100.0, 550.0)], &plain, &[]);
+        let b = chord([v2(900.0, -50.0), v2(900.0, 550.0)], &plain, &[]);
+        let found = cuts(&rings, &plain, a, b);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].iter().any(|p| p.distance(v2(500.0, 500.0)) < 1e-6));
+    }
+
+    /// A piece whose two bounding lines meet inside the outline has parallel rows, not a fan
+    /// through that point: the rows of a fan would cross each other there.
+    #[test]
+    fn a_meeting_point_inside_the_outline_gives_no_fan() {
+        // A square with a square hole: one line across its left band and one across its
+        // right band, leaning toward each other; extended they meet in the middle.
+        let closed = [polygon(&[
+            (0.0, 0.0),
+            (1000.0, 0.0),
+            (1000.0, 1000.0),
+            (0.0, 1000.0),
+        ])];
+        let holes = [polygon(&[
+            (300.0, 300.0),
+            (700.0, 300.0),
+            (700.0, 700.0),
+            (300.0, 700.0),
+        ])];
+        let lines = [
+            [v2(-50.0, 440.0), v2(350.0, 480.0)],
+            [v2(1050.0, 440.0), v2(650.0, 480.0)],
+        ];
+        let p = meeting(
+            chord(lines[0], &closed, &holes),
+            chord(lines[1], &closed, &holes),
+        )
+        .expect("the lines meet");
+        assert!(contains(p, &closed), "{p:?}");
+        let warp = FanWarp::new(&lines, &closed, &holes).expect("warp");
+        assert!(
+            warp.zones.iter().all(|z| matches!(z, Zone::Flat { .. })),
+            "no fan through a point inside the outline"
+        );
+        // Lines that meet outside the shape (the two-line reference's): a fan.
+        let square = [polygon(&[
+            (300.0, 300.0),
+            (700.0, 300.0),
+            (700.0, 700.0),
+            (300.0, 700.0),
+        ])];
+        let outside = [
+            [v2(250.0, 750.0), v2(750.0, 250.0)],
+            [v2(252.0, 384.0), v2(501.7, 280.0)],
+        ];
+        let warp = FanWarp::new(&outside, &square, &[]).expect("warp");
+        assert!(warp.zones.iter().any(|z| matches!(z, Zone::Fan { .. })));
+    }
 }

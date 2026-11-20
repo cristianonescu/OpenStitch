@@ -1009,10 +1009,25 @@ impl ToolController {
         let inside =
             reach((b.max_x - b.min_x) / 2.0, d.x).min(reach((b.max_y - b.min_y) / 2.0, d.y));
         let half = inside + DIRECTION_LINE_REACH;
+        // The shape's one line kept at a place (the last line left after the others were
+        // deleted, as PE-DESIGN keeps it) is drawn there; a drag of one of its ends turns
+        // the direction about the middle of the shape, and the line goes with it.
+        let kept = o
+            .region
+            .as_ref()
+            .filter(|r| {
+                r.angle_rule == openstitch_design::AngleRule::Fan && r.angle_lines.len() == 1
+            })
+            .filter(|_| angle == stored)
+            .map(|r| Self::drawn_line(o, r.angle_lines[0]));
+        let (from, to) = match kept {
+            Some(l) => (l[0], l[1]),
+            None => (centre - d * half, centre + d * half),
+        };
         Some(DirectionLine {
             id: o.id,
-            from: centre - d * half,
-            to: centre + d * half,
+            from,
+            to,
             angle,
             selected: self.direction_end == Some((o.id, 0)) && self.direction_held == [None, None],
             index: 0,
@@ -1088,7 +1103,10 @@ impl ToolController {
                     angle: openstitch_design::angle_lines::line_angle(ends),
                     selected: self.direction_end.is_some_and(|(id, _)| id == o.id)
                         && self.direction_held.iter().flatten().any(|held| {
-                            held[0].distance(l[0]) < 2.0 && held[1].distance(l[1]) < 2.0
+                            // Either way round: the engine turns a moved line to run the
+                            // way the shape's other lines do.
+                            (held[0].distance(l[0]) < 2.0 && held[1].distance(l[1]) < 2.0)
+                                || (held[0].distance(l[1]) < 2.0 && held[1].distance(l[0]) < 2.0)
                         }),
                     index,
                     stored: true,

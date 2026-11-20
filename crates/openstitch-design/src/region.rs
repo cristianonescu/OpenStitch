@@ -394,15 +394,18 @@ fn layers_inner(
         )];
     }
     // PE-DESIGN's direction lines (#1273): the shape is taken to a plane where every row is
-    // horizontal (parallel rows beyond the first and last line, a fan between two lines, see
+    // horizontal (zones cut at the outline's points, a fan in each piece, see
     // `angle_lines::FanWarp`), the plain fill is laid out there and its needle points are
-    // brought back.
+    // brought back. A shape that folds over itself there (a U with lines in both arms) is
+    // sewn as the plain fill at its fill angle instead: rows on a folded outline would cross
+    // when brought back. PE-DESIGN's sewing of such a shape is not captured.
     if r.kind == RegionType::Fill
         && r.angle_rule == crate::model::AngleRule::Fan
         && r.angle_lines.len() >= 2
         && r.gradient.is_none()
         && crate::angle_lines::check_fan(&r.angle_lines, closed, holes).is_ok()
         && let Some(warp) = crate::angle_lines::FanWarp::new(&r.angle_lines, closed, holes)
+        && !warp.folds(closed, holes)
     {
         let mut plain = r.clone();
         plain.angle_lines.clear();

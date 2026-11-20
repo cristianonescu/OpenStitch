@@ -658,13 +658,11 @@ fn gradation_shape_choices_reach_the_engine() {
     }
 }
 
-/// Stitch angle lines (#534, beyond PE-DESIGN): a fill with angle lines shows Angle lines (+);
-/// turning it off reaches the engine and removes them.
 /// With two or more direction lines (#1273) the one angle does nothing: PE-DESIGN greys its
-/// Direction field then (capture k); here the field is not shown, and is back when one line
-/// is left.
+/// Direction field then, with the value it last had (capture k). Here too: the field is a
+/// greyed value, not a field to type in, and is a field again when one line is left.
 #[test]
-fn the_direction_field_is_not_shown_with_two_or_more_direction_lines() {
+fn the_direction_field_is_greyed_with_two_or_more_direction_lines() {
     let mut s = Session::new(std::env::temp_dir());
     let id = exec(
         &mut s,
@@ -673,34 +671,54 @@ fn the_direction_field_is_not_shown_with_two_or_more_direction_lines() {
     )["id"]
         .as_u64()
         .expect("id");
+    // (a field to type in, a greyed value and its text)
     let direction = |d: &Design| {
-        inspector::region_controls(&d.objects[0].region.clone().expect("region"))
-            .iter()
-            .any(|c| {
-                matches!(
-                    c,
-                    Control::Number {
-                        label: "Direction",
-                        ..
-                    }
-                )
-            })
+        let controls = inspector::region_controls(&d.objects[0].region.clone().expect("region"));
+        let field = controls.iter().any(|c| {
+            matches!(
+                c,
+                Control::Number {
+                    label: "Direction",
+                    ..
+                }
+            )
+        });
+        let greyed = controls.iter().find_map(|c| match c {
+            Control::Greyed {
+                label: "Direction",
+                text,
+                ..
+            } => Some(text.clone()),
+            _ => None,
+        });
+        (field, greyed)
     };
-    assert!(direction(s.design()));
+    exec(&mut s, "object.setRegion", json!({"id": id, "angle": 45}));
+    assert_eq!(direction(s.design()), (true, None));
     exec(
         &mut s,
         "object.addDirectionLine",
         json!({"id": id, "line": [[25.2, 38.4], [50.17, 28.0]]}),
     );
-    assert!(!direction(s.design()), "two lines: no Direction field");
+    assert_eq!(
+        direction(s.design()),
+        (false, Some("45°".to_string())),
+        "two lines: greyed, with the value it had"
+    );
     exec(
         &mut s,
         "object.deleteDirectionLine",
         json!({"id": id, "index": 1}),
     );
-    assert!(direction(s.design()), "one line: the field is back");
+    assert_eq!(
+        direction(s.design()),
+        (true, None),
+        "one line: a field again"
+    );
 }
 
+/// Stitch angle lines (#534, beyond PE-DESIGN): a fill with angle lines shows Angle lines (+);
+/// turning it off reaches the engine and removes them.
 #[test]
 fn angle_lines_toggle_reaches_the_engine() {
     let mut s = Session::new(std::env::temp_dir());

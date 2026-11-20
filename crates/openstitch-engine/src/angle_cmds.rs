@@ -82,20 +82,30 @@ pub fn commands() -> Vec<CommandSpec> {
                     }
                 }
                 let n = lines.len();
+                let mut auto_off = false;
                 if let Some(r) = s.design.objects[i].region.as_mut() {
                     r.angle_rule = if lines.is_empty() {
                         openstitch_design::AngleRule::Sides
                     } else {
                         rule
                     };
+                    // A shape with PE-DESIGN's direction lines has no Auto direction (as
+                    // Add Direction Line leaves it).
+                    if !lines.is_empty() && rule == openstitch_design::AngleRule::Fan {
+                        auto_off = r.auto_direction;
+                        r.auto_direction = false;
+                    }
                     r.angle_lines = lines;
                 }
-                Ok(json!({ "id": id, "lines": n, "rule": rule.key() }))
+                Ok(with_auto_note(
+                    json!({ "id": id, "lines": n, "rule": rule.key() }),
+                    auto_off,
+                ))
             },
         ),
         spec(
             "object.addDirectionLine",
-            "Add Direction Line, as PE-DESIGN's Select Point tool adds one with two clicks: a straight line across a filled shape, from a point outside it to a point outside it on another side. A shape's fill angle is its first direction line; with two or more lines the fill's rows follow them as PE-DESIGN sews them: the zone between two lines is cut at every point of the outline between the lines' crossings (a corner, a point on a side), by the straight line to the point at the same fraction along the outline on the other side of the zone; in each piece the rows are a fan through the point where the piece's two bounding lines meet when extended, a row spacing apart at their far ends (parallel lines give parallel rows; with no outline point between the crossings: one fan through the two lines' meeting point); before the first line and beyond the last the shape is cut the same way as far as its point farthest from the line, and a corner cut off by a line has rows parallel to it. So the outline's points matter: a rectangle imported from PE-DESIGN has a fifth point in the middle of its bottom side and can sew differently from OpenStitch's own with the same lines. The fill angle (object.setRegion angle) has no effect while the shape has two or more lines. The lines are stored as the shape's angle lines with the rule fan (object.setAngleLines sets them; object.get returns them as region.angleLines, each line as its two ends in 0.1 mm, with region.angleRule fan), in order across the shape: the new line is put where it lies among the others. Refused, changing nothing: when an end lies inside the shape; when the line does not cross the shape; when it would cross another direction line inside the shape; on a shape with hole sewing; on a shape whose angle lines have the rule sides (OpenStitch's own, from the Angle Lines tool: remove them first with object.setAngleLines lines [], they are not converted); on a shape with a curved direction or Manual Punch direction lines; on a region that is not a fill; when it lies on one straight line with the line next to it. A new line goes where it lies among the others going round the outline (a second line after the first). On a shape with Auto direction the first line is the angle the shape is sewn at now, and Auto direction is switched off (a shape with direction lines has no Auto direction). Where the rows of a fan would come closer than a quarter of their spacing (the lines meet on or just outside the outline), every other pair of rows ends early, and again at each halving; PE-DESIGN's reference design keeps every row down to 0.30 of the spacing, closer is not captured. PES 0110 files keep the lines. One undo step",
+            "Add Direction Line, as PE-DESIGN's Select Point tool adds one with two clicks: a straight line across a filled shape, from a point outside it to a point outside it on another side. A shape's fill angle is its first direction line; with two or more lines the fill's rows follow them as PE-DESIGN sews them: the zone between two lines is cut at every point of the outline between the lines' crossings (a corner, a point on a side), by the straight line to the point at the same fraction along the outline on the other side of the zone; in each piece the rows are a fan through the point where the piece's two bounding lines meet when extended, a row spacing apart at their far ends (parallel lines give parallel rows; with no outline point between the crossings: one fan through the two lines' meeting point); before the first line and beyond the last the shape is cut the same way as far as its point farthest from the line, and a corner cut off by a line has rows parallel to it. So the outline's points matter: a rectangle imported from PE-DESIGN has a fifth point in the middle of its bottom side and can sew differently from OpenStitch's own with the same lines. The fill angle (object.setRegion angle) has no effect while the shape has two or more lines. The lines are stored as the shape's angle lines with the rule fan (object.setAngleLines sets them; object.get returns them as region.angleLines, each line as its two ends in 0.1 mm, with region.angleRule fan), in order across the shape: the new line is put where it lies among the others. Refused, changing nothing: when an end lies inside the shape; when the line does not cross the shape; when it would cross another direction line inside the shape; on a shape with hole sewing; on a shape whose angle lines have the rule sides (OpenStitch's own, from the Angle Lines tool: remove them first with object.setAngleLines lines [], they are not converted); on a shape with a curved direction or Manual Punch direction lines; on a region that is not a fill; when it lies on one straight line with the line next to it. A new line goes where it lies among the others going round the outline (a second line after the first). On a shape with Auto direction the first line is the angle the shape is sewn at now, and Auto direction is switched off (a shape with direction lines has no Auto direction; the answer's autoDirectionOff says when that happened). Where the rows of a fan would come closer than a quarter of their spacing (the lines meet on or just outside the outline), every other pair of rows ends early, and again at each halving; PE-DESIGN's reference design keeps every row down to 0.30 of the spacing, closer is not captured. PES 0110 files keep the lines. One undo step",
             Effect::Edit,
             vec![
                 req("id", "int", "A shape whose region is a fill"),
@@ -125,12 +135,17 @@ pub fn commands() -> Vec<CommandSpec> {
                     p.invalid("line", why.replace("angle line", "direction line"))
                 })?;
                 let n = lines.len();
+                let mut auto_off = false;
                 if let Some(r) = s.design.objects[i].region.as_mut() {
                     r.angle_lines = lines;
                     r.angle_rule = openstitch_design::AngleRule::Fan;
+                    auto_off = r.auto_direction;
                     r.auto_direction = false;
                 }
-                Ok(json!({ "id": id, "lines": n, "index": at }))
+                Ok(with_auto_note(
+                    json!({ "id": id, "lines": n, "index": at }),
+                    auto_off,
+                ))
             },
         ),
         spec(
@@ -186,7 +201,7 @@ pub fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.deleteDirectionLine",
-            "Delete one direction line of a filled shape (PE-DESIGN's Delete Selected Line, and the Delete key with a line selected), or with 'keep' every line but that one (Delete Lines Not Selected). The lines are the shape's angle lines with the rule fan, numbered from 0 in order across the shape (object.addDirectionLine): a line's index is its place in region.angleLines of object.get. When one line is left it becomes the shape's fill angle again (the direction it points in) and no line is stored. A shape's last line, its fill angle, cannot be deleted: refused. One undo step",
+            "Delete one direction line of a filled shape (PE-DESIGN's Delete Selected Line, and the Delete key with a line selected), or with 'keep' every line but that one (Delete Lines Not Selected). The lines are the shape's angle lines with the rule fan, numbered from 0 in order across the shape (object.addDirectionLine): a line's index is its place in region.angleLines of object.get. When one line is left it becomes the shape's fill angle again (the direction it points in) and stays where it is, as PE-DESIGN keeps it: object.get then shows that one line in region.angleLines; a new angle (object.setRegion angle) or Auto direction puts the shape's line through its middle again. A shape's last line, its fill angle, cannot be deleted: refused. One undo step",
             Effect::Edit,
             vec![
                 req("id", "int", "A shape with two or more direction lines"),
@@ -194,7 +209,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 crate::commands::opt(
                     "keep",
                     "int",
-                    "Instead of 'index': the one line to keep; all the others are deleted",
+                    "Instead of 'index': the one line to keep; all the others are deleted. With both given, 'keep' is used and 'index' is ignored",
                 ),
             ],
             |s, p| {
@@ -228,10 +243,13 @@ pub fn commands() -> Vec<CommandSpec> {
                 let n = lines.len();
                 if let Some(r) = s.design.objects[i].region.as_mut() {
                     if let [only] = lines[..] {
-                        // One line left: it is the fill angle again.
+                        // One line left: the fill is sewn at its angle again, and the line
+                        // stays where it is (PE-DESIGN capture g: the kept line does not
+                        // move). No Auto direction, as with the lines before.
                         r.angle = openstitch_design::angle_lines::line_angle(only);
-                        r.angle_lines.clear();
-                        r.angle_rule = openstitch_design::AngleRule::Sides;
+                        r.angle_lines = vec![only];
+                        r.angle_rule = openstitch_design::AngleRule::Fan;
+                        r.auto_direction = false;
                     } else {
                         r.angle_lines = lines;
                     }
@@ -286,6 +304,18 @@ fn stored_line(
         .ok_or_else(|| p.invalid("line", "the line does not cross the shape"))
 }
 
+/// The answer of a command that gives a shape direction lines, saying whether it switched
+/// the shape's Auto direction off (`autoDirectionOff`); when it did, `summary` says so in
+/// words, which the editor shows in the status bar after the command's name.
+fn with_auto_note(mut answer: Value, auto_off: bool) -> Value {
+    answer["autoDirectionOff"] = json!(auto_off);
+    if auto_off {
+        answer["summary"] =
+            json!("Auto direction is off now: a shape with direction lines has none");
+    }
+    answer
+}
+
 /// `line` turned, if need be, to run the way `other` does (start to arrow within a quarter
 /// turn of it): PE-DESIGN draws a new line the way the shape's lines already run, whichever
 /// of its two ends was clicked first (its capture k, `g5`).
@@ -334,6 +364,10 @@ fn fan_lines_of(
     let Some(r) = o.region.as_ref() else {
         return Err(p.failed(format!("object {id} is not a fill")));
     };
+    // The shape's one direction kept at a place: the first line is that line.
+    if r.angle_lines.len() == 1 && r.angle_rule == openstitch_design::AngleRule::Fan {
+        return Ok(r.angle_lines.clone());
+    }
     if r.angle_lines.len() >= 2 {
         if r.angle_rule != openstitch_design::AngleRule::Fan {
             return Err(p.failed(format!(

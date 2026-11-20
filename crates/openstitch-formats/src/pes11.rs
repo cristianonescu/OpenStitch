@@ -688,9 +688,12 @@ pub struct Shape {
     /// to Blocks also puts outline points between line ends (stroke-blocks-A: [0, 11], [1, 10],
     /// [4, 7], [5, 6]).
     pub punch: Vec<[u32; 2]>,
-    /// Direction lines added with Select Point's Add Direction Line on an ordinary shape
-    /// (#1273; `g1-two-lines`, `g2-three-lines`), in order across the shape; empty on a shape
-    /// with its one direction (the fill angle) and on Manual Punch blocks. Each line is its
+    /// The direction lines of an ordinary shape (#1273; `g1-two-lines`, `g2-three-lines`),
+    /// in order across the shape: one for a shape whose one direction line is not that of a
+    /// new shape (where the line crosses the outline: the same square at 0 degrees, or the
+    /// last line left after others were deleted), more when lines were added with Select
+    /// Point's Add Direction Line. Empty on Manual Punch blocks and on a shape with a new
+    /// shape's entries, which the writer writes for it. Each line is its
     /// two crossings of the outline, the end with the square first, each as (side, fraction
     /// along it): side k runs from vertex k to the next, and a crossing at a vertex is the
     /// end of the side before it (fraction 1). The header's two position lists hold them:
@@ -1583,7 +1586,24 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
     // else is not mapped.
     let mut direction_lines = Vec::new();
     let (punch, no_positions) = match &lists {
-        [a, b] if a.len() == 1 && b.len() == 1 => (Vec::new(), false),
+        [a, b] if a.len() == 1 && b.len() == 1 => {
+            // The shape's one direction line: its two crossings (d0: (0, 1.0) and (2, 1.0),
+            // corner to corner at 45 degrees; the same square at 0 degrees: (1, 0.5) and
+            // (3, 0.5)). Kept as read and written back as they are, except the entries of
+            // PE-DESIGN's new shapes, which the writer writes for a shape without a line:
+            // (0, 1.0) and (2, 1.0) closed, (0, 0.0) twice open.
+            let new_shape =
+                (a[0] == (0, 1.0) && b[0] == (2, 1.0)) || (a[0] == (0, 0.0) && b[0] == (0, 0.0));
+            if !new_shape
+                && (a[0].0 as usize) < n
+                && (b[0].0 as usize) < n
+                && (0.0..=1.0).contains(&a[0].1)
+                && (0.0..=1.0).contains(&b[0].1)
+            {
+                direction_lines = vec![[a[0], b[0]]];
+            }
+            (Vec::new(), false)
+        }
         [a, b] if a.is_empty() && b.is_empty() => (Vec::new(), true),
         [a, b] => {
             let paired = a.len() >= 2 && b.len() == a.len();

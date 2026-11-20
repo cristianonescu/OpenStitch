@@ -1278,8 +1278,7 @@ mod tests {
                 .clone()
         };
         let before = stored(&app);
-        // (the line selected, the angle of the line that is left, its distance from the
-        // bottom-right corner as a check of which line it is)
+        // (the line selected, the angle of the line that is left)
         for (keep, angle) in [(0, 44.7), (1, 45.0), (2, 22.6)] {
             let s = app
                 .ui_command("ui.pointMenu", Some(&json!({ "selectDirectionLine": keep })))
@@ -1298,7 +1297,9 @@ mod tests {
             );
             let left = lines[0]["angle"].as_f64().expect("angle");
             assert!((left - angle).abs() < 0.3, "keep {keep}: {left}");
-            // The line that is left points the way the kept line did.
+            // The line that is left is the kept line itself, at its place (its two ends as
+            // stored), and points the way it did.
+            assert_eq!(stored(&app), vec![kept], "keep {keep}");
             assert!(
                 (left - openstitch_design::angle_lines::line_angle(kept)).abs() < 1e-9,
                 "keep {keep}"

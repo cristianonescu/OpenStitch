@@ -414,23 +414,46 @@ fn object(s: &Shape, table: &[Thread], notes: &mut Vec<String>) -> Result<Design
             s.direction_lines.len()
         ));
     }
+    let crossing = |(side, t): (u32, f64)| {
+        let path = outline.segment_polyline(side as usize % outline.points.len().max(1));
+        let total: f64 = path.windows(2).map(|w| w[0].distance(w[1])).sum();
+        let mut left = total * t.clamp(0.0, 1.0);
+        for w in path.windows(2) {
+            let len = w[0].distance(w[1]);
+            if left <= len && len > 0.0 {
+                return w[0].lerp(w[1], left / len);
+            }
+            left -= len;
+        }
+        path.last().copied().unwrap_or_default()
+    };
+    // The one line of a fill that is not where the fill angle's own line lies (through the
+    // middle of the shape): PE-DESIGN keeps the last line where it was when the others are
+    // deleted. It is kept at its place; the fill is sewn at its angle as always.
+    if let Some(r) = region.as_mut().filter(|r| {
+        s.direction_lines.len() == 1 && r.kind == RegionType::Fill && !r.auto_direction && s.closed
+    }) {
+        let line = [
+            crossing(s.direction_lines[0][0]),
+            crossing(s.direction_lines[0][1]),
+        ];
+        let closed = std::slice::from_ref(&outline);
+        let own = openstitch_design::angle_lines::angle_line(closed, r.angle)
+            .map(|l| openstitch_design::angle_lines::chord(l, closed, &[]));
+        let at_its_own_place =
+            own.is_some_and(|o| o[0].distance(line[0]) < 2.0 && o[1].distance(line[1]) < 2.0);
+        let turn = (openstitch_design::angle_lines::line_angle(line) - r.angle + 180.0)
+            .rem_euclid(360.0)
+            - 180.0;
+        if !at_its_own_place && line[0].distance(line[1]) > 1.0 && turn.abs() <= 1.0 {
+            r.angle_lines = vec![line];
+            r.angle_rule = openstitch_design::AngleRule::Fan;
+        }
+    }
     if let Some(r) = region
         .as_mut()
         .filter(|r| s.direction_lines.len() >= 2 && r.kind == RegionType::Fill)
     {
-        let crossing = |(side, t): (u32, f64)| {
-            let path = outline.segment_polyline(side as usize % outline.points.len().max(1));
-            let total: f64 = path.windows(2).map(|w| w[0].distance(w[1])).sum();
-            let mut left = total * t.clamp(0.0, 1.0);
-            for w in path.windows(2) {
-                let len = w[0].distance(w[1]);
-                if left <= len && len > 0.0 {
-                    return w[0].lerp(w[1], left / len);
-                }
-                left -= len;
-            }
-            path.last().copied().unwrap_or_default()
-        };
         let lines: Vec<[openstitch_design::Vec2; 2]> = s
             .direction_lines
             .iter()
