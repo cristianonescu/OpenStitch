@@ -605,11 +605,16 @@ async function extraChecks(browser, type, label) {
       const stitch = (params) => ok({ command: "ui.stitchPoints", params });
       const st = await stitch({ end: "first" });
       if (!st.selectedAt?.[0]?.screen) throw new Error(`ui.stitchPoints: ${JSON.stringify(st).slice(0, 300)}`);
-      // One click on a stitch inserts a needle point: between the first two points 2 mm apart.
+      // One click on a stitch inserts a needle point: the middle of a 2 mm stitch in the middle
+      // of the line, away from the lock stitches' points 0.3 mm apart.
       const points = await ok({ command: "stitches.points", params: { id: pattern.id } });
       const pts = points.points.filter((p) => p.command === "stitch");
-      const k = pts.findIndex((p, i) => i > 0 && Math.abs(p.x - pts[i - 1].x) > 1.5 && Math.abs(p.y - pts[i - 1].y) < 0.01);
+      const long = (i) => i > 0 && Math.abs(pts[i].x - pts[i - 1].x) > 1.5 && Math.abs(pts[i].y - pts[i - 1].y) < 0.01;
+      const runs = pts.map((_, i) => i).filter((i) => long(i) && long(i - 1) && i + 1 < pts.length && long(i + 1));
+      const k = runs.length ? runs[Math.floor(runs.length / 2)] : -1;
       if (k < 1) throw new Error(`no 2 mm stitch: ${JSON.stringify(pts.slice(0, 8))}`);
+      // Zoomed in on that stitch, as one would to click between points 2 mm apart.
+      await ok({ command: "ui.zoom", params: { rect: [pts[k - 1].x - 4, pts[k - 1].y - 4, 10, 8] } });
       await stitch({ select: [pts[k - 1].index] });
       const a1 = (await stitch({})).selectedAt[0].screen;
       await stitch({ select: [pts[k].index] });
@@ -618,7 +623,8 @@ async function extraChecks(browser, type, label) {
       const n0 = await entries();
       await page.mouse.click(box.x + (a1[0] + a2[0]) / 2, box.y + (a1[1] + a2[1]) / 2);
       await until("one click on a stitch inserts a needle point", (n) => window.openstitch.run({ command: "stitches.points", params: { id: window.__pattern } }).result?.points?.length === n + 1, n0).catch(async () => {
-        throw new Error(`stitch pattern click-insert: ${n0} -> ${await entries()}`);
+        const after = await stitch({});
+        throw new Error(`stitch pattern click-insert: ${n0} -> ${await entries()}; clicked ${JSON.stringify([a1, a2])}, then ${JSON.stringify({ selected: after.selected, selectedAt: after.selectedAt, hint: after.hint, tool: after.note })}`);
       });
       await ok({ command: "history.undo" });
       // Ctrl+click adds a needle point to the selection.
@@ -633,15 +639,22 @@ async function extraChecks(browser, type, label) {
       if (tab.selected.length !== every) throw new Error(`Tab: ${JSON.stringify(tab).slice(0, 300)}`);
       await page.keyboard.press("Tab");
       await until("Tab again selects none", () => (window.openstitch.run({ command: "ui.stitchPoints" }).result?.selected?.length ?? -1) === 0);
-      // Alt + drag of the exit point onto another pattern's entry point connects the two.
+      // Alt + drag of the exit point onto another pattern's entry point connects the two, with
+      // the whole page in view again.
+      await ok({ command: "ui.zoom", params: { fit: "page" } });
       const lastColour = tab.colors[tab.colors.length - 1];
       const cutAt = (await ok({ command: "stitches.points", params: { id: pattern.id } })).points.filter((p) => p.color === tab.colors.length - 1 && p.command === "stitch")[4].index;
-      await ok({ command: "stitches.splitAt", params: { id: pattern.id, index: cutAt } });
+      const split = await ok({ command: "stitches.splitAt", params: { id: pattern.id, index: cutAt } });
+      const part = split.ids[1];
       await ok({ command: "ui.select", params: { ids: [pattern.id] } });
       const ex = await stitch({ end: "last" });
-      if (ex.connectable?.length !== 1 || !ex.connectable[0].screen) throw new Error(`connectable: ${JSON.stringify(ex).slice(0, 300)} (${lastColour.points})`);
+      // Every other stitch pattern's entry point is offered, the part split off among them.
+      const partEntry = ex.connectable?.find((c) => c.id === part);
+      if (!partEntry?.screen) throw new Error(`connectable: ${JSON.stringify(ex).slice(0, 400)} (${lastColour.points}, part ${part})`);
+      const stitchPatterns = async () => (await ok({ command: "object.list" })).filter((o) => o.kind === "stitches").length;
+      const patternsBefore = await stitchPatterns();
       const exitAt = ex.selectedAt[0].screen;
-      const onto = ex.connectable[0].screen;
+      const onto = partEntry.screen;
       await page.keyboard.down("Alt");
       await page.mouse.move(box.x + exitAt[0], box.y + exitAt[1]);
       await page.mouse.down();
@@ -649,7 +662,7 @@ async function extraChecks(browser, type, label) {
       await until("the Alt-dragged exit point lies on the other pattern's entry", () => window.openstitch.run({ command: "ui.stitchPoints" }).result?.connectOverlap != null);
       await page.mouse.up();
       await page.keyboard.up("Alt");
-      await until("Alt + drag connects the two stitch patterns", () => (window.openstitch.run({ command: "object.list" }).result ?? []).filter((o) => o.kind === "stitches").length === 1);
+      await until("Alt + drag connects the two stitch patterns", (n) => (window.openstitch.run({ command: "object.list" }).result ?? []).filter((o) => o.kind === "stitches").length === n - 1, patternsBefore);
       noErrors("point tool", errors);
     } finally {
       await context.close();

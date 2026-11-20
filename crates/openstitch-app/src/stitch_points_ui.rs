@@ -37,6 +37,14 @@ pub fn keys(app: &mut EditorApp, ctx: &egui::Context, take: &dyn Fn(KeyboardShor
                     tools.tab_needles(ctx);
                     vec![]
                 });
+                // The Point tool took Tab: egui does not also move the keyboard focus to the
+                // next widget (which, on a text field, would keep the next Tab from the tool).
+                ctx.memory_mut(|m| {
+                    m.move_focus(egui::FocusDirection::None);
+                    if let Some(id) = m.focused() {
+                        m.surrender_focus(id);
+                    }
+                });
             }
         }
     }

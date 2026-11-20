@@ -4919,6 +4919,7 @@ keys with a mouse click reliably.
 | Row | OpenStitch (this version) | Source |
 |---|---|---|
 | One click on a stitch | Inserts a needle point exactly where clicked (on the stitch), selected; one undo step. | measured (k2) |
+| How near a point a click selects it instead | Within the point's square (a few screen points, as a shape's points), so at a low zoom a click between points 2 mm apart can land on one. | **not verified**: PE-DESIGN's zoom in k2 was not recorded |
 | Click, drag box | A click selects one point; a drag box selects the points inside. | measured (k3) |
 | Ctrl+click, Shift+click | Ctrl+click toggles a point, Shift+click adds it. | **not verified**: PE-DESIGN showed no toggling, but the modifiers may not have reached it (k3) |
 | Arrow keys | The selected points move 0.1 mm a press. | measured (k5) |
