@@ -785,7 +785,7 @@ async function extraChecks(browser, type, label) {
         throw new Error(`the right-click did not select the shape: ${JSON.stringify(opened.selection)}`);
       }
       const keys = opened.rows.filter((r) => !r.separator).map((r) => r.key).join(",");
-      if (keys !== "cut,copy,duplicate,paste,delete,flip,center,openOutline,closeOutline,offsetLines,toStitches,floral,cutAndSew") {
+      if (keys !== "cut,copy,duplicate,paste,delete,flip,numericalSetting,center,openOutline,closeOutline,offsetLines,toStitches,floral,cutAndSew,sewingAttributes") {
         throw new Error(`the menu's entries: ${keys}`);
       }
       // On screen: most of the panel's rectangle has its colour.
