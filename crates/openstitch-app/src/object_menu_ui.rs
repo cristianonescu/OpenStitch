@@ -27,6 +27,9 @@ pub struct ObjectMenu {
     /// Where the menu's panel was painted, and in which colour; `None` until a frame has drawn
     /// it (a menu's first frame only measures it).
     drawn: Option<(egui::Rect, egui::Color32)>,
+    /// Where each row was painted last (window points), by key: the entries, the sub-menus'
+    /// rows and, while one is open, a sub-menu's entries.
+    rects: Vec<(&'static str, egui::Rect)>,
 }
 
 /// The shortcut shown beside an entry, as this platform writes it.
@@ -77,6 +80,7 @@ pub fn open_at(app: &mut EditorApp, at: Pos2, vp: &Viewport) -> bool {
         fresh: true,
         sub: None,
         drawn: None,
+        rects: Vec::new(),
     });
     true
 }
@@ -100,6 +104,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut chosen = None;
     let mut sub_at = None;
+    let mut rects = Vec::new();
     let (r, painted) = panel(ctx, "object-menu", m.at, WIDTH, |ui| {
         for row in OBJECT_MENU {
             match *row {
@@ -114,6 +119,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                         crate::ribbon::enabled(app, a),
                         false,
                     );
+                    rects.push((a.info().key, response.rect));
                     if response.hovered() {
                         m.sub = None;
                     }
@@ -124,6 +130,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 MenuRow::Sub(key, text, entries) => {
                     let enabled = entries.iter().any(|a| crate::ribbon::enabled(app, *a));
                     let response = menu_row(ui, None, t(text), None, enabled, true);
+                    rects.push((key, response.rect));
                     if enabled && (response.hovered() || response.clicked()) {
                         m.sub = Some(key);
                     }
@@ -144,7 +151,9 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 let keys = shortcut(*a);
                 let icon = has_icon(*a).then_some(*a);
                 let enabled = crate::ribbon::enabled(app, *a);
-                if menu_row(ui, icon, label(*a), keys.as_deref(), enabled, false).clicked() {
+                let response = menu_row(ui, icon, label(*a), keys.as_deref(), enabled, false);
+                rects.push((a.info().key, response.rect));
+                if response.clicked() {
                     chosen = Some(*a);
                 }
             }
@@ -156,6 +165,9 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         return;
     }
     m.drawn = painted.or(m.drawn);
+    if painted.is_some() {
+        m.rects = rects;
+    }
     let (pressed, esc) =
         ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));
     let outside = pressed && !r.response.contains_pointer() && !over_sub;
@@ -165,9 +177,19 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     }
 }
 
+/// Where the row `key` was painted last, [x, y, width, height] in window points.
+fn rect_of(app: &EditorApp, key: &str) -> Option<[f32; 4]> {
+    let m = app.workspace.view.object_menu.as_ref()?;
+    m.rects
+        .iter()
+        .find(|(k, _)| *k == key)
+        .map(|(_, r)| [r.min.x, r.min.y, r.width(), r.height()])
+}
+
 /// One entry as `ui.objectMenu` reports it.
 fn entry(app: &EditorApp, a: Action) -> Value {
     json!({
+        "rect": rect_of(app, a.info().key),
         "key": a.info().key,
         "label": label(a),
         "shortcut": shortcut(a),
@@ -189,6 +211,7 @@ pub fn state(app: &EditorApp) -> Value {
             MenuRow::Separator => json!({ "separator": true }),
             MenuRow::Entry(a) => entry(app, a),
             MenuRow::Sub(key, text, entries) => json!({
+                "rect": rect_of(app, key),
                 "key": key,
                 "label": t(text),
                 "submenu": entries.iter().map(|a| entry(app, *a)).collect::<Vec<_>>(),
@@ -202,8 +225,27 @@ pub fn state(app: &EditorApp) -> Value {
         "menuRect": drawn.map(|(r, _)| [r.min.x, r.min.y, r.width(), r.height()]),
         "menuFill": drawn.map(|(_, c)| format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())),
         "selection": app.selection,
+        "selectionRect": selection_rect(app),
         "rows": rows,
     })
+}
+
+/// Where the selected objects are in the window, [x, y, width, height] in points from its
+/// top-left corner (null with nothing selected or before the canvas is drawn): where a
+/// right-click opens the menu for them.
+fn selection_rect(app: &EditorApp) -> Option<[f64; 4]> {
+    let vp = app.viewport?;
+    let d = app.session.design();
+    let b = openstitch_design::Rect::enclosing(
+        d.objects
+            .iter()
+            .filter(|o| app.selection.contains(&o.id))
+            .filter_map(|o| o.bounds())
+            .flat_map(|b| [v2(b.min_x, b.min_y), v2(b.max_x, b.max_y)]),
+    )?;
+    let a = vp.to_screen(v2(b.min_x, b.min_y));
+    let c = vp.to_screen(v2(b.max_x, b.max_y));
+    Some([a.x.min(c.x), a.y.min(c.y), (c.x - a.x).abs(), (c.y - a.y).abs()])
 }
 
 /// `ui.objectMenu`: without params, the menu ([`state`]); `{at: [x, y]}` opens it as a

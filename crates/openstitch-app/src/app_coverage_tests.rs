@@ -2196,6 +2196,52 @@ fn the_object_menus_entries_run_on_the_selection() {
         .ui_command("ui.objectMenu", Some(&json!({ "action": "bend" })))
         .expect_err("unknown");
     assert!(e.contains("flipVertical"), "{e}");
+    // With the pointer: on the Flip row its sub-menu opens beside it; a click on Flip
+    // Horizontal there runs it and closes the menu.
+    app.selection = ids.clone();
+    w.right_click(&mut app, at);
+    let centre = |r: &Value| {
+        let r = r.as_array().expect("rect");
+        let f = |i: usize| r[i].as_f64().expect("number") as f32;
+        egui::pos2(f(0) + f(2) / 2.0, f(1) + f(3) / 2.0)
+    };
+    let m = menu(&mut app);
+    let flip = m["rows"]
+        .as_array()
+        .expect("rows")
+        .iter()
+        .find(|r| r["key"] == "flip")
+        .expect("flip")["rect"]
+        .clone();
+    w.run(
+        &mut app,
+        vec![egui::Event::PointerMoved(centre(&flip))],
+        Modifiers::NONE,
+    );
+    w.run(&mut app, vec![], Modifiers::NONE);
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let m = menu(&mut app);
+    assert_eq!(m["submenuOpen"], "flip", "the Flip sub-menu opens on hover");
+    let entries = m["rows"]
+        .as_array()
+        .expect("rows")
+        .iter()
+        .find(|r| r["key"] == "flip")
+        .expect("flip")["submenu"]
+        .clone();
+    let horizontal = entries
+        .as_array()
+        .expect("entries")
+        .iter()
+        .find(|e| e["key"] == "flipHorizontal")
+        .expect("flipHorizontal")["rect"]
+        .clone();
+    let was = first(&app);
+    w.click(&mut app, centre(&horizontal));
+    assert_ne!(first(&app), was, "Flip Horizontal ran from the sub-menu");
+    assert_eq!(bounds_of(&app, &ids), before, "about the selection's centre");
+    assert_eq!(menu(&mut app)["open"], false, "and the menu closed");
+    app.undo();
     // A left click on empty canvas closes an open menu.
     w.right_click(&mut app, at);
     assert_eq!(menu(&mut app)["open"], true);
