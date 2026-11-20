@@ -249,7 +249,24 @@ async function extraChecks(browser, type, label) {
               return JSON.stringify(r && { selected: r.selected, pointCount: r.pointCount, ...r });
             })
             .catch(() => "?");
-          throw new Error(`point tool, ${step}: ${String(e.message).split("\n")[0]}; ui.pointMenu said ${seen.slice(0, 500)}`);
+          // The tool, the selected objects, the view, and the keys and menus the page saw: what
+          // a step that lost its object (pointCount null) lost it to. And this page as it was.
+          const context = await page
+            .evaluate(() => {
+              const s = window.openstitch.run({ command: "ui.state" }).result ?? null;
+              return JSON.stringify({
+                tool: s?.tool,
+                selection: s?.selection,
+                view: s?.view,
+                zoom: s?.zoomPercent,
+                keys: (window.__keys ?? []).slice(-16).map((k) => `${k.ctrlKey ? "Ctrl+" : ""}${k.altKey ? "Alt+" : ""}${k.shiftKey ? "Shift+" : ""}${k.key}`),
+                menus: (window.__menus ?? []).length,
+                focus: document.activeElement?.id || document.activeElement?.tagName,
+              });
+            })
+            .catch(() => "?");
+          if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-point-tool-failed.png`) }).catch(() => {});
+          throw new Error(`point tool, ${step}: ${String(e.message).split("\n")[0]}; state ${context.slice(0, 700)}; ui.pointMenu said ${seen.slice(0, 500)}`);
         }
       };
       const pointX = () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.[0]?.x ?? null;
