@@ -681,6 +681,7 @@ impl EditorApp {
         Some(json!({
             "centerMm": [round(mid.x / 10.0), round(mid.y / 10.0)],
             "canvasPoints": [c.width(), c.height()],
+            "canvasAt": [c.min.x, c.min.y],
             "pagePointsInCanvas": [
                 round(inside(a.x, b.x, c.min.x, c.max.x)),
                 round(inside(a.y, b.y, c.min.y, c.max.y)),

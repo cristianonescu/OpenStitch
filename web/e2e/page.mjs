@@ -307,6 +307,10 @@ async function extraChecks(browser, type, label) {
       const made = await ok({ command: "shape.rectangle", params: { x: 20, y: 20, width: 40, height: 30, fill: "#2e8b57", outline: "#203040" } });
       await ok({ command: "ui.select", params: { ids: [made.id] } });
       await ok({ command: "ui.zoom", params: { fit: "page" } });
+      // Where the canvas area is in the window (ui.state's view.canvasAt) when a point's place
+      // is read: a modifier click below says when a pane or the ribbon has moved the area
+      // since that read (#1272).
+      const areaAt = () => page.evaluate(() => window.openstitch.run({ command: "ui.state" }).result?.view?.canvasAt ?? null);
       const onScreen = async (index) => {
         await ok({ command: "ui.pointMenu", params: { points: [index] } });
         await until(
@@ -317,7 +321,9 @@ async function extraChecks(browser, type, label) {
           },
           index,
         );
-        return (await menu()).selected[0].screen;
+        const place = (await menu()).selected[0].screen;
+        place.area = await areaAt();
+        return place;
       };
       // The opposite corner first, to know where the inside of the shape is on screen.
       const far = await onScreen(2);
@@ -370,11 +376,18 @@ async function extraChecks(browser, type, label) {
       // the page is read again for the click: `box` was read once, before the steps above,
       // and CI's Firefox clicked 90 points left of a corner it had read right (#1272). A
       // canvas that moved on the page is said in the log.
-      const clickWith = async (key, [cx, cy]) => {
+      const clickWith = async (key, place) => {
+        const [cx, cy] = place;
+        const readArea = place.area;
         const now = await page.locator("#openstitch").boundingBox();
         if (Math.abs(now.x - box.x) > 0.5 || Math.abs(now.y - box.y) > 0.5) {
           const scrolled = await page.evaluate(() => [window.scrollX, window.scrollY]);
           console.log(`${label}: the canvas moved on the page from ${box.x}, ${box.y} to ${now.x}, ${now.y} (page scrolled ${scrolled})`);
+        }
+        const area = await areaAt();
+        if (readArea && area && (Math.abs(area[0] - readArea[0]) > 0.5 || Math.abs(area[1] - readArea[1]) > 0.5)) {
+          const st = await page.evaluate(() => JSON.stringify(window.openstitch.run({ command: "ui.state" }).result?.view ?? null));
+          console.log(`${label}: the canvas area moved inside the window from ${readArea} to ${area} since the point's place was read (view ${st})`);
         }
         await page.keyboard.down(key);
         await page.mouse.click(now.x + cx, now.y + cy);
@@ -654,6 +667,7 @@ async function extraChecks(browser, type, label) {
       const a1 = (await stitch({})).selectedAt[0].screen;
       await stitch({ select: [pts[k].index] });
       const a2 = (await stitch({})).selectedAt[0].screen;
+      a2.area = await areaAt();
       const entries = async () => (await ok({ command: "stitches.points", params: { id: pattern.id } })).points.length;
       const n0 = await entries();
       await page.mouse.click(box.x + (a1[0] + a2[0]) / 2, box.y + (a1[1] + a2[1]) / 2);
