@@ -1016,8 +1016,6 @@ const OPENS_NOTHING: &[(&str, &str, &str)] = &[
     // larger than its hoop.
     ("Main window, ribbon tab Stitches", "", NOT_SHOWN),
     ("Main window, ribbon tab Hoop Settings", "", NOT_SHOWN),
-    // The Select tool has no right-click menu (the Point tool has two).
-    ("Right click on a shape, Select tool", "", NO_CONTROL),
     // The window without its bars: with the panes docked nothing is left but the canvas
     // (in the narrow layout the folded panes' title bars are).
     ("Scene bare (whole window)", "docked", NO_CONTROL),
@@ -1481,7 +1479,8 @@ impl Walk {
             self.case(&name, "pane", vec![row], NO_CONTROL);
         }
         // Right clicks. The Point tool has two menus: on a point of the shape whose points
-        // show, and on that shape beside its points. The Select tool has none.
+        // show, and on that shape beside its points. The Select tool has the object menu
+        // (#1288).
         for (name, tool, on_point) in [
             ("Right click on a shape, Select tool", Tool::Select, false),
             ("Right click on a shape, Point tool", Tool::Point, false),

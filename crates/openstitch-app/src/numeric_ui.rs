@@ -175,12 +175,13 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let (mut ok, mut preview, mut cancel) = (false, false, false);
     let mut open = true;
-    let window = app
-        .dialog_window(ctx, title, Some([16.0, 140.0]))
-        .collapsible(false)
-        .resizable(false)
-        .open(&mut open);
-    crate::fit::show(window, ctx, |ui| {
+    crate::fit::show(
+        app.dialog_window(ctx, title, Some([16.0, 140.0]))
+            .collapsible(false)
+            .resizable(false)
+            .open(&mut open),
+        ctx,
+        |ui| {
             match n.kind {
                 Kind::Size => size_body(ui, &mut n),
                 Kind::Rotate => {

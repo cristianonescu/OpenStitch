@@ -685,7 +685,9 @@ the canvas. The Point tool keeps its own menus (#1258, #1260). Each entry is the
 Left out, OpenStitch having no such feature: Paste Selected Attributes… and Export Cutting Data
 (ScanNCut). PE-DESIGN's small bar of sew types and colours sits above the menu (one object) or below
 it (several): the line sew type and its colour, the region sew type and its colour, each opening
-the ribbon's own list. A text gets the shape's menu (PE-DESIGN's menu on a text was not captured).
+the ribbon's own list. In a window too small for that place it goes to the other side of the menu or
+beside it, and where it fits nowhere without covering the menu it is left out (#1276: every
+control within reach). The menu and its lists scroll in a small window (#1276). A text gets the shape's menu (PE-DESIGN's menu on a text was not captured).
 Size… is PE-DESIGN's Size dialog (a % row and a mm row, Maintain aspect ratio, Keep density and
 fill pattern shown ticked and grey: OpenStitch sews a shape again after every resize); Rotate… its
 Rotate dialog (a dial, the angle in degrees). Both have OK, Preview and Cancel; Preview applies,

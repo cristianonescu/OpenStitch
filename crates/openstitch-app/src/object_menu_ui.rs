@@ -105,7 +105,7 @@ fn sew_bar(
     ctx: &egui::Context,
     menu: egui::Rect,
     below: bool,
-) -> (egui::Rect, Vec<egui::Rect>) {
+) -> Option<(egui::Rect, Vec<egui::Rect>)> {
     let mut controls = Vec::new();
     use openstitch_app::editor::inspector::{InspectorModel, line_types, region_types};
     let m = InspectorModel::new(app.session.design(), &app.selection);
@@ -133,10 +133,30 @@ fn sew_bar(
         .map(|r| r.thread.clone());
     let (has_line, has_region) = (m.line.is_some(), m.region.is_some());
     let height = 30.0;
-    let at = if below {
-        menu.left_bottom() + egui::vec2(0.0, 4.0)
-    } else {
-        menu.left_top() - egui::vec2(0.0, height + 4.0)
+    // PE-DESIGN's place for it (above for one object, below for several); in a window too
+    // small for that place the other one, else beside the menu, so the bar never covers a row
+    // of the menu (#1276: every control within reach).
+    let window = ctx.content_rect();
+    let above = menu.left_top() - egui::vec2(0.0, height + 4.0);
+    let under = menu.left_bottom() + egui::vec2(0.0, 4.0);
+    let fits_above = above.y >= window.top();
+    let fits_under = under.y + height <= window.bottom();
+    let at = match (below, fits_above, fits_under) {
+        (true, _, true) | (false, false, true) => under,
+        (false, true, _) | (true, true, false) => above,
+        (_, false, false) => {
+            let right = menu.right_top() + egui::vec2(4.0, 0.0);
+            let left = menu.left_top() - egui::vec2(BAR_WIDTH + 4.0, 0.0);
+            if right.x + BAR_WIDTH <= window.right() {
+                right
+            } else if left.x >= window.left() {
+                left
+            } else {
+                // A window too small for the bar anywhere but over the menu: it is left out,
+                // its four lists being the ribbon's and the pane's too.
+                return None;
+            }
+        }
     };
     // Drawn in the menus' own panel, so its body goes through fit::scroll as theirs does.
     let (r, _) = panel(ctx, "object-menu-sew-bar", at, BAR_WIDTH, |ui| {
@@ -192,7 +212,7 @@ fn sew_bar(
             }
         }
     });
-    (r.response.rect, controls)
+    Some((r.response.rect, controls))
 }
 
 /// Width of the sew-type bar: its two lists and two colour buttons.
@@ -257,7 +277,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let bar = m
         .drawn
         .or(painted)
-        .map(|(menu, _)| sew_bar(app, ctx, menu, app.selection.len() >= 2));
+        .and_then(|(menu, _)| sew_bar(app, ctx, menu, app.selection.len() >= 2));
     let mut over_sub = false;
     if let Some((entries, at)) = sub_at {
         let (sub, _) = panel(ctx, "object-submenu", at, SUB_WIDTH, |ui| {
