@@ -1329,6 +1329,256 @@ fn split_at_point_ui_stitch_points_and_the_hint_on_a_stitch_pattern() {
     }
 }
 
+/// `ui.stitchPoints` declares exactly the parameters its handler reads (#1272 review): tab
+/// and action are declared, the old color is not, and an undeclared parameter is refused.
+#[test]
+fn ui_stitch_points_declares_the_parameters_it_reads() {
+    let spec = openstitch_app::editor::assistant::UI_COMMANDS
+        .iter()
+        .find(|c| c.id == "ui.stitchPoints")
+        .expect("ui.stitchPoints");
+    let declared: BTreeSet<&str> = spec.params.iter().map(|p| p.name).collect();
+    let read: BTreeSet<&str> = crate::stitch_points_ui::PARAMS.into_iter().collect();
+    assert_eq!(declared, read);
+    for name in ["tab", "action", "end", "step"] {
+        let doc = spec.params.iter().find(|p| p.name == name).expect("declared");
+        assert!(doc.summary.len() > 20, "{name} says what it does");
+    }
+    let (mut app, _) = two_colour_pattern();
+    let before = app.session.design().clone();
+    let e = app
+        .ui_command("ui.stitchPoints", Some(&json!({ "color": "next" })))
+        .expect_err("color is not a parameter");
+    assert!(e.contains("unknown parameter color"), "{e}");
+    assert_eq!(*app.session.design(), before);
+    // tab and action are read: Tab selects the colour block, the menu's Delete deletes.
+    let (_, groups) = needles(&app);
+    let s = app
+        .ui_command(
+            "ui.stitchPoints",
+            Some(&json!({ "select": [groups[0][3]], "tab": true })),
+        )
+        .expect("tab");
+    assert_eq!(s["selected"].as_array().map(Vec::len), Some(groups[0].len()));
+    let n = s["points"].as_u64().expect("points");
+    let s = app
+        .ui_command(
+            "ui.stitchPoints",
+            Some(&json!({ "select": [groups[0][3]], "action": "deletePoint" })),
+        )
+        .expect("action");
+    assert_eq!(s["points"].as_u64(), Some(n - 1));
+}
+
+/// `ui.stitchPoints` step with extend grows and shrinks the selection as Shift+arrow (from
+/// where it started), without extend it selects the next point alone, as Ctrl+arrow.
+#[test]
+fn ui_stitch_points_step_and_extend() {
+    let (mut app, _) = two_colour_pattern();
+    let (_, groups) = needles(&app);
+    let red = &groups[0];
+    let sel = |s: &Value| -> Vec<usize> {
+        s["selected"]
+            .as_array()
+            .expect("selected")
+            .iter()
+            .map(|v| v.as_u64().expect("index") as usize)
+            .collect()
+    };
+    app.ui_command("ui.stitchPoints", Some(&json!({ "select": [red[3]] })))
+        .expect("select");
+    for _ in 0..2 {
+        app.ui_command(
+            "ui.stitchPoints",
+            Some(&json!({ "step": "next", "extend": true })),
+        )
+        .expect("Shift+Right");
+    }
+    let s = app.ui_command("ui.stitchPoints", None).expect("state");
+    assert_eq!(sel(&s), vec![red[3], red[4], red[5]], "grown by two");
+    let s = app
+        .ui_command(
+            "ui.stitchPoints",
+            Some(&json!({ "step": "previous", "extend": true })),
+        )
+        .expect("Shift+Left");
+    assert_eq!(sel(&s), vec![red[3], red[4]], "shrunk by one");
+    let s = app
+        .ui_command("ui.stitchPoints", Some(&json!({ "step": "next" })))
+        .expect("Ctrl+Right");
+    assert_eq!(sel(&s), vec![red[5]], "the next point alone");
+    assert!(
+        app.ui_command("ui.stitchPoints", Some(&json!({ "step": "sideways" })))
+            .is_err()
+    );
+}
+
+/// `ui.stitchPoints` connectTo joins the pattern to another stitch pattern as Alt+drag of
+/// the selected exit point onto its entry point does: one pattern, the same stitches, one
+/// undo step; without the entry or exit point selected alone it is refused.
+#[test]
+fn ui_stitch_points_connect_to_joins_two_patterns() {
+    let (mut app, id) = two_colour_pattern();
+    let (_, groups) = needles(&app);
+    let r = app
+        .execute(&CommandRequest::new(
+            "stitches.splitAt",
+            json!({ "id": id, "index": groups[1][4] }),
+        ))
+        .expect("split");
+    let second = r["ids"][1].as_u64().expect("second part");
+    app.selection = BTreeSet::from([id]);
+    app.tools.set_tool(Tool::Point);
+    let stitches = |app: &EditorApp| -> usize {
+        app.session
+            .design()
+            .objects
+            .iter()
+            .flat_map(|o| o.stitch_block.iter().flat_map(|b| b.stitches.iter()))
+            .filter(|q| q.command == openstitch_core::Command::Stitch)
+            .count()
+    };
+    let before = app.session.design().clone();
+    let sewn = stitches(&app);
+    app.ui_command("ui.stitchPoints", Some(&json!({ "select": [groups[0][3]] })))
+        .expect("a middle point");
+    assert!(
+        app.ui_command("ui.stitchPoints", Some(&json!({ "connectTo": second })))
+            .is_err(),
+        "not an end point"
+    );
+    assert_eq!(*app.session.design(), before);
+    app.ui_command("ui.stitchPoints", Some(&json!({ "end": "last" })))
+        .expect("the exit point");
+    app.ui_command("ui.stitchPoints", Some(&json!({ "connectTo": second })))
+        .expect("connect");
+    let patterns = app
+        .session
+        .design()
+        .objects
+        .iter()
+        .filter(|o| o.kind == openstitch_design::ObjectKind::Stitches)
+        .count();
+    assert_eq!(patterns, 1, "joined");
+    assert_eq!(stitches(&app), sewn, "the same stitches");
+    app.undo();
+    assert_eq!(*app.session.design(), before, "one undo step");
+}
+
+/// A right-click on a needle point, as a real pointer on the canvas, opens the needle point
+/// menu (PE-DESIGN capture k12: Split at Point and Delete) with that point selected; a click
+/// on its Delete row deletes the point, one on its Split at Point row splits the pattern.
+/// The canvas is a 1000 × 1000 point area at 1 point per 0.1 mm, through the canvas's own
+/// right-click handling (`point_menu_ui::pointer`) and the menu window it opens.
+#[test]
+fn a_right_click_on_a_needle_point_opens_its_menu_and_its_rows_run() {
+    let ctx = egui::Context::default();
+    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 1000.0));
+    let vp = openstitch_app::editor::Viewport {
+        scale: 1.0,
+        offset: openstitch_design::v2(0.0, 0.0),
+    };
+    let run = |app: &mut EditorApp, events: Vec<egui::Event>| {
+        let raw = egui::RawInput {
+            screen_rect: Some(rect),
+            events,
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(raw, |ui| {
+            app.viewport = Some(vp);
+            let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
+            crate::point_menu_ui::pointer(app, &response, &vp);
+            crate::point_menu_ui::window(app, ui.ctx());
+        });
+        out.textures_delta.clear();
+    };
+    let click = |at: egui::Pos2, button: egui::PointerButton| {
+        let b = move |pressed| egui::Event::PointerButton {
+            pos: at,
+            button,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        [
+            vec![egui::Event::PointerMoved(at)],
+            vec![b(true)],
+            vec![b(false)],
+            vec![],
+            vec![],
+        ]
+    };
+    let (mut app, id) = two_colour_pattern();
+    app.viewport = Some(vp);
+    let (_, groups) = needles(&app);
+    let target = groups[0][5];
+    let at = |app: &EditorApp, i: usize| {
+        let c = app.tool_context(app.session.design());
+        let o = c.needle_target().expect("pattern");
+        let p = openstitch_app::editor::tools::needles::needle_points(o)
+            .into_iter()
+            .find(|q| q.0 == i)
+            .expect("the point")
+            .1;
+        let s = vp.to_screen(p);
+        egui::pos2(s.x as f32, s.y as f32)
+    };
+    let row = |app: &mut EditorApp, k: f32| {
+        let m = app.ui_command("ui.pointMenu", None).expect("state")["menuRect"].clone();
+        let r: Vec<f32> = m
+            .as_array()
+            .expect("the menu was painted")
+            .iter()
+            .map(|v| v.as_f64().expect("number") as f32)
+            .collect();
+        egui::pos2(r[0] + r[2] / 2.0, r[1] + r[3] * k)
+    };
+    run(&mut app, vec![]);
+    let p = at(&app, target);
+    for e in click(p, egui::PointerButton::Secondary) {
+        run(&mut app, e);
+    }
+    let s = app.ui_command("ui.stitchPoints", None).expect("state");
+    assert_eq!(s["menuOpen"], json!(true), "{s}");
+    assert_eq!(s["selected"], json!([target]), "the right-clicked point is selected");
+    assert_eq!(
+        s["menu"],
+        json!([
+            { "key": "splitAtPoint", "label": "Split at Point", "enabled": true },
+            { "key": "deletePoint", "label": "Delete", "enabled": true },
+        ])
+    );
+    let n = s["points"].as_u64().expect("points");
+    // Delete: the second of the two rows.
+    let delete_row = row(&mut app, 0.75);
+    for e in click(delete_row, egui::PointerButton::Primary) {
+        run(&mut app, e);
+    }
+    let s = app.ui_command("ui.stitchPoints", None).expect("state");
+    assert_eq!(s["points"].as_u64(), Some(n - 1), "Delete from the menu: {s}");
+    assert_eq!(s["menuOpen"], json!(false));
+    app.undo();
+    app.selection = BTreeSet::from([id]);
+    app.tools.set_tool(Tool::Point);
+    run(&mut app, vec![]);
+    // Split at Point: the first row.
+    let p = at(&app, target);
+    for e in click(p, egui::PointerButton::Secondary) {
+        run(&mut app, e);
+    }
+    let split_row = row(&mut app, 0.25);
+    for e in click(split_row, egui::PointerButton::Primary) {
+        run(&mut app, e);
+    }
+    let patterns = app
+        .session
+        .design()
+        .objects
+        .iter()
+        .filter(|o| o.kind == openstitch_design::ObjectKind::Stitches)
+        .count();
+    assert_eq!(patterns, 2, "Split at Point from the menu");
+}
+
 /// With the pattern's exit point selected and Alt held, the other pattern's entry point is
 /// marked with an x; Alt+drag onto it shows the red square, and releasing connects the two
 /// into one pattern (#1272).

@@ -634,10 +634,16 @@ async function extraChecks(browser, type, label) {
       // Tab selects every needle point of the selected point's colour block (PE-DESIGN capture
       // k6), and stays with the editor; Tab again selects none.
       const held = pts[k - 1].index;
+      // The keys go to the editor while its canvas has the focus (eframe drops them
+      // otherwise), as the arrow-key steps above make sure of.
+      await page.evaluate(() => document.getElementById("openstitch").focus());
+      const preTab = await stitch({});
+      const every = preTab.colors.find((c) => c.entry <= held && held <= c.exit)?.points;
       await page.keyboard.press("Tab");
+      // The editor takes the key on its next frame: wait for it.
+      await until("Tab selects the colour block", (n) => (window.openstitch.run({ command: "ui.stitchPoints" }).result?.selected?.length ?? -1) === n, every).catch(() => {});
       const tab = await stitch({});
-      const every = tab.colors.find((c) => c.entry <= held && held <= c.exit)?.points;
-      if (tab.selected.length !== every) throw new Error(`Tab: ${JSON.stringify(tab).slice(0, 300)}`);
+      if (tab.selected.length !== every) throw new Error(`Tab: ${tab.selected.length} selected, ${every} in the colour of point ${held}; focus on ${await page.evaluate(() => document.activeElement?.tagName + "#" + document.activeElement?.id)}; ${JSON.stringify({ selected: tab.selected, colors: tab.colors })}`);
       await page.keyboard.press("Tab");
       await until("Tab again selects none", () => (window.openstitch.run({ command: "ui.stitchPoints" }).result?.selected?.length ?? -1) === 0);
       // Alt + drag of the exit point onto another pattern's entry point connects the two, with

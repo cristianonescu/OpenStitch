@@ -4911,8 +4911,10 @@ Tests against the numbers above: design `to_curve_places_the_handles_where_pe_de
 **Measured** on PE-DESIGN 11.50 the same day (black-box: the coordinator's captures k2 to k14
 on a pattern of two red running lines and a blue one, read from the screen and from the PES
 files PE-DESIGN saved). PE-DESIGN opens a file's colours as separate stitch patterns, one per
-colour, so its keys never cross a colour change; OpenStitch's own patterns can hold several
-colours, and the keys below work across the whole pattern. Rows marked *not verified* keep
+colour, so its keys never cross a colour change. OpenStitch's patterns can hold several
+colours; until a file opens as one pattern per colour (#1289), the keys below stay inside the
+colour block of the selected point, as PE-DESIGN's stay inside its pattern, and a deleted
+jump's landing never moves into the next colour. Rows marked *not verified* keep
 OpenStitch's own choice: the automation could not hold a key during a drag or send modifier
 keys with a mouse click reliably.
 
@@ -4932,8 +4934,8 @@ keys with a mouse click reliably.
 | Ctrl+Shift+click on a stitch | Inserts a point there and the stitch up to it becomes a jump. | **not verified**: PE-DESIGN added a normal point, the modifiers may not have reached it (k8) |
 | A click on a jump | Selects the needle points at both its ends, inserts nothing (a jump a file stores in several steps, as DST's of over 12.1 mm, counts as one); selected points are painted over unselected ones, so the landing shows filled. | measured (k9) |
 | A click on the empty page | Drops the selected points and the pattern's selection. | measured (k10) |
-| Delete on the end of a jump | The jump stays: deleting the point it lands on makes it land on the next point, which is selected; deleting the point it starts from makes it start from the point before, which is selected. | measured (k11) |
-| Delete on the entry or exit point, or any point | Deleted (at least one stitch must remain); the next point is selected, at the exit the point before. | measured (k14) |
+| Delete on the end of a jump | The jump stays: deleting the point it lands on makes it land on the next point of its colour block, which is selected; deleting the point it starts from makes it start from the point before, which is selected. With no point left in the colour block to land on, the jump and the trim before it go, and the block ends at the point before. | measured (k11); the no-landing case **not verified** (OpenStitch's choice: nothing dangles, nothing lands in another colour) |
+| Delete on the entry or exit point, or any point | Deleted (at least one stitch must remain); the next point is selected, at the exit the point before. An imported file's entry point is the jump that travels to the first stitch: deleting it keeps the stitches; deleting the first stitch, the point PE-DESIGN shows as the entry (it drops the stitch on a jump's landing), shortens the start's lock stitch by one point, as k14a. | measured (k14) |
 | Right-click on a point | The needle point menu: Split at Point, Delete; neither is grey on the entry or the exit point. | measured (k12) |
 | Split at Point on the entry or exit point | A group of two pieces: the entry point alone (at the exit point: the exit point alone, after the pattern) and the pattern; the alone piece sews nothing (a jump to where the needle first goes in, or last comes out, so a file's opening jumps stay as they were) and the exported stitches are the same as before. | measured on the entry point (k12); the exit point **not verified** (by symmetry) |
 | Split at Point on a point between | Two patterns, the point in both (as before #1272). | **not verified** (k12: menu seen, not run) |

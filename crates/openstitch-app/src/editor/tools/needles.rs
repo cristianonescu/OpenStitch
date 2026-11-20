@@ -21,6 +21,10 @@ use openstitch_design::{DesignObject, Vec2, v2};
 use serde_json::json;
 use std::collections::BTreeSet;
 
+/// What an arrow key moves the selected needle points by, in design units (0.1 mm): 0.1 mm,
+/// PE-DESIGN 11.50's (capture k5: one Right press moved a point from 8.0 to 8.1 mm).
+pub const NUDGE: f64 = 1.0;
+
 /// What the canvas draws for the needle points of the Point tool's stitch pattern.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NeedleOverlay {
@@ -415,8 +419,23 @@ impl ToolController {
                                 })
                                 .map(|(i, ..)| i),
                         );
+                        return vec![];
                     }
-                    return vec![];
+                    // A click, not a drag, on empty space inside the pattern's box: as on the
+                    // empty page anywhere (PE-DESIGN capture k10), the points and the pattern
+                    // are dropped, or another object there is selected; Ctrl or Shift keeps
+                    // them.
+                    if e.shift || e.free {
+                        return vec![];
+                    }
+                    self.needles.clear();
+                    self.needle_anchor = None;
+                    // The pattern itself is found there by its box; no stitch of it is: the
+                    // empty page, as far as the click goes.
+                    return match object_at(ctx.design, p, ctx.tolerance()) {
+                        Some(id) if id != o.id => vec![ToolEffect::Select(BTreeSet::from([id]))],
+                        _ => vec![ToolEffect::Select(BTreeSet::new())],
+                    };
                 }
                 match delta {
                     Some(d) if !self.needles.is_empty() => vec![ToolEffect::run(
@@ -662,7 +681,9 @@ impl ToolController {
         if let [deleted] = selected.iter().copied().collect::<Vec<_>>()[..] {
             let pts = needle_points(o);
             if let Some(k) = pts.iter().position(|q| q.0 == deleted) {
-                let next = pts.get(k + 1).filter(|q| !q.2).map(|q| q.0 - 1);
+                // A deleted jump's landing moves to the next point, which is selected (k11a);
+                // the point before a jump is selected instead of the jump (k11b).
+                let next = pts.get(k + 1).filter(|q| !q.2 || pts[k].2).map(|q| q.0 - 1);
                 let before = k.checked_sub(1).map(|b| pts[b].0);
                 if let Some(n) = next.or(before) {
                     self.needles.insert(n);
@@ -1036,6 +1057,41 @@ mod tests {
         assert!(t.selected_needles(&ctx).is_empty());
     }
 
+    /// A click (no drag) on empty space inside the pattern's box drops the points and the
+    /// pattern, as one on the empty page anywhere (PE-DESIGN capture k10); a drag from there
+    /// is still a drag box.
+    #[test]
+    fn an_empty_click_inside_the_patterns_box_drops_it_and_a_drag_there_is_a_box() {
+        let (s, id) = two_colours();
+        let f = Fixture::new(&s, id);
+        let ctx = f.ctx();
+        let o = ctx.needle_target().expect("pattern");
+        let b = o.bounds().expect("bounds");
+        // Between the second red line (y 30 mm) and the first blue one (y 50 mm), away from
+        // the jumps: inside the box, on no stitch.
+        let empty = v2(380.0, 450.0);
+        assert!(empty.x > b.min_x && empty.x < b.max_x && empty.y > b.min_y && empty.y < b.max_y);
+        let mut t = ToolController::default();
+        t.set_tool(Tool::Point);
+        let one = needle_points(o)[5].0;
+        t.set_needle_selection(id, BTreeSet::from([one]));
+        assert!(t.handle(ev(Phase::Down, empty), &ctx).is_empty());
+        let effects = t.handle(ev(Phase::Up, empty), &ctx);
+        assert!(
+            matches!(effects.as_slice(), [ToolEffect::Select(s)] if s.is_empty()),
+            "the pattern is dropped: {effects:?}"
+        );
+        assert!(t.selected_needles(&ctx).is_empty(), "and its points");
+        // A drag from the same place: a box, the pattern stays.
+        t.set_needle_selection(id, BTreeSet::from([one]));
+        t.handle(ev(Phase::Down, empty), &ctx);
+        t.handle(ev(Phase::Dragged, v2(390.0, 520.0)), &ctx);
+        let effects = t.handle(ev(Phase::Up, v2(390.0, 520.0)), &ctx);
+        assert!(effects.is_empty(), "the pattern stays: {effects:?}");
+        let boxed = t.selected_needles(&ctx);
+        assert!(!boxed.is_empty() && !boxed.contains(&one), "{boxed:?}");
+    }
+
     /// PE-DESIGN captures k6 and k7, where each colour block of a machine file is a stitch
     /// pattern of its own: Tab and Shift+Tab toggle all / none of the points of the selected
     /// point's colour block (nothing selected: nothing, unless Tab has just dropped them);
@@ -1158,6 +1214,78 @@ mod tests {
         assert_eq!(t.selected_needles(&ctx), BTreeSet::from([pts[last - 1].0]));
     }
 
+    /// Delete on the entry point (PE-DESIGN capture k14a: allowed, the next point selected,
+    /// the start's lock stitch one point shorter). An imported file's entry point is the jump
+    /// that travels to the first stitch: deleting it keeps the stitches, the jump lands on
+    /// the next point, which is selected. Deleting the first stitch of the start's lock
+    /// stitch, the point PE-DESIGN shows as the entry (it drops the stitch on a jump's
+    /// landing), sews one stitch fewer there and selects the next point.
+    #[test]
+    fn delete_on_the_entry_point_selects_the_next_one() {
+        let (mut s, id) = two_colours();
+        let stitches = |s: &Session| -> Vec<(f64, f64)> {
+            let d = s.design();
+            d.objects[d.index_of(id).expect("pattern")]
+                .stitch_block
+                .as_ref()
+                .expect("block")
+                .stitches
+                .iter()
+                .filter(|q| q.command == openstitch_core::Command::Stitch)
+                .map(|q| (q.x, q.y))
+                .collect()
+        };
+        let before = stitches(&s);
+        let mut t = ToolController::default();
+        t.set_tool(Tool::Point);
+        let (entry, n) = {
+            let f = Fixture::new(&s, id);
+            let ctx = f.ctx();
+            let pts = needle_points(ctx.needle_target().expect("pattern"));
+            (pts[0].0, pts.len())
+        };
+        // The entry point: the travel jump.
+        let r = {
+            let f = Fixture::new(&s, id);
+            let ctx = f.ctx();
+            t.set_needle_selection(id, BTreeSet::from([entry]));
+            requests(&t.delete_point(&ctx).expect("deleted"))
+        };
+        s.execute(r[0].command, Some(&r[0].params))
+            .expect("deletes");
+        let f = Fixture::new(&s, id);
+        let ctx = f.ctx();
+        let pts = needle_points(ctx.needle_target().expect("pattern"));
+        assert_eq!(pts.len(), n - 1, "one point fewer");
+        assert!(pts[0].2, "the pattern still starts with a jump");
+        assert_eq!(stitches(&s), before, "the stitches are the same");
+        assert_eq!(
+            t.selected_needles(&ctx),
+            BTreeSet::from([pts[0].0]),
+            "the next point is selected"
+        );
+        // The first stitch of the start's lock stitch.
+        let first_stitch = pts.iter().find(|q| !q.2).expect("a stitch").0;
+        t.set_needle_selection(id, BTreeSet::from([first_stitch]));
+        let r = requests(&t.delete_point(&ctx).expect("deleted"));
+        s.execute(r[0].command, Some(&r[0].params))
+            .expect("deletes");
+        let after = stitches(&s);
+        assert_eq!(after.len(), before.len() - 1, "one stitch fewer");
+        assert_eq!(
+            after[..],
+            before[1..],
+            "the lock stitch lost its first point"
+        );
+        let f = Fixture::new(&s, id);
+        let ctx = f.ctx();
+        assert_eq!(
+            t.selected_needles(&ctx),
+            BTreeSet::from([first_stitch]),
+            "the next point (now at the deleted one's index) is selected"
+        );
+    }
+
     /// Ctrl+arrow selects the next or previous needle point alone, Shift+arrow grows and
     /// shrinks the selection from where it started; the arrows move the selected points.
     #[test]
@@ -1190,10 +1318,10 @@ mod tests {
             BTreeSet::from([order[4], order[5]])
         );
         // The arrows: one stitches.movePoints of the selected points.
-        let r = requests(&t.nudge_needles(5.0, 0.0, &ctx).expect("points selected"));
+        let r = requests(&t.nudge_needles(NUDGE, 0.0, &ctx).expect("points selected"));
         assert_eq!(r[0].command, "stitches.movePoints");
         assert_eq!(r[0].params["indexes"], json!([order[4], order[5]]));
-        assert_eq!(r[0].params["dx"], json!(0.5));
+        assert_eq!(r[0].params["dx"], json!(0.1), "0.1 mm a press (k5)");
     }
 
     /// Ctrl+arrow and Shift+arrow cross a jump inside a colour block (PE-DESIGN capture k4:

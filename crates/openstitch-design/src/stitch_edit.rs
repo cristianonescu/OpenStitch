@@ -299,17 +299,34 @@ pub fn delete_points(b: &mut StitchBlock, indexes: &[usize]) -> Result<(), EditE
     for &i in indexes {
         remove[i] = true;
     }
-    // A deleted jump's landing moves to the next needle point that stays.
+    // A deleted jump's landing moves to the next needle point that stays in the same colour
+    // block (PE-DESIGN capture k11; a colour block is a stitch pattern of its own there, so
+    // the jump never lands in the next colour). With no such point (the jump led to the
+    // colour block's or the pattern's last points, all deleted) the jump has nowhere to go:
+    // the trims before it, which only cut for that jump, go with it, and the colour block
+    // ends at the point before.
+    let mut stitches = b.stitches.clone();
     for &i in indexes {
-        if b.stitches[i].command == Command::Jump
-            && let Some(j) =
-                (i + 1..b.stitches.len()).find(|&j| is_point(b.stitches[j].command) && !remove[j])
-        {
-            b.stitches[j].command = Command::Jump;
+        if b.stitches[i].command != Command::Jump {
+            continue;
+        }
+        let landing = (i + 1..b.stitches.len())
+            .take_while(|&j| b.stitches[j].command != Command::ColorChange)
+            .find(|&j| is_point(b.stitches[j].command) && !remove[j]);
+        match landing {
+            Some(j) => stitches[j].command = Command::Jump,
+            None => {
+                for k in (0..i).rev() {
+                    match b.stitches[k].command {
+                        Command::Trim => remove[k] = true,
+                        c if is_point(c) && remove[k] => {}
+                        _ => break,
+                    }
+                }
+            }
         }
     }
-    let kept: Vec<Stitch> = b
-        .stitches
+    let kept: Vec<Stitch> = stitches
         .iter()
         .zip(&remove)
         .filter(|(_, r)| !**r)
@@ -603,6 +620,71 @@ mod tests {
                 (60.0, Command::Stitch)
             ]
         );
+        // Deleting a jump and the rest of its colour block: the jump does not land in the next
+        // colour, and the trim before it goes with it (nothing is left to cut for).
+        let block = |cmds: &[(f64, Command)]| StitchBlock {
+            stitches: cmds.iter().map(|&(x, c)| st(x, c)).collect(),
+            threads: vec![Thread::rgb(0xff0000), Thread::rgb(0x0000ff)],
+        };
+        use Command::{ColorChange as C, Jump as J, Stitch as S, Trim as T};
+        let mut b = block(&[
+            (0.0, J),
+            (0.0, S),
+            (10.0, S),
+            (10.0, T),
+            (20.0, J),
+            (20.0, S),
+            (20.0, C),
+            (30.0, S),
+            (40.0, S),
+        ]);
+        delete_points(&mut b, &[4, 5]).expect("deletes the jump and its landing");
+        assert_eq!(
+            xs(&b),
+            [
+                (0.0, J),
+                (0.0, S),
+                (10.0, S),
+                (20.0, C),
+                (30.0, S),
+                (40.0, S)
+            ],
+            "the next colour's first stitch stays a stitch, the trim goes"
+        );
+        // The same at the pattern's end: no trim is left dangling.
+        let mut b = block(&[
+            (0.0, J),
+            (0.0, S),
+            (10.0, S),
+            (10.0, T),
+            (20.0, J),
+            (22.0, S),
+        ]);
+        delete_points(&mut b, &[4, 5]).expect("deletes the last jump and point");
+        assert_eq!(xs(&b), [(0.0, J), (0.0, S), (10.0, S)]);
+        // Only the landing deleted, with a point after it: the jump lands there.
+        let mut b = block(&[
+            (0.0, J),
+            (0.0, S),
+            (10.0, S),
+            (10.0, T),
+            (20.0, J),
+            (20.0, S),
+            (22.0, S),
+        ]);
+        delete_points(&mut b, &[4]).expect("deletes the landing");
+        assert_eq!(
+            xs(&b),
+            [
+                (0.0, J),
+                (0.0, S),
+                (10.0, S),
+                (10.0, T),
+                (20.0, J),
+                (22.0, S)
+            ]
+        );
+
         let mut b = sample();
         let all: Vec<usize> = (0..b.stitches.len())
             .filter(|&i| is_point(b.stitches[i].command))

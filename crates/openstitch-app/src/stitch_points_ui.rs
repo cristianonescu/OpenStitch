@@ -2,9 +2,8 @@
 //! PE-DESIGN's Select Point keys (Tab, Shift+Tab, Home, End, Ctrl+Home, Ctrl+End; the arrows
 //! are in `app.rs` with the shape's), and the same as a command for the Assistant and scripts.
 
-/// What an arrow key moves the selected needle points by, 0.1 mm units: 0.1 mm, PE-DESIGN
-/// 11.50's (capture k5: one Right press moved a point from 8.0 to 8.1 mm).
-pub const NEEDLE_NUDGE: f64 = 1.0;
+/// What an arrow key moves the selected needle points by: 0.1 mm (`needles::NUDGE`).
+pub const NEEDLE_NUDGE: f64 = openstitch_app::editor::tools::needles::NUDGE;
 
 use crate::app::EditorApp;
 use eframe::egui::{self, Key, KeyboardShortcut, Modifiers};
@@ -115,8 +114,29 @@ fn state(app: &EditorApp) -> Value {
 
 /// `ui.stitchPoints`: drives the Point tool on the one selected stitch pattern as its keys
 /// and clicks do. Each key is one call; several in one call run in the order listed below.
+/// The parameters `ui.stitchPoints` reads; any other is refused, and the registry declares
+/// exactly these (tested).
+pub const PARAMS: [&str; 7] = [
+    "select",
+    "tab",
+    "end",
+    "step",
+    "extend",
+    "connectTo",
+    "action",
+];
+
 pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, String> {
     let p = params.cloned().unwrap_or(Value::Null);
+    if let Some(unknown) = p
+        .as_object()
+        .and_then(|m| m.keys().find(|k| !PARAMS.contains(&k.as_str())))
+    {
+        return Err(format!(
+            "ui.stitchPoints: unknown parameter {unknown}; it takes {}",
+            PARAMS.join(", ")
+        ));
+    }
     if p.as_object().is_some_and(|m| !m.is_empty()) {
         app.tools.set_tool(Tool::Point);
     }
