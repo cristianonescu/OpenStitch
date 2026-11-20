@@ -1964,3 +1964,259 @@ fn the_editor_keeps_its_ctrl_shortcuts_from_the_browser() {
         assert!(!app.takes_browser_key(chord), "{chord}");
     }
 }
+
+impl Window {
+    /// A right click at `at` as the window sends it, then two frames (the menu's first frame
+    /// only measures it).
+    fn right_click(&mut self, app: &mut EditorApp, at: egui::Pos2) {
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        self.run(
+            app,
+            vec![egui::Event::PointerMoved(at), button(true), button(false)],
+            Modifiers::NONE,
+        );
+        self.run(app, vec![], Modifiers::NONE);
+        self.run(app, vec![], Modifiers::NONE);
+    }
+}
+
+/// Where object `i` (in design order) is on screen, inside its fill.
+fn on_screen(app: &EditorApp, i: usize) -> egui::Pos2 {
+    let vp = app.viewport.expect("viewport");
+    let b = app.session.design().objects[i].bounds().expect("bounds");
+    let s = vp.to_screen(b.center());
+    egui::pos2(s.x as f32, s.y as f32)
+}
+
+fn menu(app: &mut EditorApp) -> Value {
+    app.ui_command("ui.objectMenu", None).expect("state")
+}
+
+/// #1288: a right-click on an object with the Select tool opens the object menu, PE-DESIGN
+/// 11.50's entries in its order with its separators, sub-menus and shortcuts, painted at the
+/// pointer: on one unselected object (selected first), on one of two selected objects and on a
+/// group (the selection stays); not on empty canvas; Esc closes it and keeps the selection.
+#[test]
+fn a_right_click_opens_pe_designs_object_menu_for_one_several_and_a_group() {
+    for how in ["one", "two", "group"] {
+        let mut w = Window::new();
+        let mut app = started(&mut w);
+        let ids = squares(&mut app, how);
+        if how == "one" {
+            app.selection.clear();
+        }
+        w.run(&mut app, vec![], Modifiers::NONE);
+        let at = on_screen(&app, 0);
+        w.right_click(&mut app, at);
+        let m = menu(&mut app);
+        assert_eq!(m["open"], true, "{how}: open");
+        assert_eq!(app.selection, ids, "{how}: the selection the menu is for");
+        let rect = m["menuRect"].as_array().expect("painted");
+        let x = rect[0].as_f64().expect("x") as f32;
+        let y = rect[1].as_f64().expect("y") as f32;
+        assert!(
+            (x - at.x).abs() < 2.0 && (y - at.y).abs() < 2.0,
+            "{how}: at the pointer: {rect:?} vs {at:?}"
+        );
+        // The rows: PE-DESIGN's order, separators where its menu has them.
+        let keys: Vec<String> = m["rows"]
+            .as_array()
+            .expect("rows")
+            .iter()
+            .map(|r| {
+                if r["separator"] == true {
+                    "-".to_string()
+                } else {
+                    r["key"].as_str().expect("key").to_string()
+                }
+            })
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "cut",
+                "copy",
+                "duplicate",
+                "paste",
+                "delete",
+                "-",
+                "flip",
+                "center",
+                "-",
+                "openOutline",
+                "closeOutline",
+                "-",
+                "offsetLines",
+                "toStitches",
+                "floral",
+                "-",
+                "cutAndSew"
+            ],
+            "{how}"
+        );
+        let row = |key: &str| {
+            m["rows"]
+                .as_array()
+                .expect("rows")
+                .iter()
+                .find(|r| r["key"] == key)
+                .cloned()
+                .expect(key)
+        };
+        let ctrl = if cfg!(target_os = "macos") { "Cmd" } else { "Ctrl" };
+        for (key, keys) in [("cut", "X"), ("copy", "C"), ("duplicate", "D")] {
+            assert_eq!(row(key)["shortcut"], format!("{ctrl}+{keys}"), "{key}");
+            assert_eq!(row(key)["enabled"], true, "{how}: {key}");
+        }
+        assert_eq!(row("delete")["shortcut"], "Delete");
+        let flips: Vec<(String, String)> = row("flip")["submenu"]
+            .as_array()
+            .expect("flip")
+            .iter()
+            .map(|e| {
+                (
+                    e["key"].as_str().expect("key").to_string(),
+                    e["shortcut"].as_str().expect("shortcut").to_string(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            flips,
+            [
+                ("flipVertical".to_string(), format!("{ctrl}+H")),
+                ("flipHorizontal".to_string(), format!("{ctrl}+J"))
+            ]
+        );
+        assert_eq!(row("center")["shortcut"], format!("{ctrl}+M"));
+        let paste_row = row("paste");
+        let paste: Vec<&str> = paste_row["submenu"]
+            .as_array()
+            .expect("paste")
+            .iter()
+            .map(|e| e["key"].as_str().expect("key"))
+            .collect();
+        assert_eq!(paste, ["paste", "pasteAttributes"]);
+        let wizards_row = row("cutAndSew");
+        let wizards: Vec<&str> = wizards_row["submenu"]
+            .as_array()
+            .expect("cut and sew")
+            .iter()
+            .map(|e| e["key"].as_str().expect("key"))
+            .collect();
+        assert_eq!(wizards, ["applique", "patch", "cutwork"]);
+        // A closed shape: Open is offered, Close is grey, as in PE-DESIGN's capture.
+        if how == "one" {
+            assert_eq!(
+                (row("openOutline")["enabled"].clone(), row("closeOutline")["enabled"].clone()),
+                (json!(true), json!(false))
+            );
+        }
+        // Esc closes it and keeps the selection.
+        w.run(
+            &mut app,
+            vec![key(Key::Escape, Modifiers::NONE)],
+            Modifiers::NONE,
+        );
+        assert_eq!(menu(&mut app)["open"], false, "{how}: Esc closes it");
+        assert_eq!(app.selection, ids, "{how}: and keeps the selection");
+    }
+    // Empty canvas: no menu, and the selection stays.
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let vp = app.viewport.expect("viewport");
+    let empty = vp.to_screen(openstitch_design::v2(900.0, 900.0));
+    w.right_click(&mut app, egui::pos2(empty.x as f32, empty.y as f32));
+    assert_eq!(menu(&mut app)["open"], false, "no menu on empty canvas");
+    assert_eq!(app.selection, ids);
+}
+
+/// #1288: the menu's entries run on the selection, each one undo step: Flip Vertical and Flip
+/// Horizontal mirror it about its centre, Center moves it to the Design Page's centre,
+/// Duplicate and Copy then Paste add copies; an entry that is grey is refused. A click
+/// outside the menu closes it.
+#[test]
+fn the_object_menus_entries_run_on_the_selection() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "two");
+    let second = *ids.iter().last().expect("second");
+    app.execute(&CommandRequest::new(
+        "object.move",
+        json!({ "ids": [second], "dy": 15 }),
+    ))
+    .expect("move");
+    app.selection = ids.clone();
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let at = on_screen(&app, 0);
+    let before = bounds_of(&app, &ids);
+    let first = |app: &EditorApp| app.session.design().objects[0].bounds().expect("bounds");
+    for action in ["flipVertical", "flipHorizontal"] {
+        w.right_click(&mut app, at);
+        let was = first(&app);
+        app.ui_command("ui.objectMenu", Some(&json!({ "action": action })))
+            .expect(action);
+        assert_eq!(menu(&mut app)["open"], false, "{action}: the menu closes");
+        assert_ne!(first(&app), was, "{action}: mirrored");
+        assert_eq!(bounds_of(&app, &ids), before, "{action}: about the centre");
+        app.undo();
+        assert_eq!(first(&app), was, "{action}: one undo step");
+    }
+    w.right_click(&mut app, at);
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "center" })))
+        .expect("center");
+    let page = app.session.design().page.center();
+    let c = bounds_of(&app, &ids).center();
+    assert!((c.x - page.x).abs() < 1e-6 && (c.y - page.y).abs() < 1e-6);
+    app.undo();
+    let count = |app: &EditorApp| app.session.design().objects.len();
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "duplicate" })))
+        .expect("duplicate");
+    assert_eq!(count(&app), 4);
+    app.undo();
+    app.selection = ids.clone();
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "copy" })))
+        .expect("copy");
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "paste" })))
+        .expect("paste");
+    assert_eq!(count(&app), 4);
+    app.undo();
+    app.selection = ids.clone();
+    let e = app
+        .ui_command("ui.objectMenu", Some(&json!({ "action": "closeOutline" })))
+        .expect_err("grey");
+    assert!(e.contains("not available"), "{e}");
+    let e = app
+        .ui_command("ui.objectMenu", Some(&json!({ "action": "bend" })))
+        .expect_err("unknown");
+    assert!(e.contains("flipVertical"), "{e}");
+    // A left click on empty canvas closes an open menu.
+    w.right_click(&mut app, at);
+    assert_eq!(menu(&mut app)["open"], true);
+    let vp = app.viewport.expect("viewport");
+    let empty = vp.to_screen(openstitch_design::v2(900.0, 900.0));
+    w.click(&mut app, egui::pos2(empty.x as f32, empty.y as f32));
+    assert_eq!(menu(&mut app)["open"], false, "a click outside closes it");
+}
+
+/// #1288: with the Point tool a right-click still opens the Point tool's own menus (#1258,
+/// #1260), never the Select tool's object menu.
+#[test]
+fn the_point_tool_keeps_its_own_menus() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    app.tools.set_tool(Tool::Point);
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let at = on_screen(&app, 0);
+    w.right_click(&mut app, at);
+    assert_eq!(menu(&mut app)["open"], false, "no object menu");
+    let point = app.ui_command("ui.pointMenu", None).expect("point menu");
+    assert_eq!(point["objectMenuOpen"], true, "the Point tool's object menu");
+}
