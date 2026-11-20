@@ -1286,6 +1286,51 @@ mod tests {
         );
     }
 
+    /// Delete on a jump point that another jump point follows (a jump a file stores in several
+    /// steps: DST's are at most 12.1 mm, and the 22 mm jump between the two red lines of k0
+    /// is two): the jump now lands on that next point, which is selected (PE-DESIGN capture
+    /// k11a), not the point before the jump.
+    #[test]
+    fn delete_on_a_jump_followed_by_a_jump_selects_the_next_point() {
+        let (mut s, id) = two_colours();
+        let (k, deleted, next, before, n) = {
+            let f = Fixture::new(&s, id);
+            let ctx = f.ctx();
+            let pts = needle_points(ctx.needle_target().expect("pattern"));
+            // Past the opening jumps: the first jump step that another jump step follows.
+            let k = (2..pts.len() - 1)
+                .find(|&k| pts[k].2 && pts[k + 1].2 && !pts[k - 1].2)
+                .expect("a jump stored in two steps between the red lines");
+            (k, pts[k].0, pts[k + 1].0, pts[k - 1].0, pts.len())
+        };
+        let mut t = ToolController::default();
+        t.set_tool(Tool::Point);
+        let r = {
+            let f = Fixture::new(&s, id);
+            let ctx = f.ctx();
+            t.set_needle_selection(id, BTreeSet::from([deleted]));
+            requests(&t.delete_point(&ctx).expect("deleted"))
+        };
+        assert_eq!(r[0].params["indexes"], json!([deleted]));
+        s.execute(r[0].command, Some(&r[0].params))
+            .expect("deletes");
+        let f = Fixture::new(&s, id);
+        let ctx = f.ctx();
+        let pts = needle_points(ctx.needle_target().expect("pattern"));
+        assert_eq!(pts.len(), n - 1);
+        assert_eq!(
+            t.selected_needles(&ctx),
+            BTreeSet::from([next - 1]),
+            "the next jump point (one index lower now) is selected"
+        );
+        assert!(pts[k].2, "and it is still a jump");
+        assert_ne!(
+            t.selected_needles(&ctx),
+            BTreeSet::from([before]),
+            "not the point before the deleted jump"
+        );
+    }
+
     /// Ctrl+arrow selects the next or previous needle point alone, Shift+arrow grows and
     /// shrinks the selection from where it started; the arrows move the selected points.
     #[test]

@@ -1340,7 +1340,7 @@ fn ui_stitch_points_declares_the_parameters_it_reads() {
     let declared: BTreeSet<&str> = spec.params.iter().map(|p| p.name).collect();
     let read: BTreeSet<&str> = crate::stitch_points_ui::PARAMS.into_iter().collect();
     assert_eq!(declared, read);
-    for name in ["tab", "action", "end", "step"] {
+    for name in crate::stitch_points_ui::PARAMS {
         let doc = spec.params.iter().find(|p| p.name == name).expect("declared");
         assert!(doc.summary.len() > 20, "{name} says what it does");
     }
