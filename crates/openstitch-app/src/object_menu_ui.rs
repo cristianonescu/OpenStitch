@@ -116,8 +116,21 @@ fn sew_bar(app: &mut EditorApp, ctx: &egui::Context, menu: egui::Rect, below: bo
     let colour = |t: Option<&openstitch_core::Thread>| {
         t.map(|t| egui::Color32::from_rgb(t.red, t.green, t.blue))
     };
-    let line_colour = colour(m.line.as_ref().map(|l| &l.thread));
-    let region_colour = colour(m.region.as_ref().map(|r| &r.thread));
+    // A colour shows only when every selected object has it; with several colours the swatch
+    // is the pane's Mixed one (grey), and the button still opens the list to set one for all.
+    let line_colour = colour(
+        m.line
+            .as_ref()
+            .filter(|_| crate::panels::all_same_line_thread(app, &m))
+            .map(|l| &l.thread),
+    );
+    let region_colour = colour(
+        m.region
+            .as_ref()
+            .filter(|_| crate::panels::all_same_region_thread(app, &m))
+            .map(|r| &r.thread),
+    );
+    let (has_line, has_region) = (m.line.is_some(), m.region.is_some());
     let height = 30.0;
     let at = if below {
         menu.left_bottom() + egui::vec2(0.0, 4.0)
@@ -131,9 +144,15 @@ fn sew_bar(app: &mut EditorApp, ctx: &egui::Context, menu: egui::Rect, below: bo
         .show(ctx, |ui| {
             egui::Frame::menu(ui.style()).show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    for (a, text, swatch, ca) in [
-                        (Action::LineSewType, line, line_colour, Action::LineColor),
-                        (Action::RegionSewType, region, region_colour, Action::RegionColor),
+                    for (a, text, swatch, ca, has) in [
+                        (Action::LineSewType, line, line_colour, Action::LineColor, has_line),
+                        (
+                            Action::RegionSewType,
+                            region,
+                            region_colour,
+                            Action::RegionColor,
+                            has_region,
+                        ),
                     ] {
                         let on = crate::ribbon::enabled(app, a);
                         ui.add_enabled_ui(on, |ui| {
@@ -145,7 +164,7 @@ fn sew_bar(app: &mut EditorApp, ctx: &egui::Context, menu: egui::Rect, below: bo
                         });
                         let fill = swatch.unwrap_or(ui.visuals().extreme_bg_color);
                         let button = egui::Button::new("    ").fill(fill);
-                        ui.add_enabled_ui(on && swatch.is_some(), |ui| {
+                        ui.add_enabled_ui(on && has, |ui| {
                             egui::containers::menu::MenuButton::from_button(button)
                                 .ui(ui, |ui| crate::ribbon::menu(app, ca, ui))
                                 .0
@@ -321,11 +340,15 @@ fn bar_state(app: &EditorApp) -> Value {
     use openstitch_app::editor::inspector::{InspectorModel, line_name, region_name};
     let m = InspectorModel::new(app.session.design(), &app.selection);
     let hex = |t: &openstitch_core::Thread| format!("#{:02x}{:02x}{:02x}", t.red, t.green, t.blue);
+    let line_same = crate::panels::all_same_line_thread(app, &m);
+    let region_same = crate::panels::all_same_region_thread(app, &m);
     json!({
         "line": m.line_kind.same().map(|k| line_name(*k)),
-        "lineColor": m.line.as_ref().map(|l| hex(&l.thread)),
+        "lineColor": m.line.as_ref().filter(|_| line_same).map(|l| hex(&l.thread)),
+        "lineColorMixed": m.line.is_some() && !line_same,
         "region": m.region_kind.same().map(|k| region_name(*k)),
-        "regionColor": m.region.as_ref().map(|r| hex(&r.thread)),
+        "regionColor": m.region.as_ref().filter(|_| region_same).map(|r| hex(&r.thread)),
+        "regionColorMixed": m.region.is_some() && !region_same,
         "below": app.selection.len() >= 2,
         "rect": app.workspace.view.object_menu.as_ref().and_then(|m| m.bar).map(|r| [r.min.x, r.min.y, r.width(), r.height()]),
     })

@@ -2510,3 +2510,31 @@ fn after_a_pane_click_only_a_text_field_keeps_ctrl_c_from_the_selection() {
     }
     assert!(tabbed > 0, "Tab focused a button");
 }
+
+/// #1288: the sew-type bar agrees with the Sewing Attributes pane for a mixed selection: two
+/// objects of different region colours show no colour (the pane's Mixed), two of the same
+/// colour show it.
+#[test]
+fn the_sew_type_bar_shows_mixed_colours_as_the_pane_does() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "two");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let bar = |app: &mut EditorApp| {
+        app.ui_command("ui.objectMenu", None).expect("menu")["bar"].clone()
+    };
+    let same = bar(&mut app);
+    assert_eq!(same["regionColor"], "#ed171f");
+    assert_eq!(same["regionColorMixed"], false);
+    let second = *ids.iter().last().expect("second");
+    app.execute(&CommandRequest::new(
+        "object.setRegion",
+        json!({ "ids": [second], "color": "Green" }),
+    ))
+    .expect("green");
+    app.selection = ids.clone();
+    let mixed = bar(&mut app);
+    assert!(mixed["regionColor"].is_null(), "{mixed}");
+    assert_eq!(mixed["regionColorMixed"], true);
+    assert_eq!(mixed["region"], "fill", "the same sew type still shows");
+}
