@@ -505,31 +505,35 @@ mod tests {
         }
     }
 
+    /// A saved map that gave Ctrl+H to Rectangle (and F2 to Save).
+    fn saved_with_ctrl_h() -> Value {
+        json!({ "rectangle": ["Ctrl+H"], "save": ["F2"] })
+    }
+
     /// #1288: a key the user had given to another command before it became a default (Ctrl+H to
     /// Rectangle, saved in ui.json) stays theirs when the map is read: the rest of their map is
     /// kept, the new default's command gives that key up (once: saved, it is a change), and no
     /// key belongs to two commands.
     #[test]
     fn a_users_key_that_became_a_default_stays_theirs() {
-        let saved = json!({ "rectangle": ["Ctrl+H"], "save": ["F2"] });
+        // Ctrl+J (Cmd+J) is Flip Horizontal's default on every platform now.
+        let saved = json!({ "rectangle": ["Ctrl+J"], "save": ["F2"] });
         let k = Keymap::load(&saved);
-        assert_eq!(k.chords(Action::Rectangle), ["Ctrl+H"]);
+        assert_eq!(k.chords(Action::Rectangle), ["Ctrl+J"]);
         assert_eq!(
             k.chords(Action::Save),
             ["F2"],
             "the rest of the map is kept"
         );
-        assert!(k.chords(Action::FlipVertical).is_empty() || cfg!(target_os = "macos"));
-        if !cfg!(target_os = "macos") {
-            assert_eq!(
-                k.given_up,
-                [(
-                    Action::FlipVertical,
-                    "Ctrl+H".to_string(),
-                    Action::Rectangle
-                )]
-            );
-        }
+        assert!(k.chords(Action::FlipHorizontal).is_empty());
+        assert_eq!(
+            k.given_up,
+            [(
+                Action::FlipHorizontal,
+                "Ctrl+J".to_string(),
+                Action::Rectangle
+            )]
+        );
         let mut seen = Vec::new();
         for (_, c) in k.bindings() {
             assert!(!seen.contains(&c), "{c} does two things");
@@ -538,7 +542,28 @@ mod tests {
         // Saved again and read back: no second message.
         let again = Keymap::load(&k.to_json());
         assert!(again.given_up.is_empty());
-        assert_eq!(again.chords(Action::Rectangle), ["Ctrl+H"]);
+        assert_eq!(again.chords(Action::Rectangle), ["Ctrl+J"]);
+        // Ctrl+H (Cmd+H): Flip Vertical's default outside macOS, which gives it up to the user's
+        // command; on macOS the system's Hide, which no command can have, so the saved map
+        // loses that key and keeps the rest (Flip Vertical keeps its Cmd+Shift+H).
+        let mac = cfg!(target_os = "macos");
+        let k = Keymap::load(&saved_with_ctrl_h());
+        assert_eq!(k.chords(Action::Save), ["F2"], "the map is not refused");
+        if mac {
+            assert!(k.chords(Action::Rectangle).is_empty());
+            assert_eq!(k.chords(Action::FlipVertical), ["Ctrl+Shift+H"]);
+        } else {
+            assert_eq!(k.chords(Action::Rectangle), ["Ctrl+H"]);
+            assert!(k.chords(Action::FlipVertical).is_empty());
+        }
+        assert_eq!(
+            k.chords(Action::FlipVertical),
+            defaults_on(Action::FlipVertical, mac)
+                .iter()
+                .filter(|c| **c != "Ctrl+H")
+                .map(|c| c.to_string())
+                .collect::<Vec<_>>()
+        );
         // Join Lines' old key given to another command stays with it; Join Lines keeps its own.
         let k = Keymap::load(&json!({ "ellipse": ["Ctrl+Shift+J"] }));
         assert_eq!(k.chords(Action::Ellipse), ["Ctrl+Shift+J"]);

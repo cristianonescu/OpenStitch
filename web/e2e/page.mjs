@@ -759,14 +759,40 @@ async function extraChecks(browser, type, label) {
       const made = await ok({ command: "shape.polygon", params: { points: [[20, 20], [70, 20], [20, 55]], fill: "#2e8b57", outline: "#203040" } });
       const shape = async (id) => JSON.stringify(await ok({ command: "object.get", params: { id } }));
       await ok({ command: "ui.zoom", params: { fit: "page" } });
+      // The view once the browser has drawn it: the same (canvas area's place and size, the
+      // centre and the page's size on screen) in two reads a frame apart. A place read
+      // before the view settles is a place the shape is no longer at (#1290's class).
+      const view = () => page.evaluate(() => window.openstitch.run({ command: "ui.state" }).result?.view ?? null);
+      const settled = async (step) => {
+        let last = null;
+        for (let attempt = 0; attempt < 60; attempt += 1) {
+          const v = await view();
+          if (v && last && JSON.stringify(v) === JSON.stringify(last)) return v;
+          last = v;
+          await page.waitForTimeout(100);
+        }
+        throw new Error(`object menu, ${step}: the view did not settle: ${JSON.stringify(last)}`);
+      };
       // Where the shape is on screen: selected for a moment to read it, then deselected.
       await ok({ command: "ui.select", params: { ids: [made.id] } });
       await until("the shape is on screen", () => window.openstitch.run({ command: "ui.objectMenu" }).result?.selectionRect != null);
+      const readView = await settled("reading the shape's place");
       const [sx, sy, sw, sh] = (await menu()).selectionRect;
       await ok({ command: "ui.select", params: { ids: [] } });
+      // At click time: the view settled again after the deselection. The shape's place moves
+      // with the canvas area (a pane that changed with the selection moves it); a changed
+      // zoom or centre would move it in other ways, which the step refuses.
+      const clickView = await settled("before the right-click");
+      if (JSON.stringify(clickView.pagePointsInCanvas) !== JSON.stringify(readView.pagePointsInCanvas)
+        || JSON.stringify(clickView.centerMm) !== JSON.stringify(readView.centerMm)) {
+        throw new Error(`object menu: the view changed between reading the shape's place and the click: ${JSON.stringify(readView)} -> ${JSON.stringify(clickView)}`);
+      }
+      const dx = clickView.canvasAt[0] - readView.canvasAt[0];
+      const dy = clickView.canvasAt[1] - readView.canvasAt[1];
       const box = await page.locator("#openstitch").boundingBox();
       // Inside the triangle: a quarter of the way in from its square corner.
-      const at = [box.x + sx + sw / 4, box.y + sy + sh / 4];
+      const at = [box.x + sx + dx + sw / 4, box.y + sy + dy + sh / 4];
+      const shapeAt = [sx + dx, sy + dy, sw, sh];
       await page.evaluate(() => {
         window.__menus = [];
         window.__keys = [];
@@ -776,10 +802,15 @@ async function extraChecks(browser, type, label) {
       });
       // The right-click: the shape is selected and the menu is open and drawn.
       await page.mouse.click(at[0], at[1], { button: "right" });
-      await until("a right-click opens the menu", () => {
-        const m = window.openstitch.run({ command: "ui.objectMenu" }).result;
-        return m?.open && m.menuRect != null;
-      });
+      try {
+        await until("a right-click opens the menu", () => {
+          const m = window.openstitch.run({ command: "ui.objectMenu" }).result;
+          return m?.open && m.menuRect != null;
+        });
+      } catch (e) {
+        // Where the click landed against where the shape was, and the view now.
+        throw new Error(`${e.message}; the right-click landed at ${at.map((v) => v.toFixed(1))} in the page (canvas element at ${box.x.toFixed(1)}, ${box.y.toFixed(1)}), the shape at ${shapeAt.map((v) => v.toFixed(1))} in the window, the view then ${JSON.stringify(clickView)} and now ${JSON.stringify(await view())}`);
+      }
       const opened = await menu();
       if (JSON.stringify(opened.selection) !== JSON.stringify([made.id])) {
         throw new Error(`the right-click did not select the shape: ${JSON.stringify(opened.selection)}`);
