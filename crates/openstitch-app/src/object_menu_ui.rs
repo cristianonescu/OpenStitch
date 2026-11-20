@@ -430,13 +430,13 @@ fn selection_rect(app: &EditorApp) -> Option<[f64; 4]> {
     Some([a.x.min(c.x), a.y.min(c.y), (c.x - a.x).abs(), (c.y - a.y).abs()])
 }
 
+/// The parameters `ui.objectMenu` reads; any other is refused.
+pub const PARAMS: [&str; 4] = ["at", "action", "close", "numeric"];
+
 /// `ui.objectMenu`: without params, the menu ([`state`]); `{at: [x, y]}` opens it as a
 /// right-click there (window points) does, selecting the object under the pointer; `{action}`
 /// runs an entry (a key of `rows` or of a sub-menu) on the selection as a click on it does,
 /// and is refused while the entry is greyed out; `{close: true}` closes it.
-/// The parameters `ui.objectMenu` reads; any other is refused.
-pub const PARAMS: [&str; 4] = ["at", "action", "close", "numeric"];
-
 pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, String> {
     if let Some(unknown) = params
         .and_then(Value::as_object)

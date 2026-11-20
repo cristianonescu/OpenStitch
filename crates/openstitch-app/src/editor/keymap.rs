@@ -380,8 +380,15 @@ impl Keymap {
         }
         for (key, list) in obj {
             let a = Action::from_key(key).expect("checked above");
-            let chords: Vec<String> = serde_json::from_value(list.clone())
+            let mut chords: Vec<String> = serde_json::from_value(list.clone())
                 .map_err(|_| format!("{key}: give a list of shortcuts"))?;
+            // On macOS Cmd+H and Cmd+M are the system's (#1288): a saved map that gave one to a
+            // command loses that key (the system took it anyway), not the whole map.
+            if keep_users && cfg!(target_os = "macos") {
+                chords.retain(|c| {
+                    normalize(c).is_ok_and(|c| !MAC_SYSTEM_KEYS.iter().any(|(k, _)| *k == c))
+                });
+            }
             k.set(a, &chords)?;
         }
         // Commands left with exactly their defaults are not kept as changes (a command that gave

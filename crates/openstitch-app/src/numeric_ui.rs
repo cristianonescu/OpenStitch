@@ -306,9 +306,6 @@ pub fn state(app: &EditorApp) -> Value {
     })
 }
 
-/// `ui.objectMenu {numeric}`: sets the open dialog's fields (`percent`, `width`, `height`,
-/// `maintainAspectRatio`, `degrees`) and presses `button` (ok, preview, cancel), as the user
-/// does in it.
 /// The fields `ui.objectMenu {numeric}` reads; any other is refused.
 pub const PARAMS: [&str; 6] = [
     "percent",
@@ -319,6 +316,9 @@ pub const PARAMS: [&str; 6] = [
     "button",
 ];
 
+/// `ui.objectMenu {numeric}`: sets the open dialog's fields (`percent`, `width`, `height`,
+/// `maintainAspectRatio`, `degrees`) and presses `button` (ok, preview, cancel), as the user
+/// does in it.
 pub fn command(app: &mut EditorApp, params: &Value) -> Result<(), String> {
     let fields = params
         .as_object()

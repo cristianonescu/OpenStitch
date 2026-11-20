@@ -495,7 +495,6 @@ impl EditorApp {
         {
             let ui = openstitch_app::editor::prefs::path_beside(path);
             self.ui.prefs = openstitch_app::editor::prefs::UiPrefs::load(&ui);
-            self.tell_given_up_keys();
             // The guidelines shown as the user left them (#799).
             self.workspace.guides = self.ui.prefs.editing.show_guides;
             // Autosave snapshots live beside ui.json (#549); screenshot runs have none.
@@ -510,6 +509,8 @@ impl EditorApp {
                 self.recovery.start(folder, l.script.is_empty());
             }
             self.ui.prefs_path = Some(ui);
+            // Saved where it was read from, so the message comes once (#1288).
+            self.tell_given_up_keys();
         } else if l.screenshot.is_none()
             && let Some(store) = openstitch_app::platform::user_store()
         {
@@ -1207,15 +1208,36 @@ impl EditorApp {
     /// says which command gave it up, and the preferences are saved so it is said once.
     fn tell_given_up_keys(&mut self) {
         let given_up = std::mem::take(&mut self.ui.prefs.keymap.given_up);
-        if let Some((lost, chord, keeps)) = given_up.first() {
-            self.status = openstitch_app::tf!(
+        self.status = match &given_up[..] {
+            [] => return,
+            [(lost, chord, keeps)] => openstitch_app::tf!(
                 "ui-status-shortcut-kept",
                 key = crate::keymap_ui::shown(chord),
                 keeps = keeps.info().label,
                 lost = lost.info().label,
-            );
-            self.ui.save_prefs();
-        }
+            ),
+            // Every key named: "Ctrl+H stays with Rectangle, Ctrl+M stays with Ellipse".
+            many => {
+                let kept = many
+                    .iter()
+                    .map(|(_, chord, keeps)| {
+                        openstitch_app::tf!(
+                            "ui-status-shortcut-stays",
+                            key = crate::keymap_ui::shown(chord),
+                            keeps = keeps.info().label,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let lost = many
+                    .iter()
+                    .map(|(lost, ..)| lost.info().label)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                openstitch_app::tf!("ui-status-shortcuts-kept", kept = kept, lost = lost)
+            }
+        };
+        self.ui.save_prefs();
     }
 
     /// Whether the editor has `chord` ("Ctrl+D", as a key press writes it) for a command, so the

@@ -2766,53 +2766,96 @@ fn rect_of(v: &Value) -> Option<egui::Rect> {
 /// room; in a small window on the other side or beside it, or left out.
 #[test]
 fn the_sew_type_bar_never_covers_the_menu_in_a_small_window() {
-    for (width, height, text) in [
-        (1440.0, 900.0, 100_u32),
-        (900.0, 600.0, 100),
-        (640.0, 400.0, 100),
-        (640.0, 400.0, 200),
-    ] {
+    let mut checked = 0;
+    let mut sizes = 0;
+    // The window sizes where the object can be right-clicked on the canvas. Smaller rooms (640 x
+    // 400 at 200 % text) leave no canvas beside the folded panes: #1285's reach walk opens the
+    // menu there through the editor and checks every control of it, the bar's included.
+    for (width, height) in [(1440.0, 900.0), (900.0, 600.0), (640.0, 400.0)] {
+        sizes += 1;
         for how in ["one", "two"] {
             let mut w = Window::sized(width, height);
             let mut app = started(&mut w);
-            app.ui.prefs.text_size = text;
             let ids = squares(&mut app, how);
             for _ in 0..3 {
                 w.run(&mut app, vec![], Modifiers::NONE);
             }
-            let Some(canvas) = app.workspace.canvas else {
-                continue;
+            let case = format!("{width}x{height}, {how}");
+            // A point of the first object that the canvas shows. In the narrow layout the folded
+            // panes lie over part of the canvas, and a click there is theirs: the view is fitted
+            // to the page, then to the selection, and as a user would, the panes are put away
+            // when they still cover it.
+            let visible = |w: &mut Window, app: &mut EditorApp| {
+                for _ in 0..3 {
+                    w.run(app, vec![], Modifiers::NONE);
+                }
+                let canvas = app.workspace.canvas?;
+                let vp = app.viewport?;
+                let b = app.session.design().objects[0].bounds()?;
+                (1..8)
+                    .flat_map(|i| (1..8).map(move |j| (i, j)))
+                    .map(|(i, j)| {
+                        let p = openstitch_design::v2(
+                            b.min_x + b.width() * f64::from(i) / 8.0,
+                            b.min_y + b.height() * f64::from(j) / 8.0,
+                        );
+                        let s = vp.to_screen(p);
+                        egui::pos2(s.x as f32, s.y as f32)
+                    })
+                    .find(|p| {
+                        canvas.contains(*p)
+                            && w.ctx
+                                .layer_id_at(*p)
+                                .is_some_and(|l| l.order == egui::Order::Background)
+                    })
             };
-            let at = on_screen(&app, 0);
-            let at = if canvas.contains(at) { at } else { canvas.center() };
+            let mut at = None;
+            for step in ["page", "selection", "panes"] {
+                if step == "panes" {
+                    let panes = &mut app.ui.prefs.panes;
+                    panes.sewing_order.visible = false;
+                    panes.simulator.visible = false;
+                    panes.attributes.visible = false;
+                    app.ui_command("ui.zoom", Some(&json!({ "fit": "selection" })))
+                        .expect("fit");
+                } else {
+                    app.ui_command("ui.zoom", Some(&json!({ "fit": step })))
+                        .expect("fit");
+                }
+                at = visible(&mut w, &mut app);
+                if at.is_some() {
+                    break;
+                }
+            }
+            let at = at.unwrap_or_else(|| panic!("{case}: no part of the object shows on the canvas"));
             w.right_click(&mut app, at);
             w.run(&mut app, vec![], Modifiers::NONE);
             let m = menu(&mut app);
-            let case = format!("{width}x{height} at {text} %, {how}");
-            if m["open"] != true {
-                // The point was not on the object at this size: nothing to check.
-                continue;
-            }
+            assert_eq!(m["open"], true, "{case}: the right-click opened the menu");
             assert_eq!(app.selection, ids, "{case}");
-            let window = egui::Rect::from_min_size(egui::Pos2::ZERO, w.size / (text as f32 / 100.0));
+            let window = w.ctx.content_rect();
             let menu_rect = rect_of(&m["menuRect"]).expect("menu painted");
+            checked += 1;
             match rect_of(&m["bar"]["rect"]) {
                 None => {} // left out: no room anywhere
                 Some(bar) => {
                     let inner = bar.shrink(1.0);
                     assert!(!inner.intersects(menu_rect.shrink(1.0)), "{case}: the bar covers the menu: {bar:?} {menu_rect:?}");
-                    assert!(window.expand(1.0).contains_rect(bar), "{case}: the bar is inside the window: {bar:?} in {window:?}");
-                    if width >= 1440.0 {
-                        if how == "one" {
-                            assert!(bar.max.y <= menu_rect.min.y + 1.0, "{case}: above");
-                        } else {
-                            assert!(bar.min.y >= menu_rect.max.y - 1.0, "{case}: below");
-                        }
+                    assert!(window.expand(1.0).contains_rect(bar), "{case}: the bar is inside the window: {bar:?} in {window:?}; menu {menu_rect:?}");
+                    // PE-DESIGN's side wherever it fits: above for one object, below for two.
+                    let above_fits = menu_rect.min.y - bar.height() - 4.0 >= window.min.y - 0.5;
+                    let below_fits = menu_rect.max.y + 4.0 + bar.height() <= window.max.y + 0.5;
+                    if how == "one" && above_fits {
+                        assert!(bar.max.y <= menu_rect.min.y + 1.0, "{case}: above");
+                    } else if how == "two" && below_fits {
+                        assert!(bar.min.y >= menu_rect.max.y - 1.0, "{case}: below");
                     }
                 }
             }
         }
     }
+    assert_eq!(sizes, 3);
+    assert_eq!(checked, 6, "every size and selection was checked")
 }
 
 /// #1288: Size... and Rotate... on a group: the group scales and turns as one unit about its
@@ -2868,4 +2911,93 @@ fn size_rotate_and_the_right_click_on_a_group() {
     }
     app.undo();
     assert_eq!(shapes(&app), original, "one undo step");
+}
+
+/// #1288: the sub-menu's rows are not reported in its first frame, which only measures it (the
+/// window may still move it into view), and are reported once it has been painted: a script
+/// that clicks at a reported row hits it.
+#[test]
+fn a_sub_menus_rows_are_reported_once_it_is_painted() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let at = on_screen(&app, 0);
+    w.right_click(&mut app, at);
+    let flip_rows = |app: &mut EditorApp| {
+        let m = menu(app);
+        m["rows"]
+            .as_array()
+            .expect("rows")
+            .iter()
+            .find(|r| r["key"] == "flip")
+            .expect("flip")["submenu"]
+            .as_array()
+            .expect("entries")
+            .iter()
+            .map(|e| e["rect"].clone())
+            .collect::<Vec<_>>()
+    };
+    assert!(flip_rows(&mut app).iter().all(Value::is_null), "closed: nothing");
+    crate::object_menu_ui::open_sub_for_test(&mut app, "flip");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    assert!(
+        flip_rows(&mut app).iter().all(Value::is_null),
+        "the measuring frame reports no row"
+    );
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let rows = flip_rows(&mut app);
+    assert!(rows.iter().all(|r| !r.is_null()), "painted: every row: {rows:?}");
+}
+
+/// #1288 through the editor: a saved map (ui.json beside the user settings) with keys the user
+/// had given to other commands before they became defaults (Ctrl+J, now Flip Horizontal;
+/// Ctrl+Shift+J, now Join Lines) loads with those keys kept, the status line naming every one
+/// of them once; saved and read again, no message comes. A saved map without such a key loads
+/// as it was saved, with no message.
+#[test]
+fn saved_keys_that_became_defaults_are_told_once() {
+    use openstitch_app::editor::keymap::Keymap;
+    use openstitch_app::editor::ribbon::Action as A;
+    let dir = openstitch_testutil::TempDir::new("app-keys-kept");
+    let user = dir.path().join("user.json");
+    std::fs::write(&user, "{}").expect("user settings");
+    let ui = openstitch_app::editor::prefs::path_beside(&user);
+    let launch = || Launch {
+        user_settings: Some(user.clone()),
+        no_splash: true,
+        ..Launch::default()
+    };
+    let saved = json!({ "rectangle": ["Ctrl+J"], "ellipse": ["Ctrl+Shift+J"] });
+    std::fs::write(&ui, json!({ "shortcuts": saved }).to_string()).expect("ui.json");
+    let app = EditorApp::new(launch());
+    let k = &app.ui.prefs.keymap;
+    assert_eq!(k.chords(A::Rectangle), ["Ctrl+J"]);
+    assert_eq!(k.chords(A::Ellipse), ["Ctrl+Shift+J"]);
+    assert!(k.chords(A::FlipHorizontal).is_empty() && k.chords(A::JoinLines).is_empty());
+    let ctrl = if cfg!(target_os = "macos") { "Cmd" } else { "Ctrl" };
+    for words in [
+        format!("{ctrl}+J stays with Rectangle"),
+        format!("{ctrl}+Shift+J stays with Circle / Ellipse"),
+        "Flip Horizontal".to_string(),
+        "Join Lines".to_string(),
+    ] {
+        assert!(app.status.contains(&words), "{words}: {}", app.status);
+    }
+    drop(app);
+    let again = EditorApp::new(launch());
+    assert!(!again.status.contains("stays with"), "once: {}", again.status);
+    assert_eq!(again.ui.prefs.keymap.chords(A::Rectangle), ["Ctrl+J"]);
+    drop(again);
+    // A map without such a key: loaded as saved, no message.
+    let clean = json!({ "rectangle": ["Alt+R"] });
+    std::fs::write(&ui, json!({ "shortcuts": clean }).to_string()).expect("ui.json");
+    let app = EditorApp::new(launch());
+    assert!(!app.status.contains("stays with"), "{}", app.status);
+    assert_eq!(
+        app.ui.prefs.keymap,
+        Keymap::from_json(&clean).expect("clean map"),
+        "the map is the saved one"
+    );
+    assert_eq!(app.ui.prefs.keymap.to_json(), clean);
 }

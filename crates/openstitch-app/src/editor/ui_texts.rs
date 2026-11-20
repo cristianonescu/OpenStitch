@@ -2185,6 +2185,11 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "{ $n } recovery files deleted",
     ),
     ("ui-status-no-longer-exists", "{ $path } no longer exists"),
+    ("ui-status-shortcut-stays", "{ $key } stays with { $keeps }"),
+    (
+        "ui-status-shortcuts-kept",
+        "{ $kept }, as you set them: { $lost }, which have them by default now, have no shortcut until you give them one (Help ▸ Keyboard Shortcuts)",
+    ),
     (
         "ui-status-shortcut-kept",
         "{ $key } stays with { $keeps }, as you set it: { $lost }, which has it by default now, has no shortcut until you give it one (Help ▸ Keyboard Shortcuts)",
