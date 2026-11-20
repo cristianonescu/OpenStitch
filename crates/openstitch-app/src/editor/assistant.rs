@@ -535,6 +535,26 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.objectMenu",
+        summary: "The Select tool's right-click menu on objects (#1288), PE-DESIGN 11.50's object menu: rows in order, each an entry (key, label, shortcut as this platform writes it, icon, enabled for the selection), a sub-menu (key, label, submenu: its entries) or a separator: cut, copy, duplicate, paste (sub-menu: paste, pasteAttributes), delete; flip (sub-menu: flipVertical Ctrl+H, flipHorizontal Ctrl+J), center Ctrl+M; openOutline, closeOutline; offsetLines, toStitches, floral; cutAndSew (sub-menu: applique, patch, cutwork). PE-DESIGN's Paste Selected Attributes... and Export Cutting Data are not in it (OpenStitch has neither). open tells whether it is open, at where it opened (window points), submenuOpen the key of the open sub-menu, menuRect [x, y, width, height] and menuFill (#rrggbb) where it was painted (null until a frame has painted it: its first frame only measures it), selection the selected object ids. at [x, y] opens it as a right-click there does: the object under the pointer is selected first unless it is already selected (several selected objects or a group stay selected), refused on empty canvas or with another tool than Select. action runs an entry (a row's key or a sub-menu entry's key) on the selection as a click on it does, each one undo step, refused while the entry is greyed out; close: true closes the menu. The same commands run from the ribbon (ui.run) and the shortcuts; the engine commands are object.flip, object.center, object.duplicate, object.paste, object.delete and the others the ribbon names",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "at",
+                "[x, y]",
+                false,
+                "Open the menu as a right-click at this window point does (points from the window's top-left corner): selects the object there first when it is not selected. Refused on empty canvas or with another tool than Select",
+            ),
+            p(
+                "action",
+                "string",
+                false,
+                "Run this entry on the selection (a key from rows or a sub-menu), as a click on it does; refused while it is greyed out",
+            ),
+            p("close", "bool", false, "true: close the menu"),
+        ],
+    },
+    UiCommand {
         id: "ui.guides",
         summary: "The guidelines as the canvas shows them (#799): each one's index, position (mm from the ruler origin, as its label reads) and label, whether they show, are locked and snap, the selected one and an open Set Position… dialog. orientation + index select one as a click does; then position (a length as typed in Set Position…: 12.5, \"12.5 mm\", \"1/2\\\"\"; from the ruler origin), turn (Alt-click) or delete (the Delete key) act on it, one undo step each; newGuide {orientation, position} is New Guide… (from the ruler origin). It also gives the guideline colour and an open right-click menu. Engine commands view.* do the same in page coordinates",
         effect: Effect::Edit,

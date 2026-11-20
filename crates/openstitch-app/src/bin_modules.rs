@@ -49,6 +49,7 @@ mod print_ui;
 mod quality_ui;
 mod recovery_ui;
 mod remote;
+mod object_menu_ui;
 mod point_menu_ui;
 mod ribbon;
 mod machine_setup_ui;

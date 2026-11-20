@@ -1204,6 +1204,7 @@ impl EditorApp {
     /// browser must not act on it as well (#1288: Ctrl+D is the browser's bookmark, Ctrl+H its
     /// history, Ctrl+J its downloads). Never Ctrl+C, X or V, which must reach the browser as
     /// its copy, cut and paste events; never a chord without Ctrl.
+    #[cfg_attr(not(any(test, target_arch = "wasm32")), allow(dead_code))]
     pub fn takes_browser_key(&self, chord: &str) -> bool {
         let Ok(c) = openstitch_app::editor::keymap::normalize(chord) else {
             return false;
@@ -2139,6 +2140,9 @@ impl EditorApp {
                 // does in PE-DESIGN: the selection, the selected points and the tool stay
                 // (it used to drop the selection as well, #1260).
                 self.workspace.view.point_menu = None;
+            } else if self.workspace.view.object_menu.is_some() {
+                // The Select tool's object menu too (#1288).
+                self.workspace.view.object_menu = None;
             } else if self.zoom_box.active {
                 self.zoom_box = Default::default();
             } else if self.edit.cancel() {

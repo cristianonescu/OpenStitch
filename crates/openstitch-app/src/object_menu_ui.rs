@@ -1,0 +1,255 @@
+//! The object menu (#1288): a right-click with the Select tool on an object opens PE-DESIGN
+//! 11.50's menu for the selection: Cut, Copy, Duplicate, Paste ▸, Delete; Flip ▸, Center; Open,
+//! Close; Create Offset Lines, Convert to Stitches, Create Floral Pattern; Cut and Sew ▸, in its
+//! order, with its separators and shortcuts ([`OBJECT_MENU`]). A right-click on an object that is
+//! not selected selects it first; on empty canvas no menu opens. Each entry runs the ribbon's own
+//! command, so what greys it out and what it does are the ribbon's.
+//!
+//! The Point tool keeps its own menus (`point_menu_ui`); this menu is drawn with the same panel
+//! and rows.
+
+use crate::app::EditorApp;
+use crate::point_menu_ui::{menu_row, panel, rule};
+use eframe::egui::{self, Pos2};
+use openstitch_app::editor::Viewport;
+use openstitch_app::editor::ribbon::{Action, MenuRow, OBJECT_MENU};
+use openstitch_app::editor::ui_texts::t;
+use openstitch_design::v2;
+use serde_json::{Value, json};
+
+/// The open object menu.
+pub struct ObjectMenu {
+    at: Pos2,
+    /// Opened this frame: the click that opened it does not close it.
+    fresh: bool,
+    /// The sub-menu that is open: the key of its row.
+    sub: Option<&'static str>,
+    /// Where the menu's panel was painted, and in which colour; `None` until a frame has drawn
+    /// it (a menu's first frame only measures it).
+    drawn: Option<(egui::Rect, egui::Color32)>,
+}
+
+/// The shortcut shown beside an entry, as this platform writes it.
+fn shortcut(a: Action) -> Option<String> {
+    a.info().shortcut_for(cfg!(target_os = "macos"))
+}
+
+/// Whether PE-DESIGN's menu shows an icon in front of the entry: not on Paste and its
+/// entries, nor on Open and Close.
+pub fn has_icon(a: Action) -> bool {
+    !matches!(
+        a,
+        Action::Paste | Action::PasteAttributes | Action::OpenOutline | Action::CloseOutline
+    )
+}
+
+/// The entry's text: the command's label, PE-DESIGN's words.
+fn label(a: Action) -> &'static str {
+    a.info().label
+}
+
+/// A right-click on the canvas with the Select tool: on an object, it is selected when it is
+/// not already (a selected one keeps the others selected too) and the menu opens at the
+/// pointer. Returns whether the click was used.
+pub fn pointer(app: &mut EditorApp, response: &egui::Response, vp: &Viewport) -> bool {
+    if !response.secondary_clicked() {
+        return false;
+    }
+    let Some(at) = response.interact_pointer_pos() else {
+        return false;
+    };
+    open_at(app, at, vp)
+}
+
+/// Opens the menu as a right-click at `at` (window points) does; `false` on empty canvas or
+/// with another tool than Select.
+pub fn open_at(app: &mut EditorApp, at: Pos2, vp: &Viewport) -> bool {
+    let model = vp.to_model(v2(f64::from(at.x), f64::from(at.y)));
+    let ctx = app.tool_context(app.session.design());
+    let Some(selection) = app.tools.object_menu_selection(model, &ctx) else {
+        return false;
+    };
+    if selection != app.selection {
+        app.apply_effects(vec![openstitch_app::editor::ToolEffect::Select(selection)]);
+    }
+    app.workspace.view.object_menu = Some(ObjectMenu {
+        at,
+        fresh: true,
+        sub: None,
+        drawn: None,
+    });
+    true
+}
+
+/// Runs one entry on the selection, as a click on it does; nothing when it is greyed out.
+pub fn run(app: &mut EditorApp, a: Action, ctx: &egui::Context) {
+    if crate::ribbon::enabled(app, a) {
+        crate::ribbon::run(app, a, ctx);
+    }
+}
+
+/// Width of the menu and of its sub-menus.
+const WIDTH: f32 = 230.0;
+const SUB_WIDTH: f32 = 210.0;
+
+/// The menu, until an entry is chosen, Esc or a click elsewhere. A sub-menu opens beside its
+/// row while the pointer is on the row.
+pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
+    let Some(mut m) = app.workspace.view.object_menu.take() else {
+        return;
+    };
+    let mut chosen = None;
+    let mut sub_at = None;
+    let (r, painted) = panel(ctx, "object-menu", m.at, WIDTH, |ui| {
+        for row in OBJECT_MENU {
+            match *row {
+                MenuRow::Separator => rule(ui),
+                MenuRow::Entry(a) => {
+                    let keys = shortcut(a);
+                    let response = menu_row(
+                        ui,
+                        has_icon(a).then_some(a),
+                        label(a),
+                        keys.as_deref(),
+                        crate::ribbon::enabled(app, a),
+                        false,
+                    );
+                    if response.hovered() {
+                        m.sub = None;
+                    }
+                    if response.clicked() {
+                        chosen = Some(a);
+                    }
+                }
+                MenuRow::Sub(key, text, entries) => {
+                    let enabled = entries.iter().any(|a| crate::ribbon::enabled(app, *a));
+                    let response = menu_row(ui, None, t(text), None, enabled, true);
+                    if enabled && (response.hovered() || response.clicked()) {
+                        m.sub = Some(key);
+                    }
+                    if m.sub == Some(key) {
+                        sub_at = Some((
+                            entries,
+                            response.rect.right_top() + egui::vec2(2.0, -4.0),
+                        ));
+                    }
+                }
+            }
+        }
+    });
+    let mut over_sub = false;
+    if let Some((entries, at)) = sub_at {
+        let (sub, _) = panel(ctx, "object-submenu", at, SUB_WIDTH, |ui| {
+            for a in entries {
+                let keys = shortcut(*a);
+                let icon = has_icon(*a).then_some(*a);
+                let enabled = crate::ribbon::enabled(app, *a);
+                if menu_row(ui, icon, label(*a), keys.as_deref(), enabled, false).clicked() {
+                    chosen = Some(*a);
+                }
+            }
+        });
+        over_sub = sub.response.contains_pointer();
+    }
+    if let Some(a) = chosen {
+        run(app, a, ctx);
+        return;
+    }
+    m.drawn = painted.or(m.drawn);
+    let (pressed, esc) =
+        ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));
+    let outside = pressed && !r.response.contains_pointer() && !over_sub;
+    if !esc && (m.fresh || !outside) {
+        m.fresh = false;
+        app.workspace.view.object_menu = Some(m);
+    }
+}
+
+/// One entry as `ui.objectMenu` reports it.
+fn entry(app: &EditorApp, a: Action) -> Value {
+    json!({
+        "key": a.info().key,
+        "label": label(a),
+        "shortcut": shortcut(a),
+        "icon": has_icon(a),
+        "enabled": crate::ribbon::enabled(app, a),
+    })
+}
+
+/// The menu as `ui.objectMenu` reports it: whether it is open, where it was painted and in
+/// which colour (null until a frame has painted it), the open sub-menu, and every row in
+/// order: an entry (key, text, shortcut, icon, whether it is available for the selection), a
+/// sub-menu (key, text, its entries) or a separator.
+pub fn state(app: &EditorApp) -> Value {
+    let open = app.workspace.view.object_menu.as_ref();
+    let drawn = open.and_then(|m| m.drawn);
+    let rows: Vec<Value> = OBJECT_MENU
+        .iter()
+        .map(|row| match *row {
+            MenuRow::Separator => json!({ "separator": true }),
+            MenuRow::Entry(a) => entry(app, a),
+            MenuRow::Sub(key, text, entries) => json!({
+                "key": key,
+                "label": t(text),
+                "submenu": entries.iter().map(|a| entry(app, *a)).collect::<Vec<_>>(),
+            }),
+        })
+        .collect();
+    json!({
+        "open": open.is_some(),
+        "at": open.map(|m| [m.at.x, m.at.y]),
+        "submenuOpen": open.and_then(|m| m.sub),
+        "menuRect": drawn.map(|(r, _)| [r.min.x, r.min.y, r.width(), r.height()]),
+        "menuFill": drawn.map(|(_, c)| format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())),
+        "selection": app.selection,
+        "rows": rows,
+    })
+}
+
+/// `ui.objectMenu`: without params, the menu ([`state`]); `{at: [x, y]}` opens it as a
+/// right-click there (window points) does, selecting the object under the pointer; `{action}`
+/// runs an entry (a key of `rows` or of a sub-menu) on the selection as a click on it does,
+/// and is refused while the entry is greyed out; `{close: true}` closes it.
+pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, String> {
+    if let Some(at) = params.and_then(|p| p.get("at")) {
+        let xy = at
+            .as_array()
+            .filter(|a| a.len() == 2)
+            .and_then(|a| Some((a[0].as_f64()?, a[1].as_f64()?)))
+            .ok_or("at: must be [x, y] in window points")?;
+        let vp = app.viewport.ok_or("the canvas has not been drawn yet")?;
+        if !open_at(app, egui::pos2(xy.0 as f32, xy.1 as f32), &vp) {
+            return Err(
+                "at: no object there (the menu opens on an object, with the Select tool)".into(),
+            );
+        }
+    }
+    if params
+        .and_then(|p| p.get("close"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        app.workspace.view.object_menu = None;
+    }
+    let Some(key) = params.and_then(|p| p.get("action")).and_then(Value::as_str) else {
+        return Ok(state(app));
+    };
+    let menu = openstitch_app::editor::ribbon::object_menu_actions();
+    let a = menu
+        .iter()
+        .copied()
+        .find(|a| a.info().key == key)
+        .ok_or_else(|| {
+            format!(
+                "action: must be one of {}",
+                menu.iter().map(|a| a.info().key).collect::<Vec<_>>().join(", ")
+            )
+        })?;
+    if !crate::ribbon::enabled(app, a) {
+        return Err(format!("{key} is not available for the selection"));
+    }
+    app.workspace.view.object_menu = None;
+    let ctx = egui::Context::default();
+    crate::ribbon::run(app, a, &ctx);
+    Ok(state(app))
+}

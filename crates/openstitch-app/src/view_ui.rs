@@ -47,6 +47,8 @@ pub struct ViewState {
     pub guide_menu: Option<GuideMenu>,
     /// The Select Point tool's right-click menu on a point (#1258).
     pub point_menu: Option<crate::point_menu_ui::PointMenu>,
+    /// The Select tool's right-click menu on objects (#1288).
+    pub object_menu: Option<crate::object_menu_ui::ObjectMenu>,
     /// New Guide… (#799).
     pub new_guide: Option<NewGuideDialog>,
     /// New Guide Layout… (#799).
@@ -1463,6 +1465,7 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
 pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     guide_menu_window(app, ctx);
     crate::point_menu_ui::window(app, ctx);
+    crate::object_menu_ui::window(app, ctx);
     new_guide_window(app, ctx);
     guide_layout_window(app, ctx);
     guide_window(app, ctx);
