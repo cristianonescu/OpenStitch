@@ -260,7 +260,27 @@ impl EditorApp {
                     opt_str(params, "fit"),
                     params.and_then(|v| v.get("percent")),
                 ) {
-                    (Some("page"), None) => self.fit_requested = true,
+                    (Some("page"), None) => {
+                        self.fit_requested = true;
+                        // Fitted now as well, as the canvas's next frame fits it: what a script
+                        // reads right after (a point's place in the window) is in the fitted
+                        // view, also when the browser has drawn no frame in between (#1272: a
+                        // page step in Firefox read the place before the fit and missed).
+                        if let (Some(canvas), None) = (self.workspace.canvas, self.px_per_mm) {
+                            let page = self.session.design().page;
+                            let page_rect = openstitch_design::Rect {
+                                min_x: 0.0,
+                                min_y: 0.0,
+                                max_x: page.width,
+                                max_y: page.height,
+                            };
+                            self.viewport = Some(openstitch_app::editor::Viewport::fit(
+                                page_rect,
+                                crate::workspace_ui::screen_rect(canvas),
+                                24.0,
+                            ));
+                        }
+                    }
                     (Some("selection"), None) => crate::ribbon::zoom_to_selection(self),
                     (None, None) if params.and_then(|v| v.get("rect")).is_some() => {
                         // Zoom Box (#518): [x, y, width, height] in mm fills the view.
@@ -2228,6 +2248,19 @@ mod tests {
         app.ui_command("ui.zoom", Some(&json!({ "fit": "page" })))
             .expect("fit");
         assert!(app.fit_requested);
+        // Fitted at once, before the next frame: a script's next read is in the fitted view.
+        let page = app.session.design().page;
+        let fitted = openstitch_app::editor::Viewport::fit(
+            openstitch_design::Rect {
+                min_x: 0.0,
+                min_y: 0.0,
+                max_x: page.width,
+                max_y: page.height,
+            },
+            crate::workspace_ui::screen_rect(app.workspace.canvas.expect("canvas")),
+            24.0,
+        );
+        assert_eq!(app.viewport, Some(fitted), "fitted before the next frame");
         assert!(app.ui_command("ui.zoom", Some(&json!({}))).is_err());
         let png = app
             .ui_command("ui.render", Some(&json!({ "size": 200 })))
