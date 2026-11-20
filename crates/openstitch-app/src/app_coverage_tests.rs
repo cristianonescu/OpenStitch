@@ -1684,6 +1684,8 @@ fn the_alt_marks_of_a_stitch_pattern_are_painted_and_connect() {
         .count();
     assert_eq!(patterns, 1, "connected into one");
     assert_eq!(painted(&mut app), (0, 0));
+}
+
 /// Whole editor frames in a 1440 x 900 window, as the window or the page runs them (#1288).
 struct Window {
     ctx: egui::Context,

@@ -175,11 +175,12 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let (mut ok, mut preview, mut cancel) = (false, false, false);
     let mut open = true;
-    app.dialog_window(ctx, title, Some([16.0, 140.0]))
+    let window = app
+        .dialog_window(ctx, title, Some([16.0, 140.0]))
         .collapsible(false)
         .resizable(false)
-        .open(&mut open)
-        .show(ctx, |ui| {
+        .open(&mut open);
+    crate::fit::show(window, ctx, |ui| {
             match n.kind {
                 Kind::Size => size_body(ui, &mut n),
                 Kind::Rotate => {
@@ -196,12 +197,14 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             }
             ui.separator();
             let fresh = n.changed() && n.previewed != Some(n.values());
-            ui.horizontal(|ui| {
-                ok = ui.add_enabled(n.changed(), egui::Button::new(t("ui-ok"))).clicked();
-                preview = ui
-                    .add_enabled(fresh, egui::Button::new(t("ui-numeric-preview")))
-                    .clicked();
-                cancel = ui.button(t("ui-cancel")).clicked();
+            crate::fit::buttons(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ok = ui.add_enabled(n.changed(), egui::Button::new(t("ui-ok"))).clicked();
+                    preview = ui
+                        .add_enabled(fresh, egui::Button::new(t("ui-numeric-preview")))
+                        .clicked();
+                    cancel = ui.button(t("ui-cancel")).clicked();
+                })
             });
         });
     if ok {

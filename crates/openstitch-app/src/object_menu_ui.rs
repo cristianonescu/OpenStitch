@@ -138,12 +138,10 @@ fn sew_bar(
     } else {
         menu.left_top() - egui::vec2(0.0, height + 4.0)
     };
-    let r = egui::Area::new(egui::Id::unique("object-menu-sew-bar"))
-        .fixed_pos(at)
-        .fade_in(false)
-        .order(egui::Order::Foreground)
-        .show(ctx, |ui| {
-            egui::Frame::menu(ui.style()).show(ui, |ui| {
+    // Drawn in the menus' own panel, so its body goes through fit::scroll as theirs does.
+    let (r, _) = panel(ctx, "object-menu-sew-bar", at, BAR_WIDTH, |ui| {
+        {
+            {
                 ui.horizontal(|ui| {
                     for (a, text, thread, ca, has) in [
                         (Action::LineSewType, line, &line_thread, Action::LineColor, has_line),
@@ -156,13 +154,13 @@ fn sew_bar(
                         ),
                     ] {
                         let on = crate::ribbon::enabled(app, a);
+                        // Each list opens through #1276's menu helper: it scrolls in a small
+                        // window and stays inside it.
                         ui.add_enabled_ui(on, |ui| {
                             let r = ui
-                                .menu_button(format!("{text} \u{25be}"), |ui| {
-                                    crate::ribbon::menu(app, a, ui)
-                                })
-                                .response
+                                .button(format!("{text} \u{25be}"))
                                 .on_hover_text(a.info().label);
+                            crate::fit::menu(&r, |ui| crate::ribbon::menu(app, a, ui));
                             controls.push(r.rect);
                         });
                         // The thread's colour, or the pane's Mixed swatch (grey 128) when the
@@ -185,18 +183,20 @@ fn sew_bar(
                             .stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(90)))
                             .min_size(egui::vec2(26.0, 20.0));
                         ui.add_enabled_ui(on && has, |ui| {
-                            let r = egui::containers::menu::MenuButton::from_button(button)
-                                .ui(ui, |ui| crate::ribbon::menu(app, ca, ui))
-                                .0
-                                .on_hover_text(tip);
+                            let r = ui.add(button).on_hover_text(tip);
+                            crate::fit::menu(&r, |ui| crate::ribbon::menu(app, ca, ui));
                             controls.push(r.rect);
                         });
                     }
                 });
-            });
-        });
+            }
+        }
+    });
     (r.response.rect, controls)
 }
+
+/// Width of the sew-type bar: its two lists and two colour buttons.
+const BAR_WIDTH: f32 = 220.0;
 
 /// Width of the menu and of its sub-menus.
 const WIDTH: f32 = 230.0;
@@ -208,6 +208,8 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let Some(mut m) = app.workspace.view.object_menu.take() else {
         return;
     };
+    // A list opened from the sew-type bar takes Escape and the clicks in it first (#1276).
+    let list_open = egui::Popup::is_any_open(ctx) || crate::fit::own_menu_open(ctx);
     let mut chosen = None;
     let mut sub_at = None;
     let mut rects = Vec::new();
@@ -288,12 +290,8 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             .is_some_and(|p| b.contains(p))
     });
     // A list opened from the bar is a pop-up of its own: a click in it is not outside.
-    let outside = pressed
-        && !r.response.contains_pointer()
-        && !over_sub
-        && !over_bar
-        && !egui::Popup::is_any_open(ctx);
-    if !esc && (m.fresh || !outside) {
+    let outside = pressed && !r.response.contains_pointer() && !over_sub && !over_bar && !list_open;
+    if (!esc || list_open) && (m.fresh || !outside) {
         m.fresh = false;
         app.workspace.view.object_menu = Some(m);
     }
