@@ -1736,10 +1736,30 @@ impl Window {
         self.run(app, vec![], Modifiers::NONE);
     }
 
-    /// Ctrl/Cmd + `k` as a key press (the window sends Ctrl+D, H, J and M so).
+    /// Ctrl/Cmd + `k` as a key press (the window sends Ctrl+D and Ctrl+V so).
     fn ctrl(&mut self, app: &mut EditorApp, k: Key) {
         self.run(app, vec![key(k, Modifiers::COMMAND)], Modifiers::COMMAND);
     }
+
+    /// The default key of `a` on this platform, pressed as the window sends it (on macOS Flip
+    /// Vertical is Cmd+Shift+H and Center Cmd+Shift+M, #1288).
+    fn press_action(&mut self, app: &mut EditorApp, a: openstitch_app::editor::ribbon::Action) {
+        let chord = platform_key(a);
+        let k = crate::keymap_ui::parse(&chord).unwrap_or_else(|| panic!("{a:?}: {chord}"));
+        self.run(
+            app,
+            vec![key(k.logical_key, k.modifiers)],
+            k.modifiers,
+        );
+    }
+}
+
+/// The default key of `a` on the platform the test runs on, as the keymap writes it.
+fn platform_key(a: openstitch_app::editor::ribbon::Action) -> String {
+    openstitch_app::editor::keymap::defaults_on(a, cfg!(target_os = "macos"))
+        .first()
+        .unwrap_or_else(|| panic!("{a:?} has a default key"))
+        .to_string()
 }
 
 /// A started editor without the splash (whose first key press or click only closes it): its
@@ -1912,13 +1932,17 @@ fn flip_and_center_keys_act_on_one_several_and_a_group() {
         w.run(&mut app, vec![], Modifiers::NONE);
         let before = bounds_of(&app, &ids);
         let first = |app: &EditorApp| {
-            app.session.design().objects[0]
+            app.session
+                .design()
+                .objects
+                .first()
+                .unwrap_or_else(|| panic!("{how}: the design has its squares (a key undid them?)"))
                 .bounds()
                 .expect("bounds")
         };
-        for (k, a) in [(Key::H, A::FlipVertical), (Key::J, A::FlipHorizontal)] {
+        for a in [A::FlipVertical, A::FlipHorizontal] {
             let was = first(&app);
-            w.ctrl(&mut app, k);
+            w.press_action(&mut app, a);
             let after = bounds_of(&app, &ids);
             assert!(
                 (after.min_x - before.min_x).abs() < 1e-6
@@ -1932,7 +1956,7 @@ fn flip_and_center_keys_act_on_one_several_and_a_group() {
             assert_eq!(first(&app), was, "{how} {a:?}: one undo step undoes it");
             assert_eq!(bounds_of(&app, &ids), before, "{how} {a:?}");
         }
-        w.ctrl(&mut app, Key::M);
+        w.press_action(&mut app, A::CenterObjects);
         let page = app.session.design().page.center();
         let c = bounds_of(&app, &ids).center();
         assert!(
@@ -1942,7 +1966,9 @@ fn flip_and_center_keys_act_on_one_several_and_a_group() {
         app.undo();
         assert_eq!(bounds_of(&app, &ids), before, "{how}: Center is one undo step");
     }
-    // Ctrl+J is no longer Join Lines; Ctrl+Shift+J is.
+    // Ctrl+J is no longer Join Lines; Ctrl+Shift+J is. Flip Vertical and Center have Ctrl+H
+    // and Ctrl+M, on macOS Cmd+Shift+H and Cmd+Shift+M (the system keeps Cmd+H and Cmd+M).
+    let mac = cfg!(target_os = "macos");
     let k = openstitch_app::editor::keymap::Keymap::default();
     let of = |chord: &str| {
         k.bindings()
@@ -1953,8 +1979,15 @@ fn flip_and_center_keys_act_on_one_several_and_a_group() {
     };
     assert_eq!(of("Ctrl+J"), [A::FlipHorizontal]);
     assert_eq!(of("Ctrl+Shift+J"), [A::JoinLines]);
-    assert_eq!(of("Ctrl+H"), [A::FlipVertical]);
-    assert_eq!(of("Ctrl+M"), [A::CenterObjects]);
+    let (flip_v, center) = if mac {
+        ("Ctrl+Shift+H", "Ctrl+Shift+M")
+    } else {
+        ("Ctrl+H", "Ctrl+M")
+    };
+    assert_eq!(of(flip_v), [A::FlipVertical]);
+    assert_eq!(of(center), [A::CenterObjects]);
+    assert_eq!(platform_key(A::FlipVertical), flip_v);
+    assert_eq!(platform_key(A::CenterObjects), center);
 }
 
 /// #1288: the browser must not act on the editor's Ctrl shortcuts (Ctrl+D bookmarks the page);
@@ -1962,7 +1995,22 @@ fn flip_and_center_keys_act_on_one_several_and_a_group() {
 #[test]
 fn the_editor_keeps_its_ctrl_shortcuts_from_the_browser() {
     let app = EditorApp::new(Launch::default());
-    for chord in ["Ctrl+D", "Ctrl+H", "Ctrl+J", "Ctrl+M", "Ctrl+A", "Ctrl+G", "Ctrl+Shift+J"] {
+    // This platform's default keys of the object commands (the test runs natively; on macOS
+    // Flip Vertical and Center are Cmd+Shift+H and Cmd+Shift+M).
+    use openstitch_app::editor::ribbon::Action as A;
+    let chords: Vec<String> = [
+        A::Duplicate,
+        A::FlipVertical,
+        A::FlipHorizontal,
+        A::CenterObjects,
+        A::SelectAll,
+        A::Group,
+        A::JoinLines,
+    ]
+    .into_iter()
+    .map(platform_key)
+    .collect();
+    for chord in chords.iter().map(String::as_str) {
         assert!(app.takes_browser_key(chord), "{chord}");
     }
     for chord in ["Ctrl+C", "Ctrl+X", "Ctrl+V", "Ctrl+T", "D", "Ctrl+F5"] {
