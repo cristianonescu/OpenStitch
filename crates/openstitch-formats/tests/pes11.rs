@@ -2739,3 +2739,59 @@ fn a_stem_and_a_chain_lines_own_fields_read_and_write_back() {
         }
     }
 }
+
+/// Direction lines added to a shape (#1273) are the header's two position lists: the lines'
+/// first crossings of the outline, then their second ones, each list a count (u32) and per
+/// line a side (u32) and the fraction along it (f64). PE-DESIGN's own two-line and three-line
+/// files are kept outside the repository, so the lists are built by hand here from what the
+/// two-line file holds (read 2026-11-19): [(0, 1.0), (1, 0.84)] and [(2, 1.0), (2, 0.384)].
+/// A shape PE-DESIGN wrote without added lines is written back with its lists as they were,
+/// and with the lines the file differs from that in the two lists alone (and the offset of
+/// the stitch section).
+#[test]
+fn direction_line_lists_are_read_and_written_as_pe_design_holds_them() {
+    let fixture = data("pe11/r01-rect.pes");
+    let pattern = stitches_of(&fixture);
+    let objects = objects_of(&fixture);
+    assert!(objects.shapes.iter().all(|s| s.direction_lines.is_empty()));
+    let plain = pes11::write(&objects, &pattern).expect("write");
+    let pec = u32::from_le_bytes(plain[8..12].try_into().expect("offset")) as usize;
+    let expected = vec![[(0_u32, 1.0_f64), (2, 1.0)], [(1, 0.84), (2, 0.384)]];
+    let mut with = objects.clone();
+    with.shapes[0].direction_lines = expected.clone();
+    let written = pes11::write(&with, &pattern).expect("write");
+    // The two lists, by hand.
+    let mut lists = Vec::new();
+    for list in [[(0_u32, 1.0_f64), (1, 0.84)], [(2, 1.0), (2, 0.384)]] {
+        lists.extend(2_u32.to_le_bytes());
+        for (side, along) in list {
+            lists.extend(side.to_le_bytes());
+            lists.extend(along.to_le_bytes());
+        }
+    }
+    assert_eq!(lists.len(), 56);
+    let at = written
+        .windows(lists.len())
+        .position(|w| w == lists)
+        .expect("the two lists as built by hand");
+    // The plain file has one entry in each list there (2 x 16 bytes); everything else up to
+    // the stitch section is the same, and that section follows 24 bytes later.
+    let pec_with = u32::from_le_bytes(written[8..12].try_into().expect("offset")) as usize;
+    assert_eq!(pec_with, pec + 24);
+    // Without added lines the two lists and the 64 bytes on either side of them are the
+    // bytes of PE-DESIGN's own file.
+    let as_written = &plain[at - 64..at + 32 + 64];
+    assert!(
+        fixture.windows(as_written.len()).any(|w| w == as_written),
+        "without added lines: the lists as PE-DESIGN wrote them"
+    );
+    assert_eq!(&written[12..at], &plain[12..at]);
+    assert_eq!(&written[at + 56..pec_with], &plain[at + 32..pec]);
+    // And the hand-built bytes read as the lines.
+    let mut by_hand = plain[..at].to_vec();
+    by_hand.extend(&lists);
+    by_hand.extend(&plain[at + 32..]);
+    by_hand[8..12].copy_from_slice(&((pec + 24) as u32).to_le_bytes());
+    assert_eq!(objects_of(&by_hand).shapes[0].direction_lines, expected);
+    assert_eq!(objects_of(&written).shapes[0].direction_lines, expected);
+}

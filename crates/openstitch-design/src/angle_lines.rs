@@ -59,6 +59,81 @@ pub fn check(lines: &[[Vec2; 2]], closed: &[Contour], holes: &[Contour]) -> Resu
     Ok(())
 }
 
+/// Why PE-DESIGN's direction lines (`AngleRule::Fan`, #1273) cannot be sewn, if they cannot:
+/// what [`check`] refuses, two neighbouring lines on one straight line (there is no zone
+/// between them and none on either side: the rows before the first and after the second would
+/// be the same ones), and lines that do not lie one after another across the shape (each line
+/// but the first and last has its two neighbours on its two sides, going round the outline).
+pub fn check_fan(lines: &[[Vec2; 2]], closed: &[Contour], holes: &[Contour]) -> Result<(), String> {
+    check(lines, closed, holes)?;
+    let chords: Vec<[Vec2; 2]> = lines.iter().map(|l| chord(*l, closed, holes)).collect();
+    for i in 1..chords.len() {
+        if collinear(chords[i - 1], chords[i]) {
+            return Err(format!(
+                "angle lines {} and {} lie on one straight line",
+                i,
+                i + 1
+            ));
+        }
+    }
+    if let Some(arcs) = arcs(&chords, closed) {
+        for i in 1..arcs.len().saturating_sub(1) {
+            if arcs[i].holds(arcs[i - 1].a) == arcs[i].holds(arcs[i + 1].a) {
+                return Err(format!(
+                    "angle line {} does not lie between lines {} and {}: the lines must follow one another across the shape",
+                    i + 1,
+                    i,
+                    i + 2
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether chord `b` lies on the straight line through chord `a` (within 0.001 mm).
+fn collinear(a: [Vec2; 2], b: [Vec2; 2]) -> bool {
+    let d = a[1] - a[0];
+    let len = d.length().max(1e-9);
+    let off = |q: Vec2| ((q.x - a[0].x) * d.y - (q.y - a[0].y) * d.x).abs() / len;
+    off(b[0]) < 0.01 && off(b[1]) < 0.01
+}
+
+/// A chord's two ends as arc-length positions on the outline it crosses.
+#[derive(Clone, Copy, Debug)]
+struct Arc {
+    a: f64,
+    b: f64,
+    len: f64,
+}
+
+impl Arc {
+    /// Whether outline position `s` lies on the way round from `a` forward to `b`.
+    fn holds(&self, s: f64) -> bool {
+        (s - self.a).rem_euclid(self.len) < (self.b - self.a).rem_euclid(self.len)
+    }
+}
+
+/// The chords as [`Arc`]s when all their ends lie on one outline; `None` otherwise.
+fn arcs(chords: &[[Vec2; 2]], closed: &[Contour]) -> Option<Vec<Arc>> {
+    let rings: Vec<Ring> = closed.iter().filter_map(Ring::new).collect();
+    let mut on = None;
+    let mut out = Vec::with_capacity(chords.len());
+    for c in chords {
+        let (i, a, da) = nearest(&rings, c[0])?;
+        let (j, b, db) = nearest(&rings, c[1])?;
+        if i != j || *on.get_or_insert(i) != i || da > 1.0 || db > 1.0 {
+            return None;
+        }
+        out.push(Arc {
+            a,
+            b,
+            len: rings[i].len(),
+        });
+    }
+    Some(out)
+}
+
 /// The chord of the shape through line `l`: from its middle both ways to the nearest outline
 /// or hole crossing (the line itself where it meets nothing).
 pub fn chord(l: [Vec2; 2], closed: &[Contour], holes: &[Contour]) -> [Vec2; 2] {
@@ -461,6 +536,163 @@ fn meeting(a: [Vec2; 2], b: [Vec2; 2]) -> Option<Vec2> {
     (p.distance(a[0]) < 1.0e6).then_some(p)
 }
 
+/// The cuts of the zone between chords `a` and `b` (paired end to end), in order from `a` to
+/// `b`. The zone has two outline runs: from `a`'s first end to `b`'s, and from `a`'s second
+/// end to `b`'s. Every vertex of the outline strictly inside one of the runs cuts the zone,
+/// by the straight line from that vertex to the point at the same fraction, by length, along
+/// the other run. This is how PE-DESIGN 11.50 sews it (#1273; its files `g1` to `g11`): with
+/// no vertex in either run the zone is one piece, a fan through the two lines' meeting
+/// point; a corner between the lines, or a point inserted on a side, makes two pieces with
+/// a fan each. On a curved outline the vertices are those of its flattened path, at most
+/// [`MAX_CUTS`] of them. Empty when the chords' ends are not on one outline.
+fn cuts(rings: &[Ring], closed: &[Contour], a: [Vec2; 2], b: [Vec2; 2]) -> Vec<[Vec2; 2]> {
+    let (Some(first), Some(second)) = (
+        side(rings, a[0], b[0], &[a[1], b[1]]),
+        side(rings, a[1], b[1], &[a[0], b[0]]),
+    ) else {
+        return Vec::new();
+    };
+    // Vertices nearer than this to a run's end are the lines' own crossings (0.01 mm).
+    const AT_END: f64 = 0.1;
+    let mut at: Vec<f64> = Vec::new();
+    for run in [&first, &second] {
+        if run.len <= 2.0 * AT_END {
+            continue;
+        }
+        let total = run.ring.len();
+        for &v in &run.ring.at[..run.ring.at.len() - 1] {
+            let along = (run.dir * (v - run.s0)).rem_euclid(total);
+            if along > AT_END && along < run.len - AT_END {
+                at.push(along / run.len);
+            }
+        }
+    }
+    at.sort_by(f64::total_cmp);
+    at.dedup_by(|x, y| (*x - *y).abs() < 1e-6);
+    if at.len() > MAX_CUTS {
+        let step = at.len() as f64 / MAX_CUTS as f64;
+        at = (0..MAX_CUTS)
+            .map(|k| at[(k as f64 * step) as usize])
+            .collect();
+    }
+    let found: Vec<[Vec2; 2]> = at
+        .into_iter()
+        .map(|f| [first.at(f), second.at(f)])
+        .filter(|c| c[0].distance(c[1]) > 1.0)
+        .collect();
+    lying_inside(found, closed)
+}
+
+/// `found` when every cut lies inside the shape, else none: where a cut would leave the
+/// shape (the zone between lines across the two arms of a U) the zone stays in one piece.
+/// PE-DESIGN's sewing of such a zone is not captured.
+fn lying_inside(found: Vec<[Vec2; 2]>, closed: &[Contour]) -> Vec<[Vec2; 2]> {
+    let inside = |c: &[Vec2; 2]| {
+        [0.1, 0.3, 0.5, 0.7, 0.9]
+            .iter()
+            .all(|&t| contains(c[0].lerp(c[1], t), closed))
+    };
+    if found.iter().all(inside) {
+        found
+    } else {
+        Vec::new()
+    }
+}
+
+/// The cuts of the part of the shape beyond chord `x`, on the side away from its neighbour
+/// `other`, in order outward from `x`. That part runs as far as the outline vertex farthest
+/// from `x`'s line (the outline side farthest from it, when that side is parallel to `x`),
+/// along two runs: from `x`'s first end, and from its second end the other way round. The
+/// vertices inside the runs cut it as [`cuts`] does a zone between two lines: from the
+/// vertex to the point at the same fraction, by length, along the other run. PE-DESIGN
+/// 11.50's file `g11` (#1273): beyond a line from the left side to the right side of a
+/// square the rows first fan as far as the row through the nearer top corner, then run
+/// parallel to that row. A corner cut off by `x` has no vertex but the corner: no cuts, and
+/// rows parallel to `x`.
+fn end_cuts(rings: &[Ring], closed: &[Contour], x: [Vec2; 2], other: [Vec2; 2]) -> Vec<[Vec2; 2]> {
+    let Some(arc) = side(rings, x[0], x[1], &[other[0], other[1]]) else {
+        return Vec::new();
+    };
+    const AT_END: f64 = 0.1;
+    // Vertices this near the same distance from the line are one far side (0.005 mm).
+    const LEVEL: f64 = 0.05;
+    let total = arc.ring.len();
+    let d = x[1] - x[0];
+    let len = d.length().max(1e-9);
+    let signed = |p: Vec2| ((p.x - x[0].x) * d.y - (p.y - x[0].y) * d.x) / len;
+    // (distance along the arc from `x`'s first end, distance from `x`'s line)
+    let mut inside: Vec<(f64, f64)> = Vec::new();
+    let mut rest: Vec<f64> = Vec::new();
+    for (i, &v) in arc.ring.at[..arc.ring.at.len() - 1].iter().enumerate() {
+        let along = (arc.dir * (v - arc.s0)).rem_euclid(total);
+        if along > AT_END && along < arc.len - AT_END {
+            inside.push((along, signed(arc.ring.pts[i])));
+        } else if along > arc.len + AT_END && along < total - AT_END {
+            rest.push(signed(arc.ring.pts[i]));
+        }
+    }
+    // The line must part this end of the shape from the rest of it: where the rest reaches
+    // over to this side of the line as well (the other arm of a U) nothing is cut, and the
+    // rows beyond the line stay parallel to it. PE-DESIGN's sewing there is not captured.
+    let side = inside.iter().map(|v| v.1).sum::<f64>().signum();
+    if inside.iter().any(|v| v.1 * side < -LEVEL) || rest.iter().any(|h| h * side > LEVEL) {
+        return Vec::new();
+    }
+    for v in &mut inside {
+        v.1 = v.1.abs();
+    }
+    inside.sort_by(|p, q| p.0.total_cmp(&q.0));
+    let top = inside.iter().map(|v| v.1).fold(0.0_f64, f64::max);
+    let far: Vec<f64> = inside
+        .iter()
+        .filter(|v| v.1 >= top - LEVEL)
+        .map(|v| v.0)
+        .collect();
+    let (Some(&first), Some(&last)) = (far.first(), far.last()) else {
+        return Vec::new();
+    };
+    let (run1, run2) = (first, arc.len - last);
+    if run1 <= AT_END || run2 <= AT_END {
+        return Vec::new();
+    }
+    let mut at: Vec<f64> = inside
+        .iter()
+        .filter_map(|&(along, _)| {
+            if along < first - AT_END {
+                Some(along / run1)
+            } else if along > last + AT_END {
+                Some((arc.len - along) / run2)
+            } else {
+                None
+            }
+        })
+        .filter(|f| *f < 0.999)
+        .collect();
+    at.sort_by(f64::total_cmp);
+    at.dedup_by(|p, q| (*p - *q).abs() < 1e-6);
+    if at.len() > MAX_CUTS {
+        let step = at.len() as f64 / MAX_CUTS as f64;
+        at = (0..MAX_CUTS)
+            .map(|k| at[(k as f64 * step) as usize])
+            .collect();
+    }
+    let found: Vec<[Vec2; 2]> = at
+        .into_iter()
+        .map(|f| {
+            [
+                arc.at(f * run1 / arc.len),
+                arc.at((arc.len - f * run2) / arc.len),
+            ]
+        })
+        .filter(|c| c[0].distance(c[1]) > 1.0)
+        .collect();
+    lying_inside(found, closed)
+}
+
+/// The most cuts between two lines (a curved outline has a vertex every fraction of a
+/// millimetre of its flattened path).
+const MAX_CUTS: usize = 96;
+
 /// The farthest crossing of the ray from `p` along unit `u` with the outlines, as a distance
 /// from `p`; `None` when the ray meets none.
 fn ray_reach(p: Vec2, u: Vec2, closed: &[Contour], holes: &[Contour]) -> Option<f64> {
@@ -485,6 +717,17 @@ fn ray_reach(p: Vec2, u: Vec2, closed: &[Contour], holes: &[Contour]) -> Option<
 
 /// How far a warped outline may stray from the exact one, 0.1 mm units (0.005 mm).
 const WARP_TOLERANCE: f64 = 0.05;
+
+/// The closest the rows of a fan come to each other before some end early, as a share of
+/// their spacing at the far end. PE-DESIGN 11.50 keeps every row in its two-line reference
+/// design, where the rows are 0.30 of their spacing apart at the corner nearest the meeting
+/// point; closer than that is not captured, so the limit is set just under it and only keeps
+/// needle points from piling up where the lines meet on or just outside the outline.
+const CLOSEST: f64 = 0.25;
+
+/// Needle points of a thinned fan closer than this to the one before are left out (0.05 mm):
+/// the turn of a pair of rows that are nearly on each other is one needle point.
+const SAME_POINT: f64 = 0.5;
 
 /// Steps the far-end distance of a fan is summed over.
 const FAN_SAMPLES: usize = 128;
@@ -520,12 +763,15 @@ enum Zone {
 }
 
 /// PE-DESIGN's direction lines as a change of coordinates (`AngleRule::Fan`, #1273). In the
-/// warped plane every row of the fill is a horizontal line: before the first direction line
-/// and after the last one the rows are parallel to it, and between two consecutive lines they
-/// are a fan through the point where the two lines meet when extended, a row spacing apart at
-/// each row's far end from that point and closer toward it (PE-DESIGN 11.50's rule, measured
-/// on its files: 0.19 degrees a row where the far end is 64 mm away, 0.16 where it is 79 mm,
-/// at 0.212 mm spacing). Distances along a row are kept. The shape is warped, the plain fill
+/// warped plane every row of the fill is a horizontal line. The zone between two consecutive
+/// lines is cut into pieces at the outline's vertices ([`cuts`]), and so is the part of the
+/// shape before the first line and beyond the last one ([`end_cuts`]), beyond whose
+/// outermost cut the rows are parallel to it (to the line, where there is no cut: a corner).
+/// In each piece the rows are a
+/// fan through the point where the piece's two bounding lines meet when extended (parallel
+/// rows when they are parallel), a row spacing apart at each row's far end from that point
+/// and closer toward it. PE-DESIGN 11.50's rule, read from its files `g1` to `g11`: the rows
+/// of every piece pass its meeting point within 0.05 to 0.2 mm. Distances along a row are kept. The shape is warped, the plain fill
 /// is laid out on it with horizontal rows, and its needle points are brought back, so the
 /// under sewing, the stitch pattern and the travel are the plain fill's.
 #[derive(Clone, Debug)]
@@ -550,6 +796,31 @@ impl FanWarp {
                 chords[i] = [b[1], b[0]];
             }
         }
+        // Two neighbouring lines on one straight line have no zone between them, and none
+        // on either side ([`check_fan`] refuses such lines).
+        if chords.windows(2).any(|w| collinear(w[0], w[1])) {
+            return None;
+        }
+        // The zone between two lines is cut at every outline vertex inside one of its two
+        // runs ([`cuts`]); each cut bounds a piece as a line does.
+        let rings: Vec<Ring> = closed.iter().filter_map(Ring::new).collect();
+        // Before the first line and beyond the last one the shape is cut the same way, as
+        // far as the vertex farthest from that line ([`end_cuts`]); the rows beyond the
+        // outermost cut are parallel to it.
+        let mut pieces: Vec<[Vec2; 2]> = end_cuts(&rings, closed, chords[0], chords[1]);
+        pieces.reverse();
+        pieces.push(chords[0]);
+        for w in chords.windows(2) {
+            pieces.extend(cuts(&rings, closed, w[0], w[1]));
+            pieces.push(w[1]);
+        }
+        pieces.extend(end_cuts(
+            &rings,
+            closed,
+            chords[chords.len() - 1],
+            chords[chords.len() - 2],
+        ));
+        let chords = pieces;
         let n = chords.len();
         let mid = |c: [Vec2; 2]| c[0].lerp(c[1], 0.5);
         let dir = |c: [Vec2; 2]| {
@@ -787,6 +1058,90 @@ impl FanWarp {
         }
     }
 
+    /// How close the rows are at warped point `w`, as a share of their spacing: 1 where they
+    /// are parallel; in a fan the distance from the meeting point over the far end's.
+    fn closeness(&self, w: Vec2) -> f64 {
+        let end = |z: &Zone| match z {
+            Zone::Flat { v0, to, .. } => v0 + to,
+            Zone::Fan { v0, sum, .. } => v0 + sum[FAN_SAMPLES],
+        };
+        let k = self
+            .zones
+            .iter()
+            .position(|z| w.y <= end(z))
+            .unwrap_or(self.zones.len() - 1);
+        match &self.zones[k] {
+            Zone::Flat { .. } => 1.0,
+            Zone::Fan {
+                sweep,
+                sum,
+                sigma,
+                off,
+                v0,
+                ..
+            } => {
+                let g = (w.y - v0).clamp(0.0, sum[FAN_SAMPLES]);
+                let i = sum.partition_point(|&x| x < g).clamp(1, FAN_SAMPLES);
+                let far = (sum[i] - sum[i - 1]) / (sweep.abs() / FAN_SAMPLES as f64);
+                let r = (sigma * (w.x - off)).abs();
+                if far > 0.0 { (r / far).min(1.0) } else { 1.0 }
+            }
+        }
+    }
+
+    /// A run of needle points of the warped plane with the rows of a fan thinned where they
+    /// come closer than [`CLOSEST`] of their spacing: of the trips the run makes into that
+    /// part (a row in, the turn at the outline, the next row out) every other one is left
+    /// out, so those two rows end early; again at half that closeness, and so on. Needle
+    /// points left within [`SAME_POINT`] of the one before, in that part, are dropped. A run
+    /// that never comes that close is returned as it is.
+    pub fn thinned(&self, run: Vec<Vec2>) -> Vec<Vec2> {
+        if !run.iter().any(|&w| self.closeness(w) < CLOSEST) {
+            return run;
+        }
+        let mut run = run;
+        let mut limit = CLOSEST;
+        for _ in 0..8 {
+            let mut out = Vec::with_capacity(run.len());
+            let (mut i, mut skip, mut trips) = (0, false, 0);
+            while i < run.len() {
+                if self.closeness(run[i]) >= limit {
+                    out.push(run[i]);
+                    i += 1;
+                    continue;
+                }
+                let start = i;
+                while i < run.len() && self.closeness(run[i]) < limit {
+                    i += 1;
+                }
+                // A run that starts or ends in there keeps that part.
+                let open = start == 0 || i == run.len();
+                if open || !skip {
+                    out.extend_from_slice(&run[start..i]);
+                }
+                if !open {
+                    skip = !skip;
+                    trips += 1;
+                }
+            }
+            run = out;
+            if trips == 0 {
+                break;
+            }
+            limit /= 2.0;
+        }
+        let mut out: Vec<Vec2> = Vec::with_capacity(run.len());
+        for w in run {
+            let same = out.last().is_some_and(|l| {
+                self.closeness(w) < CLOSEST && self.back(*l).distance(self.back(w)) < SAME_POINT
+            });
+            if !same {
+                out.push(w);
+            }
+        }
+        out
+    }
+
     /// `c` in the warped plane, as a polygon: its outline is followed in steps of at most
     /// 0.3 mm, since a straight side is a curve there.
     pub fn contour(&self, c: &Contour) -> Contour {
@@ -818,7 +1173,10 @@ pub const LINE_REACH: f64 = 50.0;
 /// The one straight direction line of a shape with fill angle `angle` (stored degrees,
 /// counter-clockwise on screen): through the middle of the bounds of `closed`, from
 /// [`LINE_REACH`] before the bounds to as far behind them, pointing the way the angle does.
-/// `None` for a shape without a closed outline.
+/// Where the middle of the bounds is not in the shape (a C, a ring) the line goes through a
+/// point that is: the middle of the widest part of the shape level with the middle of the
+/// bounds, from [`LINE_REACH`] before the outline there to as far behind it, so that the
+/// line is one [`check_fan`] accepts. `None` for a shape without a closed outline.
 pub fn angle_line(closed: &[Contour], angle: f64) -> Option<[Vec2; 2]> {
     let b = crate::geometry::Rect::enclosing(
         closed
@@ -828,6 +1186,25 @@ pub fn angle_line(closed: &[Contour], angle: f64) -> Option<[Vec2; 2]> {
     )?;
     let centre = v2((b.min_x + b.max_x) / 2.0, (b.min_y + b.max_y) / 2.0);
     let d = v2(angle.to_radians().dcos(), -angle.to_radians().dsin());
+    if !contains(centre, closed) {
+        // Level with the middle of the bounds: where the outline is crossed, in order.
+        let mut xs: Vec<f64> = closed
+            .iter()
+            .filter(|c| c.closed)
+            .flat_map(Contour::edges)
+            .filter(|(p, q)| (p.y <= centre.y) != (q.y <= centre.y))
+            .map(|(p, q)| p.x + (q.x - p.x) * (centre.y - p.y) / (q.y - p.y))
+            .collect();
+        xs.sort_by(f64::total_cmp);
+        let inside = xs
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .max_by(|p, q| (p[1] - p[0]).total_cmp(&(q[1] - q[0])))
+            .map(|p| v2((p[0] + p[1]) / 2.0, centre.y))?;
+        let c = chord([inside - d, inside + d], closed, &[]);
+        return Some([c[0] - d * LINE_REACH, c[1] + d * LINE_REACH]);
+    }
     let reach = |half: f64, along: f64| {
         if along.abs() < 1e-9 {
             f64::INFINITY
@@ -886,10 +1263,36 @@ pub fn line_angle(l: [Vec2; 2]) -> f64 {
     ((a * 10.0).round() / 10.0).rem_euclid(360.0)
 }
 
-/// Where a new direction line goes among `lines` (which are in order across the shape): the
-/// place that keeps the lines' middles nearest to each other in turn; after the others when
-/// places are equal (a second line goes after the first, as in PE-DESIGN's files).
-pub fn place_for(lines: &[[Vec2; 2]], new: [Vec2; 2]) -> usize {
+/// Where a new direction line goes among `lines`, which are in order across the shape. A
+/// second line goes after the first (as in PE-DESIGN's files). From then on the order is the
+/// one the lines have going round the outline: a line that does not cross the others has both
+/// its ends on one side of each of them, and it goes after every line that has it on the
+/// side its next line is on (for the last line: the side its line before is not on). So a
+/// line between two others goes between them, wherever its middle is (PE-DESIGN's three-line
+/// file lists its lines this way round the outline). Only for lines whose ends are not all on
+/// one outline: the place that keeps the lines' middles nearest to each other in turn.
+pub fn place_for(lines: &[[Vec2; 2]], new: [Vec2; 2], closed: &[Contour]) -> usize {
+    let n = lines.len();
+    if n <= 1 {
+        return n;
+    }
+    let chords: Vec<[Vec2; 2]> = lines
+        .iter()
+        .chain([&new])
+        .map(|l| chord(*l, closed, &[]))
+        .collect();
+    if let Some(arcs) = arcs(&chords, closed) {
+        let at = arcs[n].a;
+        return (0..n)
+            .filter(|&i| {
+                if i + 1 < n {
+                    arcs[i].holds(arcs[i + 1].a) == arcs[i].holds(at)
+                } else {
+                    arcs[i].holds(arcs[i - 1].a) != arcs[i].holds(at)
+                }
+            })
+            .count();
+    }
     let mid = |l: &[Vec2; 2]| l[0].lerp(l[1], 0.5);
     let length = |at: usize| {
         let mut all: Vec<Vec2> = lines.iter().map(mid).collect();

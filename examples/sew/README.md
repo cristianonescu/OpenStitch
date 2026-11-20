@@ -475,7 +475,7 @@ Threads, in sewing order: 405 Blue.
 
 #### Direction lines (PE-DESIGN's Add Direction Line)
 
-[`fills/direction-lines.pes`](fills/direction-lines.pes) · 100 × 100 mm hoop · 40 × 40 mm · 2,841 stitches · 1 trim · about 3.6 min
+[`fills/direction-lines.pes`](fills/direction-lines.pes) · 100 × 100 mm hoop · 40 × 40 mm · 2,776 stitches · 1 trim · about 3.5 min
 
 A 40 mm square with two direction lines: the rows are parallel to the 45° line on one side of it, fan between the two lines, and are parallel to the second line in the corner beyond it.
 

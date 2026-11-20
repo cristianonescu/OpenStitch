@@ -552,7 +552,10 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
             | RegionType::Contour
     );
     // PE-DESIGN 11.50 has no Direction for cross stitch: its grid is on the page axes (#614).
-    if !r.auto_direction && !centred && r.kind != RegionType::CrossStitch {
+    // With two or more direction lines (#1273) the one angle does nothing: PE-DESIGN greys
+    // its Direction field then; here the field is not shown.
+    let lines = r.angle_rule == openstitch_design::AngleRule::Fan && r.angle_lines.len() >= 2;
+    if !r.auto_direction && !centred && !lines && r.kind != RegionType::CrossStitch {
         v.push(num(
             "Direction",
             "region.angle",

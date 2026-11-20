@@ -407,11 +407,17 @@ fn object(s: &Shape, table: &[Thread], notes: &mut Vec<String>) -> Result<Design
         r
     });
     // Direction lines added in PE-DESIGN (#1273): the fill's rows fan between them.
+    if s.direction_lines.len() >= 2 && !region.as_ref().is_some_and(|r| r.kind == RegionType::Fill)
+    {
+        notes.push(format!(
+            "its {} direction lines were not imported: they are for a fill, and its region is not one",
+            s.direction_lines.len()
+        ));
+    }
     if let Some(r) = region
         .as_mut()
         .filter(|r| s.direction_lines.len() >= 2 && r.kind == RegionType::Fill)
     {
-        let outline = contour(&s.vertices, s.closed);
         let crossing = |(side, t): (u32, f64)| {
             let path = outline.segment_polyline(side as usize % outline.points.len().max(1));
             let total: f64 = path.windows(2).map(|w| w[0].distance(w[1])).sum();
@@ -425,12 +431,24 @@ fn object(s: &Shape, table: &[Thread], notes: &mut Vec<String>) -> Result<Design
             }
             path.last().copied().unwrap_or_default()
         };
-        r.angle_lines = s
+        let lines: Vec<[openstitch_design::Vec2; 2]> = s
             .direction_lines
             .iter()
             .map(|l| [crossing(l[0]), crossing(l[1])])
             .collect();
-        r.angle_rule = openstitch_design::AngleRule::Fan;
+        // Lines that cannot be sewn (crossing inside the shape, not across it) are left
+        // out with a note: the fill then has its one direction.
+        match openstitch_design::angle_lines::check_fan(&lines, std::slice::from_ref(&outline), &[])
+        {
+            Ok(()) => {
+                r.angle_lines = lines;
+                r.angle_rule = openstitch_design::AngleRule::Fan;
+            }
+            Err(why) => notes.push(format!(
+                "its direction lines were not imported: {}",
+                why.replace("angle line", "direction line")
+            )),
+        }
     }
     if let Some(r) = region.as_mut().filter(|_| !s.punch.is_empty()) {
         r.direction_lines = punch_lines(s, &vertices)?;
@@ -1110,6 +1128,65 @@ pub fn commands() -> Vec<CommandSpec> {
 mod tests {
     use super::*;
     use openstitch_design::ObjectKind;
+
+    /// Direction lines (#1273) are for a fill: on another region, or when they cannot be
+    /// sewn (they cross inside the shape), they are left out and a note says so.
+    #[test]
+    fn direction_lines_that_are_not_imported_leave_a_note() {
+        let v = |x: f32, y: f32| Vertex {
+            x,
+            y,
+            handles: [(0.0, 0.0); 2],
+            kind: 0,
+        };
+        // A 40 mm square: sides 0 top, 1 right, 2 bottom, 3 left. The lines of PE-DESIGN's
+        // two-line design: corner to corner, and across the top-left corner.
+        let mut s = Shape::with_defaults();
+        s.vertices = vec![
+            v(800.0, 800.0),
+            v(1200.0, 800.0),
+            v(1200.0, 1200.0),
+            v(800.0, 1200.0),
+        ];
+        s.closed = true;
+        s.region = RegionSewType::Fill;
+        s.direction_lines = vec![[(2, 1.0), (0, 1.0)], [(3, 0.84), (0, 0.384)]];
+        let mut notes = Vec::new();
+        let o = object(&s, &[], &mut notes).expect("object");
+        let r = o.region.expect("region");
+        assert_eq!(
+            (r.angle_lines.len(), r.angle_rule),
+            (2, openstitch_design::AngleRule::Fan)
+        );
+        assert!(notes.is_empty(), "{notes:?}");
+        // Not a fill.
+        let mut satin = s.clone();
+        satin.region = RegionSewType::Satin;
+        let mut notes = Vec::new();
+        let o = object(&satin, &[], &mut notes).expect("object");
+        assert!(o.region.expect("region").angle_lines.is_empty());
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.contains("2 direction lines were not imported") && n.contains("fill")),
+            "{notes:?}"
+        );
+        // Lines that cross inside the shape.
+        let mut crossing = s.clone();
+        crossing.direction_lines[1] = [(3, 0.5), (1, 0.5)];
+        let mut notes = Vec::new();
+        let o = object(&crossing, &[], &mut notes).expect("object");
+        let r = o.region.expect("region");
+        assert!(r.angle_lines.is_empty());
+        assert_eq!(r.angle_rule, openstitch_design::AngleRule::Sides);
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.contains("direction lines were not imported")
+                    && n.contains("cross inside the shape")),
+            "{notes:?}"
+        );
+    }
 
     /// PE-DESIGN 11.50's vertices after To Curve on one corner of its rectangle
     /// (`a1-to-curve`, #1258 captures of 2026-11-18; file units), then To Symmetry and To Cusp

@@ -106,7 +106,13 @@ impl ToolController {
             .map(|l| json!([point(l[0]), point(l[1])]))
             .collect();
         vec![ToolEffect::run(
-            CommandRequest::new("object.setAngleLines", json!({ "id": id, "lines": lines })),
+            // OpenStitch's own lines (the rule sides): on a shape with PE-DESIGN's direction
+            // lines the engine refuses, since lines are not converted from one rule to the
+            // other, and says so.
+            CommandRequest::new(
+                "object.setAngleLines",
+                json!({ "id": id, "lines": lines, "rule": "sides" }),
+            ),
             false,
         )]
     }
@@ -164,6 +170,50 @@ mod tests {
             .region
             .as_ref()
             .map_or(0, |r| r.angle_lines.len())
+    }
+
+    /// A shape with PE-DESIGN's direction lines (the rule fan, #1273) is left alone: the tool
+    /// asks for OpenStitch's rule, and the engine refuses to convert the lines and says so.
+    #[test]
+    fn a_shape_with_pe_designs_direction_lines_is_refused() {
+        let mut s = Session::new(std::env::temp_dir());
+        s.execute(
+            "shape.rectangle",
+            Some(&json!({ "x": 30, "y": 30, "width": 40, "height": 40, "fill": "Red" })),
+        )
+        .expect("square");
+        s.execute(
+            "object.addDirectionLine",
+            Some(&json!({ "id": 1, "line": [[25.2, 38.4], [50.17, 28.0]] })),
+        )
+        .expect("a direction line");
+        let before = s.design().clone();
+        let sel = BTreeSet::from([1]);
+        let mut t = ToolController::default();
+        t.set_tool(Tool::AngleLine);
+        let design = s.design().clone();
+        let ctx = ToolContext {
+            design: &design,
+            selection: &sel,
+            units_per_point: 1.0,
+            scale_takes_origin: false,
+        };
+        t.handle(PointerEvent::new(Phase::Down, v2(500.0, 250.0)), &ctx);
+        t.handle(PointerEvent::new(Phase::Dragged, v2(500.0, 500.0)), &ctx);
+        let effects = t.handle(PointerEvent::new(Phase::Up, v2(500.0, 750.0)), &ctx);
+        let [ToolEffect::Execute { requests, .. }] = effects.as_slice() else {
+            panic!("one command");
+        };
+        assert_eq!(requests[0].params["rule"], "sides");
+        let why = s
+            .execute(requests[0].command, Some(&requests[0].params))
+            .expect_err("not converted")
+            .to_string();
+        assert!(
+            why.contains("rule fan") && why.contains("not converted"),
+            "{why}"
+        );
+        assert_eq!(*s.design(), before);
     }
 
     #[test]

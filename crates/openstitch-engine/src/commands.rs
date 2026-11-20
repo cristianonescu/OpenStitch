@@ -2421,6 +2421,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             ));
                         }
                         r.angle_lines.clear();
+                        r.angle_rule = openstitch_design::AngleRule::Sides;
                     }
                     crate::flow_param::set_region(p, &mut r, centre)?;
                     if p.has("waveHeight") {
@@ -2864,7 +2865,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.setHoleSewing",
-            "Hole sewing (PE-DESIGN): of two regions where one fully encloses the other, the outer one is sewn around the inner shape. With one id the region it encloses is found; off clears the pair",
+            "Hole sewing (PE-DESIGN): of two regions where one fully encloses the other, the outer one is sewn around the inner shape. With one id the region it encloses is found; off clears the pair. Refused on a shape with direction lines (object.addDirectionLine): go back to one direction first",
             Effect::Edit,
             vec![IDS, req("enabled", "bool", "Hole sewing on/off")],
             |s, p| {
@@ -2883,6 +2884,15 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     return Ok(Value::Null);
                 }
                 let (outer, inner) = hole_pair(s, p, &idx)?;
+                // PE-DESIGN's direction lines do not go with hole sewing (as Add Direction
+                // Line refuses a shape that has it).
+                for k in [outer, inner] {
+                    crate::angle_cmds::refuse_fan(
+                        p,
+                        &s.design.objects[k],
+                        "hole sewing cannot be set",
+                    )?;
+                }
                 let inner = s.design.objects[inner].id;
                 let o = &mut s.design.objects[outer];
                 o.hole_sewing = true;

@@ -395,13 +395,13 @@ fn layers_inner(
     }
     // PE-DESIGN's direction lines (#1273): the shape is taken to a plane where every row is
     // horizontal (parallel rows beyond the first and last line, a fan between two lines, see
-    // `angle_lines::FanWarp`), the plain fill is laid out there, under sewing and all, and
-    // its needle points are brought back.
+    // `angle_lines::FanWarp`), the plain fill is laid out there and its needle points are
+    // brought back.
     if r.kind == RegionType::Fill
         && r.angle_rule == crate::model::AngleRule::Fan
         && r.angle_lines.len() >= 2
         && r.gradient.is_none()
-        && crate::angle_lines::check(&r.angle_lines, closed, holes).is_ok()
+        && crate::angle_lines::check_fan(&r.angle_lines, closed, holes).is_ok()
         && let Some(warp) = crate::angle_lines::FanWarp::new(&r.angle_lines, closed, holes)
     {
         let mut plain = r.clone();
@@ -409,21 +409,104 @@ fn layers_inner(
         plain.angle_rule = crate::model::AngleRule::Sides;
         plain.angle = 0.0;
         plain.auto_direction = false;
-        plain.entry = r.entry.map(|p| warp.forward(p));
+        // The fill starts (and its halves end) at the entry point, without one at the
+        // outline's first point, as the plain fill's: named here, since the warped outline
+        // may not keep that point (a point on a straight side adds nothing to its shape).
+        let start = r
+            .entry
+            .or_else(|| closed.first().and_then(|c| c.points.first().copied()));
+        plain.entry = start.map(|p| warp.forward(p));
         plain.exit = r.exit.map(|p| warp.forward(p));
         plain.center = None;
         plain.reference = None;
         let flat: Vec<Contour> = closed.iter().map(|c| warp.contour(c)).collect();
         let flat_holes: Vec<Contour> = holes.iter().map(|c| warp.contour(c)).collect();
-        return layers_inner(&flat, &plain, &flat_holes, user, letter, None)
-            .into_iter()
-            .map(|layer| {
-                layer
-                    .into_iter()
-                    .map(|run| run.into_iter().map(|p| warp.back(p)).collect())
-                    .collect()
-            })
-            .collect();
+        plain.underlay = false;
+        let mut out: Vec<Vec<Run>> = Vec::new();
+        let mut warped: Vec<Vec<Run>> = Vec::new();
+        if r.underlay {
+            // PE-DESIGN's under sewing of a fill with direction lines has no rows across
+            // the fill (its two-line reference: 3 such rows against the plain design's 27,
+            // and about 30 more rows along the fill): the edge run 1 mm inside the outline,
+            // as the plain fill's, then rows that follow the direction lines as the top
+            // stitching does (below).
+            out.extend(fill_underlay(
+                closed,
+                r,
+                geometry_angle(r.angle),
+                holes,
+                crate::model::UnderlayParts {
+                    edge: true,
+                    ..crate::model::UnderlayParts::default()
+                },
+                letter,
+            ));
+        }
+        let top = layers_inner(&flat, &plain, &flat_holes, user, letter, None);
+        if r.underlay {
+            // ... then a zigzag along the fill: its legs go from one side of the shape to
+            // the other, the under sewing's spacing apart, the first and last half a
+            // spacing from the two ends of the shape (PE-DESIGN's two-line reference: legs
+            // 2.0 and 4.05 mm from the tip of each end corner, 2.04 mm apart between), and
+            // it ends where the top stitching begins.
+            let toward = top
+                .iter()
+                .flatten()
+                .find_map(|run| run.first().copied())
+                .map(|p| p.y);
+            let zigzag = fan_zigzag(
+                &flat,
+                r.underlay_spacing_mm() * 10.0,
+                r.stitch_length * 10.0,
+                toward,
+            );
+            if zigzag.is_empty() || !holes.is_empty() {
+                // Where a row crosses the shape in more than one part (a U across its
+                // arms, a hole) there is no single zigzag: rows along the direction lines
+                // at the under sewing's spacing instead (not captured on PE-DESIGN).
+                let mut sparse = plain.clone();
+                sparse.density = 1.0 / r.underlay_spacing_mm().max(0.1);
+                warped.extend(layers_inner(
+                    &flat,
+                    &sparse,
+                    &flat_holes,
+                    user,
+                    letter,
+                    None,
+                ));
+            } else {
+                let back: Run = zigzag.into_iter().map(|p| warp.back(p)).collect();
+                let pieces = split_outside(back, closed, holes);
+                if !pieces.is_empty() {
+                    out.push(pieces);
+                }
+            }
+        }
+        warped.extend(top);
+        out.extend(warped.into_iter().map(|layer| {
+            layer
+                .into_iter()
+                .map(|run| {
+                    // Where the rows of a fan crowd toward the lines' meeting point, some
+                    // end early (`FanWarp::thinned`).
+                    // A move that is straight in the warped plane (along a side that is
+                    // curved there) can bow a little outside the shape: such a needle point
+                    // is put on the outline.
+                    warp.thinned(run.into_iter().collect())
+                        .into_iter()
+                        .map(|p| warp.back(p))
+                        .map(|p| {
+                            if contains(p, closed) {
+                                p
+                            } else {
+                                crate::route::snap(closed, p)
+                            }
+                        })
+                        .collect()
+                })
+                .collect()
+        }));
+        return out;
     }
     // Stitch angle lines (#534, beyond PE-DESIGN): the plain fill's under sewing, then rows
     // turning from line to line (see `crate::angle_lines`), joined by travel inside.
@@ -1133,6 +1216,81 @@ fn skip_short(run: Run, closed: &[Contour], holes: &[Contour]) -> Run {
     out.push(end);
     out
 }
+
+/// The zigzag of a direction-line fill's under sewing, in the warped plane where the rows
+/// are horizontal (`angle_lines::FanWarp`): needle points alternately near the two sides of
+/// `flat`, one for each `spacing` of its height (the height divided evenly, the first and
+/// last half a step from its two ends), [`FAN_ZIGZAG_INSET`] inside the outline, joined by
+/// straight legs with stitches of at most nine tenths of `stitch`. It ends at the end of the shape nearer
+/// `toward` (a height), where the top stitching begins. Empty for a shape too small for one.
+fn fan_zigzag(flat: &[Contour], spacing: f64, stitch: f64, toward: Option<f64>) -> Run {
+    let paths: Vec<Vec<Vec2>> = flat
+        .iter()
+        .filter(|c| c.closed)
+        .map(Contour::path)
+        .collect();
+    let ys = || paths.iter().flatten().map(|p| p.y);
+    let (lo, hi) = (
+        ys().fold(f64::INFINITY, f64::min),
+        ys().fold(f64::NEG_INFINITY, f64::max),
+    );
+    if !(hi - lo).is_finite() || hi - lo < spacing.max(1.0) || spacing <= 0.0 {
+        return Run::new();
+    }
+    let n = ((hi - lo) / spacing).round().max(1.0) as usize;
+    let step = (hi - lo) / n as f64;
+    // The shape's two sides at a height: its leftmost and rightmost crossings.
+    let sides = |y: f64| -> Option<(f64, f64)> {
+        let mut xs = paths.iter().flat_map(|p| {
+            p.windows(2)
+                .filter(move |w| (w[0].y <= y) != (w[1].y <= y))
+                .map(move |w| w[0].x + (w[1].x - w[0].x) * (y - w[0].y) / (w[1].y - w[0].y))
+        });
+        let first = xs.next()?;
+        let (a, b) = xs.fold((first, first), |(a, b), x| (a.min(x), b.max(x)));
+        (b - a > 2.0 * FAN_ZIGZAG_INSET).then_some((a + FAN_ZIGZAG_INSET, b - FAN_ZIGZAG_INSET))
+    };
+    // A shape that a row crosses in two parts (a U across its arms) has no single zigzag:
+    // none is made (the caller sews rows instead).
+    if (0..n).any(|k| {
+        let y = hi - (k as f64 + 0.5) * step;
+        paths
+            .iter()
+            .flat_map(|p| p.windows(2))
+            .filter(|w| (w[0].y <= y) != (w[1].y <= y))
+            .count()
+            > 2
+    }) {
+        return Run::new();
+    }
+    let mut corners: Vec<Vec2> = (0..n)
+        .filter_map(|k| {
+            let y = hi - (k as f64 + 0.5) * step;
+            let (a, b) = sides(y)?;
+            Some(v2(if k % 2 == 0 { b } else { a }, y))
+        })
+        .collect();
+    if toward.is_some_and(|y| (y - hi).abs() < (y - lo).abs()) {
+        corners.reverse();
+    }
+    let mut run = Run::new();
+    for w in corners.windows(2) {
+        // PE-DESIGN's legs have stitches a little under the fill's (39 mm in 11, 53.5 mm
+        // in 14, 12.5 mm in 4 at 4 mm): nine tenths of it at most.
+        let parts = (w[0].distance(w[1]) / (0.9 * stitch).max(1.0))
+            .ceil()
+            .max(1.0) as usize;
+        for k in 0..parts {
+            run.push(w[0].lerp(w[1], k as f64 / parts as f64));
+        }
+    }
+    run.extend(corners.last().copied());
+    run
+}
+
+/// How far inside the outline the zigzag of a direction-line fill's under sewing turns,
+/// 0.1 mm (PE-DESIGN's references: 0.5 mm on a side the legs meet squarely).
+const FAN_ZIGZAG_INSET: f64 = 5.0;
 
 /// Inset of PE-DESIGN's fill under sewing (edge run and rows) from the outline, 0.1 mm.
 pub const FILL_UNDERLAY_INSET: f64 = 10.0;

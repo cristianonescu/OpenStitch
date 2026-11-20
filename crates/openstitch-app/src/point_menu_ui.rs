@@ -1255,6 +1255,60 @@ mod tests {
         let s = app.ui_command("ui.pointMenu", None).expect("state");
         let angle = s["directionLine"]["angle"].as_f64().expect("angle");
         assert!((angle - 22.6).abs() < 0.3, "the 45 degree line went: {angle}");
+        // Delete Lines Not Selected with the FIRST line selected (index 0 is also the index
+        // of the one line that is left, so only the deselect leaves it unselected), and
+        // which line is kept, by where it lies. Three lines, in order across the shape: the
+        // bottom-right one, the 45 degree one, the top-left one.
+        app.undo();
+        assert_eq!(*app.session.design(), two);
+        let third = app
+            .execute(&CommandRequest::new(
+                "object.addDirectionLine",
+                json!({ "id": id, "line": [[57.05, 74.0], [74.0, 57.2]] }),
+            ))
+            .expect("a third line");
+        assert_eq!(third["index"], 0, "before the 45 degree line");
+        let three = app.session.design().clone();
+        let stored = |app: &EditorApp| {
+            app.session.design().objects[0]
+                .region
+                .as_ref()
+                .expect("region")
+                .angle_lines
+                .clone()
+        };
+        let before = stored(&app);
+        // (the line selected, the angle of the line that is left, its distance from the
+        // bottom-right corner as a check of which line it is)
+        for (keep, angle) in [(0, 44.7), (1, 45.0), (2, 22.6)] {
+            let s = app
+                .ui_command("ui.pointMenu", Some(&json!({ "selectDirectionLine": keep })))
+                .expect("select");
+            assert_eq!(s["directionLines"][keep]["selected"], true);
+            let kept = before[keep];
+            let s = app
+                .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteLinesNotSelected" })))
+                .expect("Delete Lines Not Selected");
+            let lines = s["directionLines"].as_array().expect("lines");
+            assert_eq!(lines.len(), 1, "keep {keep}");
+            assert_eq!(
+                (lines[0]["stored"].clone(), lines[0]["selected"].clone()),
+                (json!(false), json!(false)),
+                "keep {keep}: the line that is left is not selected"
+            );
+            let left = lines[0]["angle"].as_f64().expect("angle");
+            assert!((left - angle).abs() < 0.3, "keep {keep}: {left}");
+            // The line that is left points the way the kept line did.
+            assert!(
+                (left - openstitch_design::angle_lines::line_angle(kept)).abs() < 1e-9,
+                "keep {keep}"
+            );
+            assert!(!enabled(&app, Action::DeleteDirectionLine), "keep {keep}");
+            let sub = direction_submenu(&app);
+            assert_eq!((sub[0].2, sub[1].2), (false, false), "keep {keep}");
+            app.undo();
+            assert_eq!(*app.session.design(), three, "one Undo");
+        }
         // The curved direction keeps its own command: Curved Direction draws it with the Pen.
         assert!(enabled(&app, Action::CurvedDirection));
         app.ui_command("ui.run", Some(&json!({ "action": "curvedDirection" })))
@@ -1275,6 +1329,8 @@ mod tests {
             "object.deleteDirectionLine",
             "deleteSelectedLine removes the selected line",
             "deleteLinesNotSelected removes every line but the selected one",
+            "object.moveDirectionLine",
+            "The selection is the line itself, not its index",
         ] {
             assert!(spec.summary.contains(words), "summary: {words}");
         }
@@ -1418,8 +1474,9 @@ mod tests {
         // Why Delete Selected Line is grey, said truly: a line can be selected now.
         assert!(!spec.summary.contains("no direction line can be selected"));
         assert!(
-            spec.summary
-                .contains("a shape's only direction line cannot be deleted")
+            spec.summary.contains(
+                "deleteSelectedLine (grey: a shape's only direction line cannot be deleted"
+            )
         );
         let e = app
             .ui_command("ui.pointMenu", Some(&json!({ "action": "deleteSelectedLine" })))

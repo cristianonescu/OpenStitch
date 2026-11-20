@@ -51,7 +51,7 @@ pub fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.setDirectionCurve",
-            "Curved sewing direction (round fill) for fill, programmable fill, piping and motif fill: rows follow the curve (null = straight)",
+            "Curved sewing direction (round fill) for fill, programmable fill, piping and motif fill: rows follow the curve (null = straight). Refused on a shape with direction lines (object.addDirectionLine): go back to one direction first",
             Effect::Edit,
             vec![
                 req("id", "int", "Object with region sewing"),
@@ -70,6 +70,17 @@ pub fn commands() -> Vec<CommandSpec> {
                 if p.is_null("points") {
                     region(s, p, None)?.direction_curve = None;
                     return Ok(json!(null));
+                }
+                if let Some(i) = p
+                    .get("id")
+                    .and_then(serde_json::Value::as_u64)
+                    .and_then(|id| s.design.index_of(id))
+                {
+                    crate::angle_cmds::refuse_fan(
+                        p,
+                        &s.design.objects[i],
+                        "a curved direction cannot be set",
+                    )?;
                 }
                 let points = p.points("points", 2)?;
                 if points.len() > 1000 {

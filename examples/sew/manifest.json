@@ -1005,15 +1005,15 @@
    40.0,
    40.0
   ],
-  "stitches": 2841,
+  "stitches": 2776,
   "trims": 1,
   "threads": [
    "405 Blue"
   ],
-  "sewingMinutes": 3.6,
+  "sewingMinutes": 3.5,
   "image": null,
   "preview": "previews/direction-lines.png",
-  "sha256": "9773ba3d26e93076a41e408fb3cb42fd64c6f0e4d4845508c966779f7732d8e3",
+  "sha256": "ddba089f4a8ee25455fa894abecdd2f4c077b4cf695c2c47fa5949994df008bc",
   "renderVersion": 3
  },
  "fills/tartan.pes": {

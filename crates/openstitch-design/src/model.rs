@@ -1947,7 +1947,7 @@ pub enum AngleRule {
     Sides,
     /// PE-DESIGN's direction lines (#1273): between two lines the rows are a fan through the
     /// point where the two lines meet when extended; beyond the first and last line they are
-    /// parallel to it (see `crate::angle_lines::fan_rows`).
+    /// parallel to it (see `crate::angle_lines::FanWarp`).
     Fan,
 }
 

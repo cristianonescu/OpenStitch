@@ -660,6 +660,47 @@ fn gradation_shape_choices_reach_the_engine() {
 
 /// Stitch angle lines (#534, beyond PE-DESIGN): a fill with angle lines shows Angle lines (+);
 /// turning it off reaches the engine and removes them.
+/// With two or more direction lines (#1273) the one angle does nothing: PE-DESIGN greys its
+/// Direction field then (capture k); here the field is not shown, and is back when one line
+/// is left.
+#[test]
+fn the_direction_field_is_not_shown_with_two_or_more_direction_lines() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = exec(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 30, "y": 30, "width": 40, "height": 40, "fill": "Red"}),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let direction = |d: &Design| {
+        inspector::region_controls(&d.objects[0].region.clone().expect("region"))
+            .iter()
+            .any(|c| {
+                matches!(
+                    c,
+                    Control::Number {
+                        label: "Direction",
+                        ..
+                    }
+                )
+            })
+    };
+    assert!(direction(s.design()));
+    exec(
+        &mut s,
+        "object.addDirectionLine",
+        json!({"id": id, "line": [[25.2, 38.4], [50.17, 28.0]]}),
+    );
+    assert!(!direction(s.design()), "two lines: no Direction field");
+    exec(
+        &mut s,
+        "object.deleteDirectionLine",
+        json!({"id": id, "index": 1}),
+    );
+    assert!(direction(s.design()), "one line: the field is back");
+}
+
 #[test]
 fn angle_lines_toggle_reaches_the_engine() {
     let mut s = Session::new(std::env::temp_dir());
