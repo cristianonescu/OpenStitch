@@ -49,6 +49,8 @@ pub struct ViewState {
     pub point_menu: Option<crate::point_menu_ui::PointMenu>,
     /// The Select tool's right-click menu on objects (#1288).
     pub object_menu: Option<crate::object_menu_ui::ObjectMenu>,
+    /// The Size... or Rotate... dialog (#1288).
+    pub numeric: Option<crate::numeric_ui::Numeric>,
     /// New Guide… (#799).
     pub new_guide: Option<NewGuideDialog>,
     /// New Guide Layout… (#799).
@@ -1466,6 +1468,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     guide_menu_window(app, ctx);
     crate::point_menu_ui::window(app, ctx);
     crate::object_menu_ui::window(app, ctx);
+    crate::numeric_ui::window(app, ctx);
     new_guide_window(app, ctx);
     guide_layout_window(app, ctx);
     guide_window(app, ctx);

@@ -41,6 +41,19 @@ pub const DEFAULTS: &[(Action, &[&str])] = &[
     (Action::Delete, &["Delete", "Backspace"]),
 ];
 
+/// macOS keeps Cmd+H (Hide) and Cmd+M (Minimize) for the system (#1288), so there Flip Vertical
+/// and Center, PE-DESIGN's Ctrl+H and Ctrl+M, have Cmd+Shift+H and Cmd+Shift+M instead.
+pub const MAC_DEFAULTS: &[(Action, &[&str])] = &[
+    (Action::FlipVertical, &["Ctrl+Shift+H"]),
+    (Action::CenterObjects, &["Ctrl+Shift+M"]),
+];
+
+/// The system's keys on macOS a command cannot have (Cmd is written Ctrl here).
+pub const MAC_SYSTEM_KEYS: &[(&str, &str)] = &[
+    ("Ctrl+H", "the system's Hide"),
+    ("Ctrl+M", "the system's Minimize"),
+];
+
 /// Keys that keep their meaning: the clipboard (the system sends them as clipboard events), the
 /// Command Palette and closing the window.
 pub const RESERVED: &[(&str, &str)] = &[
@@ -107,11 +120,16 @@ const PUNCTUATION: &[(&str, &str)] = &[
     ("Semicolon", ";"),
 ];
 
-/// The default shortcuts of `a`.
+/// The default shortcuts of `a` on this platform.
 pub fn defaults(a: Action) -> &'static [&'static str] {
-    DEFAULTS
-        .iter()
-        .find(|(d, _)| *d == a)
+    defaults_on(a, cfg!(target_os = "macos"))
+}
+
+/// The default shortcuts of `a` on macOS (`mac`) or on Windows, Linux and in the browser.
+pub fn defaults_on(a: Action, mac: bool) -> &'static [&'static str] {
+    mac.then(|| MAC_DEFAULTS.iter().find(|(d, _)| *d == a))
+        .flatten()
+        .or_else(|| DEFAULTS.iter().find(|(d, _)| *d == a))
         .map_or(&[], |(_, k)| k)
 }
 
@@ -224,6 +242,11 @@ impl Keymap {
             return Some((*what).to_string());
         }
         if let Some((_, what)) = RESERVED.iter().find(|(k, _)| *k == chord) {
+            return Some((*what).to_string());
+        }
+        if cfg!(target_os = "macos")
+            && let Some((_, what)) = MAC_SYSTEM_KEYS.iter().find(|(k, _)| *k == chord)
+        {
             return Some((*what).to_string());
         }
         self.bindings()
@@ -372,7 +395,15 @@ mod tests {
             if !s.starts_with("Ctrl+") || matches!(a, Action::Cut | Action::Copy | Action::Paste) {
                 continue;
             }
-            assert_eq!(defaults(a).first(), Some(&s), "{a:?}");
+            // On macOS Flip Vertical and Center differ (#1288); the ribbon shows that platform's.
+            assert_eq!(defaults_on(a, false).first(), Some(&s), "{a:?}");
+            assert_eq!(
+                defaults_on(a, true)
+                    .first()
+                    .map(|c| c.replace("Ctrl+", "Cmd+")),
+                a.info().shortcut_for(true),
+                "{a:?}"
+            );
         }
         assert_eq!(defaults(Action::Delete), ["Delete", "Backspace"]);
         let k = Keymap::default();
@@ -386,6 +417,44 @@ mod tests {
             seen.len(),
             DEFAULTS.iter().map(|d| d.1.len()).sum::<usize>()
         );
+    }
+
+    /// #1288: on Windows, Linux and in the browser, and on macOS, no two commands share a
+    /// default key, none takes a reserved key or one the browser or macOS keeps for itself, and
+    /// PE-DESIGN's object keys are where the coordinator's decision put them.
+    #[test]
+    fn no_two_defaults_collide_on_any_platform() {
+        for mac in [false, true] {
+            let mut seen: Vec<(&str, Action)> = Vec::new();
+            for &a in Action::ALL {
+                for &c in defaults_on(a, mac) {
+                    assert_eq!(normalize(c).as_deref(), Ok(c), "{a:?} {c}");
+                    if let Some((_, other)) = seen.iter().find(|(s, _)| *s == c) {
+                        panic!("mac {mac}: {c} is {other:?}'s and {a:?}'s");
+                    }
+                    seen.push((c, a));
+                    assert!(!RESERVED.iter().any(|(k, _)| *k == c), "{c} is reserved");
+                    if mac {
+                        assert!(!MAC_SYSTEM_KEYS.iter().any(|(k, _)| *k == c), "{c}: macOS");
+                    } else {
+                        assert!(!BROWSER_KEYS.iter().any(|(k, _)| *k == c), "{c}: browser");
+                    }
+                }
+            }
+            let of = |a| defaults_on(a, mac);
+            assert_eq!(of(Action::FlipHorizontal), ["Ctrl+J"]);
+            assert_eq!(of(Action::JoinLines), ["Ctrl+Shift+J"]);
+            assert_eq!(
+                (of(Action::FlipVertical), of(Action::CenterObjects)),
+                if mac {
+                    (&["Ctrl+Shift+H"][..], &["Ctrl+Shift+M"][..])
+                } else {
+                    (&["Ctrl+H"][..], &["Ctrl+M"][..])
+                }
+            );
+            // PE-DESIGN has no shortcut for Rotate Right and Left: none is made up.
+            assert!(of(Action::RotateRight).is_empty() && of(Action::RotateLeft).is_empty());
+        }
     }
 
     #[test]

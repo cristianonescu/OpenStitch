@@ -253,6 +253,19 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("menu-object-paste", "Paste"),
     ("menu-object-flip", "Flip"),
     ("menu-object-cut-and-sew", "Cut and Sew"),
+    ("menu-object-numerical-setting", "Numerical Setting"),
+    ("menu-object-align", "Align"),
+    ("menu-object-modify-overlap", "Modify Overlap"),
+    ("menu-object-emboss-engrave", "Emboss/Engrave"),
+    ("numeric-size-title", "Size"),
+    ("numeric-rotate-title", "Rotate"),
+    ("numeric-degree", "degree"),
+    ("numeric-preview", "Preview"),
+    ("numeric-keep-density", "Keep density and fill pattern"),
+    (
+        "numeric-keep-density-tip",
+        "OpenStitch sews a shape again after every resize, so its density and fill pattern are always kept.",
+    ),
     ("menu-apply", "Apply"),
     ("menu-fabric-colour", "Fabric colour"),
     ("menu-accent-colour", "Accent colour"),
@@ -2172,7 +2185,22 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "{ $n } recovery files deleted",
     ),
     ("ui-status-no-longer-exists", "{ $path } no longer exists"),
-    ("ui-status-pasted", "Pasted"),
+    (
+        "ui-status-pasted-on-originals",
+        "Pasted { $n } objects in place (on top of the originals)",
+    ),
+    (
+        "ui-status-pasted-in-place",
+        "Pasted { $n } objects in place",
+    ),
+    (
+        "ui-status-pasted-page-centre",
+        "Pasted { $n } objects at the centre of the Design Page (where they were copied from is outside it)",
+    ),
+    (
+        "ui-status-objects-copied-page",
+        "{ $count } objects copied in this page: the browser's clipboard cannot hold them, so Paste (Ctrl+V) works in this page",
+    ),
     (
         "ui-status-designs-folders",
         "{ $count } designs, { $count2 } folders{ $else }",

@@ -189,6 +189,96 @@ pub fn insert_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 }
 
 /// Modify Overlap: merge, remove overlap, combine.
+/// Merge (Modify Overlap, and the object menu's, #1288): the selected shapes become one.
+pub fn merge(app: &mut EditorApp) {
+    if app.selection.len() >= 2 {
+        let r = edit_ops::merge(&app.selection);
+        run_and_select(app, r);
+    }
+}
+
+/// Remove Overlaps: the parts under shapes sewn later are cut away.
+pub fn remove_overlap(app: &mut EditorApp) {
+    if app.selection.len() >= 2 {
+        let r = edit_ops::remove_overlap(&app.selection);
+        app.execute(&r);
+    }
+}
+
+/// Set hole sewing (#1288, PE-DESIGN's Modify Overlap ▸ Set hole sewing): available for two
+/// selected region shapes, one of whose bounds holds the other's, neither of them sewn with a
+/// hole yet (`object.setHoleSewing` checks that the outer one encloses the inner one).
+pub fn can_set_hole_sewing(app: &EditorApp) -> bool {
+    let d = app.session.design();
+    let pair: Vec<&openstitch_design::DesignObject> = d
+        .objects
+        .iter()
+        .filter(|o| app.selection.contains(&o.id))
+        .collect();
+    let [a, b] = pair[..] else {
+        return false;
+    };
+    let shape = |o: &openstitch_design::DesignObject| {
+        o.kind == openstitch_design::ObjectKind::Shape && o.region.is_some() && !o.hole_sewing
+    };
+    let holds = |x: &openstitch_design::DesignObject, y: &openstitch_design::DesignObject| {
+        match (x.bounds(), y.bounds()) {
+            (Some(p), Some(q)) => {
+                p.min_x <= q.min_x && p.min_y <= q.min_y && p.max_x >= q.max_x && p.max_y >= q.max_y
+            }
+            _ => false,
+        }
+    };
+    shape(a) && shape(b) && (holds(a, b) || holds(b, a))
+}
+
+/// Cancel hole sewing: available when a selected shape is sewn with a hole, or is the hole
+/// of one.
+pub fn can_cancel_hole_sewing(app: &EditorApp) -> bool {
+    app.session.design().objects.iter().any(|o| {
+        o.hole_sewing
+            && (app.selection.contains(&o.id)
+                || o.hole_inner.is_some_and(|h| app.selection.contains(&h)))
+    })
+}
+
+/// Set hole sewing (`on`) on the selected pair, or Cancel hole sewing on the selection, one
+/// undo step (`object.setHoleSewing`).
+pub fn set_hole_sewing(app: &mut EditorApp, on: bool) {
+    let ok = if on {
+        can_set_hole_sewing(app)
+    } else {
+        can_cancel_hole_sewing(app)
+    };
+    if ok {
+        let ids = app.selection.clone();
+        app.execute(&CommandRequest::new(
+            "object.setHoleSewing",
+            serde_json::json!({ "ids": CommandRequest::ids(&ids), "enabled": on }),
+        ));
+    }
+}
+
+/// The `shape.emboss` an Emboss/Engrave entry runs on the two selected shapes; `None` when
+/// the selection is not two shapes it can work on.
+pub fn emboss_request(app: &EditorApp, a: openstitch_app::editor::ribbon::Action) -> Option<CommandRequest> {
+    if app.selection.len() != 2 {
+        return None;
+    }
+    let effect = edit_ops::EMBOSS
+        .iter()
+        .find(|(_, key)| *key == a.info().key)?
+        .1;
+    edit_ops::emboss(app.session.design(), &app.selection, effect)
+}
+
+/// Engraved Line, Engraved Region or Embossed Region on the two selected shapes.
+pub fn emboss(app: &mut EditorApp, a: openstitch_app::editor::ribbon::Action) {
+    if let Some(r) = emboss_request(app, a) {
+        run_and_select(app, r);
+    }
+}
+
 pub fn overlap_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let many = app.selection.len() >= 2;
     if ui.add_enabled(many, egui::Button::new(t("ui-merge"))).clicked() {

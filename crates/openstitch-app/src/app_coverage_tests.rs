@@ -2036,29 +2036,23 @@ fn a_right_click_opens_pe_designs_object_menu_for_one_several_and_a_group() {
                 }
             })
             .collect();
-        assert_eq!(
-            keys,
-            [
-                "cut",
-                "copy",
-                "duplicate",
-                "paste",
-                "delete",
-                "-",
-                "flip",
-                "center",
-                "-",
-                "openOutline",
-                "closeOutline",
-                "-",
-                "offsetLines",
-                "toStitches",
-                "floral",
-                "-",
-                "cutAndSew"
-            ],
-            "{how}"
-        );
+        // One object: PE-DESIGN's first capture; two or a group: its second (Group and
+        // Ungroup first, Align, Modify Overlap and Emboss/Engrave; no Offset Lines or Floral).
+        let expected: &[&str] = if how == "one" {
+            &[
+                "cut", "copy", "duplicate", "paste", "delete", "-", "flip", "numericalSetting",
+                "center", "-", "openOutline", "closeOutline", "-", "offsetLines", "toStitches",
+                "floral", "-", "cutAndSew", "-", "sewingAttributes",
+            ]
+        } else {
+            &[
+                "group", "ungroup", "-", "cut", "copy", "duplicate", "paste", "delete", "-",
+                "flip", "numericalSetting", "center", "align", "-", "openOutline",
+                "closeOutline", "-", "modifyOverlap", "embossEngrave", "-", "toStitches", "-",
+                "cutAndSew", "-", "sewingAttributes",
+            ]
+        };
+        assert_eq!(keys, expected, "{how}");
         let row = |key: &str| {
             m["rows"]
                 .as_array()
@@ -2265,4 +2259,238 @@ fn the_point_tool_keeps_its_own_menus() {
     assert_eq!(menu(&mut app)["open"], false, "no object menu");
     let point = app.ui_command("ui.pointMenu", None).expect("point menu");
     assert_eq!(point["objectMenuOpen"], true, "the Point tool's object menu");
+}
+
+/// #1288: every default shortcut of this platform, pressed as the window sends it, reaches its
+/// own command and no other.
+#[test]
+fn every_default_shortcut_reaches_its_command() {
+    let ctx = egui::Context::default();
+    let app = EditorApp::new(Launch::default());
+    let bindings = app.ui.prefs.keymap.bindings();
+    assert!(!bindings.is_empty());
+    for (a, chord) in bindings {
+        let k = crate::keymap_ui::parse(&chord).unwrap_or_else(|| panic!("{chord}"));
+        let mut raw = egui::RawInput::default();
+        raw.events
+            .push(egui::Event::ModifiersChanged(k.modifiers));
+        raw.events.push(key(k.logical_key, k.modifiers));
+        let mut hits = Vec::new();
+        let mut out = ctx.run_ui(raw, |ui| hits = crate::keymap_ui::pressed(&app, ui.ctx()));
+        out.textures_delta.clear();
+        assert_eq!(hits, [a], "{chord}");
+    }
+}
+
+/// #1288: the entries the object menu added. Size... and Rotate... open PE-DESIGN's dialogs:
+/// Preview applies, Cancel takes it back, OK is one undo step; Rotate... by 90 is Rotate Right.
+/// With two objects Ungroup is grey until they are grouped; Set and Cancel hole sewing, Align
+/// and Sewing Attributes... run; a paste in place says so; Ctrl+D's copy lies 5 mm right and
+/// 5 mm down, as PE-DESIGN's.
+#[test]
+fn the_object_menus_dialogs_and_entries_for_several_objects() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let before = bounds_of(&app, &ids);
+    let menu_cmd = |app: &mut EditorApp, p: Value| {
+        app.ui_command("ui.objectMenu", Some(&p))
+            .unwrap_or_else(|e| panic!("{p}: {e}"))
+    };
+    // Size... at 200 %: Preview doubles it, Cancel takes it back.
+    menu_cmd(&mut app, json!({ "action": "sizeNumeric" }));
+    let s = menu_cmd(&mut app, json!({ "numeric": { "width": 200, "button": "preview" } }));
+    assert_eq!(s["dialog"]["previewed"], true);
+    assert!((bounds_of(&app, &ids).width() - 2.0 * before.width()).abs() < 1e-6);
+    menu_cmd(&mut app, json!({ "numeric": { "button": "cancel" } }));
+    assert_eq!(bounds_of(&app, &ids), before, "Cancel takes the preview back");
+    // In millimetres, the aspect kept: 30 mm wide is 30 mm high for the square; OK; one undo.
+    menu_cmd(&mut app, json!({ "action": "sizeNumeric" }));
+    let s = menu_cmd(
+        &mut app,
+        json!({ "numeric": { "percent": false, "width": 30, "button": "ok" } }),
+    );
+    assert!(s["dialog"].is_null(), "OK closes the dialog");
+    let b = bounds_of(&app, &ids);
+    assert!((b.width() - 300.0).abs() < 1e-6 && (b.height() - 300.0).abs() < 1e-6, "{b:?}");
+    assert!(
+        (b.center().x - before.center().x).abs() < 1e-6,
+        "about the selection's centre"
+    );
+    app.undo();
+    assert_eq!(bounds_of(&app, &ids), before, "one undo step");
+    // OK without a change is refused (grey, as PE-DESIGN's).
+    menu_cmd(&mut app, json!({ "action": "sizeNumeric" }));
+    assert!(
+        app.ui_command("ui.objectMenu", Some(&json!({ "numeric": { "button": "ok" } })))
+            .is_err()
+    );
+    menu_cmd(&mut app, json!({ "numeric": { "button": "cancel" } }));
+    // Rotate... 90 degrees is Rotate Right.
+    let shape = |app: &EditorApp| app.session.design().objects[0].clone();
+    let original = shape(&app);
+    crate::ribbon::run(
+        &mut app,
+        openstitch_app::editor::ribbon::Action::RotateRight,
+        &w.ctx,
+    );
+    let right = shape(&app);
+    app.undo();
+    menu_cmd(&mut app, json!({ "action": "rotateNumeric" }));
+    menu_cmd(&mut app, json!({ "numeric": { "degrees": 90, "button": "ok" } }));
+    assert_eq!(shape(&app).bounds(), right.bounds(), "Rotate... 90 is Rotate Right");
+    app.undo();
+    assert_eq!(shape(&app), original);
+    // Sewing Attributes... shows the pane on its Sewing Attributes tab.
+    app.ui.prefs.panes.attributes.visible = false;
+    menu_cmd(&mut app, json!({ "action": "sewingAttributes" }));
+    assert!(app.ui.prefs.panes.attributes.visible);
+    assert_eq!(app.ui.pane_tab, crate::ribbon::PaneTab::Sewing);
+    // Paste in place says so.
+    menu_cmd(&mut app, json!({ "action": "copy" }));
+    menu_cmd(&mut app, json!({ "action": "paste" }));
+    assert_eq!(app.status, "Pasted 1 objects in place (on top of the originals)");
+    app.undo();
+    // Ctrl+D: 5 mm right and 5 mm down, the duplicate selected.
+    app.selection = ids.clone();
+    w.ctrl(&mut app, Key::D);
+    let dup = bounds_of(&app, &app.selection.clone());
+    assert!(
+        (dup.min_x - before.min_x - 50.0).abs() < 1e-6 && (dup.min_y - before.min_y - 50.0).abs() < 1e-6,
+        "{dup:?} vs {before:?}"
+    );
+    app.undo();
+
+    // Two objects: Ungroup grey until grouped; hole sewing; Align.
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "two");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let row = |app: &mut EditorApp, key: &str| {
+        let m = app.ui_command("ui.objectMenu", None).expect("menu");
+        m["rows"]
+            .as_array()
+            .expect("rows")
+            .iter()
+            .flat_map(|r| {
+                std::iter::once(r.clone()).chain(r["submenu"].as_array().cloned().unwrap_or_default())
+            })
+            .find(|r| r["key"] == key)
+            .unwrap_or_else(|| panic!("{key}"))
+    };
+    assert_eq!(row(&mut app, "ungroup")["enabled"], false);
+    assert_eq!(row(&mut app, "group")["enabled"], true);
+    // Side by side, neither holds the other: no hole sewing.
+    assert_eq!(row(&mut app, "setHoleSewing")["enabled"], false);
+    assert_eq!(row(&mut app, "cancelHoleSewing")["enabled"], false);
+    // A small square inside a large one: Set hole sewing sews the large one round it.
+    let big = app
+        .execute(&CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 10, "y": 50, "width": 40, "height": 40, "fill": "Red" }),
+        ))
+        .expect("big");
+    let small = app
+        .execute(&CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 20, "y": 60, "width": 10, "height": 10, "fill": "Blue" }),
+        ))
+        .expect("small");
+    let pair: BTreeSet<u64> = CommandRequest::created_ids(&big)
+        .into_iter()
+        .chain(CommandRequest::created_ids(&small))
+        .collect();
+    app.selection = pair.clone();
+    assert_eq!(row(&mut app, "setHoleSewing")["enabled"], true);
+    menu_cmd(&mut app, json!({ "action": "setHoleSewing" }));
+    let holed = |app: &EditorApp| {
+        app.session
+            .design()
+            .objects
+            .iter()
+            .filter(|o| o.hole_sewing)
+            .count()
+    };
+    assert_eq!(holed(&app), 1, "the outer one is sewn round the inner one");
+    assert_eq!(row(&mut app, "setHoleSewing")["enabled"], false);
+    menu_cmd(&mut app, json!({ "action": "cancelHoleSewing" }));
+    assert_eq!(holed(&app), 0);
+    app.undo();
+    app.undo();
+    for id in &pair {
+        app.execute(&CommandRequest::new("object.delete", json!({ "ids": [id] })))
+            .expect("delete");
+    }
+    let second = *ids.iter().last().expect("second");
+    app.execute(&CommandRequest::new(
+        "object.move",
+        json!({ "ids": [second], "dy": 15 }),
+    ))
+    .expect("move");
+    app.selection = ids.clone();
+    menu_cmd(&mut app, json!({ "action": "alignTop" }));
+    let tops: Vec<f64> = app
+        .session
+        .design()
+        .objects
+        .iter()
+        .map(|o| o.bounds().expect("bounds").min_y)
+        .collect();
+    assert!((tops[0] - tops[1]).abs() < 1e-6, "{tops:?}");
+    menu_cmd(&mut app, json!({ "action": "group" }));
+    assert_eq!(row(&mut app, "ungroup")["enabled"], true, "a group: Ungroup is on");
+}
+
+/// #1288, both paths after a click in a pane: a text field that keeps the keyboard takes
+/// Ctrl+C for its own text (the selection is not copied); any other widget that kept the
+/// focus (a button, a list) does not keep Ctrl+C from the selection. Found by clicking across
+/// the right-hand pane, as a user does.
+#[test]
+fn after_a_pane_click_only_a_text_field_keeps_ctrl_c_from_the_selection() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let (mut text, mut other) = (0, 0);
+    for x in (1000..1440).step_by(40) {
+        for y in (120..880).step_by(20) {
+            app.ui.copied = None;
+            app.selection = ids.clone();
+            w.click(&mut app, egui::pos2(x as f32, y as f32));
+            app.selection = ids.clone();
+            let focused = w.ctx.memory(|m| m.focused()).is_some();
+            let typing = w.ctx.text_edit_focused();
+            w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+            if typing {
+                text += 1;
+                assert!(app.ui.copied.is_none(), "({x}, {y}): the field takes Ctrl+C");
+            } else if focused {
+                other += 1;
+                assert!(app.ui.copied.is_some(), "({x}, {y}): a focused widget does not");
+            }
+            // Leave the field or widget as a user does: Esc, then a frame.
+            w.run(&mut app, vec![key(Key::Escape, Modifiers::NONE)], Modifiers::NONE);
+            app.tools.set_tool(Tool::Select);
+            app.workspace.view.object_menu = None;
+            app.workspace.view.numeric = None;
+        }
+    }
+    assert!(text > 0, "a text field was found in the pane");
+    assert_eq!(other, 0, "a click leaves no button focused (egui's buttons do not keep it)");
+    // Tab moves the keyboard focus onto a button (egui's keyboard navigation): Ctrl+C still
+    // copies the selection then. Before #1288 any focused widget kept it.
+    let mut tabbed = 0;
+    for _ in 0..40 {
+        w.run(&mut app, vec![key(Key::Tab, Modifiers::NONE)], Modifiers::NONE);
+        w.run(&mut app, vec![], Modifiers::NONE);
+        if w.ctx.memory(|m| m.focused()).is_some() && !w.ctx.text_edit_focused() {
+            app.ui.copied = None;
+            app.selection = ids.clone();
+            w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+            assert!(app.ui.copied.is_some(), "a focused button does not keep Ctrl+C");
+            tabbed += 1;
+        }
+    }
+    assert!(tabbed > 0, "Tab focused a button");
 }

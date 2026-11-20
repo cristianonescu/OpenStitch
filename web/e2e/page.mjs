@@ -17,7 +17,8 @@
 // offered and restored in the next one from IndexedDB (#831); and with the page's storage
 // refused the editor still works on its defaults (#831); and the Point tool's right-click
 // menus open in the editor while the browser's own menu stays shut, with the arrow keys and
-// Delete kept in the editor (#1260). ONLY_BROWSER=Chromium (or Firefox, WebKit) runs one
+// Delete kept in the editor (#1260); and the object menu opens on a right-click with Ctrl+C, V, D
+// and H kept in the editor (#1288). ONLY_BROWSER=Chromium (or Firefox, WebKit) runs one
 // browser.
 import { createServer } from "node:http";
 import { inflateSync } from "node:zlib";
@@ -720,6 +721,146 @@ async function extraChecks(browser, type, label) {
       await page.keyboard.up("Alt");
       await until("Alt + drag connects the two stitch patterns", (n) => (window.openstitch.run({ command: "object.list" }).result ?? []).filter((o) => o.kind === "stitches").length === n - 1, patternsBefore);
       noErrors("point tool", errors);
+    } finally {
+      await context.close();
+    }
+  }
+
+  // #1288: the object menu and the clipboard and object keys in the browser. A right-click on
+  // an unselected object (the real pointer, not a ui.* command) selects it and opens the
+  // editor's object menu, painted on screen, while the browser's own menu stays shut. Ctrl+C
+  // then Ctrl+V pastes a copy (the page cannot write the system clipboard: the key alone pastes
+  // the page's copy, once), Ctrl+D duplicates, Ctrl+H flips; the browser does not act on Ctrl+D,
+  // H, J or M (bookmark, history, downloads), and Copy and Paste stay its events. Flip
+  // Horizontal is chosen from the menu's Flip sub-menu with the pointer.
+  console.log(`${label}: the object menu and Ctrl+C, V, D, H in the editor`);
+  {
+    const context = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+    try {
+      const { page, errors } = await editorPage(context);
+      const ok = async (request) => {
+        const r = await run(page, request);
+        if (!r.ok) throw new Error(`${request.command}: ${JSON.stringify(r).slice(0, 300)}`);
+        return r.result;
+      };
+      const menu = () => ok({ command: "ui.objectMenu" });
+      const until = async (step, test, arg = null) => {
+        try {
+          await page.waitForFunction(test, arg, { timeout: 30_000 });
+        } catch (e) {
+          const seen = await page
+            .evaluate(() => JSON.stringify(window.openstitch.run({ command: "ui.objectMenu" }).result ?? null))
+            .catch(() => "?");
+          throw new Error(`object menu, ${step}: ${String(e.message).split("\n")[0]}; ui.objectMenu said ${seen.slice(0, 500)}`);
+        }
+      };
+      await ok({ command: "ui.gettingStarted", params: { cards: "dismiss" } });
+      // A right triangle, so a flip shows in its points.
+      const made = await ok({ command: "shape.polygon", params: { points: [[20, 20], [70, 20], [20, 55]], fill: "#2e8b57", outline: "#203040" } });
+      const shape = async (id) => JSON.stringify(await ok({ command: "object.get", params: { id } }));
+      await ok({ command: "ui.zoom", params: { fit: "page" } });
+      // Where the shape is on screen: selected for a moment to read it, then deselected.
+      await ok({ command: "ui.select", params: { ids: [made.id] } });
+      await until("the shape is on screen", () => window.openstitch.run({ command: "ui.objectMenu" }).result?.selectionRect != null);
+      const [sx, sy, sw, sh] = (await menu()).selectionRect;
+      await ok({ command: "ui.select", params: { ids: [] } });
+      const box = await page.locator("#openstitch").boundingBox();
+      // Inside the triangle: a quarter of the way in from its square corner.
+      const at = [box.x + sx + sw / 4, box.y + sy + sh / 4];
+      await page.evaluate(() => {
+        window.__menus = [];
+        window.__keys = [];
+        window.addEventListener("contextmenu", (e) => window.__menus.push(e), true);
+        window.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey) window.__keys.push(e); }, true);
+        document.getElementById("openstitch").focus();
+      });
+      // The right-click: the shape is selected and the menu is open and drawn.
+      await page.mouse.click(at[0], at[1], { button: "right" });
+      await until("a right-click opens the menu", () => {
+        const m = window.openstitch.run({ command: "ui.objectMenu" }).result;
+        return m?.open && m.menuRect != null;
+      });
+      const opened = await menu();
+      if (JSON.stringify(opened.selection) !== JSON.stringify([made.id])) {
+        throw new Error(`the right-click did not select the shape: ${JSON.stringify(opened.selection)}`);
+      }
+      const keys = opened.rows.filter((r) => !r.separator).map((r) => r.key).join(",");
+      if (keys !== "cut,copy,duplicate,paste,delete,flip,center,openOutline,closeOutline,offsetLines,toStitches,floral,cutAndSew") {
+        throw new Error(`the menu's entries: ${keys}`);
+      }
+      // On screen: most of the panel's rectangle has its colour.
+      const fill = [1, 3, 5].map((i) => parseInt(opened.menuFill.slice(i, i + 2), 16));
+      const r = opened.menuRect;
+      const clip = { x: Math.round(box.x + r[0]) + 2, y: Math.round(box.y + r[1]) + 2, width: Math.round(r[2]) - 4, height: Math.round(r[3]) - 4 };
+      let share = 0;
+      for (let attempt = 0; attempt < 40 && share < 0.6; attempt += 1) {
+        const { width, height, pixel } = png(await page.screenshot({ clip }));
+        let same = 0;
+        let all = 0;
+        for (let y = 0; y < height; y += 3) {
+          for (let x = 0; x < width; x += 3) {
+            const p = pixel(x, y);
+            all += 1;
+            if (Math.abs(p[0] - fill[0]) <= 8 && Math.abs(p[1] - fill[1]) <= 8 && Math.abs(p[2] - fill[2]) <= 8) same += 1;
+          }
+        }
+        share = same / all;
+        if (share < 0.6) await page.waitForTimeout(250);
+      }
+      if (share < 0.6) throw new Error(`the object menu reports it was drawn at ${JSON.stringify(r)} but only ${Math.round(share * 100)} % of it has its colour ${opened.menuFill}`);
+      if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-object-menu.png`) });
+      const menus = await page.evaluate(() => window.__menus.map((e) => e.defaultPrevented));
+      if (menus.length === 0 || menus.some((prevented) => !prevented)) {
+        throw new Error(`the browser's own menu was not kept shut: ${JSON.stringify(menus)}`);
+      }
+      // Flip ▸ Flip Horizontal with the pointer: hover the row, then click the entry.
+      const centre = (rect) => [box.x + rect[0] + rect[2] / 2, box.y + rect[1] + rect[3] / 2];
+      const flipRow = opened.rows.find((row) => row.key === "flip");
+      await page.mouse.move(...centre(flipRow.rect));
+      await until("the Flip sub-menu opens on hover", () => {
+        const m = window.openstitch.run({ command: "ui.objectMenu" }).result;
+        return m?.submenuOpen === "flip" && m.rows.find((row) => row.key === "flip").submenu.every((e) => e.rect != null);
+      });
+      const before = await shape(made.id);
+      const horizontal = (await menu()).rows.find((row) => row.key === "flip").submenu.find((e) => e.key === "flipHorizontal");
+      await page.mouse.click(...centre(horizontal.rect));
+      await until("Flip Horizontal runs and the menu closes", () => !window.openstitch.run({ command: "ui.objectMenu" }).result?.open);
+      if ((await shape(made.id)) === before) throw new Error("Flip Horizontal from the menu did not mirror the shape");
+      await ok({ command: "history.undo" });
+      if ((await shape(made.id)) !== before) throw new Error("Flip Horizontal is not one undo step");
+      await ok({ command: "ui.select", params: { ids: [made.id] } });
+      // Ctrl+C, then Ctrl+V: one copy, and no second one from the browser's paste event.
+      await page.evaluate(() => document.getElementById("openstitch").focus());
+      await page.keyboard.press("Control+C");
+      await page.waitForTimeout(300);
+      await page.keyboard.press("Control+V");
+      await until("Ctrl+C then Ctrl+V adds a copy", () => (window.openstitch.run({ command: "object.list" }).result?.length ?? 0) === 2);
+      await page.waitForTimeout(1500);
+      if ((await objectCount(page)) !== 2) throw new Error(`Ctrl+V pasted twice: ${await objectCount(page)} objects`);
+      // Ctrl+D duplicates the pasted copy; Ctrl+H, J and M flip and centre the duplicate.
+      await page.keyboard.press("Control+D");
+      await until("Ctrl+D duplicates", () => (window.openstitch.run({ command: "object.list" }).result?.length ?? 0) === 3);
+      const [dup] = (await menu()).selection;
+      for (const key of ["H", "J", "M"]) {
+        const was = await shape(dup);
+        await page.keyboard.press(`Control+${key}`);
+        await page.waitForTimeout(300);
+        if ((await shape(dup)) === was) throw new Error(`Ctrl+${key} did not change the selected duplicate`);
+      }
+      const pressed = await page.evaluate(() => window.__keys.map((e) => [e.key.toLowerCase(), e.defaultPrevented]));
+      for (const key of ["d", "h", "j", "m"]) {
+        if (!pressed.some(([k, prevented]) => k === key && prevented)) {
+          throw new Error(`Ctrl+${key.toUpperCase()} was left to the browser: ${JSON.stringify(pressed)}`);
+        }
+      }
+      for (const key of ["c", "v"]) {
+        if (pressed.some(([k, prevented]) => k === key && prevented)) {
+          throw new Error(`Ctrl+${key.toUpperCase()} was taken from the browser, so its copy or paste event never comes: ${JSON.stringify(pressed)}`);
+        }
+      }
+      if ((await shape(made.id)) !== before) throw new Error("the keys on the duplicate changed the original");
+      if (new URL(page.url()).pathname !== "/") throw new Error(`the page went elsewhere: ${page.url()}`);
+      noErrors("object menu", errors);
     } finally {
       await context.close();
     }

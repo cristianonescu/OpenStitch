@@ -2051,42 +2051,46 @@ impl EditorApp {
                 crate::ribbon::run(self, a, ctx);
             }
         }
+        if !ctx.text_edit_focused() {
+            // Cut, Copy and Paste arrive as clipboard events, not key presses. Only a text field
+            // that has the keyboard takes them for its text (#1288): a button or a list that kept
+            // the focus after a click does not keep them from the selection.
+            let (cut, copy, paste_text, paste_key, now) = ctx.input(|i| {
+                (
+                    i.events.iter().any(|e| matches!(e, egui::Event::Cut)),
+                    i.events.iter().any(|e| matches!(e, egui::Event::Copy)),
+                    i.events.iter().find_map(|e| match e {
+                        egui::Event::Paste(text) => Some(text.clone()),
+                        _ => None,
+                    }),
+                    i.events.iter().any(is_paste_key),
+                    i.time,
+                )
+            });
+            if cut {
+                crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Cut, ctx);
+            }
+            if copy {
+                crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Copy, ctx);
+            }
+            // In the browser Ctrl/Cmd+V comes as a key press, and the browser's paste event follows
+            // only when the system clipboard holds text: the page cannot write it, so after a Copy in
+            // the page the event never comes and the key alone pastes the page's copy (#1288). The
+            // window turns the key into the paste event itself and never sends the key. A paste
+            // event within a second of a key press is that key's, already pasted.
+            if paste_key {
+                self.ui.paste_key_at = Some(now);
+                crate::ribbon::paste_from(self, paste_text.as_deref());
+            } else if let Some(text) = paste_text
+                && self.ui.paste_key_at.is_none_or(|at| now - at > 1.0)
+            {
+                crate::ribbon::paste_from(self, Some(&text));
+            }
+        }
         if ctx.egui_wants_keyboard_input() {
             return;
         }
         let take = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
-        // Cut, Copy and Paste arrive as clipboard events, not key presses.
-        let (cut, copy, paste_text, paste_key, now) = ctx.input(|i| {
-            (
-                i.events.iter().any(|e| matches!(e, egui::Event::Cut)),
-                i.events.iter().any(|e| matches!(e, egui::Event::Copy)),
-                i.events.iter().find_map(|e| match e {
-                    egui::Event::Paste(text) => Some(text.clone()),
-                    _ => None,
-                }),
-                i.events.iter().any(is_paste_key),
-                i.time,
-            )
-        });
-        if cut {
-            crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Cut, ctx);
-        }
-        if copy {
-            crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Copy, ctx);
-        }
-        // In the browser Ctrl/Cmd+V comes as a key press, and the browser's paste event follows
-        // only when the system clipboard holds text: the page cannot write it, so after a Copy in
-        // the page the event never comes and the key alone pastes the page's copy (#1288). The
-        // window turns the key into the paste event itself and never sends the key. A paste
-        // event within a second of a key press is that key's, already pasted.
-        if paste_key {
-            self.ui.paste_key_at = Some(now);
-            crate::ribbon::paste_from(self, paste_text.as_deref());
-        } else if let Some(text) = paste_text
-            && self.ui.paste_key_at.is_none_or(|at| now - at > 1.0)
-        {
-            crate::ribbon::paste_from(self, Some(&text));
-        }
         if hit(A::SelectAll) {
             self.select_all();
         }
@@ -2273,6 +2277,11 @@ impl EditorApp {
     /// `update` calls it on macOS only.
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     fn macos_app_shortcuts(&mut self, ctx: &egui::Context) {
+        // Exactly Cmd+key: egui also matches Cmd+Shift+M on Cmd+M, which is Center there
+        // (#1288).
+        if ctx.input(|i| i.modifiers.shift || i.modifiers.alt) {
+            return;
+        }
         let take = |k| {
             ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, k)))
         };

@@ -12,7 +12,7 @@ use crate::app::EditorApp;
 use crate::point_menu_ui::{menu_row, panel, rule};
 use eframe::egui::{self, Pos2};
 use openstitch_app::editor::Viewport;
-use openstitch_app::editor::ribbon::{Action, MenuRow, OBJECT_MENU};
+use openstitch_app::editor::ribbon::{Action, MenuRow, object_menu};
 use openstitch_app::editor::ui_texts::t;
 use openstitch_design::v2;
 use serde_json::{Value, json};
@@ -105,8 +105,9 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut chosen = None;
     let mut sub_at = None;
     let mut rects = Vec::new();
+    let rows = object_menu(app.selection.len());
     let (r, painted) = panel(ctx, "object-menu", m.at, WIDTH, |ui| {
-        for row in OBJECT_MENU {
+        for row in rows {
             match *row {
                 MenuRow::Separator => rule(ui),
                 MenuRow::Entry(a) => {
@@ -205,7 +206,7 @@ fn entry(app: &EditorApp, a: Action) -> Value {
 pub fn state(app: &EditorApp) -> Value {
     let open = app.workspace.view.object_menu.as_ref();
     let drawn = open.and_then(|m| m.drawn);
-    let rows: Vec<Value> = OBJECT_MENU
+    let rows: Vec<Value> = object_menu(app.selection.len())
         .iter()
         .map(|row| match *row {
             MenuRow::Separator => json!({ "separator": true }),
@@ -226,6 +227,7 @@ pub fn state(app: &EditorApp) -> Value {
         "menuFill": drawn.map(|(_, c)| format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())),
         "selection": app.selection,
         "selectionRect": selection_rect(app),
+        "dialog": crate::numeric_ui::state(app),
         "rows": rows,
     })
 }
@@ -265,6 +267,10 @@ pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, Str
                 "at: no object there (the menu opens on an object, with the Select tool)".into(),
             );
         }
+    }
+    if let Some(n) = params.and_then(|p| p.get("numeric")) {
+        crate::numeric_ui::command(app, n)?;
+        return Ok(state(app));
     }
     if params
         .and_then(|p| p.get("close"))
