@@ -30,6 +30,8 @@ pub struct ObjectMenu {
     /// Where each row was painted last (window points), by key: the entries, the sub-menus'
     /// rows and, while one is open, a sub-menu's entries.
     rects: Vec<(&'static str, egui::Rect)>,
+    /// Where the sew-type bar was painted last.
+    bar: Option<egui::Rect>,
 }
 
 /// The shortcut shown beside an entry, as this platform writes it.
@@ -81,6 +83,7 @@ pub fn open_at(app: &mut EditorApp, at: Pos2, vp: &Viewport) -> bool {
         sub: None,
         drawn: None,
         rects: Vec::new(),
+        bar: None,
     });
     true
 }
@@ -90,6 +93,69 @@ pub fn run(app: &mut EditorApp, a: Action, ctx: &egui::Context) {
     if crate::ribbon::enabled(app, a) {
         crate::ribbon::run(app, a, ctx);
     }
+}
+
+/// PE-DESIGN's small bar beside the object menu (#1288): the line sew type and its colour, the
+/// region sew type and its colour, each opening the ribbon's own list (Shapes ▸ Line Sew Type,
+/// Line Color, Region Sew Type, Region Color). Above the menu for one object, below it for
+/// several (the capture of two objects). A list empty when the selection has no such sewing or
+/// mixed ones. Returns the bar's rectangle.
+fn sew_bar(app: &mut EditorApp, ctx: &egui::Context, menu: egui::Rect, below: bool) -> egui::Rect {
+    use openstitch_app::editor::inspector::{InspectorModel, line_types, region_types};
+    let m = InspectorModel::new(app.session.design(), &app.selection);
+    let line = m
+        .line_kind
+        .same()
+        .and_then(|k| line_types().into_iter().find(|(t, _)| t == k))
+        .map_or("", |(_, label)| openstitch_app::editor::ui_texts::tr(label));
+    let region = m
+        .region_kind
+        .same()
+        .and_then(|k| region_types().into_iter().find(|(t, _)| t == k))
+        .map_or("", |(_, label)| openstitch_app::editor::ui_texts::tr(label));
+    let colour = |t: Option<&openstitch_core::Thread>| {
+        t.map(|t| egui::Color32::from_rgb(t.red, t.green, t.blue))
+    };
+    let line_colour = colour(m.line.as_ref().map(|l| &l.thread));
+    let region_colour = colour(m.region.as_ref().map(|r| &r.thread));
+    let height = 30.0;
+    let at = if below {
+        menu.left_bottom() + egui::vec2(0.0, 4.0)
+    } else {
+        menu.left_top() - egui::vec2(0.0, height + 4.0)
+    };
+    let r = egui::Area::new(egui::Id::unique("object-menu-sew-bar"))
+        .fixed_pos(at)
+        .fade_in(false)
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            egui::Frame::menu(ui.style()).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for (a, text, swatch, ca) in [
+                        (Action::LineSewType, line, line_colour, Action::LineColor),
+                        (Action::RegionSewType, region, region_colour, Action::RegionColor),
+                    ] {
+                        let on = crate::ribbon::enabled(app, a);
+                        ui.add_enabled_ui(on, |ui| {
+                            ui.menu_button(format!("{text} \u{25be}"), |ui| {
+                                crate::ribbon::menu(app, a, ui)
+                            })
+                            .response
+                            .on_hover_text(a.info().label);
+                        });
+                        let fill = swatch.unwrap_or(ui.visuals().extreme_bg_color);
+                        let button = egui::Button::new("    ").fill(fill);
+                        ui.add_enabled_ui(on && swatch.is_some(), |ui| {
+                            egui::containers::menu::MenuButton::from_button(button)
+                                .ui(ui, |ui| crate::ribbon::menu(app, ca, ui))
+                                .0
+                                .on_hover_text(ca.info().label);
+                        });
+                    }
+                });
+            });
+        });
+    r.response.rect
 }
 
 /// Width of the menu and of its sub-menus.
@@ -145,6 +211,11 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             }
         }
     });
+    // The sew-type bar, once the menu has been measured.
+    let bar = m
+        .drawn
+        .or(painted)
+        .map(|(menu, _)| sew_bar(app, ctx, menu, app.selection.len() >= 2));
     let mut over_sub = false;
     if let Some((entries, at)) = sub_at {
         let (sub, _) = panel(ctx, "object-submenu", at, SUB_WIDTH, |ui| {
@@ -169,9 +240,19 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     if painted.is_some() {
         m.rects = rects;
     }
+    m.bar = bar.or(m.bar);
     let (pressed, esc) =
         ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));
-    let outside = pressed && !r.response.contains_pointer() && !over_sub;
+    let over_bar = bar.is_some_and(|b| {
+        ctx.input(|i| i.pointer.interact_pos())
+            .is_some_and(|p| b.contains(p))
+    });
+    // A list opened from the bar is a pop-up of its own: a click in it is not outside.
+    let outside = pressed
+        && !r.response.contains_pointer()
+        && !over_sub
+        && !over_bar
+        && !egui::Popup::is_any_open(ctx);
     if !esc && (m.fresh || !outside) {
         m.fresh = false;
         app.workspace.view.object_menu = Some(m);
@@ -228,7 +309,25 @@ pub fn state(app: &EditorApp) -> Value {
         "selection": app.selection,
         "selectionRect": selection_rect(app),
         "dialog": crate::numeric_ui::state(app),
+        "bar": bar_state(app),
         "rows": rows,
+    })
+}
+
+/// The sew-type bar as `ui.objectMenu` reports it: the line and region sew types and colours of
+/// the selection (null when it has none or mixed ones), whether it sits below the menu, and where
+/// it was painted (null until then).
+fn bar_state(app: &EditorApp) -> Value {
+    use openstitch_app::editor::inspector::{InspectorModel, line_name, region_name};
+    let m = InspectorModel::new(app.session.design(), &app.selection);
+    let hex = |t: &openstitch_core::Thread| format!("#{:02x}{:02x}{:02x}", t.red, t.green, t.blue);
+    json!({
+        "line": m.line_kind.same().map(|k| line_name(*k)),
+        "lineColor": m.line.as_ref().map(|l| hex(&l.thread)),
+        "region": m.region_kind.same().map(|k| region_name(*k)),
+        "regionColor": m.region.as_ref().map(|r| hex(&r.thread)),
+        "below": app.selection.len() >= 2,
+        "rect": app.workspace.view.object_menu.as_ref().and_then(|m| m.bar).map(|r| [r.min.x, r.min.y, r.width(), r.height()]),
     })
 }
 

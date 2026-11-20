@@ -2023,6 +2023,22 @@ fn a_right_click_opens_pe_designs_object_menu_for_one_several_and_a_group() {
             (x - at.x).abs() < 2.0 && (y - at.y).abs() < 2.0,
             "{how}: at the pointer: {rect:?} vs {at:?}"
         );
+        // PE-DESIGN's sew-type bar: above the menu for one object, below it for several,
+        // with the selection's region sew type and colour.
+        let bar = &m["bar"];
+        assert_eq!(bar["region"], "fill", "{how}");
+        assert_eq!(bar["regionColor"], "#ed171f", "{how}: Red, the chart's thread");
+        let b = bar["rect"].as_array().expect("bar painted");
+        let (by, bh) = (
+            b[1].as_f64().expect("y") as f32,
+            b[3].as_f64().expect("h") as f32,
+        );
+        let menu_bottom = y + rect[3].as_f64().expect("h") as f32;
+        if how == "one" {
+            assert!(by + bh <= y + 1.0, "one: the bar is above the menu");
+        } else {
+            assert!(by >= menu_bottom - 1.0, "{how}: the bar is below the menu");
+        }
         // The rows: PE-DESIGN's order, separators where its menu has them.
         let keys: Vec<String> = m["rows"]
             .as_array()

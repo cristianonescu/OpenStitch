@@ -683,8 +683,9 @@ the canvas. The Point tool keeps its own menus (#1258, #1260). Each entry is the
 | Two or more, or a group | Group Ctrl+G, Ungroup Ctrl+Shift+G \| Cut, Copy, Duplicate, Paste ▸, Delete \| Flip ▸, Numerical Setting ▸, Center, Align ▸ (Left, Center, Right, Top, Middle, Bottom) \| Open, Close \| Modify Overlap ▸ (Remove Overlaps, Merge, Set hole sewing, Cancel hole sewing), Emboss/Engrave ▸ (Engraved Line, Engraved Region, Embossed Region) \| Convert to Stitches \| Cut and Sew ▸ \| Sewing Attributes… |
 
 Left out, OpenStitch having no such feature: Paste Selected Attributes… and Export Cutting Data
-(ScanNCut). Not drawn: PE-DESIGN's small bar of sew types and colours above (one object) or below
-(several) the menu. A text gets the shape's menu (PE-DESIGN's menu on a text was not captured).
+(ScanNCut). PE-DESIGN's small bar of sew types and colours sits above the menu (one object) or below
+it (several): the line sew type and its colour, the region sew type and its colour, each opening
+the ribbon's own list. A text gets the shape's menu (PE-DESIGN's menu on a text was not captured).
 Size… is PE-DESIGN's Size dialog (a % row and a mm row, Maintain aspect ratio, Keep density and
 fill pattern shown ticked and grey: OpenStitch sews a shape again after every resize); Rotate… its
 Rotate dialog (a dial, the angle in degrees). Both have OK, Preview and Cancel; Preview applies,

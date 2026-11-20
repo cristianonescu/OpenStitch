@@ -5359,7 +5359,8 @@ says "Pasted N objects in place (on top of the originals)". In the browser Ctrl+
 copy when no paste event comes (and a paste event a key press brings does not paste again), the
 status after a Copy says the copy is kept in the page, and the page cancels the browser's own
 action on every Ctrl shortcut the editor has, never on Ctrl+C, X or V. Only a focused text field
-keeps Ctrl+C, X and V from the selection. **Not done:** PE-DESIGN's small bar of sew types and
-colours beside the menu; the menu on a text (not captured: the shape's menu is used); the Rotate
+keeps Ctrl+C, X and V from the selection. PE-DESIGN's small bar of sew types and colours sits
+above the menu (below it for several objects), each of its four buttons the ribbon's own list.
+**Not done:** the menu on a text (not captured: the shape's menu is used); the Rotate
 dial's direction for a positive angle (not captured: clockwise, as Rotate Right). Keep density and
 fill pattern is shown ticked and grey (OpenStitch sews a shape again after every resize).
