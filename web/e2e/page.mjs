@@ -789,6 +789,11 @@ async function extraChecks(browser, type, label) {
       }
       const dx = clickView.canvasAt[0] - readView.canvasAt[0];
       const dy = clickView.canvasAt[1] - readView.canvasAt[1];
+      if (dx !== 0 || dy !== 0) {
+        // A canvas area that moves when the selection changes is a layout jump to fix in the
+        // editor: said in the log, as #1290's steps do.
+        console.log(`${label}: the canvas area moved inside the window from ${readView.canvasAt} to ${clickView.canvasAt} between reading the shape's place and the right-click`);
+      }
       const box = await page.locator("#openstitch").boundingBox();
       // Inside the triangle: a quarter of the way in from its square corner.
       const at = [box.x + sx + dx + sw / 4, box.y + sy + dy + sh / 4];
