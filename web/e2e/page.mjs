@@ -242,8 +242,12 @@ async function extraChecks(browser, type, label) {
         try {
           await page.waitForFunction(test, arg, { timeout: 30_000 });
         } catch (e) {
+          // What is selected first: the rest of the state is long and gets cut.
           const seen = await page
-            .evaluate(() => JSON.stringify(window.openstitch.run({ command: "ui.pointMenu" }).result ?? null))
+            .evaluate(() => {
+              const r = window.openstitch.run({ command: "ui.pointMenu" }).result ?? null;
+              return JSON.stringify(r && { selected: r.selected, pointCount: r.pointCount, ...r });
+            })
             .catch(() => "?");
           throw new Error(`point tool, ${step}: ${String(e.message).split("\n")[0]}; ui.pointMenu said ${seen.slice(0, 500)}`);
         }
