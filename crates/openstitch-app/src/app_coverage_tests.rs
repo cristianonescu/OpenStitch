@@ -2537,4 +2537,35 @@ fn the_sew_type_bar_shows_mixed_colours_as_the_pane_does() {
     assert!(mixed["regionColor"].is_null(), "{mixed}");
     assert_eq!(mixed["regionColorMixed"], true);
     assert_eq!(mixed["region"], "fill", "the same sew type still shows");
+    // Open on screen: the bar holds its four controls (line type, line colour, region type,
+    // region colour), each drawn inside it with a width, the Mixed swatch as wide as the other.
+    let at = on_screen(&app, 0);
+    w.right_click(&mut app, at);
+    let painted = bar(&mut app);
+    let r = |v: &Value| -> [f32; 4] {
+        let a = v.as_array().expect("rect");
+        [0, 1, 2, 3].map(|i| a[i].as_f64().expect("number") as f32)
+    };
+    let outer = r(&painted["rect"]);
+    let controls: Vec<[f32; 4]> = painted["controls"]
+        .as_array()
+        .expect("controls")
+        .iter()
+        .map(r)
+        .collect();
+    assert_eq!(controls.len(), 4, "{painted}");
+    for c in &controls {
+        assert!(c[2] > 10.0 && c[3] > 10.0, "a visible control: {c:?}");
+        assert!(
+            c[0] >= outer[0] - 0.5
+                && c[0] + c[2] <= outer[0] + outer[2] + 0.5
+                && c[1] >= outer[1] - 0.5
+                && c[1] + c[3] <= outer[1] + outer[3] + 0.5,
+            "inside the bar: {c:?} in {outer:?}"
+        );
+    }
+    assert!(
+        (controls[1][2] - controls[3][2]).abs() < 0.5,
+        "the Mixed swatch is as wide as the line's colour swatch"
+    );
 }

@@ -30,8 +30,8 @@ pub struct ObjectMenu {
     /// Where each row was painted last (window points), by key: the entries, the sub-menus'
     /// rows and, while one is open, a sub-menu's entries.
     rects: Vec<(&'static str, egui::Rect)>,
-    /// Where the sew-type bar was painted last.
-    bar: Option<egui::Rect>,
+    /// Where the sew-type bar was painted last, and each of its four controls.
+    bar: Option<(egui::Rect, Vec<egui::Rect>)>,
 }
 
 /// The shortcut shown beside an entry, as this platform writes it.
@@ -100,7 +100,13 @@ pub fn run(app: &mut EditorApp, a: Action, ctx: &egui::Context) {
 /// Line Color, Region Sew Type, Region Color). Above the menu for one object, below it for
 /// several (the capture of two objects). A list empty when the selection has no such sewing or
 /// mixed ones. Returns the bar's rectangle.
-fn sew_bar(app: &mut EditorApp, ctx: &egui::Context, menu: egui::Rect, below: bool) -> egui::Rect {
+fn sew_bar(
+    app: &mut EditorApp,
+    ctx: &egui::Context,
+    menu: egui::Rect,
+    below: bool,
+) -> (egui::Rect, Vec<egui::Rect>) {
+    let mut controls = Vec::new();
     use openstitch_app::editor::inspector::{InspectorModel, line_types, region_types};
     let m = InspectorModel::new(app.session.design(), &app.selection);
     let line = m
@@ -156,25 +162,33 @@ fn sew_bar(app: &mut EditorApp, ctx: &egui::Context, menu: egui::Rect, below: bo
                     ] {
                         let on = crate::ribbon::enabled(app, a);
                         ui.add_enabled_ui(on, |ui| {
-                            ui.menu_button(format!("{text} \u{25be}"), |ui| {
-                                crate::ribbon::menu(app, a, ui)
-                            })
-                            .response
-                            .on_hover_text(a.info().label);
+                            let r = ui
+                                .menu_button(format!("{text} \u{25be}"), |ui| {
+                                    crate::ribbon::menu(app, a, ui)
+                                })
+                                .response
+                                .on_hover_text(a.info().label);
+                            controls.push(r.rect);
                         });
-                        let fill = swatch.unwrap_or(ui.visuals().extreme_bg_color);
-                        let button = egui::Button::new("    ").fill(fill);
+                        // The thread's colour, or the pane's Mixed swatch (grey 128) when the
+                        // selected objects have several; the same size and border either way.
+                        let fill = swatch.unwrap_or(egui::Color32::from_gray(128));
+                        let button = egui::Button::new("")
+                            .fill(fill)
+                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(90)))
+                            .min_size(egui::vec2(26.0, 20.0));
                         ui.add_enabled_ui(on && has, |ui| {
-                            egui::containers::menu::MenuButton::from_button(button)
+                            let r = egui::containers::menu::MenuButton::from_button(button)
                                 .ui(ui, |ui| crate::ribbon::menu(app, ca, ui))
                                 .0
                                 .on_hover_text(ca.info().label);
+                            controls.push(r.rect);
                         });
                     }
                 });
             });
         });
-    r.response.rect
+    (r.response.rect, controls)
 }
 
 /// Width of the menu and of its sub-menus.
@@ -259,10 +273,10 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     if painted.is_some() {
         m.rects = rects;
     }
-    m.bar = bar.or(m.bar);
+    m.bar = bar.clone().or(m.bar.take());
     let (pressed, esc) =
         ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));
-    let over_bar = bar.is_some_and(|b| {
+    let over_bar = bar.as_ref().is_some_and(|(b, _)| {
         ctx.input(|i| i.pointer.interact_pos())
             .is_some_and(|p| b.contains(p))
     });
@@ -350,7 +364,10 @@ fn bar_state(app: &EditorApp) -> Value {
         "regionColor": m.region.as_ref().filter(|_| region_same).map(|r| hex(&r.thread)),
         "regionColorMixed": m.region.is_some() && !region_same,
         "below": app.selection.len() >= 2,
-        "rect": app.workspace.view.object_menu.as_ref().and_then(|m| m.bar).map(|r| [r.min.x, r.min.y, r.width(), r.height()]),
+        "rect": app.workspace.view.object_menu.as_ref().and_then(|m| m.bar.as_ref()).map(|(r, _)| [r.min.x, r.min.y, r.width(), r.height()]),
+        "controls": app.workspace.view.object_menu.as_ref().and_then(|m| m.bar.as_ref()).map(|(_, c)| {
+            c.iter().map(|r| [r.min.x, r.min.y, r.width(), r.height()]).collect::<Vec<_>>()
+        }),
     })
 }
 
