@@ -397,13 +397,13 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         .current
         .as_ref()
         .map_or_else(version_line, |c| c.tag.clone());
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-openstitch-update")).id(egui::Id::unique("window-openstitch-update"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-openstitch-update")).id(egui::Id::unique("window-openstitch-update"))
         .open(&mut open)
         .collapsible(false)
         .default_width(600.0)
         .default_height(480.0)
         .default_pos(ctx.content_rect().center() - egui::vec2(300.0, 240.0))
-        .show(ctx, |ui| match &st.phase {
+        , ctx, |ui| match &st.phase {
             Phase::Available(update) => {
                 crate::art::header(ui, crate::art::Art::UpdateAvailable, |ui| {
                     ui.heading(format!("OpenStitch {} is available", update.tag()));
@@ -420,11 +420,13 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.label(RichText::new(why).color(ui.visuals().warn_fg_color));
                 }
                 ui.separator();
-                let notes_height = ui.available_height() - 64.0;
-                egui::ScrollArea::vertical()
-                    .max_height(notes_height.max(120.0))
-                    .auto_shrink([false, true])
-                    .show(ui, |ui| {
+                // The notes take what the window leaves beside the heading and the buttons
+                // (#1276: in a small window the whole content scrolls as well).
+                let room = crate::fit::room(ui.ctx()) - 220.0;
+                // (With too little room for a list of its own, the notes are part of the
+                // window's scrolling content: a list inside a list traps the wheel.)
+                let cache = &mut st.cache;
+                let mut notes = |ui: &mut egui::Ui| {
                         for (i, r) in update.notes.iter().enumerate() {
                             if i > 0 {
                                 ui.separator();
@@ -435,18 +437,22 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                             if r.body.trim().is_empty() {
                                 ui.label(RichText::new(t("ui-no-release-notes")).weak());
                             } else {
-                                egui_commonmark::CommonMarkViewer::new().show(
-                                    ui,
-                                    &mut st.cache,
-                                    &r.body,
-                                );
+                                egui_commonmark::CommonMarkViewer::new().show(ui, cache, &r.body);
                             }
                         }
-                    });
+                };
+                if room < 120.0 {
+                    notes(ui);
+                } else {
+                    egui::ScrollArea::vertical()
+                        .max_height(room.min(320.0))
+                        .auto_shrink([false, true])
+                        .show(ui, notes);
+                }
                 ui.separator();
                 ui.checkbox(&mut st.skip, t("ui-don-t-remind-me-about-this"))
                     .on_hover_text(t("ui-stays-quiet-about-this-version-a-tip"));
-                ui.horizontal(|ui| {
+                crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                     let can = update.applicable() && !dirty;
                     let b = ui.add_enabled(can, egui::Button::new(t("ui-update")));
                     let b = if dirty {
@@ -463,7 +469,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     if !update.release.html_url.is_empty() {
                         ui.hyperlink_to("Release page", &update.release.html_url);
                     }
-                });
+                }));
                 if dirty {
                     ui.label(
                         RichText::new(t("ui-save-your-design-before-updating"))

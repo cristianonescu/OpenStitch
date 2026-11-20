@@ -376,7 +376,11 @@ fn panel<R>(
                 ui.set_min_width(width);
                 ui.set_max_width(width);
                 ui.spacing_mut().item_spacing.y = 0.0;
-                body(ui)
+                // Taller than the window (a small window, a large Text size): it scrolls.
+                crate::fit::scroll(ui, |ui| {
+                    ui.set_min_width(width);
+                    body(ui)
+                })
             });
             if visible {
                 painted = Some((shown.response.rect, fill));

@@ -115,9 +115,8 @@ pub fn precision_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         let opts = &mut app.precision.options;
         ui.add_enabled_ui(bounds.is_some(), |ui| {
-            egui::ComboBox::from_id_salt("precision-ref")
-                .selected_text(if opts.centre { "Centre" } else { "Top-left" })
-                .show_ui(ui, |ui| {
+            crate::fit::combo(egui::ComboBox::from_id_salt("precision-ref")
+                .selected_text(if opts.centre { "Centre" } else { "Top-left" }), ui, |ui| {
                     ui.selectable_value(&mut opts.centre, false, "Top-left");
                     ui.selectable_value(&mut opts.centre, true, "Centre");
                 })

@@ -67,19 +67,18 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let (mut save, mut skip) = (false, false);
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-machine-setup")).id(egui::Id::unique("window-machine-setup"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-machine-setup")).id(egui::Id::unique("window-machine-setup"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
         .default_width(380.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(t("ui-which-machine-do-you-sew-on"));
             ui.add_space(6.0);
             egui::Grid::new("machine-setup").num_columns(2).show(ui, |ui| {
                 ui.label(t("ui-brand"));
-                let brand = egui::ComboBox::from_id_salt("machine-brand")
-                    .selected_text(d.brand.as_str())
-                    .show_ui(ui, |ui| {
+                let brand = crate::fit::combo(egui::ComboBox::from_id_salt("machine-brand")
+                    .selected_text(d.brand.as_str()), ui, |ui| {
                         for (b, _) in BRAND_FORMATS {
                             if ui.selectable_label(d.brand == b, b).clicked() && d.brand != b {
                                 d.brand = b.to_string();
@@ -99,10 +98,9 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     .as_deref()
                     .and_then(|id| hoops.iter().find(|h| h.id == id))
                     .map_or("Choose a hoop", |h| h.label);
-                let hoop = egui::ComboBox::from_id_salt("machine-hoop")
+                let hoop = crate::fit::combo(egui::ComboBox::from_id_salt("machine-hoop")
                     .selected_text(shown)
-                    .width(220.0)
-                    .show_ui(ui, |ui| {
+                    .width(220.0), ui, |ui| {
                         for h in &hoops {
                             if ui
                                 .selectable_label(d.hoop.as_deref() == Some(h.id), h.label)
@@ -164,13 +162,13 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 .weak(),
             );
             ui.add_space(6.0);
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 save = ui.button(t("ui-save")).clicked();
                 skip = ui
                     .button(t("ui-not-now"))
                     .on_hover_text(t("ui-help-machine-setup-asks-again-tip"))
                     .clicked();
-            });
+            }));
         });
     app.machine_setup.draft = Some(d.clone());
     if save {

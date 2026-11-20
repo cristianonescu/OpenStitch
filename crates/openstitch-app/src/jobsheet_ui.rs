@@ -91,11 +91,11 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut print: Option<bool> = None;
     let mut apply = false;
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-job-sheet")).id(egui::Id::unique("window-job-sheet"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-job-sheet")).id(egui::Id::unique("window-job-sheet"))
         .open(&mut open)
         .resizable(false)
         .default_width(380.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             egui::Grid::new("job-fields").num_columns(2).show(ui, |ui| {
                 for (label, value) in [
                     ("Customer", &mut d.job.customer),
@@ -144,7 +144,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.selectable_value(&mut d.paper, p, label);
                 }
             });
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui
                     .button(t("menu-print"))
                     .on_hover_text(t("ui-saves-the-job-fields-then-opens-tip"))
@@ -155,7 +155,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-save-pdf")).clicked() {
                     print = Some(false);
                 }
-            });
+            }));
         });
     d.open = open && print.is_none();
     // Printing prints the fields as edited: they are saved first (one undo step).

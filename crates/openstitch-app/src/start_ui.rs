@@ -95,6 +95,8 @@ pub fn cards(app: &mut EditorApp, ctx: &egui::Context) {
         .fixed_pos(canvas.center())
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
+                // (In a window smaller than the cards, #1276, they scroll.)
+                crate::fit::scroll(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(t("ui-start-your-design")).heading());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -128,6 +130,7 @@ pub fn cards(app: &mut EditorApp, ctx: &egui::Context) {
                             .weak()
                             .small(),
                     );
+                });
                 });
             });
         });
@@ -187,11 +190,11 @@ fn card(ui: &mut egui::Ui, c: &Card) -> egui::Response {
 pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.ui.start.samples_open;
     let mut chosen: Option<&str> = None;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-open-sample")).id(egui::Id::unique("window-open-sample"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-open-sample")).id(egui::Id::unique("window-open-sample"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(t("ui-opens-a-copy-as-a-new"));
             ui.add_space(4.0);
             for (key, title, file) in SAMPLES {
@@ -210,10 +213,10 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
 
     let mut open = app.ui.start.page_open;
     let mut step: Option<Start> = None;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-getting-started")).id(egui::Id::unique("window-getting-started"))
+    crate::fit::show_filling_at_least(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-getting-started")).id(egui::Id::unique("window-getting-started"))
         .open(&mut open)
         .default_size([520.0, 560.0])
-        .show(ctx, |ui| {
+        , ctx, egui::vec2(260.0, 240.0), |ui| {
             ui.horizontal_wrapped(|ui| {
                 for (label, s) in STEPS {
                     if ui.button(*label).clicked() {

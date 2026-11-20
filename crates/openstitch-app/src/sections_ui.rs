@@ -204,10 +204,9 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
                     .map(|(w, h)| format!("{w} × {h} mm ({})", s.hoop))
             })
             .unwrap_or_else(|| "Not split".into());
-        let r = egui::ComboBox::from_id_salt("section-hoop")
+        let r = crate::fit::combo(egui::ComboBox::from_id_salt("section-hoop")
             .selected_text(text)
-            .width(200.0)
-            .show_ui(ui, |ui| {
+            .width(200.0), ui, |ui| {
                 if ui.selectable_label(s.is_none(), t("ui-not-split")).clicked() && s.is_some() {
                     requests.push(set(json!({ "hoop": "none" })));
                 }

@@ -65,11 +65,11 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let mut action: Option<bool> = None; // Some(overwrite)
     let mut refresh = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-send-to-usb-media")).id(egui::Id::unique("window-send-to-usb-media"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-send-to-usb-media")).id(egui::Id::unique("window-send-to-usb-media"))
         .open(&mut open)
         .resizable(false)
         .default_width(360.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let d = &mut app.workspace.usb;
             if d.volumes.is_empty() {
                 crate::art::header(ui, crate::art::Art::NoMedia, |ui| {
@@ -86,9 +86,8 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.separator();
             egui::Grid::new("usb").num_columns(2).show(ui, |ui| {
                 ui.label(t("ui-format"));
-                let r = egui::ComboBox::from_id_salt("usb-format")
-                    .selected_text(d.format.to_uppercase())
-                    .show_ui(ui, |ui| {
+                let r = crate::fit::combo(egui::ComboBox::from_id_salt("usb-format")
+                    .selected_text(d.format.to_uppercase()), ui, |ui| {
                         for t in FileType::writable() {
                             ui.selectable_value(
                                 &mut d.format,
@@ -104,7 +103,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.end_row();
             });
             ui.separator();
-            if let Some(path) = &d.exists {
+            crate::fit::buttons(ui, |ui| {if let Some(path) = &d.exists {
                 ui.label(format!("{path} already exists."));
                 ui.horizontal(|ui| {
                     if ui.button(t("ui-overwrite")).clicked() {
@@ -119,7 +118,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 .clicked()
             {
                 action = Some(false);
-            }
+            }});
             if let Some(m) = &d.message {
                 ui.label(egui::RichText::new(m).weak());
             }

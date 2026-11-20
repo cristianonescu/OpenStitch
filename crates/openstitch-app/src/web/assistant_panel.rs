@@ -811,14 +811,13 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     let prefs = &mut app.ui.prefs.ai;
     ui.horizontal(|ui| {
         ui.label(t("ui-endpoint"));
-        egui::ComboBox::from_id_salt("web-ai-preset")
+        crate::fit::combo(egui::ComboBox::from_id_salt("web-ai-preset")
             .selected_text(
                 PRESETS
                     .iter()
                     .find(|p| p.base_url == prefs.base_url && p.protocol == prefs.protocol)
                     .map_or("Custom", |p| p.name),
-            )
-            .show_ui(ui, |ui| {
+            ), ui, |ui| {
                 for p in PRESETS.iter().filter(|p| p.name != "LM Studio (this computer)") {
                     if ui.selectable_label(false, p.name).clicked() {
                         assistant_chat::apply_preset(prefs, p);

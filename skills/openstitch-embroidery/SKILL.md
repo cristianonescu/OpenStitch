@@ -743,7 +743,9 @@ afresh). Autosave works there too (#831): a design left unsaved in a closed or c
 offered at the next visit, and `ui.recoveryList`, `ui.recoveryRestore` and `ui.recoveryDiscard`
 work as on the desktop (with the browser's storage refused, recovery is off and nothing is kept).
 `ui.gettingStarted {sample}` opens the ready-to-sew samples in the browser too (#833). On a phone
-or a window narrower than 640 points the panes float folded over the canvas (#834).
+or a window narrower than 780 points the panes float folded over the canvas (#834, #1276).
+`ui.state` reports the menus and dialogs on screen in `surfaces` (with `windowPoints`, the
+window's size in points).
 
 ## Files
 

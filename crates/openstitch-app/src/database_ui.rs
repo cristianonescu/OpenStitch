@@ -490,7 +490,7 @@ fn item_interaction(app: &mut EditorApp, ui: &egui::Ui, r: &egui::Response, p: &
         open_in_editor(app, p);
         return;
     }
-    r.context_menu(|ui| {
+    crate::fit::context_menu(r, |ui| {
         if !app.database.selection.contains(p) {
             app.database.click(p, false, false);
         }
@@ -857,24 +857,24 @@ fn name_dialog(
 ) -> Option<String> {
     let mut result = None;
     let mut open = true;
-    egui::Window::new(title)
+    crate::fit::show(egui::Window::new(title)
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(prompt);
             let r = ui.text_edit_singleline(&mut name);
             r.request_focus();
             ui.label(RichText::new(&app.database.status).weak().small());
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-ok")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     result = Some(name.clone());
                 }
                 if ui.button(t("ui-cancel")).clicked() {
                     app.database.dialog = Dialog::None;
                 }
-            });
+            }));
         });
     if !open {
         app.database.dialog = Dialog::None;
@@ -889,12 +889,12 @@ fn name_dialog(
 
 fn confirm_delete(app: &mut EditorApp, ctx: &egui::Context, paths: &[PathBuf]) {
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-delete")).id(egui::Id::unique("window-delete"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-delete")).id(egui::Id::unique("window-delete"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(format!(
                 "Move {} item(s) to the {}?",
                 paths.len(),
@@ -910,7 +910,7 @@ fn confirm_delete(app: &mut EditorApp, ctx: &egui::Context, paths: &[PathBuf]) {
             if paths.len() > 8 {
                 ui.label(RichText::new(format!("and {} more", paths.len() - 8)).weak());
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 // A browser has no system trash (#693).
                 #[cfg(not(target_arch = "wasm32"))]
                 if ui.button(t("ui-move-to-trash")).clicked() {
@@ -922,7 +922,7 @@ fn confirm_delete(app: &mut EditorApp, ctx: &egui::Context, paths: &[PathBuf]) {
                 if ui.button(t("ui-cancel")).clicked() {
                     app.database.dialog = Dialog::None;
                 }
-            });
+            }));
         });
     if !open {
         app.database.dialog = Dialog::None;
@@ -963,11 +963,11 @@ fn search_dialog(app: &mut EditorApp, ctx: &egui::Context) {
         Units::Mm => " mm",
         Units::Inch => " in",
     };
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-search")).id(egui::Id::unique("window-search"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-search")).id(egui::Id::unique("window-search"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.database.search;
             ui.horizontal(|ui| {
                 ui.checkbox(&mut f.use_name, t("ui-file-name"));
@@ -1048,14 +1048,14 @@ fn search_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                 });
             ui.checkbox(&mut f.subfolders, t("ui-search-subfolders"));
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-search")).clicked() {
                     run = true;
                 }
                 if ui.button(t("ui-reset")).clicked() {
                     app.database.search = Default::default();
                 }
-            });
+            }));
         });
     if run {
         match app.database.run_search() {
@@ -1072,11 +1072,11 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let mut run = false;
     let n = app.database.selection.len();
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-convert-format")).id(egui::Id::unique("window-convert-format"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-convert-format")).id(egui::Id::unique("window-convert-format"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(format!(
                 "{n} design(s) selected. The originals are not changed."
             ));
@@ -1086,9 +1086,8 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                 .spacing([10.0, 6.0])
                 .show(ui, |ui| {
                     ui.label(t("ui-format-type"));
-                    egui::ComboBox::from_id_salt("db-convert-format")
-                        .selected_text(f.target.extension().to_uppercase())
-                        .show_ui(ui, |ui| {
+                    crate::fit::combo(egui::ComboBox::from_id_salt("db-convert-format")
+                        .selected_text(f.target.extension().to_uppercase()), ui, |ui| {
                             for t in FileType::writable() {
                                 ui.selectable_value(&mut f.target, t, t.extension().to_uppercase());
                             }
@@ -1123,10 +1122,11 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                     .weak()
                     .small(),
             );
-            if ui
-                .add_enabled(n > 0, egui::Button::new(t("ui-convert")))
-                .clicked()
-            {
+            let convert = crate::fit::buttons(ui, |ui| {
+                ui.add_enabled(n > 0, egui::Button::new(t("ui-convert")))
+                    .clicked()
+            });
+            if convert {
                 run = true;
             }
         });
@@ -1145,20 +1145,19 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
     let mut printing = false;
     let shown = app.database.items().len();
     let selected = app.database.selection.len();
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-catalogue")).id(egui::Id::unique("window-catalogue"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-catalogue")).id(egui::Id::unique("window-catalogue"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let c = &mut app.database.catalog;
             egui::Grid::new("db-catalog")
                 .num_columns(2)
                 .spacing([10.0, 6.0])
                 .show(ui, |ui| {
                     ui.label(t("ui-output"));
-                    egui::ComboBox::from_id_salt("db-cat-format")
-                        .selected_text(c.format.label())
-                        .show_ui(ui, |ui| {
+                    crate::fit::combo(egui::ComboBox::from_id_salt("db-cat-format")
+                        .selected_text(c.format.label()), ui, |ui| {
                             for f in CatalogFormat::ALL {
                                 ui.selectable_value(&mut c.format, f, f.label());
                             }
@@ -1181,9 +1180,8 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.end_row();
                     if c.format != CatalogFormat::Csv {
                         ui.label(t("ui-layout"));
-                        egui::ComboBox::from_id_salt("db-cat-style")
-                            .selected_text(c.setup.style.label())
-                            .show_ui(ui, |ui| {
+                        crate::fit::combo(egui::ComboBox::from_id_salt("db-cat-style")
+                            .selected_text(c.setup.style.label()), ui, |ui| {
                                 for s in Style::ALL {
                                     ui.selectable_value(&mut c.setup.style, s, s.label());
                                 }
@@ -1225,7 +1223,7 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                         .small(),
                 );
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if c.format == CatalogFormat::Pdf
                     && ui
                         .button(t("menu-print"))
@@ -1237,7 +1235,7 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-save-2")).clicked() {
                     save = true;
                 }
-            });
+            }));
         });
     if printing {
         print(app);

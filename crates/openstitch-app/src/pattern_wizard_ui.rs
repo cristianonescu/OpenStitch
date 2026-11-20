@@ -20,12 +20,12 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut apply = false;
-    let shown = app
+    let shown = crate::fit::show(app
         .dialog_window(ctx, kind.title(), Some([260.0, 90.0]))
         .open(&mut open)
         .default_width(380.0)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let n = app.selection.len();
             let art = match kind {
                 WizardKind::Background => Art::WizardBackground,
@@ -49,7 +49,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
                 WizardKind::Cutwork => cutwork(app, ui),
             }
             ui.separator();
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 let ready = app.pattern_wizards.request(kind, &app.selection).is_some();
                 apply = ui.add_enabled(ready, egui::Button::new(t("ui-ok"))).clicked();
                 if ui.button(t("ui-default")).clicked() {
@@ -62,7 +62,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
                         WizardKind::Cutwork => app.pattern_wizards.cutwork = Default::default(),
                     }
                 }
-            });
+            }));
         });
     if let Some(shown) = shown {
         app.dialog_rect_next = Some(shown.response.rect);
@@ -103,9 +103,8 @@ fn background(app: &mut EditorApp, ui: &mut egui::Ui) {
     egui::Grid::new("background").num_columns(2).show(ui, |ui| {
         ui.label(t("ui-area-to-fill"));
         let name = |a: Option<u64>| a.map_or("Hoop".to_string(), |id| format!("Shape {id}"));
-        egui::ComboBox::from_id_salt("bgArea")
-            .selected_text(name(f.area))
-            .show_ui(ui, |ui| {
+        crate::fit::combo(egui::ComboBox::from_id_salt("bgArea")
+            .selected_text(name(f.area)), ui, |ui| {
                 ui.selectable_value(&mut f.area, None, name(None));
                 for id in &candidates {
                     ui.selectable_value(&mut f.area, Some(*id), name(Some(*id)));
@@ -118,9 +117,8 @@ fn background(app: &mut EditorApp, ui: &mut egui::Ui) {
             .find(|(k, _)| *k == f.fill_type)
             .map_or("", |(_, l)| *l);
         let mut chosen = f.fill_type;
-        egui::ComboBox::from_id_salt("bgType")
-            .selected_text(label)
-            .show_ui(ui, |ui| {
+        crate::fit::combo(egui::ComboBox::from_id_salt("bgType")
+            .selected_text(label), ui, |ui| {
                 for (k, l) in FILL_TYPES {
                     ui.selectable_value(&mut chosen, k, l);
                 }
@@ -169,14 +167,13 @@ fn background(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         if f.uses_lines() {
             ui.label(t("ui-sew-type"));
-            egui::ComboBox::from_id_salt("bgSew")
+            crate::fit::combo(egui::ComboBox::from_id_salt("bgSew")
                 .selected_text(
                     LINE_SEWS
                         .iter()
                         .find(|(k, _)| *k == f.sew)
                         .map_or("", |(_, l)| *l),
-                )
-                .show_ui(ui, |ui| {
+                ), ui, |ui| {
                     for (k, l) in LINE_SEWS {
                         ui.selectable_value(&mut f.sew, k, l);
                     }
@@ -214,9 +211,8 @@ fn choice(ui: &mut egui::Ui, id: &str, value: &mut &'static str, options: &[(&'s
         .iter()
         .find(|(k, _)| k == value)
         .map_or("", |(_, l)| *l);
-    egui::ComboBox::from_id_salt(id)
-        .selected_text(label)
-        .show_ui(ui, |ui| {
+    crate::fit::combo(egui::ComboBox::from_id_salt(id)
+        .selected_text(label), ui, |ui| {
             for (k, l) in options {
                 ui.selectable_value(value, *k, *l);
             }
@@ -375,9 +371,8 @@ fn cutwork(app: &mut EditorApp, ui: &mut egui::Ui) {
         yes_no(ui, "4 Net fill", &mut f.net);
         if f.net {
             ui.label(t("ui-pattern"));
-            egui::ComboBox::from_id_salt("cwNet")
-                .selected_text(NET_PATTERNS[(f.net_pattern.clamp(1, 5) - 1) as usize])
-                .show_ui(ui, |ui| {
+            crate::fit::combo(egui::ComboBox::from_id_salt("cwNet")
+                .selected_text(NET_PATTERNS[(f.net_pattern.clamp(1, 5) - 1) as usize]), ui, |ui| {
                     for (i, name) in NET_PATTERNS.iter().enumerate() {
                         ui.selectable_value(&mut f.net_pattern, i as u32 + 1, *name);
                     }

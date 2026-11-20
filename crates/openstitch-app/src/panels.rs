@@ -375,7 +375,7 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
     tops.push(y);
     let total = (y - gap).max(0.0);
     let mut built = Vec::new();
-    let mut area = egui::ScrollArea::vertical().auto_shrink([false, false]);
+    let mut area = crate::fit::list(ui, 120.0);
     if let Some(y) = ui.data_mut(|d| d.remove_temp::<f32>(order_scroll_to_id())) {
         area = area.vertical_scroll_offset(y);
     }
@@ -901,21 +901,23 @@ fn thread_picker(
         let button = ui.button(label);
         let popup_id = ui.make_persistent_id(id);
         let open = resp.clicked() || button.clicked();
-        egui::Popup::from_response(&button)
-            .id(popup_id)
-            .open_memory(open.then_some(egui::SetOpenCommand::Toggle))
-            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-            .show(|ui| {
+        crate::fit::popup(
+            egui::Popup::from_response(&button)
+                .id(popup_id)
+                .open_memory(open.then_some(egui::SetOpenCommand::Toggle))
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+            &button,
+            |ui| {
                 chosen = thread_grid(ui, id, current, user);
-            });
+            },
+        );
     });
     chosen
 }
 
 /// The Sewing Attributes pane: transform, region and line sewing of the selection.
 pub fn sewing_attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
+    crate::fit::list(ui, 160.0)
         .show(ui, |ui| {
             if app.selection.is_empty() {
                 design_info(app, ui);
@@ -1153,9 +1155,8 @@ fn kind_combo<K: Copy + PartialEq>(
     };
     let mut chosen = None;
     ui.add_enabled_ui(enabled, |ui| {
-        let r = egui::ComboBox::from_id_salt(id)
-            .selected_text(text)
-            .show_ui(ui, |ui| {
+        let r = crate::fit::combo(egui::ComboBox::from_id_salt(id)
+            .selected_text(text), ui, |ui| {
                 for &(k, label) in options {
                     if ui
                         .selectable_label(current.same() == Some(&k), label)
@@ -1611,9 +1612,8 @@ fn control(app: &mut EditorApp, ui: &mut egui::Ui, c: &Control) -> Option<Value>
                 .iter()
                 .find(|o| o.0 == *value)
                 .map_or(value.as_str(), |o| o.1.as_str());
-            let r = egui::ComboBox::from_id_salt(*param)
-                .selected_text(text)
-                .show_ui(ui, |ui| {
+            let r = crate::fit::combo(egui::ComboBox::from_id_salt(*param)
+                .selected_text(text), ui, |ui| {
                     for (v, l) in options {
                         if ui.selectable_label(v == value, l).clicked() && v != value {
                             changed = Some(json!(v));
@@ -1655,7 +1655,7 @@ pub fn sim_controls(
     speed: &mut f64,
     total: usize,
 ) {
-    ui.horizontal(|ui| {
+    crate::fit::row(ui, "simulator-controls", |ui| {
         let play = if *playing { "Pause" } else { "Play" };
         if ui.add_enabled(total > 0, egui::Button::new(play)).clicked() {
             *playing = !*playing;
@@ -1717,10 +1717,9 @@ pub fn sim_controls(
             *playing = false;
         }
         ui.label(format!("{} / {}", pos.unwrap_or(total), total));
-        let r = egui::ComboBox::from_id_salt("speed")
+        let r = crate::fit::combo(egui::ComboBox::from_id_salt("speed")
             .selected_text(format!("{:.0}/s", *speed))
-            .width(70.0)
-            .show_ui(ui, |ui| {
+            .width(70.0), ui, |ui| {
                 for s in SIM_SPEEDS {
                     ui.selectable_value(speed, s, format!("{s:.0}/s"));
                 }
@@ -1743,7 +1742,7 @@ pub fn simulator(app: &mut EditorApp, ui: &mut egui::Ui) {
         total,
     );
     player_strip(app, ui);
-    ui.horizontal(|ui| {
+    crate::fit::row(ui, "simulator-counts", |ui| {
         let s = &app.stats;
         ui.label(format!(
             "Stitches {}   Jumps {}   Trims {}   Colour changes {}   Size {}",

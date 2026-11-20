@@ -3,7 +3,7 @@
 //! for checking a build on a platform without clicking).
 //!
 //! Steps are separated by `;`, coordinates are model millimetres on the Design Page:
-//! `drag:x1,y1,x2,y2` · `click:x,y` · `rclick:x,y` (the right button: context menus) · `sclick:x,y` (window points, for panels and menus) · `dclick:x,y` · `move:x,y` · `type:r` (text, e.g. tool
+//! `drag:x1,y1,x2,y2` · `click:x,y` · `rclick:x,y` (the right button: context menus) · `sclick:x,y` (window points, for panels and menus) · `swheel:x,y,d` (the mouse wheel turned `d` points down, up when negative, with the pointer at window point x,y: scrolls a menu, pane or dialog, #1276) · `dclick:x,y` · `move:x,y` · `type:r` (text, e.g. tool
 //! shortcuts) · `key:Enter` · `wait:N` (frames) · `drop:PATH` (a file dropped onto the window) ·
 //! `close:0` (the window's close request, as the X button sends it). Prefix `shift+` / `cmd+` to hold modifiers, e.g. `shift+drag:…`,
 //! `cmd+key:Z`.
@@ -28,6 +28,9 @@ pub enum Action {
     Move(Vec2),
     /// Click at a window position in points (panels, menus, popups).
     ScreenClick(f32, f32),
+    /// The wheel turned by so many points (down when positive) with the pointer at a window
+    /// position in points.
+    ScreenWheel(f32, f32, f32),
     Type(String),
     Key(Key),
     Wait(usize),
@@ -95,6 +98,16 @@ pub fn parse(script: &str) -> Result<Vec<Step>, String> {
                 "sclick" => {
                     let p = point(arg, 1)?[0];
                     Action::ScreenClick((p.x / 10.0) as f32, (p.y / 10.0) as f32)
+                }
+                "swheel" => {
+                    let v: Vec<f32> = arg
+                        .split(',')
+                        .map(|x| x.trim().parse::<f32>().map_err(|_| format!("bad number '{x}'")))
+                        .collect::<Result<_, _>>()?;
+                    let [x, y, d] = v[..] else {
+                        return Err(format!("'{arg}' needs 3 numbers"));
+                    };
+                    Action::ScreenWheel(x, y, d)
                 }
                 "type" => Action::Type(arg.to_string()),
                 "key" => {
@@ -194,6 +207,19 @@ pub fn frames(step: &Step, vp: &Viewport) -> Vec<Vec<Event>> {
                 vec![b(false)],
                 Vec::new(),
             ]
+        }
+        Action::ScreenWheel(x, y, d) => {
+            let wheel = Event::MouseWheel {
+                unit: eframe::egui::MouseWheelUnit::Point,
+                delta: eframe::egui::vec2(0.0, -*d),
+                phase: eframe::egui::TouchPhase::Move,
+                source: eframe::egui::MouseWheelSource::Wheel,
+                modifiers: m,
+            };
+            // The pointer first, then the wheel, then the frames the smooth scroll takes.
+            let mut f = vec![vec![Event::PointerMoved(Pos2::new(*x, *y))], vec![wheel]];
+            f.extend(vec![Vec::new(); 12]);
+            f
         }
         Action::Type(t) => vec![vec![Event::Text(t.clone())]],
         Action::Key(k) => vec![vec![key(*k, true)], vec![key(*k, false)]],
@@ -314,6 +340,11 @@ mod tests {
             parse("rclick:10,20").expect("ok")[0].action,
             Action::RightClick(v2(100.0, 200.0))
         );
+        assert_eq!(
+            parse("swheel:300,200,-120").expect("ok")[0].action,
+            Action::ScreenWheel(300.0, 200.0, -120.0)
+        );
+        assert!(parse("swheel:300,200").is_err());
         let right = frames(&parse("rclick:10,20").expect("ok")[0], &Viewport::default());
         assert!(matches!(
             right[1][0],

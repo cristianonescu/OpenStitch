@@ -661,7 +661,8 @@ These give the AI assistant ([research/beyond/ai-integration.md](research/beyond
 
 **Reading and running window commands**
 - `ui.state`: the window's current state, with the Sewing Order pane's Find text (`orderFilter`),
-  the page mode (`pageMode`), the Realistic view's `msaa` and, after a crash, `crashReport`.
+  the page mode (`pageMode`), the Realistic view's `msaa`, the menus, lists and dialogs on screen
+  with how far each is scrolled (`surfaces`, #1276) and, after a crash, `crashReport`.
 - `ui.actions`: every ribbon, menu and Quick Access Toolbar command, with how the assistant reaches it.
 - `ui.run`: runs a command by key, as a click would.
 
@@ -890,7 +891,7 @@ openstitch_app::editor (lib, no egui, unit-tested)
   pen), Return closes a polygon or finishes a pen path, Esc cancels; with the Point tool Delete
   removes the selected vertex and C / S curve or straighten the segment under the pointer.
 - **Scripted runs.** `--script` feeds pointer and key events through eframe's `raw_input_hook`,
-  in model millimetres (`drag:10,10,40,30;type:e;cmd+key:Z`) or window points (`sclick:x,y`), so the
+  in model millimetres (`drag:10,10,40,30;type:e;cmd+key:Z`) or window points (`sclick:x,y`; `swheel:x,y,d` turns the mouse wheel there), so the
   real canvas, tool, panel and shortcut code runs; `--screenshot out.png` captures the frame
   after the script (`--demo`, `--select`, `--simulate`, `--zoom`, `--center X,Y` (mm), `--size` set the scene;
   `--px-per-mm P` fixes the scale and puts the `--center` point on whole pixels, `--viewport-json

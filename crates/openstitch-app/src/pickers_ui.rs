@@ -404,7 +404,7 @@ pub fn picker(
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
         .show(|ui| {
             egui::ScrollArea::vertical()
-                .max_height(360.0)
+                .max_height(crate::fit::room(&ctx).min(360.0))
                 .show(ui, |ui| {
                     egui::Grid::new(("picker-grid", id))
                         .spacing(egui::vec2(6.0, 6.0))

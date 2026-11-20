@@ -509,15 +509,14 @@ pub fn creator(app: &mut EditorApp, ui: &mut egui::Ui) {
 }
 
 fn header(ui: &mut egui::Ui, st: &mut CreatorState, user: &[patterns::Pattern]) {
-    ui.horizontal(|ui| {
+    crate::fit::row(ui, "creator-pattern", |ui| {
         ui.label(t("ui-kind"));
         let current = KINDS
             .iter()
             .find(|k| k.0 == st.doc.kind)
             .map_or("?", |k| k.1);
-        let r = egui::ComboBox::from_id_salt("creator-kind")
-            .selected_text(current)
-            .show_ui(ui, |ui| {
+        let r = crate::fit::combo(egui::ComboBox::from_id_salt("creator-kind")
+            .selected_text(current), ui, |ui| {
                 for (k, label) in KINDS {
                     if ui.selectable_label(st.doc.kind == k, label).clicked() && st.doc.kind != k {
                         st.set_doc(Creator::new(k));
@@ -537,9 +536,8 @@ fn header(ui: &mut egui::Ui, st: &mut CreatorState, user: &[patterns::Pattern]) 
             crate::a11y::name_slider(&r, "Row shift");
         }
         let kind = st.doc.kind;
-        let r = egui::ComboBox::from_id_salt("creator-template")
-            .selected_text("Start from…")
-            .show_ui(ui, |ui| {
+        let r = crate::fit::combo(egui::ComboBox::from_id_salt("creator-template")
+            .selected_text("Start from…"), ui, |ui| {
                 for p in patterns::library()
                     .iter()
                     .chain(user)

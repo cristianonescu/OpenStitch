@@ -680,10 +680,10 @@ fn simulator_window(st: &mut SewingState, ctx: &egui::Context) {
     let mut open = true;
     let needles = repeated_needles(&st.editor, REPEATS);
     let total = needles.len();
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-stitch-simulator")).id(egui::Id::unique("window-stitch-simulator"))
+    crate::fit::show_filling(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-stitch-simulator")).id(egui::Id::unique("window-stitch-simulator"))
         .open(&mut open)
         .default_size([620.0, 220.0])
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let sim = &mut st.sim;
             crate::panels::sim_controls(ui, &mut sim.playing, &mut sim.pos, &mut sim.speed, total);
             let shown = sim.pos.unwrap_or(total);
@@ -763,11 +763,10 @@ fn preview(ui: &mut egui::Ui, e: &SewingEditor) {
 }
 
 fn settings(ui: &mut egui::Ui, e: &mut SewingEditor) {
-    ui.horizontal(|ui| {
+    crate::fit::row(ui, "factory-design", |ui| {
         ui.label(t("ui-kind"));
-        let r = egui::ComboBox::from_id_salt("sdf-kind")
-            .selected_text(e.doc.kind.label())
-            .show_ui(ui, |ui| {
+        let r = crate::fit::combo(egui::ComboBox::from_id_salt("sdf-kind")
+            .selected_text(e.doc.kind.label()), ui, |ui| {
                 for k in SewingKind::ALL {
                     if ui.selectable_label(e.doc.kind == k, k.label()).clicked() && e.doc.kind != k
                     {

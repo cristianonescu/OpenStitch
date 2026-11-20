@@ -158,10 +158,10 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
         .collect();
     let plan = match_plan(app);
     let (mut apply, mut undo) = (false, false);
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-match-to-thread-chart")).id(egui::Id::unique("window-match-to-thread-chart"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-match-to-thread-chart")).id(egui::Id::unique("window-match-to-thread-chart"))
         .open(&mut open)
         .default_width(460.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let st = &mut app.colour_match;
             let shown = match &st.target {
                 Target::Builtin(id) => builtins
@@ -170,9 +170,8 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
                     .map_or(id.clone(), |b| b.1.clone()),
                 Target::User(n) => n.clone(),
             };
-            let r = egui::ComboBox::from_label("Chart")
-                .selected_text(shown)
-                .show_ui(ui, |ui| {
+            let r = crate::fit::combo(egui::ComboBox::from_label("Chart")
+                .selected_text(shown), ui, |ui| {
                     for (id, name) in &builtins {
                         ui.selectable_value(&mut st.target, Target::Builtin(id.clone()), name);
                     }
@@ -245,14 +244,14 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                 }
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 apply = ui
                     .add_enabled(plan.is_some(), egui::Button::new(t("menu-apply")))
                     .clicked();
                 undo = ui
                     .add_enabled(st.applied, egui::Button::new(t("ui-restore-original-colours")))
                     .clicked();
-            });
+            }));
         });
     if apply && apply_match(app) {
         app.status = openstitch_app::editor::ui_texts::t("ui-status-threads-matched-to-the-chart").into();
@@ -273,10 +272,10 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
     }
     let plan = merge_plan(app);
     let (mut apply, mut undo) = (false, false);
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-merge-similar-colours")).id(egui::Id::unique("window-merge-similar-colours"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-merge-similar-colours")).id(egui::Id::unique("window-merge-similar-colours"))
         .open(&mut open)
         .default_width(380.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let st = &mut app.colour_match;
             let r = ui.add(egui::Slider::new(&mut st.max_delta_e, 0.5..=20.0).text("Max ΔE"));
             crate::a11y::name_slider(&r, "Max ΔE");
@@ -303,7 +302,7 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
                         }
                     });
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 apply = ui
                     .add_enabled(
                         plan.as_ref()
@@ -314,7 +313,7 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
                 undo = ui
                     .add_enabled(st.applied, egui::Button::new(t("ui-restore-original-colours")))
                     .clicked();
-            });
+            }));
         });
     if apply && apply_merge(app) {
         app.status = openstitch_app::editor::ui_texts::t("ui-status-similar-colours-merged").into();

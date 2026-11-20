@@ -20,7 +20,7 @@ pub fn turn_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut stop = false;
     let mut cancel = false;
-    let modal = egui::Modal::new(egui::Id::unique("turn-close-prompt")).show(ctx, |ui| {
+    let modal = crate::fit::modal(egui::Modal::new(egui::Id::unique("turn-close-prompt")), ctx, |ui| {
         ui.set_width(400.0);
         ui.heading("The Assistant is still working");
         ui.add_space(4.0);
@@ -38,7 +38,7 @@ pub fn turn_window(app: &mut EditorApp, ctx: &egui::Context) {
             });
             return;
         }
-        ui.horizontal(|ui| {
+        crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
             stop = ui
                 .button(RichText::new("Stop and close").strong())
                 .on_hover_text("Stops the Assistant, then asks about unsaved changes")
@@ -47,7 +47,7 @@ pub fn turn_window(app: &mut EditorApp, ctx: &egui::Context) {
                 .button(t("ui-cancel"))
                 .on_hover_text(t("ui-back-to-the-editor-esc-tip"))
                 .clicked();
-        });
+        }));
     });
     if stopping {
         ctx.request_repaint_after(std::time::Duration::from_millis(100));
@@ -75,13 +75,13 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         }
     };
     let mut choice = None;
-    let modal = egui::Modal::new(egui::Id::unique("close-prompt")).show(ctx, |ui| {
+    let modal = crate::fit::modal(egui::Modal::new(egui::Id::unique("close-prompt")), ctx, |ui| {
         ui.set_width(400.0);
         ui.heading(title);
         ui.add_space(4.0);
         ui.label(RichText::new(what).weak());
         ui.add_space(12.0);
-        ui.horizontal(|ui| {
+        crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
             if ui
                 .button(RichText::new(t("ui-save")).strong())
                 .on_hover_text(
@@ -105,7 +105,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             {
                 choice = Some(Choice::Cancel);
             }
-        });
+        }));
     });
     if choice.is_none() {
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {

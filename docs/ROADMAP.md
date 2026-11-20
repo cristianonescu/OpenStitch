@@ -188,6 +188,15 @@ under sewing and bar end as PE-DESIGN's and the 120° band keeps the spacing acr
 rungs, both within 3 needle points of PE-DESIGN's per part (#1154). Details in
 COMPATIBILITY_AUDIT.
 
+Done 2026-11-19 (#1276): nothing is out of reach in a small window. Reported for the Options menu,
+which was cut at the window's edge and could not be scrolled; a survey of 217 surfaces at ten
+window sizes found the same in 122 of them (no dialog scrolled, panes hid their lower rows, the
+ribbon and the status bar ran past the right edge). One set of helpers (`fit.rs`) now makes menus,
+lists, dialogs, panes, rows of controls and the window itself scroll inside the window, with the
+dialogs' buttons kept in view; a walk of every surface from the registries runs with the tests and
+a source check refuses a menu or dialog made without the helpers. The table of every surface,
+before and after: [SMALL_WINDOWS.md](SMALL_WINDOWS.md).
+
 Done 2026-11-18 (#1266): the view is kept across a change of the window's size, on the desktop
 and in the browser. The cause of the page left tiny and out of sight: the status bar's zoom field
 (10 to 2000 %) wrote its limit back whenever the automatic fit was under 10 %, as in a window

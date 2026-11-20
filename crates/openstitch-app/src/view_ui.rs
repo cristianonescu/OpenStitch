@@ -544,10 +544,10 @@ fn guide_menu_window(app: &mut EditorApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             egui::Frame::menu(ui.style()).show(ui, |ui| {
                 ui.set_min_width(180.0);
-                chosen = match m.target {
+                chosen = crate::fit::scroll(ui, |ui| match m.target {
                     MenuTarget::Ruler => ruler_menu(app, ui),
                     MenuTarget::Guide(v, i) => guide_entries(app, ui, Some((v, i))),
-                };
+                });
             });
         });
     let (pressed, esc) = ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));
@@ -694,12 +694,12 @@ fn new_guide_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut done = false;
-    egui::Window::new(t("ui-guide-new-title"))
+    crate::fit::show(egui::Window::new(t("ui-guide-new-title"))
         .id(egui::Id::unique("window-new-guide"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.radio_value(&mut d.vertical, true, t("ui-guide-vertical"));
                 ui.radio_value(&mut d.vertical, false, t("ui-guide-horizontal"));
@@ -714,7 +714,7 @@ fn new_guide_window(app: &mut EditorApp, ctx: &egui::Context) {
             if let Some(e) = &d.error {
                 ui.colored_label(ui.visuals().error_fg_color, e);
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-ok")).clicked() || enter {
                     match new_guide_at(app, d.vertical, &d.text) {
                         Ok(()) => done = true,
@@ -724,7 +724,7 @@ fn new_guide_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-cancel")).clicked() {
                     done = true;
                 }
-            });
+            }));
         });
     if open && !done {
         app.workspace.view.new_guide = Some(d);
@@ -812,12 +812,12 @@ fn guide_layout_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let mut done = false;
     let unit = openstitch_app::editor::units::suffix(app.ui.prefs.units);
-    egui::Window::new(t("ui-guide-layout-title"))
+    crate::fit::show(egui::Window::new(t("ui-guide-layout-title"))
         .id(egui::Id::unique("window-guide-layout"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             egui::Grid::new("guide-layout-grid").num_columns(3).show(ui, |ui| {
                 ui.label(t("ui-guide-columns"));
                 ui.add(egui::DragValue::new(&mut d.columns).range(0..=50));
@@ -860,7 +860,7 @@ fn guide_layout_window(app: &mut EditorApp, ctx: &egui::Context) {
             if let Some(e) = d.error.as_ref().or(problem.as_ref()) {
                 ui.colored_label(ui.visuals().error_fg_color, e);
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-ok")).clicked() {
                     match apply_guide_layout(app, &d) {
                         Ok(()) => done = true,
@@ -870,7 +870,7 @@ fn guide_layout_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-cancel")).clicked() {
                     done = true;
                 }
-            });
+            }));
         });
     if open && !done {
         app.workspace.view.guide_layout = Some(d);
@@ -967,12 +967,12 @@ fn guide_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut done = false;
-    egui::Window::new(t("ui-guide-set-position-title"))
+    crate::fit::show(egui::Window::new(t("ui-guide-set-position-title"))
         .id(egui::Id::unique("window-guide-set-position"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let unit = openstitch_app::editor::units::suffix(app.ui.prefs.units);
             ui.label(if d.vertical {
                 t("ui-guide-position-x")
@@ -988,7 +988,7 @@ fn guide_window(app: &mut EditorApp, ctx: &egui::Context) {
             if let Some(e) = &d.error {
                 ui.colored_label(ui.visuals().error_fg_color, e);
             }
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-ok")).clicked() || enter {
                     match set_guide_position(app, d.vertical, d.index, &d.text) {
                         Ok(()) => done = true,
@@ -998,7 +998,7 @@ fn guide_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-cancel")).clicked() {
                     done = true;
                 }
-            });
+            }));
         });
     if open && !done {
         app.workspace.view.guide_dialog = Some(d);
@@ -1324,11 +1324,11 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.workspace.view.image_open;
     let mut commit: Option<Value> = None;
     let mut turn: Option<&str> = None;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-modify-image")).id(egui::Id::unique("window-modify-image"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-modify-image")).id(egui::Id::unique("window-modify-image"))
         .open(&mut open)
         .resizable(false)
         .default_width(300.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let Some(b) = app.session.design().background.clone() else {
                 crate::art::header(ui, crate::art::Art::NoImage, |ui| {
                     ui.label(t("ui-no-background-image-use-image-open"));
@@ -1477,10 +1477,10 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
 fn realistic_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.workspace.view.realistic_open;
     let mut changed = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-realistic-view-settings")).id(egui::Id::unique("window-realistic-view-settings"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-realistic-view-settings")).id(egui::Id::unique("window-realistic-view-settings"))
         .open(&mut open)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let r = &mut app.ui.prefs.realistic;
             egui::Grid::new("realistic").num_columns(2).show(ui, |ui| {
                 ui.label(t("ui-thread-width"));
@@ -1503,7 +1503,7 @@ fn realistic_window(app: &mut EditorApp, ctx: &egui::Context) {
                     .changed();
                 ui.end_row();
             });
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui.button(t("ui-default")).clicked() {
                     *r = RealisticSettings::default();
                     changed = true;
@@ -1512,7 +1512,7 @@ fn realistic_window(app: &mut EditorApp, ctx: &egui::Context) {
                     app.workspace.realistic = true;
                     app.workspace.solid = false;
                 }
-            });
+            }));
         });
     app.workspace.view.realistic_open = open;
     if changed {
@@ -1557,10 +1557,10 @@ fn font_filter_window(app: &mut EditorApp, ctx: &egui::Context) {
         .clone()
         .unwrap_or_else(|| app.ui.prefs.font_filter.clone());
     let mut apply = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-font-filter-settings")).id(egui::Id::unique("window-font-filter-settings"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-font-filter-settings")).id(egui::Id::unique("window-font-filter-settings"))
         .open(&mut open)
         .default_width(300.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.label(t("ui-tick-the-fonts-to-show-clear"));
             egui::ScrollArea::vertical()
                 .max_height(320.0)
@@ -1590,7 +1590,7 @@ fn font_filter_window(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                 });
             ui.separator();
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui
                     .button(t("ui-default"))
                     .on_hover_text(t("ui-show-every-font-tip"))
@@ -1601,7 +1601,7 @@ fn font_filter_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-ok")).clicked() {
                     apply = true;
                 }
-            });
+            }));
         });
     if apply {
         draft.on = true;
@@ -1668,11 +1668,11 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
     });
     let v = &mut app.workspace.view;
     let mut ok = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-fabric-selector")).id(egui::Id::unique("window-fabric-selector"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-fabric-selector")).id(egui::Id::unique("window-fabric-selector"))
         .open(&mut open)
         .default_width(420.0)
         .resizable(false)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(190.0);
@@ -1701,9 +1701,8 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.add_space(4.0);
                     ui.label(egui::RichText::new(f["advice"].as_str().unwrap_or_default()).italics());
                     ui.add_space(6.0);
-                    let combo = egui::ComboBox::from_id_salt("fabric-weight")
-                        .selected_text(format!("No. {weight}"))
-                        .show_ui(ui, |ui| {
+                    let combo = crate::fit::combo(egui::ComboBox::from_id_salt("fabric-weight")
+                        .selected_text(format!("No. {weight}")), ui, |ui| {
                             for w in [60, 40, 30, 12] {
                                 ui.selectable_value(&mut weight, w, format!("No. {w}"));
                             }
@@ -1771,12 +1770,12 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
                 .weak()
                 .small(),
             );
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 let can = chosen.is_some() && (all || !selected.is_empty());
                 if ui.add_enabled(can, egui::Button::new(t("ui-ok"))).clicked() {
                     ok = true;
                 }
-            });
+            }));
         });
     v.fabric = chosen.clone();
     v.fabric_all = Some(all);

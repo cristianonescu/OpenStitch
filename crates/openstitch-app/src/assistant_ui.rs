@@ -689,6 +689,33 @@ impl EditorApp {
         }))
     }
 
+    /// The open menus, pop-ups and dialogs for `ui.state`, in points from the window's top
+    /// left corner, as the last frame drew them.
+    fn surfaces_json(&self) -> Value {
+        let rect = |r: eframe::egui::Rect| json!([r.min.x, r.min.y, r.width(), r.height()]);
+        let d = &self.drawn;
+        let open: Vec<Value> = d
+            .list
+            .iter()
+            .map(|s| {
+                json!({
+                    "kind": s.kind,
+                    "rect": rect(s.rect),
+                    "contentHeight": s.content,
+                    "scrolled": s.offset,
+                    "buttons": s.buttons.map(rect),
+                })
+            })
+            .collect();
+        let options = d.anchors.iter().find(|a| a.0 == "options").map(|a| rect(a.1));
+        json!({
+            "windowPoints": [d.window.x, d.window.y],
+            "textScale": f64::from(self.ui.prefs.text_size) / 100.0,
+            "optionsButton": options,
+            "open": open,
+        })
+    }
+
     fn stats_json(&self) -> Value {
         let s = &self.stats;
         json!({
@@ -734,6 +761,8 @@ impl EditorApp {
             // Where the canvas looks (#1266): the design point in its middle, the canvas's
             // size in points, and the part of the Design Page inside it.
             "view": self.view_json(),
+            // The menus, pop-ups and dialogs on screen (#1276) and how far each is scrolled.
+            "surfaces": self.surfaces_json(),
             "stats": self.stats_json(),
             "simulator": self.simulator_json(),
             "canUndo": self.session.can_undo(), "canRedo": self.session.can_redo(),

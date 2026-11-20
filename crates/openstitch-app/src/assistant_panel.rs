@@ -1122,7 +1122,7 @@ fn close_hint_dialog(app: &mut EditorApp, ctx: &egui::Context) {
         app.ui.prefs.ai.enabled,
     );
     let mut ok = false;
-    egui::Modal::new(egui::Id::unique("assistant-close-hint")).show(ctx, |ui| {
+    crate::fit::modal(egui::Modal::new(egui::Id::unique("assistant-close-hint")), ctx, |ui| {
         ui.set_max_width(360.0);
         ui.heading(t("ui-the-assistant-is-closed"));
         ui.label(t("ui-to-open-it-again"));
@@ -1135,7 +1135,8 @@ fn close_hint_dialog(app: &mut EditorApp, ctx: &egui::Context) {
             "Don't show this again",
         );
         ui.add_space(4.0);
-        ok = ui.button(t("ui-ok")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter));
+        ok = crate::fit::buttons(ui, |ui| ui.button(t("ui-ok")).clicked())
+            || ui.input(|i| i.key_pressed(egui::Key::Enter));
     });
     if ok {
         close_hint_ok(app);
@@ -2120,14 +2121,13 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             // rows below are the hidden Claude API address's, so they are not shown.
             if prefs.protocol != Protocol::Agent {
             ui.label(t("ui-endpoint"));
-            let r = egui::ComboBox::from_id_salt("assistant-preset")
+            let r = crate::fit::combo(egui::ComboBox::from_id_salt("assistant-preset")
                 .selected_text(
                     PRESETS
                         .iter()
                         .find(|p| p.base_url == prefs.base_url && p.protocol == prefs.protocol)
                         .map_or("Custom", |p| p.name),
-                )
-                .show_ui(ui, |ui| {
+                ), ui, |ui| {
                     for p in PRESETS {
                         if ui.selectable_label(prefs.base_url == p.base_url, p.name).clicked() {
                             // #432: no Claude model left on a local server.
@@ -2141,9 +2141,8 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.end_row();
             }
             ui.label(t("ui-protocol"));
-            let r = egui::ComboBox::from_id_salt("assistant-protocol")
-                .selected_text(prefs.protocol.label())
-                .show_ui(ui, |ui| {
+            let r = crate::fit::combo(egui::ComboBox::from_id_salt("assistant-protocol")
+                .selected_text(prefs.protocol.label()), ui, |ui| {
                     for p in Protocol::ALL {
                         changed |= ui.selectable_value(&mut prefs.protocol, p, p.label()).changed();
                     }
@@ -2172,7 +2171,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                         let list = ui
                             .add(egui::Button::new(crate::icons::ui_image(ui, "menu_caret")))
                             .on_hover_text(t("ui-the-models-this-address-lists-tip"));
-                        egui::Popup::menu(&list).show(|ui| {
+                        crate::fit::menu(&list, |ui| {
                                 for m in models {
                                     let text = m.name.as_deref().map_or(m.id.clone(), |n| format!("{n} ({})", m.id));
                                     if ui.selectable_label(prefs.model == m.id, text).clicked() {
@@ -2194,9 +2193,8 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 ui.end_row();
                 if prefs.protocol == Protocol::Anthropic {
                     ui.label(t("ui-effort"));
-                    let r = egui::ComboBox::from_id_salt("assistant-effort")
-                        .selected_text(prefs.effort.clone())
-                        .show_ui(ui, |ui| {
+                    let r = crate::fit::combo(egui::ComboBox::from_id_salt("assistant-effort")
+                        .selected_text(prefs.effort.clone()), ui, |ui| {
                             for e in openstitch_app::editor::assistant_chat::EFFORTS {
                                 changed |= ui.selectable_value(&mut prefs.effort, e.to_string(), e).changed();
                             }
@@ -2221,14 +2219,13 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 let l = lookups.lock().unwrap_or_else(|e| e.into_inner());
                 let found = l.agents.clone();
                 drop(l);
-                let r = egui::ComboBox::from_id_salt("assistant-agent")
+                let r = crate::fit::combo(egui::ComboBox::from_id_salt("assistant-agent")
                     .selected_text(
                         claude::KNOWN_AGENTS
                             .iter()
                             .find(|a| a.id == prefs.agent)
                             .map_or(prefs.agent.as_str(), |a| a.name),
-                    )
-                    .show_ui(ui, |ui| {
+                    ), ui, |ui| {
                         for a in claude::KNOWN_AGENTS {
                             let state = found.as_ref().and_then(|f| {
                                 f.iter().find(|d| d.agent.id == a.id).map(|d| match &d.state {
@@ -2268,9 +2265,8 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 }
             }
             ui.label(t("ui-permissions"));
-            let r = egui::ComboBox::from_id_salt("assistant-mode")
-                .selected_text(prefs.mode.label())
-                .show_ui(ui, |ui| {
+            let r = crate::fit::combo(egui::ComboBox::from_id_salt("assistant-mode")
+                .selected_text(prefs.mode.label()), ui, |ui| {
                     for m in PermissionMode::ALL {
                         changed |= ui.selectable_value(&mut prefs.mode, m, m.label()).changed();
                     }
@@ -3055,9 +3051,34 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
     if !dropped.is_empty() {
         attach_files(app, dropped);
     }
-    egui::Panel::right("assistant")
-        .default_size(380.0)
+    /// The room the Assistant's heading, conversation and composer need at least. The height
+    /// grows with what is open (the settings, approval cards, the questions above the
+    /// composer): the panel lays them out at the height they took in the last frame, with
+    /// `CONVERSATION_LEAST` for the conversation, and scrolls when it is lower than that.
+    const PANEL_LEAST: egui::Vec2 = egui::vec2(260.0, 220.0);
+    const CONVERSATION_LEAST: f32 = 100.0;
+    let needs_id = egui::Id::unique("assistant-panel-needs");
+    let needs: f32 = ui.ctx().data(|d| d.get_temp(needs_id)).unwrap_or(PANEL_LEAST.y);
+    let least = egui::vec2(PANEL_LEAST.x, needs.max(PANEL_LEAST.y));
+    // (In a small window it leaves the work area and the docked panes their least width.)
+    let most = if openstitch_app::editor::workspace::narrow(ui.ctx().content_rect().width()) {
+        f32::INFINITY
+    } else {
+        let panes = [crate::panes::Pane::SewingOrder, crate::panes::Pane::Attributes];
+        crate::panes::side_limit(app, ui.available_width(), &panes)
+    };
+    let base = egui::Panel::right("assistant").default_size(380.0);
+    let panel = if most.is_finite() {
+        crate::panes::limited(base, ui.ctx(), "assistant", most)
+    } else {
+        base
+    };
+    let shown = panel
         .show(ui, |ui| {
+            // In a panel too low or too narrow for the heading and the composer (#1276: a small window, a
+            // large Text size) they keep their height and the panel scrolls.
+            crate::fit::page(ui, least, true, |ui| {
+            let top = ui.cursor().top();
             ui.horizontal(|ui| {
                 ui.heading(t("ui-assistant"));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -3124,7 +3145,8 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             );
             if app.assistant.panel.show_settings {
                 ui.separator();
-                settings(app, ui);
+                // (Its form is wider than a panel squeezed by a small window, #1276.)
+                crate::fit::block(ui, "assistant-settings", |ui| settings(app, ui));
             }
             ui.separator();
             // Questions first: they hold the turn.
@@ -3156,8 +3178,9 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             if !app.assistant.panel.approvals.is_empty() {
                 ctx.request_repaint_after(Duration::from_secs(1));
             }
+            let above = ui.cursor().top() - top;
             // The composer stays at the bottom; the conversation fills the space above it.
-            egui::Panel::bottom("assistant-input").show(ui, |ui| {
+            let composer = egui::Panel::bottom("assistant-input").show(ui, |ui| {
                 if !app.assistant.panel.items.is_empty() && save_chat_switch(app, ui) {
                     app.ui.save_prefs();
                 }
@@ -3258,6 +3281,11 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     }
                 });
             });
+            let now = above + composer.response.rect.height() + CONVERSATION_LEAST;
+            if (now - needs).abs() > 0.5 {
+                ui.ctx().data_mut(|d| d.insert_temp(needs_id, now));
+                ui.ctx().request_repaint();
+            }
             egui::ScrollArea::vertical()
                 .stick_to_bottom(true)
                 .show(ui, |ui| {
@@ -3271,6 +3299,10 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     }
                 });
         });
+        });
+    if most.is_finite() {
+        crate::panes::limited_drawn(ui.ctx(), "assistant", most, shown.response.rect.width());
+    }
 }
 
 /// Shared slot a scripted transport reads its replies from (tests only).

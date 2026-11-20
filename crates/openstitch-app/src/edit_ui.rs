@@ -256,16 +256,14 @@ pub fn stamp_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     ui.separator();
     ui.add_enabled_ui(shape.is_some(), |ui| {
-        egui::ComboBox::from_label("Stamp")
-            .selected_text(openstitch_app::editor::ui_texts::tr(openstitch_design::stamp::PATTERNS[app.edit.stamp_pattern]))
-            .show_ui(ui, |ui| {
+        crate::fit::combo(egui::ComboBox::from_label("Stamp")
+            .selected_text(openstitch_app::editor::ui_texts::tr(openstitch_design::stamp::PATTERNS[app.edit.stamp_pattern])), ui, |ui| {
                 for (k, p) in openstitch_design::stamp::PATTERNS.iter().enumerate() {
                     ui.selectable_value(&mut app.edit.stamp_pattern, k, openstitch_app::editor::ui_texts::tr(p));
                 }
             });
-        egui::ComboBox::from_label("Effect")
-            .selected_text(openstitch_app::editor::ui_texts::tr(edit_ops::EMBOSS[app.edit.stamp_effect].0))
-            .show_ui(ui, |ui| {
+        crate::fit::combo(egui::ComboBox::from_label("Effect")
+            .selected_text(openstitch_app::editor::ui_texts::tr(edit_ops::EMBOSS[app.edit.stamp_effect].0)), ui, |ui| {
                 for (k, (label, _)) in edit_ops::EMBOSS.iter().enumerate() {
                     ui.selectable_value(&mut app.edit.stamp_effect, k, openstitch_app::editor::ui_texts::tr(label));
                 }
@@ -523,15 +521,14 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
             )
         })
         .collect();
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-arrange-copies")).id(egui::Id::unique("window-arrange-copies"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-arrange-copies")).id(egui::Id::unique("window-arrange-copies"))
         .open(&mut open)
         .resizable(false)
         .default_width(300.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.edit.arrange;
-            let r = egui::ComboBox::from_label("Arrangement")
-                .selected_text(f.mode.label())
-                .show_ui(ui, |ui| {
+            let r = crate::fit::combo(egui::ComboBox::from_label("Arrangement")
+                .selected_text(f.mode.label()), ui, |ui| {
                     for m in ArrangeMode::ALL {
                         ui.selectable_value(&mut f.mode, m, m.label());
                     }
@@ -572,9 +569,8 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                             .iter()
                             .find(|(id, _)| Some(*id) == f.guide)
                             .map_or("Choose…".to_string(), |(_, l)| l.clone());
-                        egui::ComboBox::from_id_salt("arrange-guide")
-                            .selected_text(shown)
-                            .show_ui(ui, |ui| {
+                        crate::fit::combo(egui::ComboBox::from_id_salt("arrange-guide")
+                            .selected_text(shown), ui, |ui| {
                                 for (id, label) in &guides {
                                     ui.selectable_value(&mut f.guide, Some(*id), label);
                                 }
@@ -585,14 +581,13 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.end_row();
                         if path {
                             ui.label(t("ui-side"));
-                            egui::ComboBox::from_id_salt("arrange-side")
+                            crate::fit::combo(egui::ComboBox::from_id_salt("arrange-side")
                                 .selected_text(
                                     PATH_SIDES
                                         .iter()
                                         .find(|(k, _)| *k == f.side)
                                         .map_or("", |(_, l)| l),
-                                )
-                                .show_ui(ui, |ui| {
+                                ), ui, |ui| {
                                     for (k, l) in PATH_SIDES {
                                         ui.selectable_value(&mut f.side, k, l);
                                     }
@@ -675,9 +670,10 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.checkbox(&mut f.merge, t("ui-merge-overlapping-shapes"));
             ui.checkbox(&mut f.optimize, t("ui-optimize-sewing-order"));
             let ready = !app.selection.is_empty() && (!f.mode.needs_guide() || f.guide.is_some());
-            apply = ui
-                .add_enabled(ready, egui::Button::new(t("ui-arrange")))
-                .clicked();
+            apply = crate::fit::buttons(ui, |ui| {
+                ui.add_enabled(ready, egui::Button::new(t("ui-arrange")))
+                    .clicked()
+            });
         });
     if apply {
         let r = app.edit.arrange.request(&app.selection);
@@ -699,11 +695,11 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
     let units = app.ui.prefs.units;
     let mut open = app.edit.offset_open;
     let mut apply = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-offset-lines")).id(egui::Id::unique("window-offset-lines"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-offset-lines")).id(egui::Id::unique("window-offset-lines"))
         .open(&mut open)
         .resizable(false)
         .default_width(260.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.edit.offset;
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut f.inward, false, "Outward");
@@ -718,9 +714,11 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.end_row();
             });
             ui.checkbox(&mut f.rounded, t("ui-rounded-corners"));
-            apply = ui
-                .add_enabled(single(app).is_some(), egui::Button::new(t("ui-create")))
-                .clicked();
+            let one = single(app).is_some();
+            apply = crate::fit::buttons(ui, |ui| {
+                ui.add_enabled(one, egui::Button::new(t("ui-create")))
+                    .clicked()
+            });
         });
     if apply && let Some(id) = single(app) {
         let r = app.edit.offset.request(id);
@@ -732,17 +730,19 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
 fn floral_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.edit.floral_open;
     let mut apply = false;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-floral-pattern")).id(egui::Id::unique("window-floral-pattern"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-floral-pattern")).id(egui::Id::unique("window-floral-pattern"))
         .open(&mut open)
         .resizable(false)
         .default_width(260.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             let f = &mut app.edit.floral;
             ui.add(egui::Slider::new(&mut f.density, 1..=10).text("Density"));
             ui.add(egui::Slider::new(&mut f.pattern, 0..=251).text("Pattern"));
-            apply = ui
-                .add_enabled(single(app).is_some(), egui::Button::new(t("ui-create")))
-                .clicked();
+            let one = single(app).is_some();
+            apply = crate::fit::buttons(ui, |ui| {
+                ui.add_enabled(one, egui::Button::new(t("ui-create")))
+                    .clicked()
+            });
         });
     if apply && let Some(id) = single(app) {
         let r = app.edit.floral.request(id);
@@ -791,10 +791,9 @@ pub fn order_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandR
             out = Some(CommandRequest::new("order.optimize", serde_json::json!({})));
         }
         let mut chosen = mode;
-        egui::ComboBox::from_id_salt("order-optimize-mode")
+        crate::fit::combo(egui::ComboBox::from_id_salt("order-optimize-mode")
             .selected_text(mode.label())
-            .width(130.0)
-            .show_ui(ui, |ui| {
+            .width(130.0), ui, |ui| {
                 for m in OptimizeOrder::ALL {
                     ui.selectable_value(&mut chosen, m, m.label());
                 }

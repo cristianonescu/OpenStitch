@@ -71,11 +71,11 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     // Some(true): print through the system; Some(false): save the PDF.
     let mut print: Option<bool> = None;
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-print")).id(egui::Id::unique("window-print"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-print")).id(egui::Id::unique("window-print"))
         .open(&mut open)
         .resizable(false)
         .default_width(360.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             for (m, label) in MODES {
                 let enabled = m != "image" || has_background;
                 ui.add_enabled_ui(enabled, |ui| {
@@ -103,7 +103,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 .weak()
                 .small(),
             );
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui
                     .button(t("menu-print"))
                     .on_hover_text(t("ui-open-the-system-print-dialog-or-tip"))
@@ -114,7 +114,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-save-pdf")).clicked() {
                     print = Some(false);
                 }
-            });
+            }));
         });
     d.open = open && print.is_none();
     ctx.data_mut(|m| m.insert_temp(id(), d.clone()));

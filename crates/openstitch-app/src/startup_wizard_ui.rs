@@ -91,12 +91,12 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         .filter(|p| p.exists())
         .cloned()
         .collect();
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-how-do-you-want-to-produce")).id(egui::Id::unique("window-how-do-you-want-to-produce"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-how-do-you-want-to-produce")).id(egui::Id::unique("window-how-do-you-want-to-produce"))
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
         .default_width(520.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(250.0);
@@ -163,7 +163,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
             });
             ui.separator();
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 if ui
                     .checkbox(
                         &mut app.ui.prefs.startup_wizard,
@@ -176,7 +176,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui.button(t("ui-close-this-wizard")).clicked() {
                     close = true;
                 }
-            });
+            }));
         });
     if let Some(key) = picked {
         let _ = choose(app, key, ctx);

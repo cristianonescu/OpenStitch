@@ -84,13 +84,14 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     app.palette.selected = app.palette.selected.min(hits.len().saturating_sub(1));
     let mut chosen: Option<Action> = None;
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-command-palette")).id(egui::Id::unique("window-command-palette"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-command-palette")).id(egui::Id::unique("window-command-palette"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
         .default_width(460.0)
-        .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 80.0))
-        .show(ctx, |ui| {
+        // (Nearer the top in a low window, #1276, so the list keeps its room.)
+        .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, if ctx.content_rect().height() < 600.0 { 4.0 } else { 80.0 }))
+        , ctx, |ui| {
             let edit = ui.add(
                 egui::TextEdit::singleline(&mut app.palette.query)
                     .hint_text("Type a command: arrange, satin, export…")

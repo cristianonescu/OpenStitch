@@ -238,6 +238,11 @@ pub struct EditorApp {
     /// (#565: the dialogs hid part of the design in the documentation images).
     pub dialog_rect: Option<egui::Rect>,
     pub dialog_rect_next: Option<egui::Rect>,
+    /// The menus and dialogs the last frame drew (#1276), for `ui.state`.
+    pub drawn: crate::fit::Drawn,
+    /// The height of the document tab strip in the last frame, 0 without it (#1276): a page
+    /// is that much higher than `PAGE_HEIGHT_LEAST`, which leaves it out.
+    tab_strip: f32,
     player: Option<crate::script::Player>,
     /// The Stitch Table window (#501).
     pub stitch_table: crate::stitch_table_ui::StitchTable,
@@ -409,6 +414,8 @@ impl EditorApp {
             view_canvas: None,
             dialog_rect: None,
             dialog_rect_next: None,
+            drawn: Default::default(),
+            tab_strip: 0.0,
             player: None,
             stitch_table: Default::default(),
             keyboard: Default::default(),
@@ -2071,7 +2078,13 @@ impl EditorApp {
                 self.on_selection(CommandRequest::delete);
             }
         }
-        if take(KeyboardShortcut::new(Modifiers::NONE, Key::Escape)) {
+        // Escape closes an open pop-up first (a combo box's list, a colour picker, a menu):
+        // left to it here, as the pop-ups are drawn after this (#1276: a list in a dialog
+        // could not be closed with Escape, and a covered dialog then not be used). Only a
+        // pop-up that is open counts: the start cards and other lists that scroll in place
+        // are not, and Escape goes on leaving the tool or clearing the selection under them.
+        let popup_open = egui::Popup::is_any_open(ctx) || crate::fit::own_menu_open(ctx);
+        if !popup_open && take(KeyboardShortcut::new(Modifiers::NONE, Key::Escape)) {
             self.keyboard = Default::default();
             if self.workspace.view.point_menu.is_some() {
                 // Esc closes an open point menu or object menu and nothing else, as a menu
@@ -2491,13 +2504,21 @@ impl eframe::App for EditorApp {
         if self.database.open || self.creator.open || self.sewing.open {
             // The other suite windows take the whole window, as separate programs do.
             self.update_title(&ctx);
-            if self.database.open {
-                crate::database_ui::database(self, ui);
-            } else if self.creator.open {
-                crate::creator_ui::creator(self, ui);
-            } else {
-                crate::sewing_ui::factory(self, ui);
-            }
+            // (A low window scrolls as a page, as the main window does.)
+            // The Stitch Creator and the Design Factory have a panel on each side of their
+            // work area: under 900 points wide they scroll sideways as well.
+            let wide = if self.database.open { 0.0 } else { 900.0 };
+            let least = egui::vec2(wide, crate::panes::PAGE_HEIGHT_LEAST);
+            crate::fit::page(ui, least, true, |ui| {
+                if self.database.open {
+                    crate::database_ui::database(self, ui);
+                } else if self.creator.open {
+                    crate::creator_ui::creator(self, ui);
+                } else {
+                    crate::sewing_ui::factory(self, ui);
+                }
+            });
+            self.drawn = crate::fit::drawn(&ctx);
             self.screenshot_step(&ctx);
             return;
         }
@@ -2511,22 +2532,20 @@ impl eframe::App for EditorApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
         }
         self.update_title(&ctx);
-        if !self.bare {
-            egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
-            if self.tab_count() > 1 || self.ui.prefs.open_in_tabs {
-                egui::Panel::top("documents").show(ui, |ui| documents::strip(self, ui));
-            }
-            if self.ui.prefs.editing.precision_bar {
-                egui::Panel::top("precision")
-                    .show(ui, |ui| crate::arrange_ui::precision_bar(self, ui));
-            }
-            egui::Panel::bottom("status").show(ui, |ui| crate::panes::status_bar(self, ui));
-            crate::assistant_panel::panel(self, ui);
-            crate::panes::docked(self, ui);
-        }
-        egui::CentralPanel::default()
-            .frame(egui::Frame::NONE)
-            .show(ui, |ui| crate::canvas::canvas(self, ui));
+        // A window lower than the bars and a least work area need (#1276: a small browser
+        // window, a large Text size) scrolls as a page; over the canvas the wheel stays its.
+        let pointer = ctx.input(|i| i.pointer.interact_pos().or(i.pointer.hover_pos()));
+        let on_canvas = self
+            .workspace
+            .canvas
+            .zip(pointer)
+            .is_some_and(|(c, p)| c.contains(p));
+        let least = if self.bare {
+            0.0
+        } else {
+            crate::panes::page_height_least(self.tab_strip)
+        };
+        crate::fit::page(ui, egui::vec2(0.0, least), !on_canvas, |ui| self.main_layout(ui));
         crate::start_ui::cards(self, &ctx);
         crate::start_ui::windows(self, &ctx);
         crate::limits_ui::poll(self);
@@ -2554,7 +2573,39 @@ impl eframe::App for EditorApp {
         crate::quality_ui::window(self, &ctx);
         let canvas = self.workspace.canvas;
         crate::workspace_ui::reference_window(self, &ctx, canvas);
+        self.drawn = crate::fit::drawn(&ctx);
         self.screenshot_step(&ctx);
+    }
+}
+
+impl EditorApp {
+    /// The main window's bars, panes and work area.
+    fn main_layout(&mut self, ui: &mut egui::Ui) {
+        let mut strip = 0.0;
+        if !self.bare {
+            egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
+            if self.tab_count() > 1 || self.ui.prefs.open_in_tabs {
+                strip = egui::Panel::top("documents")
+                    .show(ui, |ui| documents::strip(self, ui))
+                    .response
+                    .rect
+                    .height();
+            }
+            if self.ui.prefs.editing.precision_bar {
+                egui::Panel::top("precision")
+                    .show(ui, |ui| crate::arrange_ui::precision_bar(self, ui));
+            }
+            egui::Panel::bottom("status").show(ui, |ui| crate::panes::status_bar(self, ui));
+            crate::assistant_panel::panel(self, ui);
+            crate::panes::docked(self, ui);
+        }
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| crate::canvas::canvas(self, ui));
+        if (strip - self.tab_strip).abs() > 0.5 {
+            self.tab_strip = strip;
+            ui.ctx().request_repaint();
+        }
     }
 }
 
@@ -3122,6 +3173,9 @@ mod narrow_tests;
 #[cfg(test)]
 #[path = "resize_tests.rs"]
 mod resize_tests;
+#[cfg(test)]
+#[path = "reach_tests.rs"]
+mod reach_tests;
 #[cfg(test)]
 #[path = "monkey_tests.rs"]
 mod monkey_tests;

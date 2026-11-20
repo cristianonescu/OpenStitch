@@ -199,11 +199,14 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         return;
     }
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-stitch-table")).id(egui::Id::unique("window-stitch-table"))
+    crate::fit::show_filling(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-stitch-table")).id(egui::Id::unique("window-stitch-table"))
         .open(&mut open)
         .default_size([380.0, 460.0])
         .resizable(true)
-        .show(ctx, |ui| table(app, ui));
+        , ctx, |ui| {
+            // (In a window smaller than the table's columns and a few rows, #1276, it scrolls.)
+            crate::fit::page(ui, egui::vec2(360.0, 260.0), true, |ui| table(app, ui))
+        });
     app.stitch_table.open = open;
 }
 

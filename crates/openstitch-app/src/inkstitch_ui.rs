@@ -91,10 +91,10 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let (mut choose, mut scan) = (false, false);
     let folder = app.ui.prefs.inkstitch_folder.clone();
     let rows = app.ui.inkstitch.rows.clone();
-    app.dialog_window(ctx, "Ink/Stitch Fonts", None)
+    crate::fit::show(app.dialog_window(ctx, "Ink/Stitch Fonts", None)
         .open(&mut open)
         .default_width(380.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.weak("Embroidery fonts you installed in Ink/Stitch's folder format. None are bundled; check each font's licence.");
             ui.horizontal(|ui| {
                 ui.label(folder.as_ref().map_or("No folder chosen".into(), |p| p.display().to_string()));

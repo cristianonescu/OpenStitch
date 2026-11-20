@@ -6,7 +6,7 @@ use super::viewport::{ScreenRect, Viewport};
 
 /// Below this window width (points) the layout is narrow (#834: a phone, a narrow window): the
 /// panes leave the canvas the whole width, floating folded, and the ribbon's tabs scroll.
-pub const NARROW_WIDTH: f32 = 640.0;
+pub const NARROW_WIDTH: f32 = 780.0;
 
 /// Whether a window `width` points wide gets the narrow layout.
 pub fn narrow(width: f32) -> bool {

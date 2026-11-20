@@ -31,6 +31,7 @@ mod files;
 mod web_notes;
 mod envelope_ui;
 mod finish_ui;
+mod fit;
 mod icons;
 mod inkstitch_ui;
 mod jobsheet_ui;

@@ -319,7 +319,7 @@ fn progress_window(app: &mut EditorApp, ctx: &egui::Context) {
     let stage = job.stage();
     let seconds = job.seconds();
     let mut cancel = false;
-    egui::Modal::new(egui::Id::unique("open-job-progress")).show(ctx, |ui| {
+    crate::fit::modal(egui::Modal::new(egui::Id::unique("open-job-progress")), ctx, |ui| {
         ui.set_width(340.0);
         ui.heading(format!("{verb} {name}"));
         ui.add_space(6.0);
@@ -331,11 +331,11 @@ fn progress_window(app: &mut EditorApp, ctx: &egui::Context) {
         ));
         ui.add(egui::ProgressBar::new((stage as f32 + 0.5) / STAGES.len() as f32).animate(true));
         ui.add_space(6.0);
-        cancel = ui
-            .button(t("ui-cancel"))
-            .on_hover_text(t("ui-stop-opening-the-current-design-stays-tip"))
-            .clicked()
-            || ui.input(|i| i.key_pressed(egui::Key::Escape));
+        cancel = crate::fit::buttons(ui, |ui| {
+            ui.button(t("ui-cancel"))
+                .on_hover_text(t("ui-stop-opening-the-current-design-stays-tip"))
+                .clicked()
+        }) || ui.input(|i| i.key_pressed(egui::Key::Escape));
     });
     if cancel {
         app.cancel_job();

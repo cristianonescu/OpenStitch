@@ -1050,6 +1050,7 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
     if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
     await extraChecks(browser, type, label);
     await resizeChecks(browser, type, label);
+    await smallWindowChecks(browser, type, label);
     console.log(`ok ${label}: started, opened ${name} with the file picker, the PES and DST downloads are identical to the desktop build, a dropped photo shows and converts, preferences and thread charts last across reloads, a sample opens, Ctrl+S and Ctrl+P reach the editor, it runs at 2× pixels and at phone width with touch, a closed tab's design is recovered, and it runs with storage refused`);
   } catch (e) {
     console.error(`FAIL ${label}: ${e.message}`);
@@ -1174,6 +1175,101 @@ async function resizeChecks(browser, type, label) {
     }
     await shot("fit-after");
     noErrors("resize", errors);
+  } finally {
+    await context.close();
+  }
+}
+
+// #1276: at a small window nothing is out of reach. The window is 640 × 400: the Options menu
+// (taller than that) opens below its button, stays inside the window, and the wheel scrolls it
+// to its last entry; a dialog taller than the window (Design Property) stays inside it, its
+// content scrolls and its button row stays in view below. The places come from ui.state's
+// `surfaces` (points; at Text size 100 % they are the page's pixels). Screenshots go to OUT_DIR.
+// (A function declaration: the loop above calls it.)
+async function smallWindowChecks(browser, type, label) {
+  console.log(`${label}: at 640 x 400 the Options menu and a dialog stay inside the window and scroll`);
+  const size = { width: 640, height: 400 };
+  const context = await browser.newContext({ viewport: size, deviceScaleFactor: 1 });
+  try {
+    const { page, errors } = await editorPage(context);
+    const surfaces = async () => (await run(page, { command: "ui.state" })).result?.surfaces;
+    // The surfaces once `test` holds for them; it returns what the step needs.
+    // (Twice in a row the same: a pop-up's first frame is a measuring one, laid out elsewhere.)
+    const when = async (what, test) => {
+      let last;
+      let before = "";
+      for (let i = 0; i < 60; i += 1) {
+        last = await surfaces();
+        const now = JSON.stringify(last);
+        const got = last && now === before && test(last);
+        if (got) return got;
+        before = now;
+        await page.waitForTimeout(150);
+      }
+      throw new Error(`small window, ${what}: ${JSON.stringify(last)}`);
+    };
+    const shot = async (name) => {
+      if (!outDir) return;
+      mkdirSync(outDir, { recursive: true });
+      await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-small-${name}.png`) });
+    };
+    const inside = (what, [x, y, w, h]) => {
+      if (x < 0 || y < 0 || x + w > size.width + 0.5 || y + h > size.height + 0.5 || !(w > 0 && h > 0)) {
+        throw new Error(`small window, ${what} is not inside the window: ${JSON.stringify([x, y, w, h])}`);
+      }
+    };
+    const middle = ([x, y, w, h]) => [x + w / 2, y + h / 2];
+    const end = (s) => s.contentHeight - s.rect[3];
+    // The start cards (a pop-up of their own, scrolling as the menus do) are put away first.
+    const cards = await run(page, { command: "ui.set", params: { name: "showStartCards", value: false } });
+    if (!cards.ok) throw new Error(`ui.set showStartCards: ${JSON.stringify(cards).slice(0, 200)}`);
+    const start = await when("the Options button is drawn and nothing is open", (s) => s.optionsButton && s.open.length === 0 && s);
+    if (start.textScale !== 1 || Math.abs(start.windowPoints[0] - size.width) > 1 || Math.abs(start.windowPoints[1] - size.height) > 1) {
+      throw new Error(`small window: the editor's window is ${JSON.stringify(start.windowPoints)} points at text scale ${start.textScale}`);
+    }
+    const button = start.optionsButton;
+    inside("the Options button", button);
+    await page.mouse.click(...middle(button));
+    const menu = (await when("the Options menu opens", (s) => s.open.length === 1 && s.open[0].kind === "menu" && s.open[0].rect[3] > 50 && s)).open[0];
+    await shot("options-menu");
+    inside("the Options menu", menu.rect);
+    if (menu.rect[1] < button[1] + button[3]) throw new Error(`small window: the Options menu covers its button: ${JSON.stringify(menu.rect)} over ${JSON.stringify(button)}`);
+    if (!(end(menu) > 50) || menu.scrolled !== 0) throw new Error(`small window: the Options menu should be taller than its view and start at its top: ${JSON.stringify(menu)}`);
+    await page.mouse.move(...middle(menu.rect));
+    await page.mouse.wheel(0, 6000);
+    // (The pointer rests on an entry, which may open its sub-menu beside it: the Options menu
+    // is the menu with the tallest content, still at its left edge. Its width may change by
+    // the scroll bar it keeps beside its entries once it scrolls; the Rust test
+    // ui_state_reports_the_open_menu_and_how_far_it_is_scrolled matches it the same way.)
+    const same = (s) => {
+      const menus = s.open.filter((o) => o.kind === "menu");
+      if (menus.length === 0) return undefined;
+      const m = menus.reduce((a, b) => (b.contentHeight > a.contentHeight ? b : a));
+      return Math.abs(m.rect[0] - menu.rect[0]) < 1 ? m : undefined;
+    };
+    const menuEnd = await when("the wheel scrolls the Options menu to its end", (s) => { const m = same(s); return m && Math.abs(m.scrolled - end(m)) < 1.5 && m; });
+    inside("the Options menu, scrolled", menuEnd.rect);
+    await shot("options-menu-end");
+    // A click beside the menu (the empty end of the top bar) closes it.
+    await page.mouse.click(size.width - 40, 10);
+    await when("a click beside the Options menu closes it", (s) => s.open.length === 0 && s);
+    // A dialog taller than the window.
+    const opened = await run(page, { command: "ui.run", params: { action: "designProperty" } });
+    if (!opened.ok) throw new Error(`ui.run designProperty: ${JSON.stringify(opened).slice(0, 200)}`);
+    const dialog = (await when("Design Property opens with its buttons kept in view", (s) => s.open.length === 1 && s.open[0].kind === "dialog" && s.open[0].buttons && s)).open[0];
+    inside("the dialog's content", dialog.rect);
+    inside("the dialog's button row", dialog.buttons);
+    if (!(end(dialog) > 20)) throw new Error(`small window: Design Property should be taller than its view: ${JSON.stringify(dialog)}`);
+    if (dialog.buttons[1] < dialog.rect[1] + dialog.rect[3] - 0.5) throw new Error(`small window: the button row is over the content: ${JSON.stringify(dialog)}`);
+    await shot("dialog");
+    await page.mouse.move(...middle(dialog.rect));
+    await page.mouse.wheel(0, 6000);
+    const dialogEnd = (await when("the wheel scrolls the dialog's content to its end", (s) => s.open.length === 1 && Math.abs(s.open[0].scrolled - end(s.open[0])) < 1.5 && s)).open[0];
+    if (JSON.stringify(dialogEnd.buttons) !== JSON.stringify(dialog.buttons)) {
+      throw new Error(`small window: the button row moved with the content: ${JSON.stringify(dialog.buttons)} to ${JSON.stringify(dialogEnd.buttons)}`);
+    }
+    await shot("dialog-end");
+    noErrors("small window", errors);
   } finally {
     await context.close();
   }

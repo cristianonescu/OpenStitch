@@ -135,9 +135,8 @@ fn calibrate_params(d: &SwatchDialog) -> Value {
 }
 
 fn attribute_combo(ui: &mut egui::Ui, salt: &str, value: &mut String, valid: &[&'static str]) {
-    egui::ComboBox::from_id_salt(salt)
-        .selected_text(value.as_str())
-        .show_ui(ui, |ui| {
+    crate::fit::combo(egui::ComboBox::from_id_salt(salt)
+        .selected_text(value.as_str()), ui, |ui| {
             for a in valid {
                 ui.selectable_value(value, (*a).to_string(), *a);
             }
@@ -192,11 +191,11 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut calibrate = false;
     let mut open_saved = false;
     let mut open = true;
-    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-test-swatches")).id(egui::Id::unique("window-test-swatches"))
+    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-test-swatches")).id(egui::Id::unique("window-test-swatches"))
         .open(&mut open)
         .resizable(false)
         .default_width(380.0)
-        .show(ctx, |ui| {
+        , ctx, |ui| {
             ui.radio_value(
                 &mut d.kind,
                 Kind::Selection,
@@ -254,9 +253,8 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                             .unwrap_or(id)
                             .to_string()
                     };
-                    egui::ComboBox::from_label("Fabric")
-                        .selected_text(name_of(&d.fabric))
-                        .show_ui(ui, |ui| {
+                    crate::fit::combo(egui::ComboBox::from_label("Fabric")
+                        .selected_text(name_of(&d.fabric)), ui, |ui| {
                             for f in &fabrics {
                                 let id = f["id"].as_str().unwrap_or_default().to_string();
                                 let name = f["name"].as_str().unwrap_or_default();
