@@ -406,6 +406,73 @@ fn object(s: &Shape, table: &[Thread], notes: &mut Vec<String>) -> Result<Design
         }
         r
     });
+    // Direction lines added in PE-DESIGN (#1273): the fill's rows fan between them.
+    if s.direction_lines.len() >= 2 && !region.as_ref().is_some_and(|r| r.kind == RegionType::Fill)
+    {
+        notes.push(format!(
+            "its {} direction lines were not imported: they are for a fill, and its region is not one",
+            s.direction_lines.len()
+        ));
+    }
+    let crossing = |(side, t): (u32, f64)| {
+        let path = outline.segment_polyline(side as usize % outline.points.len().max(1));
+        let total: f64 = path.windows(2).map(|w| w[0].distance(w[1])).sum();
+        let mut left = total * t.clamp(0.0, 1.0);
+        for w in path.windows(2) {
+            let len = w[0].distance(w[1]);
+            if left <= len && len > 0.0 {
+                return w[0].lerp(w[1], left / len);
+            }
+            left -= len;
+        }
+        path.last().copied().unwrap_or_default()
+    };
+    // The one line of a fill that is not where the fill angle's own line lies (through the
+    // middle of the shape): PE-DESIGN keeps the last line where it was when the others are
+    // deleted. It is kept at its place; the fill is sewn at its angle as always.
+    if let Some(r) = region.as_mut().filter(|r| {
+        s.direction_lines.len() == 1 && r.kind == RegionType::Fill && !r.auto_direction && s.closed
+    }) {
+        let line = [
+            crossing(s.direction_lines[0][0]),
+            crossing(s.direction_lines[0][1]),
+        ];
+        let closed = std::slice::from_ref(&outline);
+        let own = openstitch_design::angle_lines::angle_line(closed, r.angle)
+            .map(|l| openstitch_design::angle_lines::chord(l, closed, &[]));
+        let at_its_own_place =
+            own.is_some_and(|o| o[0].distance(line[0]) < 2.0 && o[1].distance(line[1]) < 2.0);
+        let turn = (openstitch_design::angle_lines::line_angle(line) - r.angle + 180.0)
+            .rem_euclid(360.0)
+            - 180.0;
+        if !at_its_own_place && line[0].distance(line[1]) > 1.0 && turn.abs() <= 1.0 {
+            r.angle_lines = vec![line];
+            r.angle_rule = openstitch_design::AngleRule::Fan;
+        }
+    }
+    if let Some(r) = region
+        .as_mut()
+        .filter(|r| s.direction_lines.len() >= 2 && r.kind == RegionType::Fill)
+    {
+        let lines: Vec<[openstitch_design::Vec2; 2]> = s
+            .direction_lines
+            .iter()
+            .map(|l| [crossing(l[0]), crossing(l[1])])
+            .collect();
+        // Lines that cannot be sewn (crossing inside the shape, not across it) are left
+        // out with a note: the fill then has its one direction.
+        match openstitch_design::angle_lines::check_fan(&lines, std::slice::from_ref(&outline), &[])
+        {
+            Ok(()) => {
+                r.angle_lines = lines;
+                r.angle_rule = openstitch_design::AngleRule::Fan;
+            }
+            Err(why) => notes.push(format!(
+                "its direction lines were not imported: {}",
+                why.replace("angle line", "direction line")
+            )),
+        }
+    }
     if let Some(r) = region.as_mut().filter(|_| !s.punch.is_empty()) {
         r.direction_lines = punch_lines(s, &vertices)?;
         // A Curve Block's sides are Bézier curves through the line ends (o-manual-curve).
@@ -1084,6 +1151,65 @@ pub fn commands() -> Vec<CommandSpec> {
 mod tests {
     use super::*;
     use openstitch_design::ObjectKind;
+
+    /// Direction lines (#1273) are for a fill: on another region, or when they cannot be
+    /// sewn (they cross inside the shape), they are left out and a note says so.
+    #[test]
+    fn direction_lines_that_are_not_imported_leave_a_note() {
+        let v = |x: f32, y: f32| Vertex {
+            x,
+            y,
+            handles: [(0.0, 0.0); 2],
+            kind: 0,
+        };
+        // A 40 mm square: sides 0 top, 1 right, 2 bottom, 3 left. The lines of PE-DESIGN's
+        // two-line design: corner to corner, and across the top-left corner.
+        let mut s = Shape::with_defaults();
+        s.vertices = vec![
+            v(800.0, 800.0),
+            v(1200.0, 800.0),
+            v(1200.0, 1200.0),
+            v(800.0, 1200.0),
+        ];
+        s.closed = true;
+        s.region = RegionSewType::Fill;
+        s.direction_lines = vec![[(2, 1.0), (0, 1.0)], [(3, 0.84), (0, 0.384)]];
+        let mut notes = Vec::new();
+        let o = object(&s, &[], &mut notes).expect("object");
+        let r = o.region.expect("region");
+        assert_eq!(
+            (r.angle_lines.len(), r.angle_rule),
+            (2, openstitch_design::AngleRule::Fan)
+        );
+        assert!(notes.is_empty(), "{notes:?}");
+        // Not a fill.
+        let mut satin = s.clone();
+        satin.region = RegionSewType::Satin;
+        let mut notes = Vec::new();
+        let o = object(&satin, &[], &mut notes).expect("object");
+        assert!(o.region.expect("region").angle_lines.is_empty());
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.contains("2 direction lines were not imported") && n.contains("fill")),
+            "{notes:?}"
+        );
+        // Lines that cross inside the shape.
+        let mut crossing = s.clone();
+        crossing.direction_lines[1] = [(3, 0.5), (1, 0.5)];
+        let mut notes = Vec::new();
+        let o = object(&crossing, &[], &mut notes).expect("object");
+        let r = o.region.expect("region");
+        assert!(r.angle_lines.is_empty());
+        assert_eq!(r.angle_rule, openstitch_design::AngleRule::Sides);
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.contains("direction lines were not imported")
+                    && n.contains("cross inside the shape")),
+            "{notes:?}"
+        );
+    }
 
     /// PE-DESIGN 11.50's vertices after To Curve on one corner of its rectangle
     /// (`a1-to-curve`, #1258 captures of 2026-11-18; file units), then To Symmetry and To Cusp

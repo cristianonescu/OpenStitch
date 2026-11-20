@@ -507,7 +507,83 @@ fn shape(object: &DesignObject, table: &mut Vec<Thread>) -> Result<Shape, String
     let contour = &starting_where_sewn(object, contour);
     s.vertices = vertices(contour);
     s.bounds = bounds(contour);
+    s.direction_lines = fan_lines(object, contour);
     Ok(s)
+}
+
+/// PE-DESIGN's direction lines of `object` (`AngleRule::Fan`, #1273) as the file holds them:
+/// each line's two crossings of the outline as written (`contour`), each as (side, fraction
+/// along it by length). A crossing at a vertex is the end of the side before it (fraction
+/// 1), as in PE-DESIGN's files. One line: the shape's one direction kept at a place (the
+/// last line left after the others were deleted). A fill without lines (and without Auto
+/// direction) has the one line its fill angle draws through the middle of the shape, as the
+/// Point tool draws it: PE-DESIGN's Select Point draws a shape's line from these entries, and
+/// its own files hold that line's crossings (g12, the 40 mm square at 0 degrees: (1, 0.5) and
+/// (3, 0.5); d0 at 45 degrees: (0, 1.0) and (2, 1.0)); the fixed entries written before put a
+/// 45 degree line on every fill (capture p). Empty for every other object (other region
+/// types, Auto direction, open shapes): the writer then writes the entries of a new shape.
+fn fan_lines(object: &DesignObject, contour: &Contour) -> Vec<[(u32, f64); 2]> {
+    let Some(r) = object
+        .region
+        .as_ref()
+        .filter(|r| r.kind == RegionType::Fill)
+    else {
+        return Vec::new();
+    };
+    if !contour.closed {
+        return Vec::new();
+    }
+    let closed = [contour.clone()];
+    let own;
+    let lines: &[[openstitch_design::Vec2; 2]] =
+        if r.angle_rule == openstitch_design::AngleRule::Fan && !r.angle_lines.is_empty() {
+            &r.angle_lines
+        } else if r.angle_lines.is_empty() && !r.auto_direction && r.gradient.is_none() {
+            own = openstitch_design::angle_lines::angle_line(&closed, r.angle);
+            match &own {
+                Some(l) => std::slice::from_ref(l),
+                None => return Vec::new(),
+            }
+        } else {
+            return Vec::new();
+        };
+    let sides = contour.segment_count();
+    let crossing = |p: openstitch_design::Vec2| {
+        // The side the point lies on, and how far along it.
+        let mut best = (f64::INFINITY, 0_usize, 0.0_f64);
+        for side in 0..sides {
+            let path = contour.segment_polyline(side);
+            let total: f64 = path.windows(2).map(|w| w[0].distance(w[1])).sum();
+            let mut before = 0.0;
+            for w in path.windows(2) {
+                let len = w[0].distance(w[1]);
+                let d = w[1] - w[0];
+                let f = if len > 0.0 {
+                    (((p.x - w[0].x) * d.x + (p.y - w[0].y) * d.y) / (len * len)).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                let gap = p.distance(w[0].lerp(w[1], f));
+                if gap < best.0 && total > 0.0 {
+                    best = (gap, side, (before + len * f) / total);
+                }
+                before += len;
+            }
+        }
+        let (_, side, t) = best;
+        if t < 1e-9 {
+            (((side + sides - 1) % sides) as u32, 1.0)
+        } else {
+            (side as u32, t.min(1.0))
+        }
+    };
+    lines
+        .iter()
+        .map(|l| {
+            let c = openstitch_design::angle_lines::chord(*l, &closed, &[]);
+            [crossing(c[0]), crossing(c[1])]
+        })
+        .collect()
 }
 
 /// A closed outline as PE-DESIGN stores it: from the point its line starts at (the line's
@@ -666,8 +742,9 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
             "object {id}: a gradation shape other than linear is not mapped in PES 0110 (use version 6)"
         ));
     }
-    if r.angle_lines.len() >= 2 {
-        // PE-DESIGN would sew straight rows (#534).
+    if r.angle_lines.len() >= 2 && r.angle_rule != openstitch_design::AngleRule::Fan {
+        // PE-DESIGN would sew straight rows (#534). Its own direction lines (the fan rule,
+        // #1273) are written with the outline, in `fan_lines`.
         return Err(format!(
             "object {id}: stitch angle lines are not mapped in PES 0110 (use version 6)"
         ));

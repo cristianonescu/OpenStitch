@@ -565,6 +565,8 @@ fn check(side: Side, kind: &str, state: &Value, c: &Control, want: Expect) -> Ve
                 }
             }
         }
+        // A greyed value cannot be changed: nothing to try.
+        Control::Greyed { .. } => {}
     }
     problems
 }
@@ -588,7 +590,7 @@ fn controls_of(side: Side, kind: &str) -> Vec<(Value, Control)> {
                         .map(|(o, _)| c.params(json!(o))),
                 );
             }
-            Control::Number { .. } => {}
+            Control::Number { .. } | Control::Greyed { .. } => {}
         }
     }
     for state in states {

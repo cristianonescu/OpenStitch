@@ -438,18 +438,23 @@ then style them in the next.
   closed outline's closing side and its region (a region-only shape becomes a line, as with
   Split at Point); `object.closeOutline` `{id, region}` closes
   an open line and, unless `region: false`, gives it Fill Stitch at 45° when it has no
-  region; two ends lying on each other (within 0.05 mm) become one point. To remove every
-  direction line of a shape, straight ones and a curved one, in one undo step:
+  region; two ends lying on each other (within 0.05 mm) become one point. To remove a
+  shape's curved direction or its Manual Punch direction lines, in one undo step:
   `ui.pointMenu` `{action: "deleteLinesNotSelected"}` (the object menu's Delete Direction
   Line sub-menu) or `ui.run deleteDirection`; in the engine `object.setDirectionLines`
-  `{lines: null}` and `object.setDirectionCurve` `{points: null}`. A new
+  `{lines: null}` and `object.setDirectionCurve` `{points: null}`. On a fill with direction
+  lines added by Add Direction Line the same two act on the selected line instead:
+  `deleteLinesNotSelected` keeps it and deletes the others, `ui.run deleteDirection` (and
+  `{action: "deleteSelectedLine"}`, and the Delete key) deletes it; with no line selected
+  they are grey. A new
   `shape.ellipse` has four smooth points: moving one handle with `object.setSegment` turns
   the other. (`ui.run openOutline` / `closeOutline`; `ui.pointMenu` lists them as `objectMenu`, and
   the selected points with their page and window positions as `selected`, and the status
   bar's hint for that selection as `hint`; while a menu is open on screen `menuRect` is where
   it was painted, null until then). Each is one undo step. In the window `ui.pointMenu`
   `{points, contour}` selects points as Ctrl+click or Shift+click does and reports the seven
-  entries with what is greyed out. With several plain shapes selected (`ui.select`) all of
+  entries with what is greyed out; `{action}` runs one (`ui.run pointToCurve` and the
+  other ribbon buttons do the same). With several plain shapes selected (`ui.select`) all of
   them show their points and one selection spans them, as a drag box over them makes it:
   `{points: [{id, contour, index}, …]}` names points of any of them, `selected` lists `id`
   and `contour` per point, and an entry then runs on all of them, one engine command per
@@ -467,8 +472,32 @@ then style them in the next.
   `object.setHoleSewing` `{ids: [id], enabled: false}` first). A filled shape's
   straight sewing direction shows as a line across it (`directionLine`: `angle`, `from`,
   `to`); turning it is `object.setRegion` `{id, angle}`, and a shape's only direction line
-  cannot be deleted; `{action}` runs one (`ui.run pointToCurve` and the other ribbon
-  buttons do the same).
+  cannot be deleted. More direction lines, as PE-DESIGN's Add Direction Line makes them:
+  `object.addDirectionLine` `{id, line: [[x, y], [x, y]]}` with both ends outside the shape
+  (refused with the reason when an end is inside, when it would cross another line inside
+  the shape, on hole sewing, or on a shape with OpenStitch's own angle lines); the fill's
+  rows then fan between the lines, piece by piece: each outline point between two lines'
+  crossings (a corner, a point on a side) cuts the zone, and in each piece the rows fan
+  through the meeting point of its two bounding lines; the fill angle has no effect then.
+  The outline's points matter: a rectangle imported from PE-DESIGN has five points, ours
+  four, and the same lines can sew differently on the two.
+  `object.deleteDirectionLine` `{id, index}` deletes one, `{id, keep}` all but one (with
+  both, `keep` wins); the line that is left is the fill angle again and stays where it is,
+  as PE-DESIGN keeps it (`object.get` still lists it), until a new angle or Auto direction
+  puts it through the middle of the shape. Adding a line to a shape with Auto direction
+  switches it off (`autoDirectionOff` in the answer). `object.get` returns the lines in its `region` as `angleLines`
+  (a line's index is its place in the list; ends in 0.1 mm) with `angleRule`; in
+  the window `ui.pointMenu` lists them as `directionLines` (`index`, `stored`, `angle`,
+  `from`, `to`, `selected`) and `{selectDirectionLine: <index>}` selects one (`true` the
+  first, `false` none). PES 0110 keeps them. (`object.setAngleLines` holds both
+  kinds of lines, told apart by `rule`: `fan` for these, `sides` for OpenStitch's own; with `rule: "fan"` it refuses what Add Direction Line refuses.)
+  `object.moveDirectionLine` `{id, index, line}` moves one line under the same rules, as
+  dragging one of its ends does, and answers with the line's place afterwards. A new line
+  goes where it lies among the others going round the outline; two neighbouring lines on
+  one straight line are refused, parallel ones give parallel rows. On a shape with Auto
+  direction the first line is the angle it is sewn at now and Auto direction goes off.
+  A shape with direction lines refuses hole sewing, a curved direction and Manual Punch
+  direction lines (`object.deleteDirectionLine` `{id, keep: 0}` first).
 - Clean up: `shape.simplify` `{ids, tolerance: 0.2}` removes nodes within a tolerance (mm; a
   Manual Punch column loses one direction line per call; `ui.run smoothShape` uses the
   `smoothTolerance` setting), and `stitches.smooth`

@@ -1705,7 +1705,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "angle",
                     "degrees",
-                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); setting it turns Auto direction off (PE-DESIGN's straight direction, as the Fill Angle tool does) unless autoDirection is given in the same call; ignored by cross stitch, which PE-DESIGN 11.50 sews on the page axes with no Direction; it turns a net or zigzag net, and a switch to either starts at 0 (PE-DESIGN's default for the types) unless angle is given in the same call",
+                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); setting it turns Auto direction off (PE-DESIGN's straight direction, as the Fill Angle tool does) unless autoDirection is given in the same call; ignored by cross stitch, which PE-DESIGN 11.50 sews on the page axes with no Direction; it turns a net or zigzag net, and a switch to either starts at 0 (PE-DESIGN's default for the types) unless angle is given in the same call. A fill's one direction line kept at a place (the last line left after object.deleteDirectionLine) is dropped: the line goes through the middle of the shape at the new angle",
                 ),
                 opt(
                     "density",
@@ -1751,7 +1751,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "autoDirection",
                     "bool",
-                    "Choose the direction from the shape (rows across its narrow side)",
+                    "Choose the direction from the shape (rows across its narrow side). On (true), a fill's one direction line kept at a place (the last line left after object.deleteDirectionLine) is dropped",
                 ),
                 opt(
                     "gradation",
@@ -2152,6 +2152,16 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     // this call says otherwise (#826; the Fill Angle tool sends both).
                     let auto = if p.has("angle") { false } else { r.auto_direction };
                     r.auto_direction = p.bool("autoDirection", Some(auto))?;
+                    // The one direction line kept at a place (#1273) goes through the
+                    // middle of the shape again when an angle is given or Auto direction is
+                    // on, as PE-DESIGN's own line does for a typed angle.
+                    if (p.has("angle") || r.auto_direction)
+                        && r.angle_rule == openstitch_design::AngleRule::Fan
+                        && r.angle_lines.len() == 1
+                    {
+                        r.angle_lines.clear();
+                        r.angle_rule = openstitch_design::AngleRule::Sides;
+                    }
                     if p.has("gradation") {
                         let g = p.req("gradation", 5.0, 100.0)?;
                         r.gradation = (g < 100.0).then(|| Gradation::continuous(g));
@@ -2421,6 +2431,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             ));
                         }
                         r.angle_lines.clear();
+                        r.angle_rule = openstitch_design::AngleRule::Sides;
                     }
                     crate::flow_param::set_region(p, &mut r, centre)?;
                     if p.has("waveHeight") {
@@ -2864,7 +2875,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.setHoleSewing",
-            "Hole sewing (PE-DESIGN): of two regions where one fully encloses the other, the outer one is sewn around the inner shape. With one id the region it encloses is found; off clears the pair",
+            "Hole sewing (PE-DESIGN): of two regions where one fully encloses the other, the outer one is sewn around the inner shape. With one id the region it encloses is found; off clears the pair. Refused on a shape with direction lines (object.addDirectionLine): go back to one direction first",
             Effect::Edit,
             vec![IDS, req("enabled", "bool", "Hole sewing on/off")],
             |s, p| {
@@ -2883,6 +2894,15 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     return Ok(Value::Null);
                 }
                 let (outer, inner) = hole_pair(s, p, &idx)?;
+                // PE-DESIGN's direction lines do not go with hole sewing (as Add Direction
+                // Line refuses a shape that has it).
+                for k in [outer, inner] {
+                    crate::angle_cmds::refuse_fan(
+                        p,
+                        &s.design.objects[k],
+                        "hole sewing cannot be set",
+                    )?;
+                }
                 let inner = s.design.objects[inner].id;
                 let o = &mut s.design.objects[outer];
                 o.hole_sewing = true;

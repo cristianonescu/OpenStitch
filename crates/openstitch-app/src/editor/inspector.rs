@@ -102,6 +102,13 @@ pub enum Control {
         param: &'static str,
         value: bool,
     },
+    /// A value that cannot be changed now, shown greyed with what it holds (PE-DESIGN greys
+    /// the Direction field of a shape with two or more direction lines, #1273).
+    Greyed {
+        label: &'static str,
+        param: &'static str,
+        text: String,
+    },
 }
 
 impl Control {
@@ -110,7 +117,8 @@ impl Control {
         match self {
             Control::Number { label, .. }
             | Control::Choice { label, .. }
-            | Control::Toggle { label, .. } => label,
+            | Control::Toggle { label, .. }
+            | Control::Greyed { label, .. } => label,
         }
     }
 
@@ -130,7 +138,8 @@ impl Control {
         match self {
             Control::Number { param, .. }
             | Control::Choice { param, .. }
-            | Control::Toggle { param, .. } => param,
+            | Control::Toggle { param, .. }
+            | Control::Greyed { param, .. } => param,
         }
     }
 
@@ -552,7 +561,17 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
             | RegionType::Contour
     );
     // PE-DESIGN 11.50 has no Direction for cross stitch: its grid is on the page axes (#614).
-    if !r.auto_direction && !centred && r.kind != RegionType::CrossStitch {
+    // With two or more direction lines (#1273) the one angle does nothing: PE-DESIGN greys
+    // its Direction field then, with the value it last had (capture k); so here.
+    let lines = r.angle_rule == openstitch_design::AngleRule::Fan && r.angle_lines.len() >= 2;
+    if lines {
+        v.push(Control::Greyed {
+            label: "Direction",
+            param: "angle",
+            text: format!("{}°", (r.angle * 10.0).round() / 10.0),
+        });
+    }
+    if !r.auto_direction && !centred && !lines && r.kind != RegionType::CrossStitch {
         v.push(num(
             "Direction",
             "region.angle",

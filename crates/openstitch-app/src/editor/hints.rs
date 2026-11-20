@@ -122,6 +122,8 @@ pub enum PointSelection {
     Several,
     /// The shape's direction line (a click on one of its ends).
     DirectionLine,
+    /// Add Direction Line is waiting for its two clicks.
+    AddingDirectionLine,
 }
 
 /// The Point tool's hint for what is selected (#1260): PE-DESIGN changes its status-bar hint
@@ -142,7 +144,10 @@ pub fn point_hint(selection: PointSelection) -> &'static str {
             "Hold Alt and drag this end point onto the line's other end to connect the two ends into a closed shape, or onto an end of another open line to join the two lines into one (Alt marks each such end with an x) · arrow keys move it 0.5 mm · right-click it for To Curve and Delete"
         }
         PointSelection::DirectionLine => {
-            "Drag an end of the direction line to turn the sewing direction · a shape's last direction line cannot be deleted · Reverse Direction Line turns it the other way"
+            "Drag an end of the direction line to turn the sewing direction · Delete removes the selected line, but a shape's last direction line cannot be deleted · Reverse Direction Line turns every line the other way"
+        }
+        PointSelection::AddingDirectionLine => {
+            "Add Direction Line: click outside the shape for the line's start, then outside it on another side for its end · a line that ends inside the shape or crosses another line inside it is not added · Esc cancels"
         }
         PointSelection::Several => {
             "Drag one of the selected points to move them all (Shift: only horizontally or vertically), or use the arrow keys (0.5 mm) · Delete removes them · Ctrl+click or Shift+click adds a point, Ctrl+click on a selected one takes it out · right-click one for what applies to all"

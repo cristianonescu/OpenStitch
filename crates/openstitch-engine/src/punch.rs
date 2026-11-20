@@ -361,7 +361,7 @@ pub fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.setDirectionLines",
-            "Sew a satin or fill region along several direction lines (null = back to one direction)",
+            "Sew a satin or fill region along several direction lines (null = back to one direction). Refused on a shape with PE-DESIGN's direction lines (object.addDirectionLine): go back to one direction first",
             Effect::Edit,
             vec![
                 req("id", "int", "Object with satin or fill region sewing"),
@@ -382,6 +382,13 @@ pub fn commands() -> Vec<CommandSpec> {
                     .design
                     .index_of(id)
                     .ok_or_else(|| p.not_found(format!("object {id}")))?;
+                if !lines.is_empty() {
+                    crate::angle_cmds::refuse_fan(
+                        p,
+                        &s.design.objects[i],
+                        "Manual Punch direction lines cannot be set",
+                    )?;
+                }
                 let o = &mut s.design.objects[i];
                 if o.hole_sewing && !lines.is_empty() {
                     return Err(
@@ -454,6 +461,12 @@ pub fn commands() -> Vec<CommandSpec> {
                     let r = s.design.objects[i].region.as_mut().expect("checked");
                     for l in &mut r.direction_lines {
                         l.swap(0, 1);
+                    }
+                    // PE-DESIGN's direction lines on a fill (#1273): every one turns round.
+                    if r.angle_rule == openstitch_design::AngleRule::Fan {
+                        for l in &mut r.angle_lines {
+                            l.swap(0, 1);
+                        }
                     }
                     if let Some(c) = &mut r.direction_curve {
                         *c = reversed(c);

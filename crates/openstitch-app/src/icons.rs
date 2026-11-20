@@ -498,6 +498,7 @@ fn glyph(a: Action) -> Glyph {
         DivideByColor => G::Own("divide_color"),
         Connect => G::Own("connect"),
         AddDirectionLine => G::Direction,
+        CurvedDirection => G::Curve,
         DeleteDirectionLine => G::Own("dir_delete"),
         ReverseDirectionLine => G::Own("dir_reverse"),
         DeletePoint => G::Own("point_delete"),

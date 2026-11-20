@@ -501,6 +501,27 @@ async function extraChecks(browser, type, label) {
       if (!(await ok({ command: "object.list" })).some((o) => o.id === filled.id)) throw new Error("Delete with the direction line selected removed the shape");
       const kept = (await menu()).directionLine;
       if (kept?.angle !== 45 || kept.selected !== true) throw new Error(`the direction line after the click and Delete: ${JSON.stringify(kept)}`);
+      // Add Direction Line in the browser (PE-DESIGN's two clicks, #1273): the two clicks
+      // outside the shape add a line; a click on its square selects it; Delete removes it.
+      const whole = (await menu()).directionLine;
+      const scale = (whole.screenTo[0] - whole.screenFrom[0]) / (whole.to[0] - whole.from[0]);
+      const onPage = ([x, y]) => [box.x + whole.screenFrom[0] + (x - whole.from[0]) * scale, box.y + whole.screenFrom[1] + (y - whole.from[1]) * scale];
+      await ok({ command: "ui.run", params: { action: "addDirection" } });
+      await until("Add Direction Line waits for its two clicks", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.addingDirectionLine === true);
+      await page.mouse.click(...onPage([58, 68]));
+      await page.mouse.click(...onPage([70, 58]));
+      await until("the two clicks add a second direction line", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.directionLines?.length === 2);
+      const added = (await menu()).directionLines;
+      if (added.some((l) => !l.stored || l.selected) || (await menu()).addingDirectionLine) throw new Error(`after Add Direction Line: ${JSON.stringify(added).slice(0, 400)}`);
+      const fresh = added[added.length - 1];
+      await page.mouse.click(box.x + fresh.screenFrom[0], box.y + fresh.screenFrom[1]);
+      await until("a click on the new line's square selects that line", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.directionLines?.[1]?.selected === true);
+      await page.keyboard.press("Delete");
+      await until("Delete removes the selected direction line", () => {
+        const s = window.openstitch.run({ command: "ui.pointMenu" }).result;
+        return s?.directionLines?.length === 1 && s.directionLines[0].stored === false;
+      });
+      if (!(await ok({ command: "object.list" })).some((o) => o.id === filled.id)) throw new Error("Delete with a direction line selected removed the shape");
       // Alt + drag of a line's end onto another open line's end joins the two lines; Alt is
       // not the browser's here (no menu bar opens, the page stays).
       const lineA = await ok({ command: "shape.polygon", params: { points: [[10, 64], [30, 64], [30, 56]], closed: false, outline: "#203040" } });

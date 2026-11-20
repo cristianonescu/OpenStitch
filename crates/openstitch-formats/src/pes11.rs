@@ -688,6 +688,17 @@ pub struct Shape {
     /// to Blocks also puts outline points between line ends (stroke-blocks-A: [0, 11], [1, 10],
     /// [4, 7], [5, 6]).
     pub punch: Vec<[u32; 2]>,
+    /// The direction lines of an ordinary shape (#1273; `g1-two-lines`, `g2-three-lines`),
+    /// in order across the shape: one for a shape whose one direction line is not that of a
+    /// new shape (where the line crosses the outline: the same square at 0 degrees, or the
+    /// last line left after others were deleted), more when lines were added with Select
+    /// Point's Add Direction Line. Empty on Manual Punch blocks and on a shape with a new
+    /// shape's entries, which the writer writes for it. Each line is its
+    /// two crossings of the outline, the end with the square first, each as (side, fraction
+    /// along it): side k runs from vertex k to the next, and a crossing at a vertex is the
+    /// end of the side before it (fraction 1). The header's two position lists hold them:
+    /// the first list the first crossings, the second list the second ones.
+    pub direction_lines: Vec<[(u32, f64); 2]>,
     /// The vertex a block's sewing ends at: one end of its last line (tail +4426; m01: 2,
     /// stroke-blocks-H's first block: 2 of [2, 3]). Not decided by the geometry.
     pub punch_exit: u16,
@@ -787,6 +798,7 @@ impl Shape {
             gallery: false,
             decorative: None,
             punch: Vec::new(),
+            direction_lines: Vec::new(),
             punch_exit: 0,
             no_positions: false,
             stamps: Vec::new(),
@@ -1569,24 +1581,50 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         return Ok(None);
     }
     // One entry per list on a shape, none on Convert to Blocks' running pieces; a Manual
-    // Punch block lists its lines' two ends, at t 0 (anything else is not mapped).
+    // Punch block lists its lines' two ends, at t 0; a shape with direction lines added lists
+    // each line's two crossings of the outline, at a fraction along a side (#1273). Anything
+    // else is not mapped.
+    let mut direction_lines = Vec::new();
     let (punch, no_positions) = match &lists {
-        [a, b] if a.len() == 1 && b.len() == 1 => (Vec::new(), false),
+        [a, b] if a.len() == 1 && b.len() == 1 => {
+            // The shape's one direction line: its two crossings (d0: (0, 1.0) and (2, 1.0),
+            // corner to corner at 45 degrees; the same square at 0 degrees: (1, 0.5) and
+            // (3, 0.5)). Kept as read and written back as they are, except the entries of
+            // PE-DESIGN's new shapes, which the writer writes for a shape without a line:
+            // (0, 1.0) and (2, 1.0) closed, (0, 0.0) twice open.
+            let new_shape =
+                (a[0] == (0, 1.0) && b[0] == (2, 1.0)) || (a[0] == (0, 0.0) && b[0] == (0, 0.0));
+            if !new_shape
+                && (a[0].0 as usize) < n
+                && (b[0].0 as usize) < n
+                && (0.0..=1.0).contains(&a[0].1)
+                && (0.0..=1.0).contains(&b[0].1)
+            {
+                direction_lines = vec![[a[0], b[0]]];
+            }
+            (Vec::new(), false)
+        }
         [a, b] if a.is_empty() && b.is_empty() => (Vec::new(), true),
         [a, b] => {
-            let block = a.len() >= 2
-                && b.len() == a.len()
-                && a.iter()
-                    .chain(b)
-                    .all(|&(v, t)| t == 0.0 && (v as usize) < n);
-            if !block {
+            let paired = a.len() >= 2 && b.len() == a.len();
+            let on_outline = a.iter().chain(b).all(|&(v, _)| (v as usize) < n);
+            let block = paired && on_outline && a.iter().chain(b).all(|&(_, t)| t == 0.0);
+            let lines = paired
+                && on_outline
+                && !block
+                && a.iter().chain(b).all(|&(_, t)| (0.0..=1.0).contains(&t));
+            if lines {
+                direction_lines = a.iter().zip(b).map(|(&p, &q)| [p, q]).collect();
+                (Vec::new(), false)
+            } else if block {
+                (
+                    a.iter().zip(b).map(|(&(p, _), &(q, _))| [p, q]).collect(),
+                    false,
+                )
+            } else {
                 r.offset = start;
                 return Ok(None);
             }
-            (
-                a.iter().zip(b).map(|(&(p, _), &(q, _))| [p, q]).collect(),
-                false,
-            )
         }
     };
     let punch_exit = if punch.is_empty() {
@@ -1650,6 +1688,7 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
             .then(|| read_pattern(&body[PATTERN_START..body.len() - template::BODY_TAIL.len()]))
             .flatten(),
         punch,
+        direction_lines,
         punch_exit,
         no_positions,
         stamps,
@@ -2468,6 +2507,15 @@ fn write_geometry_header(w: &mut ByteWriter, s: &Shape) {
         // Convert to Blocks' running pieces: both lists empty.
         w.u32le(0);
         w.u32le(0);
+    } else if !s.direction_lines.is_empty() {
+        // Direction lines added to the shape (#1273): the first crossings, then the second.
+        for end in 0..2 {
+            w.u32le(s.direction_lines.len() as i64);
+            for line in &s.direction_lines {
+                w.u32le(i64::from(line[end].0));
+                w.append(&line[end].1.to_le_bytes());
+            }
+        }
     } else {
         w.u32le(1);
         w.u32le(0);

@@ -96,6 +96,7 @@ pub fn commands() -> Vec<CommandSpec> {
             region.gradient = None;
             region.wave_height = None;
             region.angle_lines.clear();
+            region.angle_rule = openstitch_design::AngleRule::Sides;
             let mut ids = Vec::with_capacity(colours.len());
             for (k, t) in colours.iter().enumerate() {
                 let mut r = region.clone();

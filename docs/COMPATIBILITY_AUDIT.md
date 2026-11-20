@@ -4940,7 +4940,12 @@ saved files, not in the repository).
 | Ribbon with the shape selected | Add Direction Line available, Delete Direction Line grey, Reverse Direction Line available. | PE-DESIGN capture g, 2026-11-19 |
 | A click on the line's start square | Selects the line (the square turns black). With the only line selected Delete Direction Line stays grey: the last line cannot be deleted. | PE-DESIGN capture g, 2026-11-19 |
 | Dragging an end of a direction line | Changes the angle. | PE-DESIGN instruction manual, read 2026-11-19; not captured |
-| Add Direction Line (a second line, the fill bending between the lines), Delete Selected Line, Delete Lines Not Selected with two or more lines | See capture g; not built here (#1273). | PE-DESIGN capture g, 2026-11-19 |
+| Add Direction Line | A click outside the shape, a second click outside it on another side: a second line, its square at the first click and its arrow head at the second. The fill is sewn again and bends between the two lines (the 40 mm square: 3247 to 3611 stitches). Nothing is selected afterwards. | PE-DESIGN capture g, 2026-11-19 |
+| Add Direction Line with the second click inside the shape | No line is added. | PE-DESIGN capture g, 2026-11-19 |
+| A line that would cross another inside the shape; a shape with hole sewing | Not added; not possible. | PE-DESIGN instruction manual, read 2026-11-19; not captured |
+| Two lines, one selected | Delete Direction Line available; Delete Selected Line and Delete Lines Not Selected both available. Delete Lines Not Selected removes the other line and keeps the selected one, unselected afterwards. The Delete key removes the selected line. One Ctrl+Z brings a line back. | PE-DESIGN capture g, 2026-11-19 |
+| How the lines are stored (PES 0110) | In the shape record's two position lists: the first list each line's first crossing of the outline, the second its second crossing, each as (side, fraction along it); the lists are in order across the shape (a third line was stored first). Two lines: [(0, 1.0), (1, 0.84)] and [(2, 1.0), (2, 0.384)]. | files g1-two-lines, g2-three-lines, read 2026-11-19 |
+| How the fill is sewn with direction lines | The zone between two neighbouring lines is cut at every point of the outline that lies inside one of its two outline runs (a corner; the point in the middle of the bottom side where PE-DESIGN's rectangle starts; a point inserted with Select Point), by the straight line from that point to the point at the same fraction by length along the other run. In each piece the rows pass through the point where the piece's two bounding lines meet (within 0.05 to 0.2 mm in every file); parallel bounding lines give parallel rows. With no such point the zone is one fan through the two lines' meeting point. Inserting one point on a side changed the sewing (3611 to 3497 stitches). The under sewing has no rows across the fill (3, the plain design 27): an edge run about 0.5 mm inside, then a zigzag along the fill, its legs from side to side 2 mm apart. | files g1 to g11, captures g to m, read 2026-11-19 |
 | To Curve on a point in the middle of a straight side | Both handles on the side: the outline does not change (the same rule, point ∓ (next − previous) / 4). | e5 |
 | Right click on the shape, not on a point | The object's menu: Add Direction Line, Delete Direction Line (a sub-menu: Delete Selected Line, Delete Lines Not Selected), Reverse Direction Line, separator, Open, Close. Add and Reverse carry an icon, Delete Direction Line none. Delete Direction Line is always available; on an open line its two sub-menu entries are grey. Open line: Add and Reverse grey, Open grey, Close available. Closed shape with a region: Add, Reverse and Open available, Close grey. | screen |
 | Close | The open line becomes a closed shape through the same points and gets a region: Fill Stitch at direction 45 (1289 stitches against 310). | e7 |
@@ -4991,11 +4996,160 @@ saved files, not in the repository).
   such a shape and available for what it removes here, a curved direction or several
   direction lines (`the_direction_line_is_the_fill_angle_and_a_dragged_end_turns_it`,
   `the_direction_line_of_a_filled_shape_and_its_greying`).
-- Not built yet (#1273): a second and further direction lines on an ordinary shape with the
-  fill bending between them, so Add Direction Line still draws OpenStitch's curved
-  direction (its own command, kept), and the sub-menu's Delete Selected Line and Delete Lines
-  Not Selected do not yet work on selected lines (Delete Selected Line is grey; Delete Lines
-  Not Selected removes a curved direction or a Manual Punch shape's lines, as before).
+- Direction lines on an ordinary fill (#1273). Storage: the shape's stitch angle lines
+  (`region.angle_lines`, #534) with a stored rule, `fan` for PE-DESIGN's direction lines and
+  `sides` for OpenStitch's own (existing files and the Angle Lines tool: unchanged). One
+  shape has one rule and lines are not converted: Add Direction Line on a shape with `sides`
+  lines, and `object.setAngleLines` with the other rule, are refused with a message.
+  `region.direction_lines` stays Manual Punch only.
+- Sewing (`angle_lines::FanWarp`), PE-DESIGN's rule as read from its files g1 to g11
+  (two predictions written before the captures, g10 and g11, held):
+  1. The zone between two neighbouring lines is bounded by their chords and two outline
+     runs (start crossing to start crossing, arrow crossing to arrow crossing).
+  2. Every outline point strictly inside a run cuts the zone, by the straight line from it
+     to the point at the same fraction by length along the other run
+     (`angle_lines::cuts`). On a curved outline: the points of its flattened path, at most
+     96 cuts.
+  3. In each piece the rows pass through the meeting point of its two bounding lines
+     (parallel rows when they are parallel or meet more than 100 m away), a spacing apart
+     at each row's far end.
+  4. Before the first line and beyond the last the shape runs as far as the outline point
+     farthest from that line (the far side, when it is parallel to the line) and is cut the
+     same way (`angle_lines::end_cuts`); beyond the outermost cut the rows are parallel to
+     it, and a corner cut off by a line has rows parallel to the line. **This point is a
+     fit to one file (g11), found after seeing it, not a tested prediction.**
+  5. Under sewing: the plain fill's edge run 1 mm inside the outline, then a zigzag along
+     the fill whose legs go from side to side, the under sewing's spacing apart, half a
+     step from each end, 0.5 mm inside (`region::fan_zigzag`; its turning points are
+     PE-DESIGN's to about 0.1 mm in g11). PE-DESIGN's edge run there is 0.5 mm inside and
+     begins with a walk that differs from file to file; that is not built.
+  The shape is taken to a plane where every row is horizontal, the plain fill's top
+  stitching is laid out there from the entry point (the outline's first point without
+  one) and brought back. A shape without added lines sews exactly as before.
+  Where a cut would leave the shape, or a line does not part its end of the shape from the
+  rest (lines across the two arms of a U), nothing is cut and the zone is one piece; where
+  a row crosses the shape in two parts, or the shape has a hole, the under sewing is rows
+  along the lines instead of the zigzag. None of that is captured on PE-DESIGN.
+- **OpenStitch's own rectangle has four points, PE-DESIGN's five** (it starts in the middle
+  of the bottom side). Because the outline's points cut the zones, the same lines sew
+  differently on the two wherever a run passes that fifth point. An imported PE-DESIGN
+  rectangle keeps its five points and sews as PE-DESIGN does; no point is added to
+  OpenStitch's rectangles.
+- Against PE-DESIGN's seven reference designs (g1, g3, g4, g8, g9, g10, g11), each built
+  with PE-DESIGN's outline points; tolerance, stated once and pinned in
+  `the_fill_with_direction_lines_is_pe_designs_within_the_stated_tolerance`: needle points
+  within 3 %, rows of a zone within 2, row angle of a zone within 1.5 degrees, every row
+  counted (under sewing and moves too). Needle points, PE-DESIGN / here: 2773 / 2779,
+  2980 / 3005, 2591 / 2595, 2722 / 2658, 2716 / 2711, 2659 / 2659, 2597 / 2547 (worst
+  -2.4 %). Of the 22 zones 15 are within the tolerance and held to it by the test. **Seven
+  are not: a known difference, shipped by the owner's decision of 2026-11-20 and tracked
+  in #1287.** They are listed in the test, not asserted with a wider number; the numbers
+  (rows longer than 2 mm; angle of the rows longer than 10 mm):
+
+  | Design, zone | PE-DESIGN rows / angle | OpenStitch rows / angle | Outside by | Cause, as far as known |
+  |---|---|---|---|---|
+  | g3, zone 0 (corner beyond the steep line) | 31 / 60.8° | 31 / 62.9° | angle 2.1° | rows of 2 to 17 mm sewn from the other end |
+  | g4, zone 0 (the same corner) | 31 / 60.8° | 31 / 62.9° | angle 2.1° | as g3 |
+  | g8, zone 0 (strip below the 0° line) | 106 / 0.3° | 100 / -0.3° | 6 rows | PE-DESIGN's start walk and 0.5 mm edge run put five rows along the bottom side, this fill two; the plain fill at 0° (g12) has no such difference |
+  | g9, zone 0 (corner beyond the added line) | 37 / 13.4° | 33 / 14.4° | 4 rows | not explained |
+  | g11, zone 0 (strip below the 0° line) | 107 / 0.3° | 100 / -0.3° | 7 rows | as g8 |
+  | g11, zone 1 (fan) | 84 / 4.4° | 88 / 4.1° | 4 rows | the rows next to the last line (146 against 147 with zone 2) |
+  | g11, zone 2 (beyond the last line) | 62 / 12.4° | 59 / 11.8° | 3 rows | as zone 1; this part follows rule 4, a fit to g11 only |
+
+  The first three-line capture (g2) is kept in the test as a weak case: its third line is
+  all but parallel to the first (44.7 against 45 degrees), so it sews almost as g1. Its two
+  zones around that line are outside the tolerance as well and are listed the same way, not
+  counted in the 22: zone 0 24 rows / 43.6° against 26 / 45.9°, zone 1 119 / 45.2° against
+  116 / 44.7°.
+  Only the fill follows direction lines; other region types refuse Add Direction Line.
+- Where the rows of a fan would come closer than a quarter of their spacing (the lines meet
+  on or just outside the outline) every other pair of rows ends early, and again at each
+  halving (`rows_of_a_fan_end_early_where_they_crowd`). PE-DESIGN's two-line design keeps
+  every row down to 0.30 of the spacing; closer than that is not captured, so the limit is
+  OpenStitch's and sits just under what is known.
+- Parallel neighbouring lines give parallel rows between them; lines that meet farther than
+  100 m away are sewn as parallel; two neighbouring lines on one straight line are refused
+  (no zone between them); lines that do not follow one another across the shape (three
+  corner cuts) are refused. The order of the lines is the one they have going round the
+  outline, which is how PE-DESIGN's three-line file lists them; a second line goes after
+  the first (`parallel_collinear_and_nearly_parallel_lines`,
+  `lines_are_in_order_round_the_outline_wherever_their_middles_are`). None of this is
+  captured on PE-DESIGN beyond its two files.
+- A shape whose bounds' middle is outside it (a C, a U) has its one line through the middle
+  of its widest part level with that point, so a second line can be added
+  (`a_shape_whose_middle_is_outside_it_takes_direction_lines`). With Auto direction the first
+  line is the angle the shape is sewn at now, and Auto direction is switched off: a shape
+  with direction lines has none (`auto_direction_gives_its_angle_to_the_first_line`; not
+  captured on PE-DESIGN).
+- Hole sewing, a curved direction and Manual Punch direction lines are refused on a shape
+  with direction lines, and `object.setAngleLines` with the rule `fan` refuses what Add
+  Direction Line refuses (`direction_lines_refuse_hole_sewing_and_other_directions_both_ways`);
+  `object.setRegion {angleLines: false}` and `shape.tartan` take the rule away with the
+  lines (`removing_the_lines_resets_their_rule`). The Angle Lines tool leaves a shape with
+  direction lines alone and says why (`a_shape_with_pe_designs_direction_lines_is_refused`).
+- PES 0110 reads and writes the lines in the two position lists; for the two reference
+  designs OpenStitch writes the same list entries as PE-DESIGN, in the same order
+  (`pes_0110_keeps_direction_lines`; the lists byte by byte, built by hand from the two-line
+  file's values: `direction_line_lists_are_read_and_written_as_pe_design_holds_them`). Lines
+  on a region that is not a fill, and lines that cannot be sewn, are left out on import
+  with a note (`direction_lines_that_are_not_imported_leave_a_note`).
+  On a curved side the fraction is by length along the side; PE-DESIGN's measure on a curve
+  is not captured. `sides` lines are still refused in PES 0110.
+- Add Direction Line (ribbon, object menu, `ui.run addDirection`) is PE-DESIGN's two clicks
+  with the Point tool; `object.addDirectionLine` refuses, with the reason, an end inside the
+  shape, a line that does not cross it, one that would cross another line inside it, hole
+  sewing, a curved direction or Manual Punch lines, a region that is not a fill, and `sides`
+  lines. The new line is put where it lies among the others (PE-DESIGN keeps its lists in
+  order across the shape). Every line shows with its square and arrow head; a click on an
+  end selects it; dragging an end of a stored line moves that end under Add Direction
+  Line's rules (`object.moveDirectionLine`: an end dropped inside the shape is refused and
+  the line stays; not captured on PE-DESIGN). The selection is the line itself, so an undo
+  or a command that deletes another line cannot leave a different line selected
+  (`a_selected_direction_line_follows_the_line_and_a_dragged_end_obeys_the_rules`). Delete Selected Line and the Delete key remove the selected line, Delete Lines
+  Not Selected every other one; one line left is the fill angle again; the last line cannot
+  be deleted (`object.deleteDirectionLine`). Reverse Direction Line turns every line round.
+  The curved direction keeps its own command and is drawn with Shapes ▸ Curved Direction
+  (it was the old Add Direction Line button).
+  (`add_direction_line_is_two_clicks_and_stored_lines_are_selected_dragged_and_deleted`,
+  `direction_lines_are_added_selected_and_deleted_through_the_ui_commands`,
+  `add_direction_line_refuses_what_pe_design_refuses_and_says_why`,
+  `delete_and_reverse_direction_lines`).
+- Add Direction Line turns the new line to run the way the shape's lines already run,
+  whichever end is clicked first, as PE-DESIGN does (its capture k). With two or more lines
+  PE-DESIGN greys the Direction angle field with the value it last had; so here
+  (`the_direction_field_is_greyed_with_two_or_more_direction_lines`). Adding a line to a
+  shape with Auto direction switches it off and the status bar says so.
+- Robustness, not captured on PE-DESIGN: corners always cut a zone, only the points of a
+  flattened curve are thinned (to about 96 a zone); where one cut would leave the shape,
+  or two cuts cross, or a cut crosses one of the zone's lines, none is made and the zone stays
+  one piece (dropping only the cut that leaves the shape left the pieces beside it bounded
+  by cuts that cross outside the shape: a U with a line across each arm was sewn with
+  11,874 needle points against 6,046 for its plain fill); a piece whose bounding lines meet inside the outline has parallel
+  rows (a fan there would cross itself), and so has one whose meeting point lies between its
+  two chords (in a notch); a shape that folds over itself in the warp (a U with lines in
+  both arms) is sewn as the plain fill at its fill angle. The work is bounded by the pieces: the
+  steep three-line square and a circle of 200 points with three lines are cut into at most
+  300 pieces (`a_fill_with_direction_lines_is_sewn_in_reasonable_time`, which also holds
+  each under 3 s in a debug build; measured on 2026-11-20, debug: 12 against 9 ms without
+  lines for the square, 137 against 18 ms for the circle). The fold check uses a grid of
+  buckets, about as many steps as outline edges (`the_fold_check_of_a_large_shape_is_quick`:
+  a 200 mm circle, about 21,000 edges).
+- A fill without direction lines is written to PES 0110 with the one line its fill angle
+  draws through the middle of the shape, as PE-DESIGN's own files hold it (g12, 0 degrees:
+  (1, 0.5) and (3, 0.5)); before, every fill was written with the 45 degree square's
+  corner entries, and PE-DESIGN's Select Point drew a 45 degree line on it whatever its
+  angle (capture p: the fill itself sewed at its angle). Only those list entries change.
+- After Delete Lines Not Selected (or deleting down to one line) the line that is left
+  stays where it was, as PE-DESIGN keeps it (capture g); the fill is sewn at its angle, as a
+  plain fill. PES 0110 holds that line's two crossings in the lists' one entry each, as
+  PE-DESIGN's own files hold a single line's (d0: (0, 1.0) and (2, 1.0); the same square at
+  0 degrees, g12: (1, 0.5) and (3, 0.5)). A typed angle or Auto direction puts the line
+  through the middle of the shape again. A shape made here without a kept line is written
+  with the entries of PE-DESIGN's new shapes, as before (whatever its angle; an existing
+  difference, not changed here).
+- Not known: PE-DESIGN's start walk and 0.5 mm edge run with direction lines (here the
+  plain fill's edge run, then the zigzag along the fill); how PE-DESIGN orders lines that do
+  not lie in a row across the shape; the pointer shape while adding.
 - Hole sewing and fitted text (#1271; PE-DESIGN instruction manual, read 2026-11-19, none of
   it captured yet): `object.splitAtPoint` and `object.openOutline` cancel hole sewing on the
   object's pair, whether it is the outer shape or the inner one, so no piece keeps the flags
@@ -5106,8 +5260,8 @@ Tests: engine `a_point_inserted_on_a_side_is_straight_or_smooth_as_pe_design_mak
   the region becomes line sewing, a running stitch in the region's thread, as
   `object.regionToLine` gives it, in the same undo step. The result is what PE-DESIGN leaves
   after a split on line and region: an open line, no region. PE-DESIGN's shape tools always
-  make a line, so it has no such case on its own shapes; it is not captured on an imported
-  region-only shape.
+  make a line, so it has no such case on its own shapes. Accepted by the owner on
+  2026-11-19; PE-DESIGN's behaviour on a region-only shape is not known (#1283).
 - The drag box takes the points of the shapes that are selected (select them with the Select
   tool, then switch to the Point tool), which is the owner's hand check: both shapes were
   selected. A box over a shape that is not selected is not captured; here it takes none of

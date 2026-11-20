@@ -459,7 +459,15 @@ Direction of 360 or more as its remainder after whole turns, each listed in the 
 of PE-DESIGN's own files in compat/reference and the pe11 fixtures has a value outside these
 ranges (`import_pes_takes_the_objects_of_every_pe_design_file`), and a file opened and saved
 unchanged is still written back byte for byte, since the kept file is not rebuilt from the
-design. A block's `punch` pairs become its direction lines (vertex a to vertex b),
+design. Direction lines added with PE-DESIGN's Select Point tool on an ordinary filled shape
+(#1273) are in the same two position lists of the shape record: the first list holds each
+line's first crossing of the outline, the second list its second crossing, each as a side
+(from vertex k to the next) and a fraction along it, in order across the shape; a crossing at
+a vertex is the end of the side before it (fraction 1). They are read into the fill's angle
+lines with the rule `fan` and written back the same way (for PE-DESIGN's two reference
+designs the written entries equal its own, in its order); lines on a region that is not a
+fill, or that cannot be sewn, are left out with an import note; a shape with its one direction keeps one entry in
+each list, as before. A block's `punch` pairs become its direction lines (vertex a to vertex b),
 curved when any vertex has a curve kind. The groups are kept. The region types Cross Stitch to
 Flexible Spiral come in at OpenStitch's defaults (their own fields are not mapped); a
 programmable fill takes the header's one fill pattern and a decorative fill its object's pattern

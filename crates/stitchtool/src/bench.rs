@@ -482,6 +482,29 @@ pub const TASKS: &[Task] = &[
         },
     },
     Task {
+        id: "direction-lines",
+        setup: &[(
+            "shape.rectangle",
+            r##"{"x": 30, "y": 30, "width": 40, "height": 40, "fill": "#2e8b57"}"##,
+        )],
+        prompt: "Give the square two more direction lines as PE-DESIGN's Add Direction Line does: one across its top-left corner and one across its bottom-right corner. Then check which lines it has and delete the bottom-right one again.",
+        check: |d| {
+            let lines = d.full.first().map_or(0, |o| {
+                o["region"]["angleLines"].as_array().map_or(0, Vec::len)
+            });
+            need(
+                lines == 2,
+                "two direction lines left (the fill angle's and the top-left one)",
+            )?;
+            need(
+                d.full
+                    .first()
+                    .is_some_and(|o| o["region"]["angleRule"] == "fan"),
+                "PE-DESIGN's direction lines (the fan rule)",
+            )
+        },
+    },
+    Task {
         id: "wider",
         setup: &[("shape.rectangle", RECT)],
         prompt: "Make the rectangle twice as wide.",
@@ -1893,7 +1916,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 36);
+        assert_eq!(TASKS.len(), 37);
     }
 
     #[test]
@@ -2173,6 +2196,48 @@ mod tests {
             let d = design(&mut s);
             assert_eq!((task.check)(&d), Ok(()), "{id}: done");
         }
+    }
+
+    /// #1273: the direction-lines task passes when the square has the fill angle's line and
+    /// the top-left one with the fan rule (read with `object.get`, as the benchmark reads
+    /// it), and fails as set up and with all three lines.
+    #[test]
+    fn the_direction_lines_task_reads_the_lines_back() {
+        let task = TASKS
+            .iter()
+            .find(|t| t.id == "direction-lines")
+            .expect("task");
+        let read = |s: &mut Session| Design {
+            full: vec![
+                s.execute("object.get", Some(&json!({"id": 1})))
+                    .expect("get"),
+            ],
+            ..Design::default()
+        };
+        let mut s = Session::new(std::env::temp_dir());
+        for (c, p) in task.setup {
+            let p: Value = serde_json::from_str(p).expect("json");
+            s.execute(c, Some(&p)).expect("setup");
+        }
+        assert!((task.check)(&read(&mut s)).is_err(), "as set up");
+        for line in [
+            json!([[25.2, 38.4], [50.17, 28.0]]),
+            json!([[57.05, 74.0], [74.0, 57.2]]),
+        ] {
+            s.execute(
+                "object.addDirectionLine",
+                Some(&json!({"id": 1, "line": line})),
+            )
+            .expect("add");
+        }
+        assert!((task.check)(&read(&mut s)).is_err(), "three lines");
+        // The bottom-right line is first across the shape.
+        s.execute(
+            "object.deleteDirectionLine",
+            Some(&json!({"id": 1, "index": 0})),
+        )
+        .expect("delete");
+        assert_eq!((task.check)(&read(&mut s)), Ok(()), "done");
     }
 
     /// #1006: the branch-columns task passes on the design `object.deriveSkeleton {branches:

@@ -972,6 +972,31 @@ fn the_direction_line_is_painted_red_and_its_selected_square_black() {
         (1, 1, 1),
         "selected: the square black, the arrow head as before"
     );
+    // Several direction lines (#1273): every line is painted, each with its square and its
+    // arrow head; only the selected line's square is black.
+    app.ui_command("ui.pointMenu", Some(&json!({ "selectDirectionLine": false })))
+        .expect("select none");
+    for line in [[[15, 30], [35, 15]], [[45, 55], [65, 40]]] {
+        app.execute(&CommandRequest::new(
+            "object.addDirectionLine",
+            json!({ "id": id, "line": line }),
+        ))
+        .expect("a direction line");
+    }
+    assert_eq!(
+        painted(&mut app),
+        (3, 6, 0),
+        "three lines, three squares and three arrow heads"
+    );
+    for index in 0..3 {
+        app.ui_command("ui.pointMenu", Some(&json!({ "selectDirectionLine": index })))
+            .expect("select a line");
+        assert_eq!(
+            painted(&mut app),
+            (3, 5, 1),
+            "line {index} selected: one black square"
+        );
+    }
 }
 
 /// Esc with a point menu or an object menu open closes the menu and nothing else (PE-DESIGN's:

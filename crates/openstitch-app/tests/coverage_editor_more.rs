@@ -79,7 +79,7 @@ fn round_trip(
                 Control::Toggle { value, .. } => Some(json!(value)),
                 _ => None,
             }),
-            Control::Number { .. } => continue,
+            Control::Number { .. } | Control::Greyed { .. } => continue,
         };
         let m = InspectorModel::new(s.design(), &sel);
         run(s, &set(&m, c.params(wanted.clone())));

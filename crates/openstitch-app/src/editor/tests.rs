@@ -1174,6 +1174,7 @@ fn hand_made_line_controls_reach_the_engine() {
                 Control::Number { value, .. } => json!(value),
                 Control::Choice { value, .. } => json!(value),
                 Control::Toggle { value, .. } => json!(value),
+                Control::Greyed { .. } => continue,
             };
             let mut p = c.params(v);
             p["id"] = json!(1);
@@ -1204,6 +1205,7 @@ fn every_line_type_has_inspector_controls_the_engine_accepts() {
                 Control::Number { value, .. } => json!(value),
                 Control::Choice { options, .. } => json!(options.last().expect("options").0),
                 Control::Toggle { value, .. } => json!(!value),
+                Control::Greyed { .. } => continue,
             };
             let mut params = c.params(v);
             params["id"] = json!(1);
@@ -1282,6 +1284,7 @@ fn region_option_controls_are_accepted_by_the_engine() {
                 }
                 Control::Choice { options, .. } => json!(options.last().expect("options").0),
                 Control::Toggle { value, .. } => json!(!value),
+                Control::Greyed { .. } => continue,
             };
             let mut params = c.params(v);
             params["id"] = json!(1);
@@ -3312,4 +3315,326 @@ fn a_dragged_point_of_a_hole_sewn_shape_stops_before_the_other_outline() {
             .contains("hole sewing")
     );
     assert_eq!(*s.design(), design);
+}
+
+/// PE-DESIGN capture g, 2026-11-19 (#1273): Add Direction Line is two clicks outside the
+/// shape; every line shows with its handles; a click on an end selects that line; the Delete
+/// key removes it; a line whose end is inside the shape is not added.
+#[test]
+fn add_direction_line_is_two_clicks_and_stored_lines_are_selected_dragged_and_deleted() {
+    let mut s = session();
+    let id = run(
+        &mut s,
+        &CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 30, "y": 30, "width": 40, "height": 40, "fill": "#2e8b57" }),
+        ),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    run(
+        &mut s,
+        &CommandRequest::new("object.setRegion", json!({ "id": id, "angle": 45 })),
+    );
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let lines = |t: &ToolController, s: &Session| {
+        let design = s.design().clone();
+        t.direction_lines(&ctx(&design, &sel))
+    };
+    assert_eq!(lines(&t, &s).len(), 1, "the fill angle");
+    assert!(!lines(&t, &s)[0].stored);
+    // Two clicks, both outside the shape: the line is added and nothing is selected.
+    let design = s.design().clone();
+    assert!(t.start_direction_line(&ctx(&design, &sel)));
+    assert_eq!(
+        t.point_selection(&ctx(&design, &sel)),
+        Some(super::hints::PointSelection::AddingDirectionLine)
+    );
+    let sel2 = click_at(&mut t, &mut s, sel.clone(), v2(252.0, 384.0), 1);
+    assert_eq!(lines(&t, &s).len(), 1, "one click adds nothing yet");
+    assert_eq!(
+        t.adding_direction_line().map(|a| a.0),
+        Some(Some(v2(252.0, 384.0)))
+    );
+    let sel2 = click_at(&mut t, &mut s, sel2, v2(501.7, 280.0), 1);
+    assert_eq!(sel2, sel, "the shape stays selected");
+    assert!(t.adding_direction_line().is_none());
+    let shown = lines(&t, &s);
+    assert_eq!(shown.len(), 2);
+    assert!(shown.iter().all(|l| l.stored && !l.selected));
+    // The new line is drawn across the shape where it was clicked, 5 mm beyond the outline
+    // at both ends (it crosses the left side at 36.4 mm and the top side at 45.37 mm).
+    let new = shown[1];
+    let reach = super::tools::DIRECTION_LINE_REACH;
+    assert!(
+        (new.from.distance(v2(300.0, 364.0)) - reach).abs() < 0.5,
+        "{new:?}"
+    );
+    assert!(
+        (new.to.distance(v2(453.7, 300.0)) - reach).abs() < 0.5,
+        "{new:?}"
+    );
+    // A second click inside the shape: the engine refuses, no line is added.
+    let design = s.design().clone();
+    assert!(t.start_direction_line(&ctx(&design, &sel)));
+    let c = ctx(&design, &sel);
+    t.handle(PointerEvent::new(Phase::Down, v2(250.0, 600.0)), &c);
+    let effects = t.handle(PointerEvent::new(Phase::Down, v2(500.0, 500.0)), &c);
+    let [ToolEffect::Execute { requests, .. }] = effects.as_slice() else {
+        panic!("one effect");
+    };
+    let refused = s.execute(requests[0].command, Some(&requests[0].params));
+    assert!(
+        refused
+            .expect_err("an end inside")
+            .to_string()
+            .contains("inside the shape")
+    );
+    assert_eq!(lines(&t, &s).len(), 2);
+    // A click on the new line's start selects it; the other line is not selected.
+    let sel2 = click_at(&mut t, &mut s, sel.clone(), new.from, 1);
+    let shown = lines(&t, &s);
+    assert_eq!((shown[0].selected, shown[1].selected), (false, true));
+    let design = s.design().clone();
+    assert_eq!(
+        t.point_selection(&ctx(&design, &sel2)),
+        Some(super::hints::PointSelection::DirectionLine)
+    );
+    // Dragging its arrow head moves that end, however far outside the shape it is dropped
+    // (the line is stored across the shape, 5 mm beyond the outline): one command, one Undo.
+    let before = s.design().clone();
+    let sel2 = drag(&mut t, &mut s, sel2, new.to, v2(480.0, 150.0), false);
+    let moved = lines(&t, &s)[1];
+    assert!(
+        moved.angle > new.angle + 3.0,
+        "{} -> {}",
+        new.angle,
+        moved.angle
+    );
+    assert_eq!(
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("region")
+            .angle_lines
+            .len(),
+        2
+    );
+    undo(&mut s);
+    assert_eq!(*s.design(), before, "one Undo");
+    // The Delete key removes the selected line; the one left is the fill angle again and
+    // cannot be deleted.
+    let sel2 = click_at(&mut t, &mut s, sel2, new.from, 1);
+    let design = s.design().clone();
+    let effects = t
+        .delete_point(&ctx(&design, &sel2))
+        .expect("a line is selected");
+    let sel2 = apply(&mut s, effects, sel2);
+    let left = lines(&t, &s);
+    assert_eq!(
+        (left.len(), left[0].stored, left[0].angle),
+        (1, false, 45.0)
+    );
+    let sel2 = click_at(&mut t, &mut s, sel2, left[0].from, 1);
+    let design = s.design().clone();
+    assert_eq!(t.delete_point(&ctx(&design, &sel2)), Some(vec![]));
+    // Esc leaves Add Direction Line.
+    assert!(t.start_direction_line(&ctx(&design, &sel2)));
+    t.cancel();
+    assert!(t.adding_direction_line().is_none());
+}
+
+/// Review of #1278. The selected direction line is the line itself: an undo that takes it away
+/// leaves nothing selected, and after a command that deletes another line the same line is
+/// still the selected one, so the Delete key cannot hit a different line. A dragged end obeys
+/// Add Direction Line's rules, the square end as the arrow head: dropped inside the shape the
+/// move is refused and the line stays where it was, still selected.
+#[test]
+fn a_selected_direction_line_follows_the_line_and_a_dragged_end_obeys_the_rules() {
+    const TL: [[f64; 2]; 2] = [[25.2, 38.4], [50.17, 28.0]];
+    const BR: [[f64; 2]; 2] = [[57.05, 74.0], [74.0, 57.2]];
+    let mut s = session();
+    let id = run(
+        &mut s,
+        &CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 30, "y": 30, "width": 40, "height": 40, "fill": "#2e8b57" }),
+        ),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    run(
+        &mut s,
+        &CommandRequest::new("object.setRegion", json!({ "id": id, "angle": 45 })),
+    );
+    let add = |s: &mut Session, line: [[f64; 2]; 2]| {
+        run(
+            s,
+            &CommandRequest::new("object.addDirectionLine", json!({ "id": id, "line": line })),
+        )["index"]
+            .as_u64()
+            .expect("index")
+    };
+    assert_eq!(add(&mut s, TL), 1);
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let sel = BTreeSet::from([id]);
+    let lines = |t: &ToolController, s: &Session| {
+        let design = s.design().clone();
+        t.direction_lines(&ctx(&design, &sel))
+    };
+    // Line 2 selected, then its add undone: the shape has its one line again, nothing is
+    // selected, and the Delete key has no line to delete.
+    let design = s.design().clone();
+    assert!(t.select_direction_line(Some(1), &ctx(&design, &sel)));
+    assert!(lines(&t, &s)[1].selected);
+    undo(&mut s);
+    let shown = lines(&t, &s);
+    assert_eq!(
+        (shown.len(), shown[0].stored, shown[0].selected),
+        (1, false, false)
+    );
+    let design = s.design().clone();
+    assert!(t.selected_direction_line(&ctx(&design, &sel)).is_none());
+    assert!(
+        t.delete_point(&ctx(&design, &sel))
+            .is_none_or(|effects| effects.is_empty()),
+        "Delete does nothing to the lines"
+    );
+    // Three lines, in order across the shape: bottom-right, 45 degrees, top-left. The last
+    // is selected and the first deleted by a command: the same line is selected, now second.
+    assert_eq!(add(&mut s, TL), 1);
+    assert_eq!(add(&mut s, BR), 0);
+    let design = s.design().clone();
+    assert!(t.select_direction_line(Some(2), &ctx(&design, &sel)));
+    let top_left = lines(&t, &s)[2];
+    run(
+        &mut s,
+        &CommandRequest::new(
+            "object.deleteDirectionLine",
+            json!({ "id": id, "index": 0 }),
+        ),
+    );
+    let shown = lines(&t, &s);
+    assert_eq!(
+        (shown.len(), shown[0].selected, shown[1].selected),
+        (2, false, true)
+    );
+    assert!(shown[1].from.distance(top_left.from) < 1e-6);
+    // The Delete key deletes that line, not the one that now has its old index: the 45
+    // degree line is left.
+    let design = s.design().clone();
+    let effects = t
+        .delete_point(&ctx(&design, &sel))
+        .expect("a line is selected");
+    apply(&mut s, effects, sel.clone());
+    let left = lines(&t, &s);
+    assert_eq!((left.len(), left[0].angle), (1, 45.0));
+
+    // A dragged end. Two lines again: 45 degrees and top-left.
+    assert_eq!(add(&mut s, TL), 1);
+    let line = lines(&t, &s)[1];
+    let before = s.design().clone();
+    // The arrow head dropped inside the shape: the engine refuses, as Add Direction Line
+    // refuses an end inside, and the line stays, selected.
+    let design = s.design().clone();
+    let c = ctx(&design, &sel);
+    t.handle(PointerEvent::new(Phase::Down, line.to), &c);
+    t.handle(PointerEvent::new(Phase::Dragged, v2(480.0, 400.0)), &c);
+    t.handle(PointerEvent::new(Phase::Dragged, v2(500.0, 500.0)), &c);
+    let effects = t.handle(PointerEvent::new(Phase::Up, v2(500.0, 500.0)), &c);
+    let [ToolEffect::Execute { requests, .. }] = effects.as_slice() else {
+        panic!("one effect");
+    };
+    assert_eq!(requests[0].command, "object.moveDirectionLine");
+    let refused = s
+        .execute(requests[0].command, Some(&requests[0].params))
+        .expect_err("an end inside")
+        .to_string();
+    assert!(refused.contains("inside the shape"), "{refused}");
+    assert_eq!(*s.design(), before, "nothing changed");
+    let shown = lines(&t, &s);
+    assert_eq!((shown[0].selected, shown[1].selected), (false, true));
+    // The SQUARE end dragged down the left side, outside the shape: that end moves, the
+    // line turns, and it is still the selected one. One command, one Undo.
+    let sel2 = drag(
+        &mut t,
+        &mut s,
+        sel.clone(),
+        line.from,
+        v2(250.0, 450.0),
+        false,
+    );
+    let moved = lines(&t, &s)[1];
+    assert!(moved.selected && moved.stored);
+    assert!(
+        moved.angle > line.angle + 5.0,
+        "{} -> {}",
+        line.angle,
+        moved.angle
+    );
+    assert!(moved.from.distance(v2(250.0, 450.0)) < 20.0, "{moved:?}");
+    assert!(moved.to.distance(line.to) < 40.0, "{moved:?}");
+    undo(&mut s);
+    assert_eq!(*s.design(), before, "one Undo");
+    assert!(lines(&t, &s)[1].selected, "selected where it was again");
+    let _ = sel2;
+
+    // An end dragged so far round that the line would run the other way: the engine turns
+    // it to run the way the shape's other line does, and it stays selected. A square at
+    // fill angle 0 (its line runs to the right) with a line across its top-left corner;
+    // the line's square end is dragged right of the right side, so the line would run
+    // from the right side up to the left.
+    let mut s = session();
+    let id = run(
+        &mut s,
+        &CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 30, "y": 30, "width": 40, "height": 40, "fill": "#2e8b57" }),
+        ),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    run(
+        &mut s,
+        &CommandRequest::new("object.setRegion", json!({ "id": id, "angle": 0 })),
+    );
+    run(
+        &mut s,
+        &CommandRequest::new(
+            "object.addDirectionLine",
+            json!({ "id": id, "line": [[25.0, 40.0], [52.0, 25.0]] }),
+        ),
+    );
+    let sel = BTreeSet::from([id]);
+    let lines = |t: &ToolController, s: &Session| {
+        let design = s.design().clone();
+        t.direction_lines(&ctx(&design, &sel))
+    };
+    let mut t = ToolController::default();
+    t.set_tool(Tool::Point);
+    let added = lines(&t, &s)[1];
+    let sel2 = drag(
+        &mut t,
+        &mut s,
+        sel.clone(),
+        added.from,
+        v2(750.0, 350.0),
+        false,
+    );
+    let shown = lines(&t, &s);
+    let turned = shown[1];
+    assert!(turned.selected && turned.stored, "{turned:?}");
+    assert!(
+        turned.from.x < turned.to.x,
+        "turned: it runs to the right, as the 0 degree line: {turned:?}"
+    );
+    let (d, e) = (turned.to - turned.from, shown[0].to - shown[0].from);
+    assert!(
+        d.x * e.x + d.y * e.y > 0.0,
+        "runs the way the other line does"
+    );
+    let _ = sel2;
 }
