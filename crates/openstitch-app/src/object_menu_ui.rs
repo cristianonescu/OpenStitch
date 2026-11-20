@@ -289,18 +289,25 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         .and_then(|(menu, _)| sew_bar(app, ctx, menu, app.selection.len() >= 2));
     let mut over_sub = false;
     if let Some((entries, at)) = sub_at {
-        let (sub, _) = panel(ctx, "object-submenu", at, SUB_WIDTH, |ui| {
+        let mut sub_rects = Vec::new();
+        let (sub, sub_painted) = panel(ctx, "object-submenu", at, SUB_WIDTH, |ui| {
             for a in entries {
                 let keys = shortcut(*a);
                 let icon = has_icon(*a).then_some(*a);
                 let enabled = crate::ribbon::enabled(app, *a);
                 let response = menu_row(ui, icon, label(*a), keys.as_deref(), enabled, false);
-                rects.push((a.info().key, response.rect));
+                sub_rects.push((a.info().key, response.rect));
                 if response.clicked() {
                     chosen = Some(*a);
                 }
             }
         });
+        // A sub-menu's rows are reported once it has been painted: its first frame only
+        // measures it, and the window may still move it into view after that (#1288: a click
+        // at a row read in that first frame missed it).
+        if sub_painted.is_some() {
+            rects.extend(sub_rects);
+        }
         over_sub = sub.response.contains_pointer();
     }
     if let Some(a) = chosen {

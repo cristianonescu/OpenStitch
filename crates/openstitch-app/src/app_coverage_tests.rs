@@ -2100,14 +2100,30 @@ fn a_right_click_opens_pe_designs_object_menu_for_one_several_and_a_group() {
                 )
             })
             .collect();
+        // The menu shows this platform's default key from the keymap (macOS: Cmd+Shift+H and
+        // Cmd+Shift+M, the system keeping Cmd+H and Cmd+M), so menu and keymap agree.
+        let mac = cfg!(target_os = "macos");
+        let keymap = |a: openstitch_app::editor::ribbon::Action| {
+            let chord = openstitch_app::editor::keymap::defaults_on(a, mac)
+                .first()
+                .copied()
+                .expect("a default key");
+            if mac {
+                chord.replace("Ctrl+", "Cmd+")
+            } else {
+                chord.to_string()
+            }
+        };
+        use openstitch_app::editor::ribbon::Action as A;
         assert_eq!(
             flips,
             [
-                ("flipVertical".to_string(), format!("{ctrl}+H")),
-                ("flipHorizontal".to_string(), format!("{ctrl}+J"))
+                ("flipVertical".to_string(), keymap(A::FlipVertical)),
+                ("flipHorizontal".to_string(), keymap(A::FlipHorizontal))
             ]
         );
-        assert_eq!(row("center")["shortcut"], format!("{ctrl}+M"));
+        assert_eq!(row("center")["shortcut"], keymap(A::CenterObjects));
+        assert_eq!(row("duplicate")["shortcut"], keymap(A::Duplicate));
         let paste_row = row("paste");
         let paste: Vec<&str> = paste_row["submenu"]
             .as_array()
