@@ -1602,6 +1602,7 @@ ui-status-layout-saved = Layout '{ $n }' saved
 ui-status-preferences-reset = { $label } preferences reset
 ui-status-recovery-files-deleted = { $n } recovery files deleted
 ui-status-no-longer-exists = { $path } no longer exists
+ui-status-shortcut-kept = { $key } stays with { $keeps }, as you set it: { $lost }, which has it by default now, has no shortcut until you give it one (Help ▸ Keyboard Shortcuts)
 ui-status-pasted-on-originals = Pasted { $n } objects in place (on top of the originals)
 ui-status-pasted-in-place = Pasted { $n } objects in place
 ui-status-pasted-page-centre = Pasted { $n } objects at the centre of the Design Page (where they were copied from is outside it)

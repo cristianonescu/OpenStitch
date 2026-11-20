@@ -88,6 +88,15 @@ pub fn open_at(app: &mut EditorApp, at: Pos2, vp: &Viewport) -> bool {
     true
 }
 
+/// Opens the sub-menu `key` of the open menu, as the pointer on its row does; for the reach
+/// walk (#1276).
+#[cfg(test)]
+pub(crate) fn open_sub_for_test(app: &mut EditorApp, key: &'static str) {
+    if let Some(m) = app.workspace.view.object_menu.as_mut() {
+        m.sub = Some(key);
+    }
+}
+
 /// Runs one entry on the selection, as a click on it does; nothing when it is greyed out.
 pub fn run(app: &mut EditorApp, a: Action, ctx: &egui::Context) {
     if crate::ribbon::enabled(app, a) {
@@ -418,7 +427,19 @@ fn selection_rect(app: &EditorApp) -> Option<[f64; 4]> {
 /// right-click there (window points) does, selecting the object under the pointer; `{action}`
 /// runs an entry (a key of `rows` or of a sub-menu) on the selection as a click on it does,
 /// and is refused while the entry is greyed out; `{close: true}` closes it.
+/// The parameters `ui.objectMenu` reads; any other is refused.
+pub const PARAMS: [&str; 4] = ["at", "action", "close", "numeric"];
+
 pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, String> {
+    if let Some(unknown) = params
+        .and_then(Value::as_object)
+        .and_then(|m| m.keys().find(|k| !PARAMS.contains(&k.as_str())))
+    {
+        return Err(format!(
+            "ui.objectMenu: unknown parameter {unknown}; it takes {}",
+            PARAMS.join(", ")
+        ));
+    }
     if let Some(at) = params.and_then(|p| p.get("at")) {
         let xy = at
             .as_array()

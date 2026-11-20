@@ -2186,6 +2186,10 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ),
     ("ui-status-no-longer-exists", "{ $path } no longer exists"),
     (
+        "ui-status-shortcut-kept",
+        "{ $key } stays with { $keeps }, as you set it: { $lost }, which has it by default now, has no shortcut until you give it one (Help ▸ Keyboard Shortcuts)",
+    ),
+    (
         "ui-status-pasted-on-originals",
         "Pasted { $n } objects in place (on top of the originals)",
     ),

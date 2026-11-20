@@ -188,7 +188,6 @@ pub fn insert_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
 }
 
-/// Modify Overlap: merge, remove overlap, combine.
 /// Merge (Modify Overlap, and the object menu's, #1288): the selected shapes become one.
 pub fn merge(app: &mut EditorApp) {
     if app.selection.len() >= 2 {
@@ -279,6 +278,7 @@ pub fn emboss(app: &mut EditorApp, a: openstitch_app::editor::ribbon::Action) {
     }
 }
 
+/// Modify Overlap: merge, remove overlap, combine.
 pub fn overlap_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let many = app.selection.len() >= 2;
     if ui.add_enabled(many, egui::Button::new(t("ui-merge"))).clicked() {

@@ -1386,7 +1386,16 @@ impl Walk {
         }
         // Dialogs no scene or ribbon command opens directly.
         type Opener = fn(&mut EditorApp);
-        let extras: [(&str, Opener); 30] = [
+        let extras: [(&str, Opener); 32] = [
+            // The object menu's Numerical Setting (#1288), for the demo's objects.
+            ("Size (object menu)", |a| {
+                a.select_all();
+                crate::numeric_ui::open(a, crate::numeric_ui::Kind::Size);
+            }),
+            ("Rotate (object menu)", |a| {
+                a.select_all();
+                crate::numeric_ui::open(a, crate::numeric_ui::Kind::Rotate);
+            }),
             ("Assistant closed hint", |a| a.assistant.panel.close_hint_open = true),
             ("Assistant still working", |a| a.turn_close = Some((Pending::Exit, false))),
             ("Offset Lines", |a| a.edit.offset_open = true),
@@ -1519,6 +1528,40 @@ impl Walk {
             match at {
                 Some(at) => {
                     w.right_click(at);
+                    w.audit_new(name, "menu", &before, &mut added);
+                }
+                None => why = OUT_OF_VIEW,
+            }
+            self.case(name, "menu", added, why);
+        }
+        // The object menu's sub-menus (#1288), each opened beside the menu a right-click on the
+        // shape opened.
+        for (name, sub) in [
+            ("Object menu, Paste", "paste"),
+            ("Object menu, Flip", "flip"),
+            ("Object menu, Numerical Setting", "numericalSetting"),
+            ("Object menu, Cut and Sew", "cutAndSew"),
+        ] {
+            if !self.mine() {
+                continue;
+            }
+            let mut w = self.open(Launch {
+                tool: Some(Tool::Select),
+                ..demo()
+            });
+            clear_canvas(&mut w);
+            let at = w.in_view(|w| {
+                let at = w.at_mm(74.0, 48.0)?;
+                w.app.workspace.canvas.filter(|c| c.contains(at)).map(|_| at)
+            });
+            let before = w.layers();
+            let mut added = Vec::new();
+            let mut why = NO_CONTROL;
+            match at {
+                Some(at) => {
+                    w.right_click(at);
+                    crate::object_menu_ui::open_sub_for_test(&mut w.app, sub);
+                    w.frames(3, Vec::new());
                     w.audit_new(name, "menu", &before, &mut added);
                 }
                 None => why = OUT_OF_VIEW,

@@ -309,7 +309,41 @@ pub fn state(app: &EditorApp) -> Value {
 /// `ui.objectMenu {numeric}`: sets the open dialog's fields (`percent`, `width`, `height`,
 /// `maintainAspectRatio`, `degrees`) and presses `button` (ok, preview, cancel), as the user
 /// does in it.
+/// The fields `ui.objectMenu {numeric}` reads; any other is refused.
+pub const PARAMS: [&str; 6] = [
+    "percent",
+    "width",
+    "height",
+    "maintainAspectRatio",
+    "degrees",
+    "button",
+];
+
 pub fn command(app: &mut EditorApp, params: &Value) -> Result<(), String> {
+    let fields = params
+        .as_object()
+        .ok_or("numeric: give an object {percent, width, height, maintainAspectRatio, degrees, button}")?;
+    if let Some(unknown) = fields.keys().find(|k| !PARAMS.contains(&k.as_str())) {
+        return Err(format!(
+            "numeric: unknown field {unknown}; it takes {}",
+            PARAMS.join(", ")
+        ));
+    }
+    for (key, number) in [("width", true), ("height", true), ("degrees", true)] {
+        if number && fields.get(key).is_some_and(|v| !v.is_number()) {
+            return Err(format!("numeric: {key} must be a number"));
+        }
+    }
+    for key in ["percent", "maintainAspectRatio"] {
+        if fields.get(key).is_some_and(|v| !v.is_boolean()) {
+            return Err(format!("numeric: {key} must be true or false"));
+        }
+    }
+    if let Some(b) = fields.get("button")
+        && !matches!(b.as_str(), Some("ok" | "preview" | "cancel"))
+    {
+        return Err("numeric: button must be ok, preview or cancel".into());
+    }
     let Some(mut n) = app.workspace.view.numeric.take() else {
         return Err("numeric: no Size or Rotate dialog is open (open it with action sizeNumeric or rotateNumeric)".into());
     };

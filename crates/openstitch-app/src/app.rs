@@ -495,6 +495,7 @@ impl EditorApp {
         {
             let ui = openstitch_app::editor::prefs::path_beside(path);
             self.ui.prefs = openstitch_app::editor::prefs::UiPrefs::load(&ui);
+            self.tell_given_up_keys();
             // The guidelines shown as the user left them (#799).
             self.workspace.guides = self.ui.prefs.editing.show_guides;
             // Autosave snapshots live beside ui.json (#549); screenshot runs have none.
@@ -529,6 +530,7 @@ impl EditorApp {
         {
             // No ui.json: the browser page's storage, when it registered one (#797).
             self.ui.prefs = openstitch_app::editor::prefs::UiPrefs::from_json(&v);
+            self.tell_given_up_keys();
             self.workspace.guides = self.ui.prefs.editing.show_guides;
         }
         self.database.units = self.ui.prefs.units;
@@ -1198,6 +1200,22 @@ impl EditorApp {
             self.status = openstitch_app::editor::ui_texts::t("ui-status-locked-unlock-it-in-the-sewing").into();
         }
         locked
+    }
+
+    /// Once, after preferences saved by an earlier version are read: a key the user had given to
+    /// a command that is now another command's default stays theirs (#1288); the status line
+    /// says which command gave it up, and the preferences are saved so it is said once.
+    fn tell_given_up_keys(&mut self) {
+        let given_up = std::mem::take(&mut self.ui.prefs.keymap.given_up);
+        if let Some((lost, chord, keeps)) = given_up.first() {
+            self.status = openstitch_app::tf!(
+                "ui-status-shortcut-kept",
+                key = crate::keymap_ui::shown(chord),
+                keeps = keeps.info().label,
+                lost = lost.info().label,
+            );
+            self.ui.save_prefs();
+        }
     }
 
     /// Whether the editor has `chord` ("Ctrl+D", as a key press writes it) for a command, so the
@@ -2076,15 +2094,31 @@ impl EditorApp {
             // In the browser Ctrl/Cmd+V comes as a key press, and the browser's paste event follows
             // only when the system clipboard holds text: the page cannot write it, so after a Copy in
             // the page the event never comes and the key alone pastes the page's copy (#1288). The
-            // window turns the key into the paste event itself and never sends the key. A paste
-            // event within a second of a key press is that key's, already pasted.
+            // window turns the key into the paste event itself and never sends the key.
             if paste_key {
-                self.ui.paste_key_at = Some(now);
-                crate::ribbon::paste_from(self, paste_text.as_deref());
-            } else if let Some(text) = paste_text
-                && self.ui.paste_key_at.is_none_or(|at| now - at > 1.0)
-            {
-                crate::ribbon::paste_from(self, Some(&text));
+                // Only a key that pasted counts: a paste event after a key that pasted
+                // nothing is pasted as it comes.
+                self.ui.paste_key = crate::ribbon::paste_from(self, paste_text.as_deref())
+                    .map(|env| (now, env));
+            } else if let Some(text) = paste_text {
+                match self.ui.paste_key.take() {
+                    // The key's own paste event: what it pasted is what the event hands over
+                    // (or the event hands over no objects): nothing more.
+                    Some((at, pasted))
+                        if now - at <= 1.0
+                            && openstitch_app::editor::clipboard::Envelope::parse(&text)
+                                .is_none_or(|env| env == pasted) => {}
+                    // The event hands over other objects (copied in another window or tab):
+                    // the newer clipboard wins, and the key's paste of the page's older copy is
+                    // taken back first, so one undo step is left.
+                    Some((at, _)) if now - at <= 1.0 => {
+                        self.undo();
+                        let _ = crate::ribbon::paste_from(self, Some(&text));
+                    }
+                    _ => {
+                        let _ = crate::ribbon::paste_from(self, Some(&text));
+                    }
+                }
             }
         }
         if ctx.egui_wants_keyboard_input() {

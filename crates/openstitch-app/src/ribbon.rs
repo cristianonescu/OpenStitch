@@ -88,9 +88,9 @@ pub struct RibbonState {
     /// Objects Copy or Cut put on the clipboard (#500), kept here too: Paste falls back to
     /// them when the system clipboard holds no OpenStitch objects.
     pub copied: Option<Envelope>,
-    /// When Ctrl/Cmd+V was last pressed as a key (the browser, #1288): the paste event the
-    /// browser may send after it is that key's.
-    pub paste_key_at: Option<f64>,
+    /// What Ctrl/Cmd+V pressed as a key last pasted, and when (the browser, #1288): a paste
+    /// event the browser sends after it is that key's, unless it hands over other objects.
+    pub paste_key: Option<(f64, Envelope)>,
     /// Copy, Cut and Paste use the system clipboard (off in tests, screenshots and `ui.run`).
     pub system_clipboard: bool,
     /// The system clipboard held OpenStitch objects at the last check (another window's Copy).
@@ -146,7 +146,7 @@ impl Default for RibbonState {
             open_job_sheet: false,
             last_tool: Tool::Select,
             copied: None,
-            paste_key_at: None,
+            paste_key: None,
             system_clipboard: false,
             clipboard_objects: false,
             clipboard_checked: f64::NEG_INFINITY,
@@ -530,14 +530,14 @@ fn copy(app: &mut EditorApp) {
 /// Paste: the system clipboard's OpenStitch objects, else the ones copied in this window,
 /// added in one Undo step.
 fn paste(app: &mut EditorApp) {
-    paste_from(app, None);
+    let _ = paste_from(app, None);
 }
 
 /// Paste with the text the system handed over with the key (`clipboard`, the browser's paste
 /// event: the page cannot read the clipboard itself), else as [`paste`] (#1288).
-pub fn paste_from(app: &mut EditorApp, clipboard: Option<&str>) {
+pub fn paste_from(app: &mut EditorApp, clipboard: Option<&str>) -> Option<Envelope> {
     if !enabled(app, Action::Paste) && clipboard.is_none_or(|t| Envelope::parse(t).is_none()) {
-        return;
+        return None;
     }
     let handed = clipboard.and_then(Envelope::parse);
     let system = handed.or_else(|| {
@@ -551,9 +551,7 @@ pub fn paste_from(app: &mut EditorApp, clipboard: Option<&str>) {
             .flatten()
             .and_then(|t| Envelope::parse(&t))
     });
-    let Some(env) = system.or_else(|| app.ui.copied.clone()) else {
-        return;
-    };
+    let env = system.or_else(|| app.ui.copied.clone())?;
     let r = env.paste_request(app.session.design());
     // A copy that lies on the Design Page is pasted where it was, as PE-DESIGN 11.50 pastes
     // (#1288: Ctrl+C, Ctrl+V doubles the stitches and nothing visibly moves); the status says
@@ -573,7 +571,9 @@ pub fn paste_from(app: &mut EditorApp, clipboard: Option<&str>) {
             (true, false) => openstitch_app::tf!("ui-status-pasted-in-place", n = n),
             (false, _) => openstitch_app::tf!("ui-status-pasted-page-centre", n = n),
         };
+        return Some(env);
     }
+    None
 }
 
 fn delete(app: &mut EditorApp) {
@@ -645,7 +645,9 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         SelectAll => app.select_all(),
         Cut => cut(app),
         Copy => copy(app),
-        Paste => paste(app),
+        Paste => {
+            paste(app);
+        }
         Duplicate => app.on_selection(CommandRequest::duplicate),
         Delete => delete(app),
         // PE-DESIGN's Rotate Right / Left and Flip, about the selection's centre, and Center on

@@ -1690,22 +1690,25 @@ fn the_alt_marks_of_a_stitch_pattern_are_painted_and_connect() {
 struct Window {
     ctx: egui::Context,
     frame: eframe::Frame,
+    size: egui::Vec2,
 }
 
 impl Window {
     fn new() -> Self {
+        Self::sized(1440.0, 900.0)
+    }
+
+    fn sized(width: f32, height: f32) -> Self {
         Window {
             ctx: egui::Context::default(),
             frame: eframe::Frame::_new_kittest(),
+            size: egui::vec2(width, height),
         }
     }
 
     fn run(&mut self, app: &mut EditorApp, events: Vec<egui::Event>, modifiers: Modifiers) {
         let mut raw = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                egui::Pos2::ZERO,
-                egui::vec2(1440.0, 900.0),
-            )),
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, self.size)),
             ..Default::default()
         };
         raw.events.push(egui::Event::ModifiersChanged(modifiers));
@@ -2570,4 +2573,283 @@ fn the_sew_type_bar_shows_mixed_colours_as_the_pane_does() {
         (controls[1][2] - controls[3][2]).abs() < 0.5,
         "the Mixed swatch is as wide as the line's colour swatch"
     );
+}
+
+/// Objects copied in another window or tab, as the browser's paste event hands them over: an
+/// ellipse.
+fn other_tabs_objects() -> String {
+    let mut other = EditorApp::new(Launch::default());
+    let r = other
+        .execute(&CommandRequest::new(
+            "shape.ellipse",
+            json!({ "cx": 70, "cy": 65, "rx": 10, "ry": 5 }),
+        ))
+        .expect("ellipse");
+    let ids = CommandRequest::created_ids(&r);
+    openstitch_app::editor::clipboard::Envelope::copy(other.session.design(), &ids)
+        .expect("envelope")
+        .to_text()
+}
+
+/// #1288, the browser, both paths of a paste event that follows Ctrl+V within a second: after a
+/// key that pasted nothing (nothing copied in the page) the event's objects are pasted; after a
+/// key that pasted the page's own older copy, the event's objects from another window or tab
+/// win: the key's paste is taken back and theirs pasted, one undo step in all.
+#[test]
+fn in_the_browser_a_paste_event_with_other_objects_wins_over_the_key() {
+    let ellipse = other_tabs_objects();
+    let kinds = |app: &EditorApp| {
+        app.session
+            .design()
+            .objects
+            .iter()
+            .map(|o| o.bounds().map(|b| (b.width() / 10.0).round() as i64))
+            .collect::<Vec<_>>()
+    };
+    // Nothing copied in the page: the key pastes nothing, the event that follows pastes.
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    w.ctrl(&mut app, Key::V);
+    assert_eq!(app.session.design().objects.len(), 1, "the key alone pastes nothing");
+    w.run(
+        &mut app,
+        vec![egui::Event::Paste(ellipse.clone())],
+        Modifiers::COMMAND,
+    );
+    assert_eq!(kinds(&app), [Some(20), Some(20)], "the event's ellipse is pasted");
+    // The page holds an older copy (a square): the key pastes it, then the event hands over the
+    // ellipse from another tab, which wins.
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+    w.ctrl(&mut app, Key::V);
+    assert_eq!(app.session.design().objects.len(), 2, "the key pastes the page's copy");
+    w.run(
+        &mut app,
+        vec![egui::Event::Paste(ellipse.clone())],
+        Modifiers::COMMAND,
+    );
+    let d = app.session.design();
+    assert_eq!(d.objects.len(), 2, "the square's paste is taken back");
+    let last = d.objects[1].bounds().expect("bounds");
+    assert!(
+        (last.width() - 200.0).abs() < 1e-6 && (last.height() - 100.0).abs() < 1e-6,
+        "the ellipse from the other tab is what was pasted: {last:?}"
+    );
+    app.undo();
+    assert_eq!(
+        app.session.design().objects.len(),
+        1,
+        "one undo step takes the paste back"
+    );
+    // The same objects as the key pasted: the event is the key's own, no second paste.
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+    let own = openstitch_app::editor::clipboard::Envelope::copy(app.session.design(), &ids)
+        .expect("envelope")
+        .to_text();
+    w.ctrl(&mut app, Key::V);
+    w.run(&mut app, vec![egui::Event::Paste(own)], Modifiers::COMMAND);
+    assert_eq!(app.session.design().objects.len(), 2, "one paste");
+}
+
+
+/// #1288: `ui.objectMenu` reads only the parameters it declares, and `numeric` only its own
+/// fields and buttons: anything else is refused and changes nothing.
+#[test]
+fn ui_object_menu_declares_the_parameters_it_reads() {
+    let spec = openstitch_app::editor::assistant::UI_COMMANDS
+        .iter()
+        .find(|c| c.id == "ui.objectMenu")
+        .expect("ui.objectMenu");
+    let declared: BTreeSet<&str> = spec.params.iter().map(|p| p.name).collect();
+    let read: BTreeSet<&str> = crate::object_menu_ui::PARAMS.into_iter().collect();
+    assert_eq!(declared, read);
+    for p in spec.params.iter() {
+        assert!(p.summary.len() > 20, "{} says what it does", p.name);
+    }
+    let numeric = spec
+        .params
+        .iter()
+        .find(|p| p.name == "numeric")
+        .expect("numeric");
+    for field in crate::numeric_ui::PARAMS {
+        assert!(numeric.kind.contains(field), "numeric names {field}");
+    }
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let before = app.session.design().clone();
+    for (params, says) in [
+        (json!({ "colour": "red" }), "unknown parameter colour"),
+        (json!({ "numeric": { "angle": 30 } }), "unknown field angle"),
+        (json!({ "numeric": { "button": "apply" } }), "button must be"),
+        (json!({ "numeric": { "width": "big" } }), "width must be a number"),
+        (json!({ "numeric": { "percent": 1 } }), "percent must be true or false"),
+    ] {
+        app.ui_command("ui.objectMenu", Some(&json!({ "action": "sizeNumeric" })))
+            .ok();
+        let e = app
+            .ui_command("ui.objectMenu", Some(&params))
+            .expect_err("refused");
+        assert!(e.contains(says), "{params}: {e}");
+        assert_eq!(*app.session.design(), before, "{params}: nothing changed");
+    }
+}
+
+/// #1288: values outside the Size and Rotate dialogs' fields, sent through `ui.objectMenu
+/// {numeric}`, are kept to them (1-1000 %, 0.1-2000 mm, -360 to 360 degrees), as the
+/// description says; the dialog reports the stored value.
+#[test]
+fn ui_object_menu_keeps_numeric_values_to_the_dialogs_fields() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let set = |app: &mut EditorApp, numeric: Value| {
+        app.ui_command("ui.objectMenu", Some(&json!({ "numeric": numeric })))
+            .expect("numeric")["dialog"]
+            .clone()
+    };
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "sizeNumeric" })))
+        .expect("size");
+    assert_eq!(set(&mut app, json!({ "width": 5000 }))["widthPercent"], 1000.0);
+    assert_eq!(set(&mut app, json!({ "width": -3 }))["widthPercent"], 1.0);
+    let d = set(
+        &mut app,
+        json!({ "percent": false, "maintainAspectRatio": false, "width": 0.01, "height": 9999 }),
+    );
+    assert_eq!((d["widthMm"].clone(), d["heightMm"].clone()), (json!(0.1), json!(2000.0)));
+    set(&mut app, json!({ "button": "cancel" }));
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "rotateNumeric" })))
+        .expect("rotate");
+    assert_eq!(set(&mut app, json!({ "degrees": 900 }))["degrees"], 360.0);
+    assert_eq!(set(&mut app, json!({ "degrees": -720 }))["degrees"], -360.0);
+    set(&mut app, json!({ "button": "cancel" }));
+}
+
+fn rect_of(v: &Value) -> Option<egui::Rect> {
+    let a = v.as_array()?;
+    let f = |i: usize| a.get(i)?.as_f64().map(|x| x as f32);
+    Some(egui::Rect::from_min_size(
+        egui::pos2(f(0)?, f(1)?),
+        egui::vec2(f(2)?, f(3)?),
+    ))
+}
+
+/// #1288 with #1276: at every window size the sew-type bar sits inside the window and never
+/// over a row of the menu: above the menu for one object and below it for two where there is
+/// room; in a small window on the other side or beside it, or left out.
+#[test]
+fn the_sew_type_bar_never_covers_the_menu_in_a_small_window() {
+    for (width, height, text) in [
+        (1440.0, 900.0, 100_u32),
+        (900.0, 600.0, 100),
+        (640.0, 400.0, 100),
+        (640.0, 400.0, 200),
+    ] {
+        for how in ["one", "two"] {
+            let mut w = Window::sized(width, height);
+            let mut app = started(&mut w);
+            app.ui.prefs.text_size = text;
+            let ids = squares(&mut app, how);
+            for _ in 0..3 {
+                w.run(&mut app, vec![], Modifiers::NONE);
+            }
+            let Some(canvas) = app.workspace.canvas else {
+                continue;
+            };
+            let at = on_screen(&app, 0);
+            let at = if canvas.contains(at) { at } else { canvas.center() };
+            w.right_click(&mut app, at);
+            w.run(&mut app, vec![], Modifiers::NONE);
+            let m = menu(&mut app);
+            let case = format!("{width}x{height} at {text} %, {how}");
+            if m["open"] != true {
+                // The point was not on the object at this size: nothing to check.
+                continue;
+            }
+            assert_eq!(app.selection, ids, "{case}");
+            let window = egui::Rect::from_min_size(egui::Pos2::ZERO, w.size / (text as f32 / 100.0));
+            let menu_rect = rect_of(&m["menuRect"]).expect("menu painted");
+            match rect_of(&m["bar"]["rect"]) {
+                None => {} // left out: no room anywhere
+                Some(bar) => {
+                    let inner = bar.shrink(1.0);
+                    assert!(!inner.intersects(menu_rect.shrink(1.0)), "{case}: the bar covers the menu: {bar:?} {menu_rect:?}");
+                    assert!(window.expand(1.0).contains_rect(bar), "{case}: the bar is inside the window: {bar:?} in {window:?}");
+                    if width >= 1440.0 {
+                        if how == "one" {
+                            assert!(bar.max.y <= menu_rect.min.y + 1.0, "{case}: above");
+                        } else {
+                            assert!(bar.min.y >= menu_rect.max.y - 1.0, "{case}: below");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// #1288: Size... and Rotate... on a group: the group scales and turns as one unit about its
+/// centre, each one undo step; a right-click on a member of an unselected group selects the
+/// whole group, as a click does.
+#[test]
+fn size_rotate_and_the_right_click_on_a_group() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "group");
+    app.selection.clear();
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let at = on_screen(&app, 0);
+    w.right_click(&mut app, at);
+    assert_eq!(app.selection, ids, "the whole group is selected");
+    assert_eq!(menu(&mut app)["open"], true);
+    let before = bounds_of(&app, &ids);
+    let shapes = |app: &EditorApp| app.session.design().objects.clone();
+    let original = shapes(&app);
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "sizeNumeric" })))
+        .expect("size");
+    app.ui_command(
+        "ui.objectMenu",
+        Some(&json!({ "numeric": { "width": 50, "button": "ok" } })),
+    )
+    .expect("ok");
+    let half = bounds_of(&app, &ids);
+    assert!((half.width() - before.width() / 2.0).abs() < 1e-6, "{half:?}");
+    assert!(
+        (half.center().x - before.center().x).abs() < 1e-6
+            && (half.center().y - before.center().y).abs() < 1e-6,
+        "about the group's centre"
+    );
+    app.undo();
+    assert_eq!(shapes(&app), original, "one undo step");
+    crate::ribbon::run(
+        &mut app,
+        openstitch_app::editor::ribbon::Action::RotateRight,
+        &w.ctx,
+    );
+    let right = shapes(&app);
+    app.undo();
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "rotateNumeric" })))
+        .expect("rotate");
+    app.ui_command(
+        "ui.objectMenu",
+        Some(&json!({ "numeric": { "degrees": 90, "button": "ok" } })),
+    )
+    .expect("ok");
+    let turned = shapes(&app);
+    for (a, b) in turned.iter().zip(&right) {
+        assert_eq!(a.bounds(), b.bounds(), "Rotate... 90 turns the group as Rotate Right");
+    }
+    app.undo();
+    assert_eq!(shapes(&app), original, "one undo step");
 }

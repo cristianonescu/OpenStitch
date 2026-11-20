@@ -205,6 +205,10 @@ pub fn allowed(chord: &str) -> bool {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Keymap {
     custom: BTreeMap<Action, Vec<String>>,
+    /// Defaults given up when the map was read because the user had already given that key to
+    /// another command (#1288): (the command that lost it, the key, the command that keeps it).
+    /// For a one-time message; not saved.
+    pub given_up: Vec<(Action, String, Action)>,
 }
 
 impl Keymap {
@@ -332,6 +336,12 @@ impl Keymap {
     /// A keymap from `{ commandKey: [shortcut…] }` (Import, `ui.set shortcuts`): every entry is
     /// checked as [`Keymap::set`] does; the first problem refuses the whole map.
     pub fn from_json(v: &Value) -> Result<Keymap, String> {
+        Self::read(v, false)
+    }
+
+    /// [`Keymap::from_json`]; with `keep_users` (preferences saved by an earlier version) a key
+    /// the user gave to a command that is now another command's default stays the user's.
+    fn read(v: &Value, keep_users: bool) -> Result<Keymap, String> {
         let obj = v
             .as_object()
             .ok_or("shortcuts take an object { commandKey: [shortcut, …] }")?;
@@ -341,13 +351,41 @@ impl Keymap {
             let a = Action::from_key(key).ok_or_else(|| format!("no command '{key}'"))?;
             k.custom.insert(a, Vec::new());
         }
+        // A key the user gave to a command that a later version made another command's default
+        // (#1288: Ctrl+H, Ctrl+J, Ctrl+M, Ctrl+Shift+J) stays the user's: that other command
+        // gives the default up, so no key does two things and the user's map is not refused.
+        for (key, list) in obj.iter().filter(|_| keep_users) {
+            let a = Action::from_key(key).expect("checked above");
+            for chord in list
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                let Ok(chord) = normalize(chord) else {
+                    continue;
+                };
+                for &b in Action::ALL {
+                    if b != a
+                        && !obj.contains_key(b.info().key)
+                        && defaults(b).contains(&chord.as_str())
+                    {
+                        let left: Vec<String> =
+                            k.chords(b).into_iter().filter(|c| *c != chord).collect();
+                        k.custom.insert(b, left);
+                        k.given_up.push((b, chord.clone(), a));
+                    }
+                }
+            }
+        }
         for (key, list) in obj {
             let a = Action::from_key(key).expect("checked above");
             let chords: Vec<String> = serde_json::from_value(list.clone())
                 .map_err(|_| format!("{key}: give a list of shortcuts"))?;
             k.set(a, &chords)?;
         }
-        // Commands left with exactly their defaults are not kept as changes.
+        // Commands left with exactly their defaults are not kept as changes (a command that gave
+        // a default up keeps that change, so the message comes once).
         k.custom.retain(|a, list| {
             !list
                 .iter()
@@ -357,12 +395,13 @@ impl Keymap {
         Ok(k)
     }
 
-    /// Like [`Keymap::from_json`], but for `ui.json`: a bad file gives the defaults.
+    /// Like [`Keymap::from_json`], but for `ui.json`: a bad file gives the defaults, and a key
+    /// the user gave a command before it became another's default stays the user's (#1288).
     pub fn load(v: &Value) -> Keymap {
         if v.is_null() {
             return Keymap::default();
         }
-        Keymap::from_json(v).unwrap_or_default()
+        Keymap::read(v, true).unwrap_or_default()
     }
 }
 
@@ -457,6 +496,46 @@ mod tests {
             // PE-DESIGN has no shortcut for Rotate Right and Left: none is made up.
             assert!(of(Action::RotateRight).is_empty() && of(Action::RotateLeft).is_empty());
         }
+    }
+
+    /// #1288: a key the user had given to another command before it became a default (Ctrl+H to
+    /// Rectangle, saved in ui.json) stays theirs when the map is read: the rest of their map is
+    /// kept, the new default's command gives that key up (once: saved, it is a change), and no
+    /// key belongs to two commands.
+    #[test]
+    fn a_users_key_that_became_a_default_stays_theirs() {
+        let saved = json!({ "rectangle": ["Ctrl+H"], "save": ["F2"] });
+        let k = Keymap::load(&saved);
+        assert_eq!(k.chords(Action::Rectangle), ["Ctrl+H"]);
+        assert_eq!(
+            k.chords(Action::Save),
+            ["F2"],
+            "the rest of the map is kept"
+        );
+        assert!(k.chords(Action::FlipVertical).is_empty() || cfg!(target_os = "macos"));
+        if !cfg!(target_os = "macos") {
+            assert_eq!(
+                k.given_up,
+                [(
+                    Action::FlipVertical,
+                    "Ctrl+H".to_string(),
+                    Action::Rectangle
+                )]
+            );
+        }
+        let mut seen = Vec::new();
+        for (_, c) in k.bindings() {
+            assert!(!seen.contains(&c), "{c} does two things");
+            seen.push(c);
+        }
+        // Saved again and read back: no second message.
+        let again = Keymap::load(&k.to_json());
+        assert!(again.given_up.is_empty());
+        assert_eq!(again.chords(Action::Rectangle), ["Ctrl+H"]);
+        // Join Lines' old key given to another command stays with it; Join Lines keeps its own.
+        let k = Keymap::load(&json!({ "ellipse": ["Ctrl+Shift+J"] }));
+        assert_eq!(k.chords(Action::Ellipse), ["Ctrl+Shift+J"]);
+        assert!(k.chords(Action::JoinLines).is_empty());
     }
 
     #[test]
