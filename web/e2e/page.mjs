@@ -242,10 +242,36 @@ async function extraChecks(browser, type, label) {
         try {
           await page.waitForFunction(test, arg, { timeout: 30_000 });
         } catch (e) {
+          // What is selected first: the rest of the state is long and gets cut.
           const seen = await page
-            .evaluate(() => JSON.stringify(window.openstitch.run({ command: "ui.pointMenu" }).result ?? null))
+            .evaluate(() => {
+              const r = window.openstitch.run({ command: "ui.pointMenu" }).result ?? null;
+              return JSON.stringify(r && { selected: r.selected, pointCount: r.pointCount, ...r });
+            })
             .catch(() => "?");
-          throw new Error(`point tool, ${step}: ${String(e.message).split("\n")[0]}; ui.pointMenu said ${seen.slice(0, 500)}`);
+          // The tool, the selected objects, the view, and the keys and menus the page saw: what
+          // a step that lost its object (pointCount null) lost it to. And this page as it was.
+          const context = await page
+            .evaluate(() => {
+              const s = window.openstitch.run({ command: "ui.state" }).result ?? null;
+              return JSON.stringify({
+                tool: s?.tool,
+                selection: s?.selection,
+                view: s?.view,
+                zoom: s?.zoomPercent,
+                keys: (window.__keys ?? []).slice(-16).map((k) => `${k.ctrlKey ? "Ctrl+" : ""}${k.altKey ? "Alt+" : ""}${k.shiftKey ? "Shift+" : ""}${k.key}`),
+                menus: (window.__menus ?? []).length,
+                focus: document.activeElement?.id || document.activeElement?.tagName,
+                canvasOnPage: (() => {
+                  const r = document.getElementById("openstitch")?.getBoundingClientRect();
+                  return r && [r.x, r.y, r.width, r.height];
+                })(),
+                scroll: [window.scrollX, window.scrollY],
+              });
+            })
+            .catch(() => "?");
+          if (outDir) await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}-point-tool-failed.png`) }).catch(() => {});
+          throw new Error(`point tool, ${step}: ${String(e.message).split("\n")[0]}; state ${context.slice(0, 700)}; ui.pointMenu said ${seen.slice(0, 500)}`);
         }
       };
       const pointX = () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.[0]?.x ?? null;
@@ -281,6 +307,10 @@ async function extraChecks(browser, type, label) {
       const made = await ok({ command: "shape.rectangle", params: { x: 20, y: 20, width: 40, height: 30, fill: "#2e8b57", outline: "#203040" } });
       await ok({ command: "ui.select", params: { ids: [made.id] } });
       await ok({ command: "ui.zoom", params: { fit: "page" } });
+      // Where the canvas area is in the window (ui.state's view.canvasAt) when a point's place
+      // is read: a modifier click below says when a pane or the ribbon has moved the area
+      // since that read (#1272).
+      const areaAt = () => page.evaluate(() => window.openstitch.run({ command: "ui.state" }).result?.view?.canvasAt ?? null);
       const onScreen = async (index) => {
         await ok({ command: "ui.pointMenu", params: { points: [index] } });
         await until(
@@ -291,7 +321,9 @@ async function extraChecks(browser, type, label) {
           },
           index,
         );
-        return (await menu()).selected[0].screen;
+        const place = (await menu()).selected[0].screen;
+        place.area = await areaAt();
+        return place;
       };
       // The opposite corner first, to know where the inside of the shape is on screen.
       const far = await onScreen(2);
@@ -339,13 +371,29 @@ async function extraChecks(browser, type, label) {
       // Ctrl+click on a second point adds it to the selection; the browser opens no menu and
       // no tab of its own.
       await onScreen(0);
-      // The key is held down around the click: page.mouse.click takes no modifiers.
-      const clickWith = async (key, x, y) => {
+      // The key is held down around the click: page.mouse.click takes no modifiers. The
+      // place is given on the canvas (the editor's window points) and the canvas's place on
+      // the page is read again for the click: `box` was read once, before the steps above,
+      // and CI's Firefox clicked 90 points left of a corner it had read right (#1272). A
+      // canvas that moved on the page is said in the log.
+      const clickWith = async (key, place) => {
+        const [cx, cy] = place;
+        const readArea = place.area;
+        const now = await page.locator("#openstitch").boundingBox();
+        if (Math.abs(now.x - box.x) > 0.5 || Math.abs(now.y - box.y) > 0.5) {
+          const scrolled = await page.evaluate(() => [window.scrollX, window.scrollY]);
+          console.log(`${label}: the canvas moved on the page from ${box.x}, ${box.y} to ${now.x}, ${now.y} (page scrolled ${scrolled})`);
+        }
+        const area = await areaAt();
+        if (readArea && area && (Math.abs(area[0] - readArea[0]) > 0.5 || Math.abs(area[1] - readArea[1]) > 0.5)) {
+          const st = await page.evaluate(() => JSON.stringify(window.openstitch.run({ command: "ui.state" }).result?.view ?? null));
+          console.log(`${label}: the canvas area moved inside the window from ${readArea} to ${area} since the point's place was read (view ${st})`);
+        }
         await page.keyboard.down(key);
-        await page.mouse.click(x, y);
+        await page.mouse.click(now.x + cx, now.y + cy);
         await page.keyboard.up(key);
       };
-      await clickWith("Control", box.x + far[0], box.y + far[1]);
+      await clickWith("Control", far);
       await until("Ctrl+click adds a second point (2 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2);
       const stray = await page.evaluate(() => window.__menus.length);
       if (stray !== 0 || context.pages().length !== 1) {
@@ -355,13 +403,13 @@ async function extraChecks(browser, type, label) {
       // the browser selects no text and opens nothing.
       const third = await onScreen(3);
       await onScreen(0);
-      await clickWith("Control", box.x + far[0], box.y + far[1]);
+      await clickWith("Control", far);
       await until("Ctrl+click adds the second point again (2 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2);
-      await clickWith("Shift", box.x + third[0], box.y + third[1]);
+      await clickWith("Shift", third);
       await until("Shift+click adds a third point (3 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 3);
       // Ctrl+click on a selected point takes it out; a plain click on a point that is not
       // selected selects that one alone.
-      await clickWith("Control", box.x + third[0], box.y + third[1]);
+      await clickWith("Control", third);
       await until("Ctrl+click on a selected point takes it out (2 selected)", () => window.openstitch.run({ command: "ui.pointMenu" }).result?.selected?.length === 2);
       await page.mouse.click(box.x + third[0], box.y + third[1]);
       await until("a plain click on another point selects it alone", (i) => {
@@ -589,6 +637,88 @@ async function extraChecks(browser, type, label) {
       const lines = (await ok({ command: "object.list" })).filter((o) => o.id === lineA.id || o.id === lineB.id);
       if (lines.length !== 1 || lines[0].id !== lineA.id) throw new Error(`Alt + drag: ${JSON.stringify(lines).slice(0, 300)}`);
       if (new URL(page.url()).pathname !== "/") throw new Error(`the page went elsewhere: ${page.url()}`);
+      // #1272: the Point tool on a stitch pattern. Two running lines in two colours are made
+      // into one stitch pattern (object.toStitches of a group), and split at a point of the
+      // second colour so that there are two patterns to connect.
+      const redLine = await ok({ command: "shape.polygon", params: { points: [[20, 70], [40, 70]], closed: false, outline: "#d32f2f" } });
+      const blueLine = await ok({ command: "shape.polygon", params: { points: [[20, 80], [40, 80]], closed: false, outline: "#1f3a93" } });
+      for (const id of [redLine.id, blueLine.id]) await ok({ command: "object.setLine", params: { id, type: "running", pitch: 2.0 } });
+      await ok({ command: "object.group", params: { ids: [redLine.id, blueLine.id] } });
+      const converted = await ok({ command: "object.toStitches", params: { ids: [redLine.id] } });
+      const patterns = (await ok({ command: "object.list" })).filter((o) => o.kind === "stitches");
+      if (patterns.length < 1) throw new Error(`no stitch pattern: ${JSON.stringify(converted).slice(0, 300)}`);
+      const pattern = patterns[patterns.length - 1];
+      await ok({ command: "ui.select", params: { ids: [pattern.id] } });
+      await page.evaluate((id) => { window.__pattern = id; }, pattern.id);
+      const stitch = (params) => ok({ command: "ui.stitchPoints", params });
+      const st = await stitch({ end: "first" });
+      if (!st.selectedAt?.[0]?.screen) throw new Error(`ui.stitchPoints: ${JSON.stringify(st).slice(0, 300)}`);
+      // One click on a stitch inserts a needle point: the middle of a 2 mm stitch in the middle
+      // of the line, away from the lock stitches' points 0.3 mm apart.
+      const points = await ok({ command: "stitches.points", params: { id: pattern.id } });
+      const pts = points.points.filter((p) => p.command === "stitch");
+      const long = (i) => i > 0 && Math.abs(pts[i].x - pts[i - 1].x) > 1.5 && Math.abs(pts[i].y - pts[i - 1].y) < 0.01;
+      const runs = pts.map((_, i) => i).filter((i) => long(i) && long(i - 1) && i + 1 < pts.length && long(i + 1));
+      const k = runs.length ? runs[Math.floor(runs.length / 2)] : -1;
+      if (k < 1) throw new Error(`no 2 mm stitch: ${JSON.stringify(pts.slice(0, 8))}`);
+      // Zoomed in on that stitch, as one would to click between points 2 mm apart.
+      await ok({ command: "ui.zoom", params: { rect: [pts[k - 1].x - 4, pts[k - 1].y - 4, 10, 8] } });
+      await stitch({ select: [pts[k - 1].index] });
+      const a1 = (await stitch({})).selectedAt[0].screen;
+      await stitch({ select: [pts[k].index] });
+      const a2 = (await stitch({})).selectedAt[0].screen;
+      a2.area = await areaAt();
+      const entries = async () => (await ok({ command: "stitches.points", params: { id: pattern.id } })).points.length;
+      const n0 = await entries();
+      await page.mouse.click(box.x + (a1[0] + a2[0]) / 2, box.y + (a1[1] + a2[1]) / 2);
+      await until("one click on a stitch inserts a needle point", (n) => window.openstitch.run({ command: "stitches.points", params: { id: window.__pattern } }).result?.points?.length === n + 1, n0).catch(async () => {
+        const after = await stitch({});
+        throw new Error(`stitch pattern click-insert: ${n0} -> ${await entries()}; clicked ${JSON.stringify([a1, a2])}, then ${JSON.stringify({ selected: after.selected, selectedAt: after.selectedAt, hint: after.hint, tool: after.note })}`);
+      });
+      await ok({ command: "history.undo" });
+      // Ctrl+click adds a needle point to the selection.
+      await stitch({ select: [pts[k - 1].index] });
+      await clickWith("Control", a2);
+      await until("Ctrl+click adds a needle point", () => (window.openstitch.run({ command: "ui.stitchPoints" }).result?.selected?.length ?? 0) === 2);
+      // Tab selects every needle point of the selected point's colour block (PE-DESIGN capture
+      // k6), and stays with the editor; Tab again selects none.
+      const held = pts[k - 1].index;
+      // The keys go to the editor while its canvas has the focus (eframe drops them
+      // otherwise), as the arrow-key steps above make sure of.
+      await page.evaluate(() => document.getElementById("openstitch").focus());
+      const preTab = await stitch({});
+      const every = preTab.colors.find((c) => c.entry <= held && held <= c.exit)?.points;
+      await page.keyboard.press("Tab");
+      // The editor takes the key on its next frame: wait for it.
+      await until("Tab selects the colour block", (n) => (window.openstitch.run({ command: "ui.stitchPoints" }).result?.selected?.length ?? -1) === n, every).catch(() => {});
+      const tab = await stitch({});
+      if (tab.selected.length !== every) throw new Error(`Tab: ${tab.selected.length} selected, ${every} in the colour of point ${held}; focus on ${await page.evaluate(() => document.activeElement?.tagName + "#" + document.activeElement?.id)}; ${JSON.stringify({ selected: tab.selected, colors: tab.colors })}`);
+      await page.keyboard.press("Tab");
+      await until("Tab again selects none", () => (window.openstitch.run({ command: "ui.stitchPoints" }).result?.selected?.length ?? -1) === 0);
+      // Alt + drag of the exit point onto another pattern's entry point connects the two, with
+      // the whole page in view again.
+      await ok({ command: "ui.zoom", params: { fit: "page" } });
+      const lastColour = tab.colors[tab.colors.length - 1];
+      const cutAt = (await ok({ command: "stitches.points", params: { id: pattern.id } })).points.filter((p) => p.color === tab.colors.length - 1 && p.command === "stitch")[4].index;
+      const split = await ok({ command: "stitches.splitAt", params: { id: pattern.id, index: cutAt } });
+      const part = split.ids[1];
+      await ok({ command: "ui.select", params: { ids: [pattern.id] } });
+      const ex = await stitch({ end: "last" });
+      // Every other stitch pattern's entry point is offered, the part split off among them.
+      const partEntry = ex.connectable?.find((c) => c.id === part);
+      if (!partEntry?.screen) throw new Error(`connectable: ${JSON.stringify(ex).slice(0, 400)} (${lastColour.points}, part ${part})`);
+      const stitchPatterns = async () => (await ok({ command: "object.list" })).filter((o) => o.kind === "stitches").length;
+      const patternsBefore = await stitchPatterns();
+      const exitAt = ex.selectedAt[0].screen;
+      const onto = partEntry.screen;
+      await page.keyboard.down("Alt");
+      await page.mouse.move(box.x + exitAt[0], box.y + exitAt[1]);
+      await page.mouse.down();
+      await page.mouse.move(box.x + onto[0], box.y + onto[1], { steps: 8 });
+      await until("the Alt-dragged exit point lies on the other pattern's entry", () => window.openstitch.run({ command: "ui.stitchPoints" }).result?.connectOverlap != null);
+      await page.mouse.up();
+      await page.keyboard.up("Alt");
+      await until("Alt + drag connects the two stitch patterns", (n) => (window.openstitch.run({ command: "object.list" }).result ?? []).filter((o) => o.kind === "stitches").length === n - 1, patternsBefore);
       noErrors("point tool", errors);
     } finally {
       await context.close();

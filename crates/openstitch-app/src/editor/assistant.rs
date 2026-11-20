@@ -40,7 +40,7 @@ const fn p(
 pub const UI_COMMANDS: &[UiCommand] = &[
     UiCommand {
         id: "ui.state",
-        summary: "The editor's state: file, unsaved changes (unsaved: anything a save would write; unsavedDesign: the design itself changed since the last save; unsavedConversationOnly: only the Assistant's conversation did, as right after your own save while your reply goes on: the file has the design, and the next save adds the rest of the conversation), selection, tool, view, zoom (zoomPercent), where the canvas looks (view: centerMm, the design point in the middle of the canvas in mm; canvasPoints, the canvas's width and height in points; pagePointsInCanvas, the width and height in points of the Design Page's part inside the canvas, 0 when the page is out of sight; null before the canvas is first drawn), panes, simulator, Check Design's indicator (check: level readyToSew, sewableWithSmallRisks or fixThisFirst, with the error, warning and note counts) and every setting",
+        summary: "The editor's state: file, unsaved changes (unsaved: anything a save would write; unsavedDesign: the design itself changed since the last save; unsavedConversationOnly: only the Assistant's conversation did, as right after your own save while your reply goes on: the file has the design, and the next save adds the rest of the conversation), selection, tool, view, zoom (zoomPercent), where the canvas looks (view: centerMm, the design point in the middle of the canvas in mm; canvasPoints, the canvas's width and height in points; pagePointsInCanvas, the width and height in points of the Design Page's part inside the canvas, 0 when the page is out of sight; canvasAt, the canvas's top-left corner in the window in points, which moves when a pane or the ribbon changes size; null before the canvas is first drawn), panes, simulator, Check Design's indicator (check: level readyToSew, sewableWithSmallRisks or fixThisFirst, with the error, warning and note counts) and every setting",
         effect: Effect::Read,
         params: &[],
     },
@@ -616,6 +616,55 @@ pub const UI_COMMANDS: &[UiCommand] = &[
                 "[int]",
                 false,
                 "Rows (needle point indexes) to select",
+            ),
+        ],
+    },
+    UiCommand {
+        id: "ui.stitchPoints",
+        summary: "The Select Point tool on the one selected stitch pattern (#1272), as PE-DESIGN's: needle points are the pattern's stitch and jump entries, by index (stitches.points lists them with their colour block). select sets the selected points; The keys stay inside the colour block of the selected point, as PE-DESIGN's, where each colour of a machine file is a stitch pattern of its own (#1289). tab: true is Tab (or Shift+Tab, the same): with points selected every point of the first selected point's colour block, with all of those selected none, with none selected nothing unless Tab has just dropped them (PE-DESIGN capture k6); end entry / exit selects that colour block's first or last point (Home, End; nothing with none selected), first / last the pattern's entry or exit point, with none selected too (Ctrl+Home, Ctrl+End); step next / previous selects the next or previous point alone (Ctrl+arrow, across jumps, stopping at the colour block's ends), with extend: true it grows the selection by one point from where it started and shrinks it the other way (Shift+arrow). connectTo {id} connects the pattern to another stitch pattern as Alt+drag of the selected entry or exit point onto that pattern's exit or entry point does (stitches.connect with first: the exit's pattern is sewn first), one undo step. Delete (the Delete key, and the menu's Delete) selects the deleted point's neighbour, as PE-DESIGN's. action splitAtPoint or deletePoint runs the needle point menu's Split at Point or Delete; Split at Point on the entry or exit point makes a group of that point alone and the pattern, which sews the same stitches (PE-DESIGN capture k12). Answers with menu (the needle point menu's entries: key, label, enabled), menuOpen, selected, selectedAt (each selected point's index, x and y in mm and screen: where it is in the window), colors (each colour's entry and exit index and point count), connectable (the patterns the one selected entry or exit point can connect to, with the end's x, y and screen), connectOverlap (the end the Alt-dragged point lies on now, where the red square is drawn; null otherwise) and the hint line. Insert a point with stitches.insertPoint (jump: true as Ctrl+Shift+click), move with stitches.movePoints, delete with stitches.deletePoints. Selecting runs the Point tool",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "select",
+                "[int]",
+                false,
+                "Needle point indexes to select (replacing the selection)",
+            ),
+            p(
+                "tab",
+                "bool",
+                false,
+                "true: Tab (Shift+Tab is the same): with points selected, every point of the first selected point's colour block; with all of those selected, none; with none selected nothing, unless Tab has just dropped them",
+            ),
+            p(
+                "end",
+                "string",
+                false,
+                "entry (Home) or exit (End): the colour block's first or last point, nothing with none selected; first (Ctrl+Home) or last (Ctrl+End): the pattern's entry or exit point",
+            ),
+            p(
+                "step",
+                "string",
+                false,
+                "next or previous (Ctrl+arrow): the next or previous point alone, across jumps, stopping at the colour block's ends",
+            ),
+            p(
+                "extend",
+                "bool",
+                false,
+                "With step: grow or shrink the selection by one point from where it started (Shift+arrow)",
+            ),
+            p(
+                "connectTo",
+                "int",
+                false,
+                "Another stitch pattern's id (from connectable): connects as Alt+drag of the one selected entry or exit point does, one undo step",
+            ),
+            p(
+                "action",
+                "string",
+                false,
+                "splitAtPoint or deletePoint: runs that entry of the needle point menu on the selected points, refused when it is grey",
             ),
         ],
     },

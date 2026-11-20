@@ -322,6 +322,11 @@ fn ui_state_says_where_the_canvas_looks() {
         view["canvasPoints"],
         serde_json::json!([c.width as f32, c.height as f32])
     );
+    assert_eq!(
+        view["canvasAt"],
+        serde_json::json!([c.x as f32, c.y as f32]),
+        "where the canvas is in the window"
+    );
     let (px, py) = w.page_in_canvas();
     let got = |i: usize| view["pagePointsInCanvas"][i].as_f64().expect("number");
     assert!((got(0) - px).abs() < 0.01 && (got(1) - py).abs() < 0.01, "{view}");
@@ -333,6 +338,7 @@ fn ui_state_says_where_the_canvas_looks() {
         "view: centerMm, the design point in the middle of the canvas in mm",
         "canvasPoints, the canvas's width and height in points",
         "pagePointsInCanvas, the width and height in points of the Design Page's part inside the canvas",
+        "canvasAt, the canvas's top-left corner in the window in points",
     ] {
         assert!(summary.contains(part), "{part}: {summary}");
     }

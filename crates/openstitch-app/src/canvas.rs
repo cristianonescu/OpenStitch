@@ -865,8 +865,11 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
     }
     if let Some(needles) = app.tools.needle_overlay(&ctx) {
         // Stitch pattern: needle points as small squares (jump ends as circles), selected
-        // ones filled.
-        for (_, p, selected, jump) in needles.points {
+        // ones filled and painted last, so a selected jump landing is not hidden under the
+        // stitch on the same spot (PE-DESIGN capture k9 shows both ends of a clicked jump).
+        let mut points = needles.points;
+        points.sort_by_key(|q| q.2);
+        for (_, p, selected, jump) in points {
             let at = pos(vp.to_screen(p));
             let fill = if selected {
                 crate::theme::accent()
@@ -885,6 +888,13 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
                 );
             }
         }
+        // Alt with the entry or exit point selected: the ends it connects to (#1272).
+        draw_connect_marks(
+            painter,
+            vp,
+            app.tools.needle_connect_marks(painter.ctx().input(|i| i.modifiers.alt), &ctx),
+            app.tools.needle_connect_overlap(),
+        );
         return;
     }
     if let Some(satin) = app.tools.width_overlay(&ctx) {
@@ -1014,8 +1024,24 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
     // Alt held with an end point of an open line selected: an x on every end it can connect
     // to; a red square where the dragged end lies on one (PE-DESIGN's manual, #1260).
     let alt = painter.ctx().input(|i| i.modifiers.alt);
+    draw_connect_marks(
+        painter,
+        vp,
+        app.tools.connect_marks(alt, &ctx),
+        app.tools.connect_overlap(),
+    );
+}
+
+/// An x on every end a selected end point (of an open line, or a stitch pattern's entry or
+/// exit point) can be connected to, and a red square on the one the Alt-dragged point lies on.
+fn draw_connect_marks(
+    painter: &egui::Painter,
+    vp: &Viewport,
+    marks: Vec<openstitch_design::Vec2>,
+    overlap: Option<openstitch_design::Vec2>,
+) {
     let ink = Color32::from_gray(16);
-    for at in app.tools.connect_marks(alt, &ctx) {
+    for at in marks {
         let p = pos(vp.to_screen(at));
         for (dx, dy) in [(6.0, 6.0), (6.0, -6.0)] {
             painter.line_segment(
@@ -1024,7 +1050,7 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
             );
         }
     }
-    if let Some(at) = app.tools.connect_overlap() {
+    if let Some(at) = overlap {
         painter.rect_stroke(
             egui::Rect::from_center_size(pos(vp.to_screen(at)), egui::vec2(13.0, 13.0)),
             CornerRadius::ZERO,

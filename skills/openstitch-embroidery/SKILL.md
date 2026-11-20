@@ -622,7 +622,18 @@ line with widths becomes a satin line). The shape commands (`shape.polygon`, `sh
 remain the direct way to draw.
 To fix single needle points of a stitch pattern, `stitches.points {id}` lists them and
 `stitches.setPoint` / `insertPoint` / `deletePoints` edit them; `ui.stitchTable {open: true,
-select: [indexes]}` shows the user the same rows and highlights them on the canvas. The same
+select: [indexes]}` shows the user the same rows and highlights them on the canvas. In the
+window the Point tool works on a selected stitch pattern as PE-DESIGN's Select Point
+(#1272), its keys inside the selected point's colour block: `ui.stitchPoints` selects
+points (`select`), all or none of the colour block's points (`tab: true`, as Tab), its first
+and last point or the pattern's entry and exit point (`end: "entry" | "exit" | "first" |
+"last"`, as Home, End, Ctrl+Home, Ctrl+End), steps along them (`step`, with `extend` as
+Shift+arrow), runs the needle point menu (`action: "splitAtPoint" | "deletePoint"`) and
+connects the selected entry or exit point to another pattern's exit or entry point
+(`connectTo`, as Alt+drag; `stitches.connect` `{ids, first}` without the window); a point
+is inserted as a jump with `stitches.insertPoint` `{jump: true}` (as Ctrl+Shift+click).
+`stitches.splitAt` on the entry or exit point makes a group of that point alone and the
+pattern, which sews the same stitches, as PE-DESIGN does. The same
 commands take a live shape or text: its generated stitches become hand edits and it stays
 editable; a sewing setting change drops them (the edit's reply lists `handEditsDropped`), and
 `object.regenerate {ids}` drops them on purpose.

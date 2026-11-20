@@ -394,6 +394,8 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
             }
         },
         SplitAtPoint => {
+            // On the entry and exit point too, as PE-DESIGN shows it (capture k12); the engine
+            // refuses there, with the reason.
             let (_, one, needles) = convert_ui::stitch_selection(app);
             (one.is_some() && needles.len() == 1)
                 || crate::point_menu_ui::states(app).is_some_and(|e| e[5])

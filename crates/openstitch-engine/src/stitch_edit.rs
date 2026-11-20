@@ -300,7 +300,7 @@ pub fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "stitches.deletePoints",
-            "Delete needle points; deleting the end of a jump joins the stitches on either side",
+            "Delete needle points, as PE-DESIGN's Select Point: deleting the point a jump lands on keeps the jump and lands it on the next needle point; deleting the point a jump starts from makes it start from the point before. At least one stitch must remain",
             Effect::Edit,
             vec![ID, req("indexes", "[int]", "Needle point indexes")],
             |s, p| {
@@ -312,25 +312,48 @@ pub fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "stitches.splitAt",
-            "Split a stitch pattern in two at a needle point (not its entry or exit point)",
+            "Split a stitch pattern in two at a needle point: the first part ends there, the second starts there. At the entry or the exit point, as PE-DESIGN does, the first (entry) or second (exit) part is that point alone and sews nothing, the two parts become a group and the design sews exactly as before",
             Effect::Edit,
             vec![ID, req("index", "int", "Needle point index")],
             |s, p| {
                 let i = target(s, p, "id")?;
                 let k = p.int("index", None, 0, i64::MAX)? as usize;
                 let o = s.design.objects[i].clone();
-                let (a, c) = stitch_edit::split_at(o.stitch_block.as_ref().expect("checked"), k)
-                    .map_err(|e| edit_error(p, e))?;
+                let block = o.stitch_block.as_ref().expect("checked");
+                let end = [
+                    block
+                        .stitches
+                        .iter()
+                        .position(|s| stitch_edit::is_point(s.command)),
+                    block
+                        .stitches
+                        .iter()
+                        .rposition(|s| stitch_edit::is_point(s.command)),
+                ]
+                .contains(&Some(k));
+                let (a, c) = stitch_edit::split_at(block, k).map_err(|e| edit_error(p, e))?;
                 s.design.objects[i].stitch_block = Some(a);
                 let new = insert_after(s, i + 1, &o, c, "part 2");
+                if end && o.group.is_none() {
+                    let g = s.design.new_group_id();
+                    s.design.objects[i].group = Some(g);
+                    s.design.objects[i + 1].group = Some(g);
+                }
                 Ok(json!({ "ids": [o.id, new] }))
             },
         ),
         spec(
             "stitches.connect",
-            "Join two stitch patterns: the one sewn later continues from the earlier one's exit point and takes its colour",
+            "Join two stitch patterns into one: the second continues from the first one's exit point with a jump to its entry point, and its first colour takes the first one's colour. Without 'first', the one sewn earlier comes first. The joined pattern keeps the first one's id and takes the place in the sewing order of whichever of the two was sewn earlier. One undo step",
             Effect::Edit,
-            vec![req("ids", "[int]", "Exactly two stitch patterns")],
+            vec![
+                req("ids", "[int]", "Exactly two stitch patterns"),
+                opt(
+                    "first",
+                    "int",
+                    "Which of the two comes first (its exit point leads to the other's entry point), as the Point tool's Alt+drag of an exit point onto an entry point gives it; default: the one sewn earlier",
+                ),
+            ],
             |s, p| {
                 let ids = p.ids()?;
                 if ids.len() != 2 || ids[0] == ids[1] {
@@ -351,22 +374,33 @@ pub fn commands() -> Vec<CommandSpec> {
                     }
                     at.push(i);
                 }
-                at.sort_unstable();
-                let (first, second) = (at[0], at[1]);
-                let later = s.design.objects[second]
-                    .stitch_block
-                    .clone()
-                    .expect("checked");
+                // (earlier in the sewing order, later)
+                let (earlier, later) = (at[0].min(at[1]), at[0].max(at[1]));
+                let (lead, follow) = match p.get("first").and_then(Value::as_u64) {
+                    None => (earlier, later),
+                    Some(f) if f == ids[0] => (at[0], at[1]),
+                    Some(f) if f == ids[1] => (at[1], at[0]),
+                    Some(f) => {
+                        return Err(p.invalid("first", format!("object {f} is not one of ids")));
+                    }
+                };
                 let joined = stitch_edit::connect(
-                    s.design.objects[first]
+                    s.design.objects[lead]
                         .stitch_block
                         .as_ref()
                         .expect("checked"),
-                    &later,
+                    s.design.objects[follow]
+                        .stitch_block
+                        .as_ref()
+                        .expect("checked"),
                 );
-                let id = s.design.objects[first].id;
-                s.design.objects[first].stitch_block = Some(joined);
-                s.design.objects.remove(second);
+                let id = s.design.objects[lead].id;
+                // The joined pattern (the first one, keeping its id and attributes) takes
+                // the earlier place.
+                let mut kept = s.design.objects[lead].clone();
+                kept.stitch_block = Some(joined);
+                s.design.objects[earlier] = kept;
+                s.design.objects.remove(later);
                 s.design.dissolve_single_groups();
                 Ok(json!({ "id": id }))
             },

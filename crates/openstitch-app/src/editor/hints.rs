@@ -126,6 +126,22 @@ pub enum PointSelection {
     AddingDirectionLine,
 }
 
+/// The Point tool's hint on a stitch pattern (#1272), by what is selected: nothing, the
+/// pattern's entry or exit point alone, or other points. Our own words.
+pub fn needle_hint(selected: usize, end: bool) -> &'static str {
+    match (selected, end) {
+        (0, _) => {
+            "Click a needle point to select it, or a stitch to add one there (Ctrl+Shift+click: as a jump) · a drag box selects the points inside it · right-click a point for Split at Point and Delete"
+        }
+        (1, true) => {
+            "Drag the point or move it with the arrow keys · hold Alt to see the other patterns' ends it connects to, Alt+drag onto one joins the two · Delete removes it"
+        }
+        _ => {
+            "Drag the points (Shift: only horizontally or vertically) or move them 0.1 mm with the arrow keys · Ctrl+arrow and Shift+arrow step along the stitches · Tab selects all the points of their colour, Home and End its first and last · Delete removes them"
+        }
+    }
+}
+
 /// The Point tool's hint for what is selected (#1260): PE-DESIGN changes its status-bar hint
 /// with the selected point (with an end point of an open line it tells of Alt and connecting);
 /// these are our own words for what each selection can do.

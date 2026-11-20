@@ -4906,6 +4906,49 @@ Tests against the numbers above: design `to_curve_places_the_handles_where_pe_de
 - The drop-down entries reuse existing icons (`open_line`, `curve`, the Point tool's); no new
   icon was made.
 
+### Select Point on a stitch pattern, 2026-11-20 (#1272)
+
+**Measured** on PE-DESIGN 11.50 the same day (black-box: the coordinator's captures k2 to k14
+on a pattern of two red running lines and a blue one, read from the screen and from the PES
+files PE-DESIGN saved). PE-DESIGN opens a file's colours as separate stitch patterns, one per
+colour, so its keys never cross a colour change. OpenStitch's patterns can hold several
+colours; until a file opens as one pattern per colour (#1289), the keys below stay inside the
+colour block of the selected point, as PE-DESIGN's stay inside its pattern, and a deleted
+jump's landing never moves into the next colour. Rows marked *not verified* keep
+OpenStitch's own choice: the automation could not hold a key during a drag or send modifier
+keys with a mouse click reliably.
+
+| Row | OpenStitch (this version) | Source |
+|---|---|---|
+| One click on a stitch | Inserts a needle point exactly where clicked (on the stitch), selected; one undo step. | measured (k2) |
+| How near a point a click selects it instead | Within the point's square (a few screen points, as a shape's points), so at a low zoom a click between points 2 mm apart can land on one. | **not verified**: PE-DESIGN's zoom in k2 was not recorded |
+| Click, drag box | A click selects one point; a drag box selects the points inside. | measured (k3) |
+| Ctrl+click, Shift+click | Ctrl+click toggles a point, Shift+click adds it. | **not verified**: PE-DESIGN showed no toggling, but the modifiers may not have reached it (k3) |
+| Arrow keys | The selected points move 0.1 mm a press. | measured (k5) |
+| Shift+drag | Keeps a drag horizontal or vertical (as a shape's points). | **not verified** (k5) |
+| Colour block = stitch pattern | The point keys stay inside the colour block of the selected point: PE-DESIGN opens each colour of a machine file as a stitch pattern of its own, and its keys never left one (k4, k6, k7). Opening a file that way is #1289. | measured (finding before the rows) |
+| Ctrl+arrow, Shift+arrow | Ctrl+arrow selects the next or previous needle point alone, across jumps; Shift+arrow grows the selection by one point from where it started and shrinks it the other way; both stop at the colour block's ends. | measured (k4) |
+| Tab, Shift+Tab | With points selected: every point of the first selected point's colour block; again: none; with none selected: nothing. Not while a text field has the focus. | measured (k6) |
+| Home, End, Ctrl+Home | Home and End: the colour block's first and last point; with none selected they do nothing. Ctrl+Home: the pattern's entry point, with none selected too. The Stitch Simulator keeps Home and End while it is open. | measured (k7) |
+| Ctrl+End | The pattern's exit point. | **not verified**: PE-DESIGN probably selected the last point of the design (k7) |
+| Ctrl+Shift+click on a stitch | Inserts a point there and the stitch up to it becomes a jump. | **not verified**: PE-DESIGN added a normal point, the modifiers may not have reached it (k8) |
+| A click on a jump | Selects the needle points at both its ends, inserts nothing (a jump a file stores in several steps, as DST's of over 12.1 mm, counts as one); selected points are painted over unselected ones, so the landing shows filled. | measured (k9) |
+| A click on the empty page | Drops the selected points and the pattern's selection. | measured (k10) |
+| Delete on the end of a jump | The jump stays: deleting the point it lands on makes it land on the next point of its colour block, which is selected; deleting the point it starts from makes it start from the point before, which is selected. With no point left in the colour block to land on, the jump and the trim before it go, and the block ends at the point before. | measured (k11); the no-landing case **not verified** (OpenStitch's choice: nothing dangles, nothing lands in another colour) |
+| Delete on the entry or exit point, or any point | Deleted (at least one stitch must remain); the next point is selected, at the exit the point before. An imported file's entry point is the jump that travels to the first stitch: deleting it keeps the stitches; deleting the first stitch, the point PE-DESIGN shows as the entry (it drops the stitch on a jump's landing), shortens the start's lock stitch by one point, as k14a. | measured (k14) |
+| Right-click on a point | The needle point menu: Split at Point, Delete; neither is grey on the entry or the exit point. | measured (k12) |
+| Split at Point on the entry or exit point | A group of two pieces: the entry point alone (at the exit point: the exit point alone, after the pattern) and the pattern; the alone piece sews nothing (a jump to where the needle first goes in, or last comes out, so a file's opening jumps stay as they were) and the exported stitches are the same as before. | measured on the entry point (k12); the exit point **not verified** (by symmetry) |
+| Split at Point on a point between | Two patterns, the point in both (as before #1272). | **not verified** (k12: menu seen, not run) |
+| Alt with the entry or exit point selected, Alt+drag | Alt marks with an x the exit points of the other visible stitch patterns (for a selected entry point) or their entry points (for an exit point); dropped on one, with a red square while it lies there, the two become one pattern: the exit's pattern first, a jump to the other's entry, the joined pattern keeps the first one's id and takes the earlier place in the sewing order (`stitches.connect` `{ids, first}`). | **not verified** (k13: Alt cannot be held during a drag by the automation) |
+
+PE-DESIGN's saved files also drop the duplicate point it lands on after a trim and write a
+deleted jump end as its own record; OpenStitch's export is unchanged by this issue.
+Opening a file with one stitch pattern per colour, as PE-DESIGN does, is #1289.
+
+Without the window: `ui.stitchPoints` (select, tab, end, step, extend, connectTo, action) and
+the engine's `stitches.insertPoint` `{jump}`, `stitches.splitAt`, `stitches.connect`
+`{first}`. The hint line follows the selection (our own words).
+
 ### Select Point: inserting, selecting, moving, Open and Close, 2026-11-18 (#1260)
 
 **Measured** on PE-DESIGN 11.50 the same day, second round (black-box: the screen and 7 more

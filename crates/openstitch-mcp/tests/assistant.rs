@@ -949,6 +949,7 @@ fn every_command_the_skill_names_exists() {
         "ui.loading",
         "ui.guides",
         "ui.pointMenu",
+        "ui.stitchPoints",
         "ui.assistantSend",
         "ui.assistantState",
         "ui.assistantAnswer",
