@@ -144,10 +144,8 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                         .map(|c| (ChartRef::Chart(c.name.clone()), c.name.clone())),
                 );
                 let mut chosen = current.clone();
-                let r = egui::ComboBox::from_label(t("ui-default-thread-chart"))
-                    .selected_text(name)
-                    .show_ui(ui, |ui| {
-                        crate::fit::combo_list(ui);
+                let r = crate::fit::combo(egui::ComboBox::from_label(t("ui-default-thread-chart"))
+                    .selected_text(name), ui, |ui| {
                         for (c, label) in choices {
                             ui.selectable_value(&mut chosen, c, label);
                         }
@@ -171,10 +169,8 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 st.chart = charts.first().map(|c| c.name.clone());
             }
             ui.horizontal(|ui| {
-                let r = egui::ComboBox::from_label("Chart")
-                    .selected_text(st.chart.clone().unwrap_or_else(|| "—".into()))
-                    .show_ui(ui, |ui| {
-                        crate::fit::combo_list(ui);
+                let r = crate::fit::combo(egui::ComboBox::from_label("Chart")
+                    .selected_text(st.chart.clone().unwrap_or_else(|| "—".into())), ui, |ui| {
                         for c in &charts {
                             ui.selectable_value(&mut st.chart, Some(c.name.clone()), &c.name);
                         }
@@ -286,7 +282,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.separator();
             egui::Grid::new("new-thread").num_columns(2).show(ui, |ui| {
                 ui.label(t("ui-colour"));
-                ui.color_edit_button_srgb(&mut st.color);
+                crate::fit::color_button(ui, &mut st.color);
                 ui.end_row();
                 ui.label(t("ui-code"));
                 ui.text_edit_singleline(&mut st.code);

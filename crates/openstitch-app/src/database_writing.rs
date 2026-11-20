@@ -57,10 +57,9 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
         let current = volumes
             .get(st.selected)
             .map_or_else(|| "No USB media found".to_string(), label);
-        egui::ComboBox::from_id_salt("db-send-to")
+        crate::fit::combo(egui::ComboBox::from_id_salt("db-send-to")
             .selected_text(current)
-            .width(280.0)
-            .show_ui(ui, |ui| {
+            .width(280.0), ui, |ui| {
                 for (i, v) in volumes.iter().enumerate() {
                     ui.selectable_value(&mut st.selected, i, label(v));
                 }

@@ -213,10 +213,10 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
 
     let mut open = app.ui.start.page_open;
     let mut step: Option<Start> = None;
-    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-getting-started")).id(egui::Id::unique("window-getting-started"))
+    crate::fit::show_filling_at_least(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-getting-started")).id(egui::Id::unique("window-getting-started"))
         .open(&mut open)
         .default_size([520.0, 560.0])
-        , ctx, |ui| {
+        , ctx, egui::vec2(260.0, 240.0), |ui| {
             ui.horizontal_wrapped(|ui| {
                 for (label, s) in STEPS {
                     if ui.button(*label).clicked() {

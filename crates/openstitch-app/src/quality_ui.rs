@@ -415,10 +415,10 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     }
     refresh(app, ctx);
     let mut open = true;
-    crate::fit::show(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-check-design")).id(egui::Id::unique("window-check-design"))
+    crate::fit::show_filling_at_least(egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-check-design")).id(egui::Id::unique("window-check-design"))
         .open(&mut open)
         .default_size([380.0, 420.0])
-        , ctx, |ui| {
+        , ctx, egui::vec2(300.0, 240.0), |ui| {
             ui.horizontal(|ui| {
                 for (t, label) in [
                     (Tab::Check, "Problems"),
@@ -435,9 +435,8 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     .fabric
                     .clone()
                     .unwrap_or_else(|| "standard".into());
-                egui::ComboBox::from_id_salt("quality-fabric")
-                    .selected_text(&current)
-                    .show_ui(ui, |ui| {
+                crate::fit::combo(egui::ComboBox::from_id_salt("quality-fabric")
+                    .selected_text(&current), ui, |ui| {
                         for f in openstitch_engine::fabric::FABRICS {
                             if ui.selectable_label(current == f.id, f.name).clicked() {
                                 app.quality.fabric = Some(f.id.to_string());

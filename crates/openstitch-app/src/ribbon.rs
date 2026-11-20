@@ -885,7 +885,7 @@ fn garment_mockup_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let mut fabric = ui.data_mut(|d| *d.get_persisted_mut_or(id, [255u8, 255, 255]));
     ui.horizontal(|ui| {
         ui.label(t("menu-fabric-colour"));
-        if ui.color_edit_button_srgb(&mut fabric).changed() {
+        if crate::fit::color_button(ui, &mut fabric).changed() {
             ui.data_mut(|d| d.insert_persisted(id, fabric));
         }
     });
@@ -1401,7 +1401,7 @@ fn accent_menu(app: &mut EditorApp, ui: &mut egui::Ui) -> bool {
         }
         ui.horizontal(|ui| {
             let mut rgb = a.unwrap_or(PRESETS[0].2);
-            if ui.color_edit_button_srgb(&mut rgb).on_hover_text(tip).changed() {
+            if crate::fit::color_button(ui, &mut rgb).on_hover_text(tip).changed() {
                 *a = Some(rgb);
                 changed = true;
             }
@@ -1731,8 +1731,7 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .changed();
     ui.horizontal(|ui| {
         ui.label(t("menu-guide-colour"));
-        changed |= ui
-            .color_edit_button_srgb(&mut app.ui.prefs.guide_color)
+        changed |= crate::fit::color_button(ui, &mut app.ui.prefs.guide_color)
             .on_hover_text(t("menu-guide-colour-tip"))
             .changed();
     });

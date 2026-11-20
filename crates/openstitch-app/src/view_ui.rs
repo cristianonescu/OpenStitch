@@ -1701,9 +1701,8 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.add_space(4.0);
                     ui.label(egui::RichText::new(f["advice"].as_str().unwrap_or_default()).italics());
                     ui.add_space(6.0);
-                    let combo = egui::ComboBox::from_id_salt("fabric-weight")
-                        .selected_text(format!("No. {weight}"))
-                        .show_ui(ui, |ui| {
+                    let combo = crate::fit::combo(egui::ComboBox::from_id_salt("fabric-weight")
+                        .selected_text(format!("No. {weight}")), ui, |ui| {
                             for w in [60, 40, 30, 12] {
                                 ui.selectable_value(&mut weight, w, format!("No. {w}"));
                             }

@@ -2508,6 +2508,7 @@ impl eframe::App for EditorApp {
                     crate::sewing_ui::factory(self, ui);
                 }
             });
+            self.drawn = crate::fit::drawn(&ctx);
             self.screenshot_step(&ctx);
             return;
         }

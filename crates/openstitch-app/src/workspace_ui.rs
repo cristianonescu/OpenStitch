@@ -541,11 +541,9 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                             .map(|u| format!("{} (user)", units::hoop_size(units, u.width, u.height)))
                     })
                     .unwrap_or_else(|| "Custom size".into());
-                let r = egui::ComboBox::from_id_salt("hoop")
+                let r = crate::fit::combo(egui::ComboBox::from_id_salt("hoop")
                     .selected_text(text)
-                    .width(230.0)
-                    .show_ui(ui, |ui| {
-                        crate::fit::combo_list(ui);
+                    .width(230.0), ui, |ui| {
                         // Grouped by brand, Brother first (#514); the filter matches brand or
                         // name and is kept for the session.
                         let fid = egui::Id::unique("hoop-filter");

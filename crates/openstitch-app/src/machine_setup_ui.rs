@@ -77,9 +77,8 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.add_space(6.0);
             egui::Grid::new("machine-setup").num_columns(2).show(ui, |ui| {
                 ui.label(t("ui-brand"));
-                let brand = egui::ComboBox::from_id_salt("machine-brand")
-                    .selected_text(d.brand.as_str())
-                    .show_ui(ui, |ui| {
+                let brand = crate::fit::combo(egui::ComboBox::from_id_salt("machine-brand")
+                    .selected_text(d.brand.as_str()), ui, |ui| {
                         for (b, _) in BRAND_FORMATS {
                             if ui.selectable_label(d.brand == b, b).clicked() && d.brand != b {
                                 d.brand = b.to_string();
@@ -99,10 +98,9 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     .as_deref()
                     .and_then(|id| hoops.iter().find(|h| h.id == id))
                     .map_or("Choose a hoop", |h| h.label);
-                let hoop = egui::ComboBox::from_id_salt("machine-hoop")
+                let hoop = crate::fit::combo(egui::ComboBox::from_id_salt("machine-hoop")
                     .selected_text(shown)
-                    .width(220.0)
-                    .show_ui(ui, |ui| {
+                    .width(220.0), ui, |ui| {
                         for h in &hoops {
                             if ui
                                 .selectable_label(d.hoop.as_deref() == Some(h.id), h.label)

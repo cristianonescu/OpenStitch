@@ -268,7 +268,7 @@ Save Page, Print and Open File do not open). Ctrl+N, Ctrl+T and Ctrl+W are the b
 page never sees them, so in the browser they cannot be given to a command (Keyboard Shortcuts
 names them) and New is in the File menu; `ui.browserLimits` lists them as `browserKeys`. The
 editor draws at the screen's resolution (2 or 3 device pixels per CSS pixel). A window narrower
-than 640 points (a phone, a narrow browser window) docks no pane: the canvas keeps the whole
+than 780 points (a phone, a narrow browser window; 640 before #1276) docks no pane: the canvas keeps the whole
 width, the panes float folded above the status bar, and the ribbon's tabs scroll under a finger
 (`openstitch_app::editor::workspace::narrow`, `narrow_tests`); the desktop window is at least 900
 points wide, so it changes only with a large Text size. At 600 × 800 CSS pixels, before and
@@ -371,7 +371,7 @@ The Assistant (#766, 2026-11-17): `web/assistant_panel.rs` is now the browser's 
   `Stop` and `ForgetKeys` to the model in every mode, `run_batch` included
   (`assistant_chat::user_only`, checked first). A prompt-injected model therefore cannot move
   the endpoint and send the key elsewhere.
-- **Narrow windows:** on a phone or a window narrower than 640 points (#834) the panel starts
+- **Narrow windows:** on a phone or a window narrower than 780 points (#834; 640 before #1276) the panel starts
   closed, so the canvas shows; the ribbon opens it.
 - **Not in the browser yet:** the Assistant cannot see a picture the user gives it or import an
   SVG it draws (no attachments and no scratch folder, #1224); coding agents (ACP) and question

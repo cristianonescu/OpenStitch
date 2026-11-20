@@ -240,9 +240,8 @@ fn font_combo(
         .iter()
         .find(|c| &c.id == value)
         .map_or(value.clone(), |c| c.label.clone());
-    let r = egui::ComboBox::from_id_salt(salt)
-        .selected_text(label)
-        .show_ui(ui, |ui| {
+    let r = crate::fit::combo(egui::ComboBox::from_id_salt(salt)
+        .selected_text(label), ui, |ui| {
             for c in choices {
                 ui.selectable_value(value, c.id.clone(), &c.label);
             }
@@ -974,9 +973,8 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
                         .frame
                         .and_then(|id| frames.iter().find(|(i, _)| i == id))
                         .map_or("None".to_string(), |(_, n)| n.clone());
-                    let r = egui::ComboBox::from_id_salt("monogram-frame")
-                        .selected_text(label)
-                        .show_ui(ui, |ui| {
+                    let r = crate::fit::combo(egui::ComboBox::from_id_salt("monogram-frame")
+                        .selected_text(label), ui, |ui| {
                             ui.selectable_value(&mut f.frame, None, "None");
                             for (id, name) in &frames {
                                 let id: &'static str = openstitch_design::monogram::frame_info(id)
@@ -993,7 +991,7 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.checkbox(&mut f.keep_aspect, t("ui-maintain-aspect-ratio"));
                     ui.end_row();
                 });
-            ui.horizontal(|ui| {
+            crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                 add = ui.button(t("ui-add")).clicked();
                 edit = ui
                     .add_enabled(
@@ -1008,7 +1006,7 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
                     )
                     .on_hover_text(t("ui-decorative-frame-around-the-selected-objects-tip"))
                     .clicked();
-            });
+            }));
             ui.weak("Letter styles and frames are OpenStitch's own designs.");
         });
     if let Some(shown) = shown {
@@ -1182,9 +1180,8 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
                 ui.label(t("ui-file-name"));
                 ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(90.0));
-                egui::ComboBox::from_id_salt("name-drop-format")
-                    .selected_text(f.format)
-                    .show_ui(ui, |ui| {
+                crate::fit::combo(egui::ComboBox::from_id_salt("name-drop-format")
+                    .selected_text(f.format), ui, |ui| {
                         for t in openstitch_formats::FileType::writable() {
                             ui.selectable_value(&mut f.format, t.extension(), t.extension());
                         }
@@ -1291,16 +1288,18 @@ fn template_window(app: &mut EditorApp, ctx: &egui::Context) {
                                 ui.end_row();
                             }
                         });
-                    ui.horizontal(|ui| {
+                    crate::fit::buttons(ui, |ui| ui.horizontal(|ui| {
                         back = ui.button(t("ui-back")).clicked();
                         next = ui.button(t("ui-apply-and-continue")).clicked();
-                    });
+                    }));
                 }
                 3 => {
                     ui.label(egui::RichText::new(t("ui-step-3-output")).strong());
-                    done = ui.button(t("ui-edit-in-design-page")).clicked();
-                    export = ui.button(t("ui-export-pes")).clicked();
-                    again = ui.button(t("ui-create-new-embroidery-design")).clicked();
+                    crate::fit::buttons(ui, |ui| {
+                        done = ui.button(t("ui-edit-in-design-page")).clicked();
+                        export = ui.button(t("ui-export-pes")).clicked();
+                        again = ui.button(t("ui-create-new-embroidery-design")).clicked();
+                    });
                 }
                 _ => {
                     ui.label(egui::RichText::new(t("ui-step-1-choose-a-template")).strong());
@@ -1314,7 +1313,8 @@ fn template_window(app: &mut EditorApp, ctx: &egui::Context) {
                     });
                     let mut picked = None;
                     egui::ScrollArea::vertical()
-                        .max_height(260.0)
+                        // (A third of a low window at most, #1276: Next stays in view below it.)
+                        .max_height(260.0f32.min(crate::fit::room(ui.ctx()) * 0.4))
                         .show(ui, |ui| {
                             for (category, rows) in w.categories() {
                                 ui.label(egui::RichText::new(category).strong());
@@ -1335,9 +1335,9 @@ fn template_window(app: &mut EditorApp, ctx: &egui::Context) {
                     if picked.is_some() {
                         w.chosen = picked;
                     }
-                    ui.add_enabled_ui(w.chosen.is_some(), |ui| {
+                    crate::fit::buttons(ui, |ui| ui.add_enabled_ui(w.chosen.is_some(), |ui| {
                         next = ui.button(t("ui-next")).clicked();
-                    });
+                    }));
                 }
             }
         });

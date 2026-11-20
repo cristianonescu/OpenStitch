@@ -427,9 +427,8 @@ fn regions_section(ui: &mut egui::Ui, w: &mut ImageWizard) -> bool {
                                 } else {
                                     &["auto", "skip"]
                                 };
-                                egui::ComboBox::from_id_salt(("wizardRegion", r.id))
-                                    .selected_text(shown)
-                                    .show_ui(ui, |ui| {
+                                crate::fit::combo(egui::ComboBox::from_id_salt(("wizardRegion", r.id))
+                                    .selected_text(shown), ui, |ui| {
                                         for c in choices {
                                             ui.selectable_value(&mut kind, c, *c);
                                         }
@@ -676,9 +675,8 @@ fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
                     .find(|k| Some(k.0) == p)
                     .map_or("None", |k| k.1)
             };
-            egui::ComboBox::from_id_salt("wizardPreset")
-                .selected_text(label(w.preset))
-                .show_ui(ui, |ui| {
+            crate::fit::combo(egui::ComboBox::from_id_salt("wizardPreset")
+                .selected_text(label(w.preset)), ui, |ui| {
                     ui.selectable_value(&mut w.preset, None, "None");
                     for (key, name) in PRESETS {
                         ui.selectable_value(&mut w.preset, Some(key), name);
@@ -780,10 +778,8 @@ fn threads_rows(ui: &mut egui::Ui, w: &mut ImageWizard, charts: &[String]) {
             .map_or(other.to_string(), |(_, n)| n.to_string()),
     };
     ui.label(t("ui-threads"));
-    egui::ComboBox::from_id_salt("wizardThreads")
-        .selected_text(label(&w.threads))
-        .show_ui(ui, |ui| {
-            crate::fit::combo_list(ui);
+    crate::fit::combo(egui::ComboBox::from_id_salt("wizardThreads")
+        .selected_text(label(&w.threads)), ui, |ui| {
             for v in ["brother", "all"]
                 .into_iter()
                 .chain(brands.iter().map(|(id, _)| *id))
@@ -798,9 +794,8 @@ fn threads_rows(ui: &mut egui::Ui, w: &mut ImageWizard, charts: &[String]) {
         });
     ui.end_row();
     ui.label(t("ui-i-own"));
-    egui::ComboBox::from_id_salt("wizardOwned")
-        .selected_text(w.owned.clone().unwrap_or_else(|| "(not set)".into()))
-        .show_ui(ui, |ui| {
+    crate::fit::combo(egui::ComboBox::from_id_salt("wizardOwned")
+        .selected_text(w.owned.clone().unwrap_or_else(|| "(not set)".into())), ui, |ui| {
             ui.selectable_value(&mut w.owned, None, "(not set)");
             for c in charts {
                 ui.selectable_value(&mut w.owned, Some(c.clone()), c);
@@ -812,9 +807,8 @@ fn threads_rows(ui: &mut egui::Ui, w: &mut ImageWizard, charts: &[String]) {
 }
 
 fn combo(ui: &mut egui::Ui, id: &str, value: &mut &'static str, options: &[&'static str]) {
-    egui::ComboBox::from_id_salt(id)
-        .selected_text(*value)
-        .show_ui(ui, |ui| {
+    crate::fit::combo(egui::ComboBox::from_id_salt(id)
+        .selected_text(*value), ui, |ui| {
             for o in options {
                 ui.selectable_value(value, o, *o);
             }

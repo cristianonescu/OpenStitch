@@ -256,16 +256,14 @@ pub fn stamp_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     ui.separator();
     ui.add_enabled_ui(shape.is_some(), |ui| {
-        egui::ComboBox::from_label("Stamp")
-            .selected_text(openstitch_app::editor::ui_texts::tr(openstitch_design::stamp::PATTERNS[app.edit.stamp_pattern]))
-            .show_ui(ui, |ui| {
+        crate::fit::combo(egui::ComboBox::from_label("Stamp")
+            .selected_text(openstitch_app::editor::ui_texts::tr(openstitch_design::stamp::PATTERNS[app.edit.stamp_pattern])), ui, |ui| {
                 for (k, p) in openstitch_design::stamp::PATTERNS.iter().enumerate() {
                     ui.selectable_value(&mut app.edit.stamp_pattern, k, openstitch_app::editor::ui_texts::tr(p));
                 }
             });
-        egui::ComboBox::from_label("Effect")
-            .selected_text(openstitch_app::editor::ui_texts::tr(edit_ops::EMBOSS[app.edit.stamp_effect].0))
-            .show_ui(ui, |ui| {
+        crate::fit::combo(egui::ComboBox::from_label("Effect")
+            .selected_text(openstitch_app::editor::ui_texts::tr(edit_ops::EMBOSS[app.edit.stamp_effect].0)), ui, |ui| {
                 for (k, (label, _)) in edit_ops::EMBOSS.iter().enumerate() {
                     ui.selectable_value(&mut app.edit.stamp_effect, k, openstitch_app::editor::ui_texts::tr(label));
                 }
@@ -529,9 +527,8 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
         .default_width(300.0)
         , ctx, |ui| {
             let f = &mut app.edit.arrange;
-            let r = egui::ComboBox::from_label("Arrangement")
-                .selected_text(f.mode.label())
-                .show_ui(ui, |ui| {
+            let r = crate::fit::combo(egui::ComboBox::from_label("Arrangement")
+                .selected_text(f.mode.label()), ui, |ui| {
                     for m in ArrangeMode::ALL {
                         ui.selectable_value(&mut f.mode, m, m.label());
                     }
@@ -572,9 +569,8 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                             .iter()
                             .find(|(id, _)| Some(*id) == f.guide)
                             .map_or("Choose…".to_string(), |(_, l)| l.clone());
-                        egui::ComboBox::from_id_salt("arrange-guide")
-                            .selected_text(shown)
-                            .show_ui(ui, |ui| {
+                        crate::fit::combo(egui::ComboBox::from_id_salt("arrange-guide")
+                            .selected_text(shown), ui, |ui| {
                                 for (id, label) in &guides {
                                     ui.selectable_value(&mut f.guide, Some(*id), label);
                                 }
@@ -585,14 +581,13 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.end_row();
                         if path {
                             ui.label(t("ui-side"));
-                            egui::ComboBox::from_id_salt("arrange-side")
+                            crate::fit::combo(egui::ComboBox::from_id_salt("arrange-side")
                                 .selected_text(
                                     PATH_SIDES
                                         .iter()
                                         .find(|(k, _)| *k == f.side)
                                         .map_or("", |(_, l)| l),
-                                )
-                                .show_ui(ui, |ui| {
+                                ), ui, |ui| {
                                     for (k, l) in PATH_SIDES {
                                         ui.selectable_value(&mut f.side, k, l);
                                     }
@@ -796,10 +791,9 @@ pub fn order_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandR
             out = Some(CommandRequest::new("order.optimize", serde_json::json!({})));
         }
         let mut chosen = mode;
-        egui::ComboBox::from_id_salt("order-optimize-mode")
+        crate::fit::combo(egui::ComboBox::from_id_salt("order-optimize-mode")
             .selected_text(mode.label())
-            .width(130.0)
-            .show_ui(ui, |ui| {
+            .width(130.0), ui, |ui| {
                 for m in OptimizeOrder::ALL {
                     ui.selectable_value(&mut chosen, m, m.label());
                 }

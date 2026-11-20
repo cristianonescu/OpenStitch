@@ -1155,9 +1155,8 @@ fn kind_combo<K: Copy + PartialEq>(
     };
     let mut chosen = None;
     ui.add_enabled_ui(enabled, |ui| {
-        let r = egui::ComboBox::from_id_salt(id)
-            .selected_text(text)
-            .show_ui(ui, |ui| {
+        let r = crate::fit::combo(egui::ComboBox::from_id_salt(id)
+            .selected_text(text), ui, |ui| {
                 for &(k, label) in options {
                     if ui
                         .selectable_label(current.same() == Some(&k), label)
@@ -1613,9 +1612,8 @@ fn control(app: &mut EditorApp, ui: &mut egui::Ui, c: &Control) -> Option<Value>
                 .iter()
                 .find(|o| o.0 == *value)
                 .map_or(value.as_str(), |o| o.1.as_str());
-            let r = egui::ComboBox::from_id_salt(*param)
-                .selected_text(text)
-                .show_ui(ui, |ui| {
+            let r = crate::fit::combo(egui::ComboBox::from_id_salt(*param)
+                .selected_text(text), ui, |ui| {
                     for (v, l) in options {
                         if ui.selectable_label(v == value, l).clicked() && v != value {
                             changed = Some(json!(v));
@@ -1719,10 +1717,9 @@ pub fn sim_controls(
             *playing = false;
         }
         ui.label(format!("{} / {}", pos.unwrap_or(total), total));
-        let r = egui::ComboBox::from_id_salt("speed")
+        let r = crate::fit::combo(egui::ComboBox::from_id_salt("speed")
             .selected_text(format!("{:.0}/s", *speed))
-            .width(70.0)
-            .show_ui(ui, |ui| {
+            .width(70.0), ui, |ui| {
                 for s in SIM_SPEEDS {
                     ui.selectable_value(speed, s, format!("{s:.0}/s"));
                 }

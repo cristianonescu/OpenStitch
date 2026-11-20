@@ -132,9 +132,8 @@ pub fn finish_controls(app: &EditorApp, ui: &mut egui::Ui) -> Option<CommandRequ
                         .iter()
                         .find(|b| b.0 == f.between)
                         .map_or("When far", |b| b.1);
-                    egui::ComboBox::from_id_salt("finish-between")
-                        .selected_text(label)
-                        .show_ui(ui, |ui| {
+                    crate::fit::combo(egui::ComboBox::from_id_salt("finish-between")
+                        .selected_text(label), ui, |ui| {
                             for (v, name) in BETWEEN {
                                 if ui.selectable_label(v == f.between, name).clicked()
                                     && v != f.between
@@ -169,9 +168,8 @@ fn mode_combo(
     ui.label(label);
     let mut chosen = None;
     let name = MODES.iter().find(|m| m.0 == current).map_or("", |m| m.1);
-    egui::ComboBox::from_id_salt(salt)
-        .selected_text(name)
-        .show_ui(ui, |ui| {
+    crate::fit::combo(egui::ComboBox::from_id_salt(salt)
+        .selected_text(name), ui, |ui| {
             for (m, n) in MODES {
                 if ui.selectable_label(m == current, n).clicked() && m != current {
                     chosen = Some(m);

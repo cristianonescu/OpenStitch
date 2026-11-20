@@ -765,9 +765,8 @@ fn preview(ui: &mut egui::Ui, e: &SewingEditor) {
 fn settings(ui: &mut egui::Ui, e: &mut SewingEditor) {
     crate::fit::row(ui, "factory-design", |ui| {
         ui.label(t("ui-kind"));
-        let r = egui::ComboBox::from_id_salt("sdf-kind")
-            .selected_text(e.doc.kind.label())
-            .show_ui(ui, |ui| {
+        let r = crate::fit::combo(egui::ComboBox::from_id_salt("sdf-kind")
+            .selected_text(e.doc.kind.label()), ui, |ui| {
                 for k in SewingKind::ALL {
                     if ui.selectable_label(e.doc.kind == k, k.label()).clicked() && e.doc.kind != k
                     {

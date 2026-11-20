@@ -170,10 +170,8 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
                     .map_or(id.clone(), |b| b.1.clone()),
                 Target::User(n) => n.clone(),
             };
-            let r = egui::ComboBox::from_label("Chart")
-                .selected_text(shown)
-                .show_ui(ui, |ui| {
-                    crate::fit::combo_list(ui);
+            let r = crate::fit::combo(egui::ComboBox::from_label("Chart")
+                .selected_text(shown), ui, |ui| {
                     for (id, name) in &builtins {
                         ui.selectable_value(&mut st.target, Target::Builtin(id.clone()), name);
                     }

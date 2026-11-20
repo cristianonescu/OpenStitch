@@ -15,6 +15,9 @@ pub const EDGE: f32 = 4.0;
 const LEAST: f32 = 40.0;
 /// A menu stays below (or above) its button while that leaves it this height.
 const BESIDE_LEAST: f32 = 100.0;
+/// A dialog keeps its button row in view only while that leaves the content this height: in
+/// less (a window under about 130 points high) the row scrolls with the content, below it.
+pub const PIN_LEAST: f32 = 60.0;
 
 /// The height the content of a pop-up may take in this window: the window's, less the gap at
 /// both edges and the pop-up's own frame.
@@ -44,8 +47,17 @@ fn room_beside(ctx: &egui::Context, button: egui::Rect) -> f32 {
     if side >= BESIDE_LEAST { side.min(all) } else { all }
 }
 
-fn wheel_id() -> egui::Id {
-    egui::Id::unique("fit-wheel-passed-on")
+/// The lists being drawn, innermost last: a sub-menu's list is drawn inside the frame of the
+/// list its entry is in, so the one before it is the list it passes the wheel on to.
+fn lists_id() -> egui::Id {
+    egui::Id::unique("fit-lists-open")
+}
+
+/// Where the wheel passed on to the list `list` waits: written by a sub-menu of that list in
+/// this frame, taken by the list at the end of its own frame. A delta nobody took (its list
+/// closed) is cleared when a list of that name is next drawn.
+fn wheel_id(list: egui::Id) -> egui::Id {
+    list.with("fit-wheel-passed-on")
 }
 
 fn scroll_in<R>(ui: &mut egui::Ui, max: f32, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
@@ -56,34 +68,57 @@ fn scroll_in<R>(ui: &mut egui::Ui, max: f32, add: impl FnOnce(&mut egui::Ui) -> 
     // clips at its edge, which a list that fits has no use for.
     let key = ui.scope_id().with("fit-scroll-width");
     let last: f32 = ui.ctx().data(|d| d.get_temp(key)).unwrap_or(0.0);
-    let out = egui::ScrollArea::new([last > wide + 1.0, true])
+    let me = ui.scope_id().with("fit-list");
+    let parent = ui.ctx().data_mut(|d| {
+        // (Nothing waits for this list from before it was drawn.)
+        d.remove::<egui::Vec2>(wheel_id(me));
+        let open: &mut Vec<egui::Id> = d.get_temp_mut_or_default(lists_id());
+        let parent = open.last().copied();
+        open.push(me);
+        parent
+    });
+    // A list opens at its top: the toolkit keeps a scroll area's place by its name, so a menu
+    // scrolled and closed would open scrolled the next time.
+    let frame = ui.ctx().cumulative_frame_nr();
+    let drawn_at = me.with("drawn-at");
+    let before: Option<u64> = ui.ctx().data(|d| d.get_temp(drawn_at));
+    ui.ctx().data_mut(|d| d.insert_temp(drawn_at, frame));
+    let mut area = egui::ScrollArea::new([last > wide + 1.0, true])
         .id_salt("fit-scroll")
         .max_height(max)
         .max_width(wide)
         .min_scrolled_height(max)
         .min_scrolled_width(wide)
-        .auto_shrink([true, true])
+        .auto_shrink([true, true]);
+    if before.is_none_or(|f| frame > f + 1) {
+        area = area.vertical_scroll_offset(0.0);
+    }
+    let out = area
         .show(ui, |ui| {
             let inner = add(ui);
             follow_focus(ui);
             // The wheel turned over a sub-menu of this list that had nothing to scroll.
-            let passed = ui.ctx().data_mut(|d| d.remove_temp::<egui::Vec2>(wheel_id()));
+            let passed = ui.ctx().data_mut(|d| d.remove_temp::<egui::Vec2>(wheel_id(me)));
             if let Some(delta) = passed {
                 ui.scroll_with_delta(delta);
             }
             inner
         });
+    ui.ctx().data_mut(|d| {
+        let open: &mut Vec<egui::Id> = d.get_temp_mut_or_default(lists_id());
+        open.retain(|id| *id != me);
+    });
     // In a narrow window a sub-menu opens over the list it belongs to, under the resting
     // pointer, and takes the wheel: when it has nothing (more) to scroll that way, the wheel
     // goes on to the list under it (read where that list finishes its frame, above).
-    if ui.rect_contains_pointer(out.inner_rect) {
+    if let Some(parent) = parent.filter(|_| ui.rect_contains_pointer(out.inner_rect)) {
         let delta = ui.input(|i| i.smooth_scroll_delta);
         let offset = out.state.clamped_offset().y;
         let end = (out.content_size.y - out.inner_rect.height()).max(0.0);
         let stuck = (delta.y > 0.0 && offset <= 0.5) || (delta.y < 0.0 && offset >= end - 0.5);
         if stuck {
             ui.ctx()
-                .data_mut(|d| d.insert_temp(wheel_id(), egui::vec2(0.0, delta.y)));
+                .data_mut(|d| d.insert_temp(wheel_id(parent), egui::vec2(0.0, delta.y)));
         }
     }
     note(
@@ -144,13 +179,83 @@ pub fn context_menu(
     on.context_menu(|ui| scroll(ui, add))
 }
 
-/// Call first in the list of a combo box with long entries: the list is as wide as the window
-/// at most and an entry too long for that wraps.
-pub fn combo_list(ui: &mut egui::Ui) {
+/// Shows a combo box: its list is the toolkit's own (it scrolls by itself), held to the
+/// window: no higher than the window leaves room for, as wide as the window at most, an entry
+/// too long for that wrapping. Every combo box of the app is shown through this.
+pub fn combo<R>(
+    combo: egui::ComboBox,
+    ui: &mut egui::Ui,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<Option<R>> {
+    let height = room(ui.ctx()).min(ui.spacing().combo_height);
+    combo.height(height).show_ui(ui, |ui| {
+        combo_list(ui);
+        add(ui)
+    })
+}
+
+fn combo_list(ui: &mut egui::Ui) {
     let frame = egui::Frame::menu(ui.style()).total_margin().sum().x;
     let wide = (ui.ctx().content_rect().width() - frame - 2.0 * EDGE).max(LEAST);
     ui.set_max_width(wide);
     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+}
+
+/// A colour button: a click opens the toolkit's colour picker in a pop-up that scrolls in a
+/// window too small for it (the toolkit's own colour button opens one that cannot). Every
+/// colour button of the app is this one.
+pub fn color_button(ui: &mut egui::Ui, rgb: &mut [u8; 3]) -> egui::Response {
+    let popup_id = ui.auto_id_with("fit-colour");
+    let open = egui::Popup::is_id_open(ui.ctx(), popup_id);
+    let size = ui.spacing().interact_size;
+    let (rect, mut response) = ui.allocate_exact_size(size, egui::Sense::click());
+    let [r, g, b] = *rgb;
+    response.widget_info(|| {
+        let mut info = egui::WidgetInfo::labeled(egui::Role::ColorWell, ui.is_enabled(), "Color");
+        info.current_text_value = Some(format!("#{r:02x}{g:02x}{b:02x}"));
+        info
+    });
+    if ui.is_rect_visible(rect) {
+        // Drawn as the toolkit draws its own: the colour inside a one-point frame.
+        let visuals = if open {
+            ui.visuals().widgets.open
+        } else {
+            *ui.style().interact(&response)
+        };
+        let rect = rect.expand(visuals.expansion);
+        ui.painter().rect_filled(
+            rect.shrink(1.0),
+            visuals.corner_radius,
+            egui::Color32::from_rgb(r, g, b),
+        );
+        ui.painter().rect_stroke(
+            rect,
+            visuals.corner_radius,
+            (1.0, visuals.bg_fill),
+            egui::StrokeKind::Inside,
+        );
+    }
+    let mut color = egui::Color32::from_rgb(r, g, b);
+    let mut changed = false;
+    popup(
+        egui::Popup::menu(&response)
+            .id(popup_id)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+        &response,
+        |ui| {
+            ui.spacing_mut().slider_width = 275.0;
+            changed = egui::color_picker::color_picker_color32(
+                ui,
+                &mut color,
+                egui::color_picker::Alpha::Opaque,
+            );
+        },
+    );
+    if changed {
+        *rgb = [color.r(), color.g(), color.b()];
+        response.mark_changed();
+    }
+    response
 }
 
 /// Scroll bars that show while at rest, thin and over the content, so a list that goes on is
@@ -281,8 +386,14 @@ fn follow_focus(ui: &egui::Ui) {
     }
 }
 
+/// Two measured lengths that are the same for the layout: fractions of a point come and go
+/// with rounding, and a layout that asked for another frame over them would never rest.
+fn same(a: f32, b: f32) -> bool {
+    a == b || (a - b).abs() <= 0.5
+}
+
 /// What a dialog measured in its last frame.
-#[derive(Clone, Copy, Default, PartialEq)]
+#[derive(Clone, Copy, Default)]
 struct Sizes {
     /// The height of its content without the button row.
     content: f32,
@@ -337,22 +448,77 @@ pub fn show_filling<R>(
     ctx: &egui::Context,
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> Option<egui::InnerResponse<Option<R>>> {
-    // (A window that remembers a size larger than the app's window is held to that.)
-    let most = ctx.content_rect().size() - egui::vec2(2.0 * EDGE, 2.0 * EDGE + 32.0);
-    let most = most.max(egui::vec2(LEAST, LEAST));
-    window
-        .max_width(most.x)
-        .max_height(most.y)
+    let most = most_of(ctx);
+    held(window, ctx)
         // (And it does not fold up around a list that would take any size.)
         .min_width(most.x.min(200.0))
         .min_height(most.y.min(140.0))
         .show(ctx, |ui| {
+            raise_when_opened(ui);
             visible_bars(ui);
             add(ui)
         })
 }
 
+/// The most a window of the app may take of the app's window.
+fn most_of(ctx: &egui::Context) -> egui::Vec2 {
+    let most = ctx.content_rect().size() - egui::vec2(2.0 * EDGE, 2.0 * EDGE + 32.0);
+    most.max(egui::vec2(LEAST, LEAST))
+}
+
+/// (A window that remembers a size larger than the app's window is held to that.)
+fn held<'a>(window: egui::Window<'a>, ctx: &egui::Context) -> egui::Window<'a> {
+    let most = most_of(ctx);
+    window.max_width(most.x).max_height(most.y)
+}
+
+/// A pane shown as a window (floating, or folded to its title bar in the narrow layout): as
+/// [`show_filling`], without a least size, which a folded window would keep around its title
+/// bar.
+pub fn show_pane<R>(
+    window: egui::Window<'_>,
+    ctx: &egui::Context,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> Option<egui::InnerResponse<Option<R>>> {
+    held(window, ctx).show(ctx, |ui| {
+        visible_bars(ui);
+        add(ui)
+    })
+}
+
+/// As [`show_filling`], for a window with rows above its list (tabs, a header): in an app
+/// window too small for `least` points of them and a few rows of the list, the window's
+/// content keeps that size and scrolls.
+pub fn show_filling_at_least<R>(
+    window: egui::Window<'_>,
+    ctx: &egui::Context,
+    least: egui::Vec2,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> Option<egui::InnerResponse<Option<R>>> {
+    show_filling(window, ctx, |ui| page(ui, least, true, add))
+}
+
+/// A window that opens comes over what is on screen: the folded panes' title bars of the
+/// narrow layout, which appear in the same first frames (drawn after it in the frame), would
+/// otherwise lie over a dialog that opens with the app (Machine Setup, the Startup Wizard, the
+/// update). Raised over its first few frames; after that its place among the windows is the
+/// user's (a click on another window brings that one forward).
+fn raise_when_opened(ui: &egui::Ui) {
+    const FRAMES: u32 = 4;
+    let ctx = ui.ctx();
+    let layer = ui.layer_id();
+    let key = ui.scope_id().with(("fit-opened", layer.id));
+    let frame = ctx.cumulative_frame_nr();
+    let (last, run): (u64, u32) = ctx.data(|d| d.get_temp(key)).unwrap_or((0, 0));
+    let run = if run > 0 && frame == last + 1 { run + 1 } else { 1 };
+    ctx.data_mut(|d| d.insert_temp(key, (frame, run)));
+    if run <= FRAMES {
+        ctx.move_to_top(layer);
+    }
+}
+
 fn dialog<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    raise_when_opened(ui);
     let ctx = ui.ctx().clone();
     let key = ui.scope_id().with("fit-dialog");
     let last: Sizes = ctx.data(|d| d.get_temp(key)).unwrap_or_default();
@@ -368,12 +534,10 @@ fn dialog<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let width = (screen.width() - 2.0 * EDGE - sides).max(LEAST);
     // The buttons leave the scrolled content only when both do not fit, so a dialog that fits
     // is laid out as it always was.
-    let pin = last.buttons > 0.0 && last.content + last.buttons > room + 0.5;
-    let view = if pin {
-        (room - last.buttons).max(LEAST)
-    } else {
-        room
-    };
+    let pin = last.buttons > 0.0
+        && last.content + last.buttons > room + 0.5
+        && room - last.buttons >= PIN_LEAST;
+    let view = if pin { room - last.buttons } else { room };
     let gap = ui.spacing().item_spacing.y;
     let pinned = pin.then(|| {
         egui::Rect::from_min_size(
@@ -437,7 +601,11 @@ fn dialog<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
         width: out.inner_rect.width(),
         content_width: out.content_size.x,
     };
-    if now != last {
+    let settled = same(now.content, last.content)
+        && same(now.buttons, last.buttons)
+        && same(now.width, last.width)
+        && same(now.content_width, last.content_width);
+    if !settled {
         ctx.data_mut(|d| d.insert_temp(key, now));
         ctx.request_repaint();
     }
@@ -485,7 +653,7 @@ pub fn buttons<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R 
 }
 
 /// What a pane measured in its last frame.
-#[derive(Clone, Copy, Default, PartialEq)]
+#[derive(Clone, Copy, Default)]
 struct PaneSizes {
     /// Its content was taller than the pane: it is drawn scrolling up and down.
     tall: bool,
@@ -577,7 +745,11 @@ fn pane_in<R>(ui: &mut egui::Ui, width: Option<f32>, add: impl FnOnce(&mut egui:
         };
         (inner, now)
     };
-    if now != last {
+    let settled = now.tall == last.tall
+        && same(now.needed, last.needed)
+        && same(now.wide, last.wide)
+        && same(now.room, last.room);
+    if !settled {
         ctx.data_mut(|d| d.insert_temp(key, now));
         ctx.request_repaint();
     }
@@ -664,6 +836,35 @@ pub fn row<R>(ui: &mut egui::Ui, salt: &'static str, add: impl FnOnce(&mut egui:
         (out.inner, out.content_size.x)
     } else {
         let r = ui.horizontal(add);
+        (r.inner, r.response.rect.width())
+    };
+    if (width - last).abs() > 0.5 {
+        ui.ctx().data_mut(|d| d.insert_temp(key, width));
+        ui.ctx().request_repaint();
+    }
+    inner
+}
+
+/// As [`row`], for a section laid out top to bottom (a form of labelled fields): drawn as it
+/// is while it fits its place's width, and scrolling sideways once a row of it is wider.
+pub fn block<R>(ui: &mut egui::Ui, salt: &'static str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let key = ui.scope_id().with(("fit-block", salt));
+    let last: f32 = ui.ctx().data(|d| d.get_temp(key)).unwrap_or(0.0);
+    let room = ui.available_width();
+    let (inner, width) = if last > room + 1.0 {
+        visible_bars(ui);
+        let out = egui::ScrollArea::horizontal()
+            .id_salt(("fit-block", salt))
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                // Laid out for the room there is, as when it fits: a field that takes the
+                // width left keeps that width; a row that needs more makes the section wider.
+                ui.set_max_width(room);
+                ui.vertical(add).inner
+            });
+        (out.inner, out.content_size.x)
+    } else {
+        let r = ui.vertical(add);
         (r.inner, r.response.rect.width())
     };
     if (width - last).abs() > 0.5 {

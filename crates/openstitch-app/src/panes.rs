@@ -88,7 +88,7 @@ fn floating(
         return;
     }
     let mut open = true;
-    crate::fit::show_filling(egui::Window::new(pane.title())
+    crate::fit::show_pane(egui::Window::new(pane.title())
         .open(&mut open)
         .default_pos(pos)
         .default_size(size)
@@ -121,12 +121,16 @@ fn narrow_panes(app: &mut EditorApp, ctx: &egui::Context, screen: egui::Rect) {
         }
         let mut open = true;
         // Above the status bar, one title bar over the other; an opened one grows upwards.
+        // (In a window so low that it scrolls as a page, #1276, they sit lower: 100 points
+        // up they would lie over the top bar, which the page cannot scroll out from under
+        // them.)
+        let lift = if screen.height() < PAGE_HEIGHT_LEAST { 30.0 } else { 100.0 };
         let row = (panes.len() - 1 - i) as f32;
-        crate::fit::show_filling(egui::Window::new(pane.title())
+        crate::fit::show_pane(egui::Window::new(pane.title())
             .id(egui::Id::unique(("narrow-pane", pane.title())))
             .open(&mut open)
             .default_open(false)
-            .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(4.0, -100.0 - 34.0 * row))
+            .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(4.0, -lift - 34.0 * row))
             .default_width((screen.width() - 8.0).min(360.0))
             .resizable(true)
             , ctx, |ui| crate::fit::pane(ui, |ui| pane.contents(app, ui)));
@@ -181,6 +185,51 @@ pub fn side_limit(app: &EditorApp, available: f32, panes: &[Pane]) -> f32 {
     (available - WORK_AREA_LEAST - docked * PANE_WIDTH_LEAST).max(PANE_WIDTH_LEAST)
 }
 
+/// A panel at a side, held to `limit` points of width. The toolkit remembers the width a panel
+/// was last drawn at, so one squeezed by a small window would stay that narrow when the window
+/// grows again: the width it had before it was squeezed is kept here and given back as soon
+/// as the limit allows it.
+pub fn limited(panel: egui::Panel, ctx: &egui::Context, name: &'static str, limit: f32) -> egui::Panel {
+    if !limit.is_finite() {
+        return panel;
+    }
+    let wanted: Option<f32> = ctx.data(|d| d.get_temp(wanted_id(name)));
+    match wanted {
+        Some(w) => panel.size_range(w.min(limit)..=limit),
+        None => panel.max_size(limit),
+    }
+}
+
+fn wanted_id(name: &'static str) -> egui::Id {
+    egui::Id::unique(("pane-width-wanted", name))
+}
+
+/// After a panel shown with [`limited`]: `width` is what it was drawn at. While the limit
+/// holds it narrower than it was, the width from before is remembered; once it is as wide
+/// again (or the user drags it, within the limit), nothing is.
+pub fn limited_drawn(ctx: &egui::Context, name: &'static str, limit: f32, width: f32) {
+    if !limit.is_finite() {
+        return;
+    }
+    let id = wanted_id(name);
+    let wanted: Option<f32> = ctx.data(|d| d.get_temp(id));
+    let before: Option<f32> = ctx.data(|d| d.get_temp(id.with("drawn")));
+    ctx.data_mut(|d| {
+        match (wanted, before) {
+            // Squeezed in this frame: it was wider in the last one.
+            (None, Some(b)) if b > limit + 0.5 && width < b - 0.5 => {
+                d.insert_temp(id, b);
+            }
+            // As wide as wanted again, or the limit no longer binds and the user changed it.
+            (Some(w), _) if width >= w - 0.5 || width < limit - 0.5 => {
+                d.remove::<f32>(id);
+            }
+            _ => {}
+        }
+        d.insert_temp(id.with("drawn"), width);
+    });
+}
+
 /// Docks the visible panes around the work area (call before the central panel).
 pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
     use openstitch_app::editor::prefs::Side;
@@ -210,24 +259,35 @@ pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
         });
     }
     if docked(app, Pane::SewingOrder) {
-        panel("objects", app.ui.prefs.panes.sewing_order.side)
-            .default_size(250.0)
-            .max_size(side_limit(app, ui.available_width(), &[Pane::Attributes]))
-            .show(ui, |ui| {
-                crate::fit::pane_at_least(ui, PANE_WIDTH_LEAST, |ui| {
-                    header(app, ui, Pane::SewingOrder);
-                    ui.separator();
-                    crate::panels::object_list(app, ui);
-                })
-            });
+        let side = app.ui.prefs.panes.sewing_order.side;
+        // (A width limit is for a pane at a side; docked above or below it takes the width.)
+        let limit = if matches!(side, Side::Left | Side::Right) {
+            side_limit(app, ui.available_width(), &[Pane::Attributes])
+        } else {
+            f32::INFINITY
+        };
+        let base = panel("objects", side).default_size(250.0);
+        let shown = limited(base, ui.ctx(), "objects", limit).show(ui, |ui| {
+            crate::fit::pane_at_least(ui, PANE_WIDTH_LEAST, |ui| {
+                header(app, ui, Pane::SewingOrder);
+                ui.separator();
+                crate::panels::object_list(app, ui);
+            })
+        });
+        limited_drawn(ui.ctx(), "objects", limit, shown.response.rect.width());
     }
     if docked(app, Pane::Attributes) {
-        panel("inspector", app.ui.prefs.panes.attributes.side)
-            .default_size(330.0)
-            .max_size(crate::fit::pane_limit(ui.available_width(), WORK_AREA_LEAST))
-            .show(ui, |ui| {
-                crate::fit::pane_at_least(ui, PANE_WIDTH_LEAST, |ui| attributes(app, ui))
-            });
+        let side = app.ui.prefs.panes.attributes.side;
+        let limit = if matches!(side, Side::Left | Side::Right) {
+            crate::fit::pane_limit(ui.available_width(), WORK_AREA_LEAST)
+        } else {
+            f32::INFINITY
+        };
+        let base = panel("inspector", side).default_size(330.0);
+        let shown = limited(base, ui.ctx(), "inspector", limit).show(ui, |ui| {
+            crate::fit::pane_at_least(ui, PANE_WIDTH_LEAST, |ui| attributes(app, ui))
+        });
+        limited_drawn(ui.ctx(), "inspector", limit, shown.response.rect.width());
     }
 }
 

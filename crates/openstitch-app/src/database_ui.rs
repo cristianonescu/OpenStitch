@@ -1086,9 +1086,8 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                 .spacing([10.0, 6.0])
                 .show(ui, |ui| {
                     ui.label(t("ui-format-type"));
-                    egui::ComboBox::from_id_salt("db-convert-format")
-                        .selected_text(f.target.extension().to_uppercase())
-                        .show_ui(ui, |ui| {
+                    crate::fit::combo(egui::ComboBox::from_id_salt("db-convert-format")
+                        .selected_text(f.target.extension().to_uppercase()), ui, |ui| {
                             for t in FileType::writable() {
                                 ui.selectable_value(&mut f.target, t, t.extension().to_uppercase());
                             }
@@ -1157,9 +1156,8 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                 .spacing([10.0, 6.0])
                 .show(ui, |ui| {
                     ui.label(t("ui-output"));
-                    egui::ComboBox::from_id_salt("db-cat-format")
-                        .selected_text(c.format.label())
-                        .show_ui(ui, |ui| {
+                    crate::fit::combo(egui::ComboBox::from_id_salt("db-cat-format")
+                        .selected_text(c.format.label()), ui, |ui| {
                             for f in CatalogFormat::ALL {
                                 ui.selectable_value(&mut c.format, f, f.label());
                             }
@@ -1182,9 +1180,8 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.end_row();
                     if c.format != CatalogFormat::Csv {
                         ui.label(t("ui-layout"));
-                        egui::ComboBox::from_id_salt("db-cat-style")
-                            .selected_text(c.setup.style.label())
-                            .show_ui(ui, |ui| {
+                        crate::fit::combo(egui::ComboBox::from_id_salt("db-cat-style")
+                            .selected_text(c.setup.style.label()), ui, |ui| {
                                 for s in Style::ALL {
                                     ui.selectable_value(&mut c.setup.style, s, s.label());
                                 }

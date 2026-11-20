@@ -40,6 +40,8 @@ struct Control {
     /// The part of it inside its clip rectangle.
     seen: egui::Rect,
     layer: egui::LayerId,
+    /// Greyed out: it cannot take the keyboard focus.
+    disabled: bool,
 }
 
 struct Win {
@@ -50,8 +52,14 @@ struct Win {
     size: egui::Vec2,
     time: f64,
     nodes: HashMap<NodeId, Node>,
-    /// The controls seen in full while scrolling, by role, name and layer (see `audit`).
-    seen_named: HashSet<(String, String, egui::LayerId)>,
+    /// What the last frame painted.
+    shapes: Vec<egui::epaint::ClippedShape>,
+    /// Whether the last frame asked for another one at once.
+    repaint: bool,
+    /// False for a walk that only counts what opens (no wheel is turned).
+    measure: bool,
+    /// By hand (the survey): audit only the surfaces whose name has this text.
+    only: Option<String>,
 }
 
 /// One row of the survey.
@@ -65,6 +73,15 @@ struct Row {
     lost: Vec<String>,
     /// How far the surface's own area reaches past the window (points right, down).
     beyond: (f32, f32),
+    /// What it is: main, list, menu, sub-menu, drop-down, scene, dialog, wizard, pane, suite
+    /// or command.
+    kind: &'static str,
+    /// A dialog that keeps its button row in view below its scrolled content.
+    pinned: bool,
+    /// What else is wrong with it (the pinned row).
+    problems: Vec<String>,
+    /// Not measured, and why (an entry of `OPENS_NOTHING`).
+    skipped: Option<&'static str>,
 }
 
 fn squash(s: &str) -> String {
@@ -87,7 +104,10 @@ impl Win {
             size: egui::vec2(px.0 / k, px.1 / k),
             time: 0.0,
             nodes: HashMap::new(),
-            seen_named: HashSet::new(),
+            shapes: Vec::new(),
+            repaint: false,
+            measure: true,
+            only: None,
         };
         w.frames(5, Vec::new());
         w
@@ -109,6 +129,11 @@ impl Win {
             let (app, frame) = (&mut self.app, &mut self.frame);
             let mut out = self.ctx.run_ui(raw, |ui| eframe::App::ui(app, ui, frame));
             out.textures_delta.clear();
+            self.repaint = out
+                .viewport_output
+                .get(&egui::ViewportId::ROOT)
+                .is_some_and(|v| v.repaint_delay < std::time::Duration::from_millis(20));
+            self.shapes = std::mem::take(&mut out.shapes);
             if let Some(update) = out.platform_output.accesskit_update {
                 self.nodes = update.nodes.into_iter().collect();
             }
@@ -154,6 +179,7 @@ impl Win {
                         rect: w.rect,
                         seen: w.interact_rect,
                         layer: *layer,
+                        disabled: n.is_disabled(),
                     });
                 }
             }
@@ -166,11 +192,42 @@ impl Win {
         c.seen.intersect(c.rect).intersect(self.screen())
     }
 
-    /// In view in full. The one point of slack is for rounding: a control's rectangle and
-    /// the clip it is drawn in are placed at fractions of a point and snapped separately.
+    /// In view in full, and nothing lies over its middle (a window or a menu of another layer
+    /// there would take the click). The one point of slack is for rounding: a control's
+    /// rectangle and the clip it is drawn in are placed at fractions of a point and snapped
+    /// separately.
     fn shown(&self, c: &Control) -> bool {
         let v = self.visible(c);
-        v.width() >= c.rect.width() - 1.0 && v.height() >= c.rect.height() - 1.0
+        v.width() >= c.rect.width() - 1.0 && v.height() >= c.rect.height() - 1.0 && self.on_top(c)
+    }
+
+    /// Whether `c`'s layer is the one a click at the middle of its visible part goes to.
+    fn on_top(&self, c: &Control) -> bool {
+        let v = self.visible(c);
+        if !(v.width() > 0.0 && v.height() > 0.0) {
+            return false;
+        }
+        self.ctx.layer_id_at(v.center()).is_none_or(|top| top == c.layer)
+    }
+
+    /// The size of the view `c` scrolls in: the smallest of what its containers show.
+    fn view_of(&self, c: &Control) -> egui::Vec2 {
+        let mut view = self.size;
+        self.widgets(|all| {
+            let mut id = c.parent;
+            for _ in 0..40 {
+                let Some(w) = all.get(id) else { break };
+                let r = w.interact_rect;
+                if r.width() > 1.0 && r.height() > 1.0 {
+                    view = view.min(r.size());
+                }
+                if w.parent_id == id {
+                    break;
+                }
+                id = w.parent_id;
+            }
+        });
+        view
     }
 
     /// Where the pointer rests to scroll `c` into view: on its visible part, else on the
@@ -208,10 +265,14 @@ impl Win {
     /// Scrolls with the wheel until `id` is shown in full; `ok` collects every control seen in
     /// full on the way.
     fn reach(&mut self, id: egui::Id, ok: &mut HashSet<egui::Id>) -> bool {
-        // First with the pointer on the control or the nearest view of it; then, as a person
-        // does when a list inside a scrolling pane takes the wheel, from other places in the
-        // containers around it.
-        (0..12).any(|from| self.reach_from(id, ok, from) == Some(true))
+        self.reach_in(id, ok, 12)
+    }
+
+    /// As [`Self::reach`], from at most `places` places: first with the pointer on the control
+    /// or the nearest view of it; then, as a person does when a list inside a scrolling pane
+    /// takes the wheel, from other places in the containers around it.
+    fn reach_in(&mut self, id: egui::Id, ok: &mut HashSet<egui::Id>, places: usize) -> bool {
+        (0..places).any(|from| self.reach_from(id, ok, from) == Some(true))
     }
 
     /// Other places to rest the pointer for [`Self::reach`]: in each container around `c`,
@@ -265,6 +326,8 @@ impl Win {
             self.frames(30, Vec::new());
         }
         let (mut last, mut still) = (None, 0);
+        let mut nudged = 0;
+        let mut moved_to: Option<egui::Pos2> = None;
         // A control larger than the view it scrolls in (a button wider than a squeezed pane)
         // cannot be shown at once: it is reached when both of its ends have been in view.
         let mut ends = [false; 4];
@@ -274,7 +337,6 @@ impl Win {
             for c in &all {
                 if self.shown(c) {
                     ok.insert(c.id);
-                    self.seen_named.insert((format!("{:?}", c.role), c.label.clone(), c.layer));
                 }
             }
             let Some(c) = all.iter().find(|c| c.id == id) else {
@@ -285,13 +347,21 @@ impl Win {
             }
             let v = self.visible(c);
             let (wide, tall) = (v.width() >= c.rect.width() - 1.0, v.height() >= c.rect.height() - 1.0);
-            if v.width() >= c.rect.width().min(16.0) && v.height() >= c.rect.height().min(12.0) {
+            // Only for a control really larger than its view on that axis; any other has to
+            // be in view whole.
+            let view = self.view_of(c);
+            let larger = [c.rect.width() > view.x + 0.5, c.rect.height() > view.y + 0.5];
+            if self.on_top(c) && v.width() >= c.rect.width().min(16.0) && v.height() >= c.rect.height().min(12.0) {
                 ends[0] |= v.min.x <= c.rect.min.x + 0.5;
                 ends[1] |= v.max.x >= c.rect.max.x - 0.5;
                 ends[2] |= v.min.y <= c.rect.min.y + 0.5;
                 ends[3] |= v.max.y >= c.rect.max.y - 0.5;
             }
-            if (wide || (ends[0] && ends[1])) && (tall || (ends[2] && ends[3])) {
+            let covered = wide && tall && !self.on_top(c);
+            if !covered
+                && (wide || (larger[0] && ends[0] && ends[1]))
+                && (tall || (larger[1] && ends[2] && ends[3]))
+            {
                 return Some(true);
             }
             // Nothing moves any more: neither the control nor any menu or dialog (a sub-menu
@@ -339,7 +409,63 @@ impl Win {
                 }
             };
             let dx = axis(c.rect.min.x, c.rect.max.x, v.min.x, v.max.x, at.x, ends[1]);
-            let dy = axis(c.rect.min.y, c.rect.max.y, v.min.y, v.max.y, at.y, ends[3]);
+            let mut dy = axis(c.rect.min.y, c.rect.max.y, v.min.y, v.max.y, at.y, ends[3]);
+            if covered {
+                // Under a window that lies over it (a sub-menu that opened over its own menu
+                // in a narrow window, under the resting pointer): first, as a person does,
+                // the pointer goes to a part of the control that still shows, which closes
+                // a sub-menu of another entry.
+                // (Or, when all of it is covered, to a part of its menu or window that shows:
+                // the sub-menu of the entry under the pointer closes when the pointer leaves.)
+                let on_mine = |p: &egui::Pos2| self.ctx.layer_id_at(*p).is_none_or(|top| top == c.layer);
+                let area = self.ctx.memory(|m| m.area_rect(c.layer.id)).unwrap_or(v);
+                let free = (1..10)
+                    .map(|k| egui::pos2(v.left() + v.width() * k as f32 / 10.0, v.center().y))
+                    .find(on_mine)
+                    .or_else(|| {
+                        let area = area.intersect(self.screen().shrink(2.0));
+                        (1..8)
+                            .flat_map(|i| (1..8).map(move |j| (i, j)))
+                            .map(|(i, j)| {
+                                egui::pos2(
+                                    area.left() + area.width() * i as f32 / 8.0,
+                                    area.top() + area.height() * j as f32 / 8.0,
+                                )
+                            })
+                            .find(on_mine)
+                    });
+                if let Some(p) = free.filter(|p| moved_to.is_none_or(|q| q.distance(*p) > 1.0)) {
+                    moved_to = Some(p);
+                    let before = self.layers_on_screen();
+                    self.frames(1, vec![egui::Event::PointerMoved(p)]);
+                    self.frames(30, Vec::new());
+                    // An entry that opens a sub-menu under the pointer, and the sub-menu lies
+                    // over the entry itself (a window too narrow to open it beside): the
+                    // entry has done what it is for.
+                    let now = self.controls().into_iter().find(|n| n.id == c.id);
+                    if let Some(now) = now.filter(|n| self.visible(n).width() > 1.0) {
+                        let top = self.ctx.layer_id_at(self.visible(&now).center());
+                        if top.is_some_and(|t| t != now.layer && !before.contains(&t)) {
+                            return Some(true);
+                        }
+                    }
+                    still = 0;
+                    continue;
+                }
+                if nudged == 0 && self.covered_by_its_own_sub_menu(id) {
+                    return Some(true);
+                }
+                // (A few steps a place: what lies over it may move along, as a sub-menu
+                // does with its menu, and then no step frees it.)
+                nudged += 1;
+                if nudged > 8 {
+                    return Some(false);
+                }
+                // In view, but under a window that lies over it (a folded pane's title bar
+                // in a window that scrolls as a page): the page is moved, one way from the
+                // first places and the other way from the next.
+                dy = if from.is_multiple_of(2) { -30.0 } else { 30.0 };
+            }
             self.frames(1, vec![egui::Event::PointerMoved(at)]);
             self.frames(
                 1,
@@ -401,6 +527,24 @@ impl Win {
         self.frames(3, vec![ev(false)]);
     }
 
+    /// The layers that have a control on screen.
+    fn layers_on_screen(&self) -> HashSet<egui::LayerId> {
+        self.layers()
+    }
+
+    /// Whether what lies over `id` is its own sub-menu (in a window too narrow to open it
+    /// beside, a sub-menu opens over its own entry): the toolkit names a sub-menu's layer
+    /// after its entry. The pointer rests on the entry to open it first.
+    fn covered_by_its_own_sub_menu(&mut self, id: egui::Id) -> bool {
+        let find = |w: &Win| w.controls().into_iter().find(|n| n.id == id);
+        let Some(c) = find(self) else { return false };
+        let at = self.visible(&c).center();
+        self.frames(1, vec![egui::Event::PointerMoved(at)]);
+        self.frames(30, Vec::new());
+        let own = egui::containers::menu::SubMenu::id_from_widget_id(id);
+        self.ctx.layer_id_at(at).is_some_and(|t| t.id == own)
+    }
+
     fn layers(&self) -> HashSet<egui::LayerId> {
         self.controls().iter().map(|c| c.layer).collect()
     }
@@ -414,7 +558,14 @@ impl Win {
 "))
                 || c.tip.starts_with(&format!("{label} ("))
         };
-        let Some(c) = self.controls().into_iter().find(named) else {
+        // (The widest of that name: the Quick Access Toolbar has small buttons called as a
+        // menu or a list of the ribbon is, Help and Zoom.)
+        let Some(c) = self
+            .controls()
+            .into_iter()
+            .filter(named)
+            .max_by(|a, b| a.rect.width().total_cmp(&b.rect.width()))
+        else {
             return false;
         };
         let id = c.id;
@@ -428,15 +579,111 @@ impl Win {
         true
     }
 
+    /// The pinned button rows of the dialogs on screen, each from its dialog's view's corner,
+    /// with what is wrong with each (a row outside the window or over the content, a control
+    /// of it cut, a row that shows none).
+    fn pinned_rows(&self, mine: &dyn Fn(&Control) -> bool) -> (Vec<egui::Rect>, Vec<String>) {
+        let screen = self.screen();
+        let mut wrong = Vec::new();
+        let rows: Vec<(egui::Rect, egui::Rect)> =
+            self.app.drawn.list.iter().filter_map(|s| s.buttons.map(|b| (s.rect, b))).map(|(view, row)| {
+                if !screen.expand(0.5).contains_rect(row) {
+                    wrong.push(format!("the pinned button row {row:?} is not inside the window"));
+                }
+                if row.top() < view.bottom() - 0.5 {
+                    wrong.push(format!("the pinned button row {row:?} lies over the content {view:?}"));
+                }
+                (view, row)
+            }).collect();
+        // The row's controls: the ones whose visible part is there (content scrolled under the
+        // row has the same place, but is clipped away at the view's edge above it). Each is in view from top to bottom (a row
+        // wider than the window scrolls sideways), and there is at least one.
+        let mut in_row = 0;
+        for c in self.controls().iter().filter(|c| mine(c)) {
+            let v = self.visible(c);
+            if !(v.width() > 1.0 && v.height() > 1.0)
+                || !rows.iter().any(|(_, r)| r.expand(1.0).contains(v.center()))
+            {
+                continue;
+            }
+            in_row += 1;
+            if v.height() < c.rect.height() - 1.0 {
+                wrong.push(format!("{:?} '{}' of the pinned row is cut", c.role, c.label));
+            }
+        }
+        if !rows.is_empty() && in_row == 0 {
+            wrong.push("the pinned button row shows no control".to_string());
+        }
+        // Where each row is in its dialog (the dialog may move as a whole, as a window does).
+        let places = rows
+            .iter()
+            .map(|(view, row)| row.translate(-view.min.to_vec2()))
+            .collect();
+        (places, wrong)
+    }
+
+    /// Brings the ribbon button of `a` into view and clicks it. The button is known by its
+    /// ScreenTip: a tab (Shapes, Text) or a small button of the Quick Access Toolbar (Zoom)
+    /// can have its name.
+    fn click_action(&mut self, a: Action) -> bool {
+        let tip = a.info().screen_tip(crate::ribbon::MAC);
+        let Some(c) = self
+            .controls()
+            .into_iter()
+            .filter(|c| c.tip == tip)
+            .max_by(|x, y| x.rect.width().total_cmp(&y.rect.width()))
+        else {
+            return false;
+        };
+        let id = c.id;
+        if !self.reach(id, &mut HashSet::new()) {
+            return false;
+        }
+        let Some(c) = self.controls().into_iter().find(|c| c.id == id) else {
+            return false;
+        };
+        self.click(self.visible(&c).center());
+        true
+    }
+
+    /// Scrolls the window's page (a window lower than its layout) until `at` gives a place
+    /// inside the window, and returns it.
+    fn in_view(&mut self, at: impl Fn(&mut Win) -> Option<egui::Pos2>) -> Option<egui::Pos2> {
+        let inside = self.screen().shrink(4.0);
+        for _ in 0..30 {
+            let p = at(self)?;
+            if inside.contains(p) {
+                return Some(p);
+            }
+            // (The wheel over the top bar, which belongs to the page.)
+            let down = if p.y > inside.max.y { -30.0 } else { 30.0 };
+            self.frames(1, vec![egui::Event::PointerMoved(egui::pos2(inside.center().x, 10.0))]);
+            self.frames(
+                1,
+                vec![egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, down),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Wheel,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+            );
+            self.frames(8, Vec::new());
+        }
+        None
+    }
+
     /// Checks the controls of `layers` (all layers when `None`).
-    fn audit(&mut self, surface: &str, layers: Option<&HashSet<egui::LayerId>>) -> Row {
-        // (By hand: REACH_ONLY=text audits only the surfaces whose name has it.)
-        if std::env::var("REACH_ONLY").is_ok_and(|only| !surface.contains(&only)) {
+    fn audit(&mut self, surface: &str, kind: &'static str, layers: Option<&HashSet<egui::LayerId>>) -> Row {
+        if self.only.as_ref().is_some_and(|only| !surface.contains(only.as_str())) {
             return Row {
                 surface: surface.to_string(),
+                kind,
                 ..Row::default()
             };
         }
+        // (A window that has just opened sizes itself over its first frames.)
+        self.frames(10, Vec::new());
         let mine = |c: &Control| layers.is_none_or(|l| l.contains(&c.layer));
         let all: Vec<Control> = self.controls().into_iter().filter(mine).collect();
         let screen = self.screen();
@@ -450,28 +697,47 @@ impl Win {
         }
         let t0 = std::time::Instant::now();
         let mut ok = HashSet::new();
-        self.seen_named.clear();
         let hidden: Vec<Control> = all.iter().filter(|c| !self.shown(c)).cloned().collect();
+        // A dialog's pinned row: in view before anything is scrolled, and in the same place
+        // with all its controls in view after.
+        let own_row = !matches!(kind, "sub-menu" | "drop-down" | "list" | "menu");
+        let (pinned, mut problems) = if own_row {
+            self.pinned_rows(&mine)
+        } else {
+            (Vec::new(), Vec::new())
+        };
         let mut lost = Vec::new();
-        for c in &hidden {
+        let measure = self.measure;
+        for c in hidden.iter().filter(|_| measure) {
             if ok.contains(&c.id) {
                 continue;
             }
-            // A menu gives its entries their identity by their order, and an entry that opens
-            // a sub-menu under the resting pointer shifts that for the ones after it: such an
-            // entry is known by its role and name instead, when the surface has only one of
-            // that name and it was seen in full on the way.
-            let named = (format!("{:?}", c.role), c.label.clone(), c.layer);
-            let only = !c.label.is_empty()
-                && all.iter().filter(|o| o.role == c.role && o.label == c.label && o.layer == c.layer).count() == 1;
-            if !self.reach(c.id, &mut ok) && !(only && self.seen_named.contains(&named)) {
+            if !self.reach(c.id, &mut ok) {
                 if let Some(now) = self.controls().into_iter().find(|n| n.id == c.id) {
                     eprintln!(
-                        "  LOST in {surface}: {:?} '{}' rect {:?} seen {:?}",
-                        now.role, now.label, now.rect, now.seen
+                        "  LOST in {surface}: {:?} '{}' rect {:?} seen {:?} layer {:?} top {:?}",
+                        now.role,
+                        now.label,
+                        now.rect,
+                        now.seen,
+                        now.layer,
+                        self.ctx.layer_id_at(self.visible(&now).center())
                     );
                 }
                 lost.push(format!("{:?} '{}'", c.role, c.label));
+            }
+        }
+        if self.measure && !pinned.is_empty() {
+            let (after, wrong) = self.pinned_rows(&mine);
+            problems.extend(wrong.into_iter().map(|w| format!("{w} (after scrolling)")));
+            let moved = after.len() != pinned.len()
+                || after.iter().zip(&pinned).any(|(a, b)| {
+                    (a.min - b.min).length() > 1.0 || (a.max - b.max).length() > 1.0
+                });
+            if moved {
+                problems.push(format!(
+                    "the pinned button row moved in its dialog: {pinned:?} to {after:?}"
+                ));
             }
         }
         eprintln!(
@@ -484,22 +750,32 @@ impl Win {
         );
         Row {
             surface: surface.to_string(),
+            kind,
             controls: all.len(),
             hidden: hidden.len(),
             lost,
             beyond: (beyond.0.max(0.0), beyond.1.max(0.0)),
+            pinned: !pinned.is_empty(),
+            problems,
+            skipped: None,
         }
     }
 
-    /// Audits the layers that are not in `base`; then opens each of their sub-menus (a hover)
-    /// and each combo box in turn and audits those too.
-    fn audit_new(&mut self, surface: &str, base: &HashSet<egui::LayerId>, rows: &mut Vec<Row>) {
+    /// Audits the layers that are not in `base`; then opens each of their sub-menus (a hover),
+    /// each combo box and each colour button in turn and audits those too.
+    fn audit_new(
+        &mut self,
+        surface: &str,
+        kind: &'static str,
+        base: &HashSet<egui::LayerId>,
+        rows: &mut Vec<Row>,
+    ) {
         let new: HashSet<egui::LayerId> =
             self.layers().difference(base).copied().collect();
         if new.is_empty() {
             return;
         }
-        rows.push(self.audit(surface, Some(&new)));
+        rows.push(self.audit(surface, kind, Some(&new)));
         self.children(surface, &new, rows, 0);
     }
 
@@ -515,14 +791,18 @@ impl Win {
         }
         let items: Vec<Control> =
             self.controls().into_iter().filter(|c| of.contains(&c.layer)).collect();
+        // (Each control once, by its identity: two of the same name are two.)
         let mut done = HashSet::new();
+        let mut names: HashMap<String, usize> = HashMap::new();
         for c in items {
             let menu_item = matches!(c.role, Role::Button | Role::MenuItem);
-            let combo = c.role == Role::ComboBox;
-            if !(menu_item || combo) || !done.insert(c.label.clone()) {
+            let clicked = matches!(c.role, Role::ComboBox | Role::ColorWell);
+            if !(menu_item || clicked) || c.disabled || !done.insert(c.id) {
                 continue;
             }
-            if !self.reach(c.id, &mut HashSet::new()) {
+            // (Whether it can be reached at all is the audit's question, asked with patience;
+            // this only brings it under the pointer to see what it opens.)
+            if !self.reach_in(c.id, &mut HashSet::new(), 3) {
                 continue;
             }
             let Some(c) = self.controls().into_iter().find(|x| x.id == c.id) else {
@@ -530,7 +810,7 @@ impl Win {
             };
             let before = self.layers();
             let at = self.visible(&c).center();
-            if combo {
+            if clicked {
                 self.click(at);
             } else {
                 self.frames(1, vec![egui::Event::PointerMoved(at)]);
@@ -539,14 +819,26 @@ impl Win {
             let opened: HashSet<egui::LayerId> =
                 self.layers().difference(&before).copied().collect();
             if !opened.is_empty() {
-                let name = format!("{surface} > {}", c.label);
-                rows.push(self.audit(&name, Some(&opened)));
-                if !combo {
+                // (The second of a name is told apart in the table.)
+                let nth = names.entry(c.label.clone()).or_default();
+                *nth += 1;
+                let name = match *nth {
+                    1 => format!("{surface} > {}", c.label),
+                    n => format!("{surface} > {} ({n})", c.label),
+                };
+                let kind = if clicked { "drop-down" } else { "sub-menu" };
+                rows.push(self.audit(&name, kind, Some(&opened)));
+                if !clicked {
                     self.children(&name, &opened, rows, depth + 1);
                 }
             }
-            if combo {
+            if clicked {
                 self.key(egui::Key::Escape);
+                // (A colour picker closes on a click beside it.)
+                if !self.layers().difference(&before).collect::<Vec<_>>().is_empty() {
+                    let beside = self.screen().shrink(2.0).left_bottom();
+                    self.click(beside);
+                }
             }
         }
     }
@@ -560,34 +852,136 @@ fn demo() -> Launch {
     }
 }
 
-/// Actions that open a native file dialog, a URL or close the window.
-fn interactive(a: Action) -> bool {
-    use Action::*;
-    matches!(
-        a,
-        Open | Save
-            | SaveAs
-            | Exit
-            | ImportPatterns
-            | ImportSvg
-            | ImportPesObjects
-            | OpenImage
-            | PasteImage
-            | TrueTypeAttributes
-            | ExportSections
-    )
-}
+/// Cases of the walk that give nothing to measure: (the case, the layout it holds for, how it
+/// comes to nothing). A case that gives nothing and is not here, or gives nothing for another
+/// reason than the one named, fails the walk (a menu, scene or dialog that stopped opening),
+/// and so does an entry here that opens something. The layout is "" for every size, "narrow"
+/// for a window under 780 points wide (the panes folded) or "docked" for a wider one.
+const OPENS_NOTHING: &[(&str, &str, &str)] = &[
+    // Lists of the ribbon that need another selection than the demo's one shape.
+    ("Ribbon Home > Fit Text (list)", "", DISABLED),
+    ("Ribbon Home > Modify Overlap (list)", "", DISABLED),
+    ("Ribbon Image > Save Image (list)", "", DISABLED),
+    ("Ribbon Image > Background Image Density (list)", "", DISABLED),
+    ("Ribbon Text > Fit Text (list)", "", DISABLED),
+    ("Ribbon Shapes > Edit Point (list)", "", DISABLED),
+    // Contextual tabs: Stitches needs a stitch pattern selected, Hoop Settings a design
+    // larger than its hoop.
+    ("Main window, ribbon tab Stitches", "", NOT_SHOWN),
+    ("Main window, ribbon tab Hoop Settings", "", NOT_SHOWN),
+    // The Select tool has no right-click menu (the Point tool has two).
+    ("Right click on a shape, Select tool", "", NO_CONTROL),
+    // The window without its bars: with the panes docked nothing is left but the canvas
+    // (in the narrow layout the folded panes' title bars are).
+    ("Scene bare", "docked", NO_CONTROL),
+    // Commands that need another selection, an image, a clipboard or a stitch pattern.
+    ("Command Paste", "", DISABLED),
+    ("Command Group", "", DISABLED),
+    ("Command Ungroup", "", DISABLED),
+    ("Command Join Lines", "", DISABLED),
+    ("Command Break Apart", "", DISABLED),
+    ("Command Modify Image", "", DISABLED),
+    ("Command Rotate Right", "", DISABLED),
+    ("Command Rotate Left", "", DISABLED),
+    ("Command Delete Image", "", DISABLED),
+    ("Command Convert to Blocks", "", DISABLED),
+    ("Command Convert to Outline", "", DISABLED),
+    ("Command Delete Direction Line", "", DISABLED),
+    ("Command Satin Skeleton from Shape", "", DISABLED),
+    ("Command Delete Point", "", DISABLED),
+    ("Command Split at Point", "", DISABLED),
+    ("Command Satin Columns per Branch", "", DISABLED),
+    ("Command Split Stitch Data", "", DISABLED),
+    ("Command Divide by Color", "", DISABLED),
+    ("Command Connect", "", DISABLED),
+    ("Command Smooth Stitches", "", DISABLED),
+    ("Command Convert to Outlines", "", DISABLED),
+    ("Command Move Sections", "", DISABLED),
+];
+
+/// The commands that open a menu, pane or dialog of their own (their keys). Every other
+/// command acts on the design or the view and opens nothing: one that starts to open
+/// something, or one of these that stops, fails the walk.
+const COMMANDS_THAT_OPEN: &[&str] = &[
+    "applique", "arrangeCopy", "attributeSets", "autoPunch", "backgroundFill", "colorPalette",
+    "crossStitch", "cutwork", "designCenter", "designDatabase", "designProperty",
+    "designSettings", "fabricSelector", "floral", "fontCreator", "fontFilterSettings", "new",
+    "offsetLines", "openSample", "paneAssistant", "patch", "photoStitch1", "photoStitch2",
+    "realisticSettings", "reference", "stitchCreator", "stitchFactory", "threadCharts",
+];
+
+/// The surfaces that keep a button row in view below their scrolled content at the smallest
+/// window of the survey (640 × 400 at Text size 200 %, where every dialog with a button row
+/// is taller than the window). The walk checks each row's place before and after scrolling.
+const PINNED_AT_320X200: &[&str] = &[
+    "Scene update",
+    "Scene fabric",
+    "Scene text",
+    "Scene matchThreads",
+    "Scene usb",
+    "Scene monogram",
+    "Scene arrange",
+    "Scene property",
+    "Scene print",
+    "Scene machine-setup",
+    "Scene startup-wizard",
+    "Dialog Job Sheet",
+    "Dialog Machine Setup",
+    "Dialog Startup Wizard",
+    "Dialog Image to Embroidery",
+    "Dialog Font Filter Settings",
+    "Dialog Design Database, Search",
+    "Dialog Design Database, Catalogue",
+    "Wizard background",
+    "Wizard applique",
+    "Wizard patch",
+    "Wizard cutwork",
+    "Command Arrange Copy",
+    "Command Background fill",
+    "Command Applique Wizard",
+    "Command Embroidered Patch Wizard",
+    "Command Cutwork Wizard",
+    "Command Auto Punch Wizard",
+    "Command Cross Stitch Wizard",
+    "Command Photo Stitch 1 Wizard",
+    "Command Photo Stitch 2 Wizard",
+    "Command Import to Design Center",
+    "Command Font Filter Settings",
+    "Command Design Property",
+    "Command Fabric Selector",
+];
+
+/// How a case of the walk comes to give nothing (the third column of `OPENS_NOTHING`).
+const DISABLED: &str = "disabled for the demo design with its first shape selected";
+const NOT_SHOWN: &str = "a contextual tab the demo's selection does not bring forward";
+const NO_CONTROL: &str = "opens nothing with a control";
+const OUT_OF_VIEW: &str = "the place to click is outside the window";
+
+/// Actions the walk does not run, each with the reason: they leave the app's window.
+const NOT_RUN: &[(Action, &str)] = &[
+    (Action::Open, "opens the system's file dialog"),
+    (Action::Save, "opens the system's file dialog for a design without a file"),
+    (Action::SaveAs, "opens the system's file dialog"),
+    (Action::Exit, "closes the window"),
+    (Action::ImportPatterns, "opens the system's file dialog"),
+    (Action::ImportSvg, "opens the system's file dialog"),
+    (Action::ImportPesObjects, "opens the system's file dialog"),
+    (Action::OpenImage, "opens the system's file dialog"),
+    (Action::PasteImage, "reads the system's clipboard"),
+    (Action::TrueTypeAttributes, "opens the system's file dialog"),
+    (Action::ExportSections, "opens the system's folder dialog"),
+];
 
 /// The main window showing ribbon tab `tab`: the tool or the selection that brings a
 /// contextual tab forward is set first.
-fn tab_window(tab: TabId, px: (f32, f32), scale: u32) -> Win {
+fn tab_window(walk: &Walk, tab: TabId) -> Win {
     let tool = match tab {
         TabId::Outline => Some(Tool::Polygon),
         TabId::OutlineRect => Some(Tool::Rectangle),
         TabId::ManualPunch => Some(Tool::Punch),
         _ => None,
     };
-    let mut w = Win::new(Launch { tool, ..demo() }, px, scale);
+    let mut w = walk.open(Launch { tool, ..demo() });
     if tab == TabId::Text {
         let id = w
             .app
@@ -601,330 +995,515 @@ fn tab_window(tab: TabId, px: (f32, f32), scale: u32) -> Win {
     w
 }
 
-/// Every surface at one window size and UI scale.
-/// Walks every surface at a window of `px` pixels and a Text size of `scale` %. With `part`
-/// `(n, of)` only every `of`-th surface, starting at the `n`-th: the parts together are the
-/// whole walk, so they can run side by side.
-fn survey(px: (f32, f32), scale: u32, part: Option<(usize, usize)>) -> Vec<Row> {
-    let mut rows = Vec::new();
-    let count = std::cell::Cell::new(0usize);
-    let mine = || {
-        let n = count.get();
-        count.set(n + 1);
-        part.is_none_or(|(at, of)| n % of == at)
-    };
-    let open = |launch: Launch| Win::new(launch, px, scale);
-    // The main window with each ribbon tab: ribbon, panes, status bar.
-    let base = open(demo()).layers();
-    for tab in TabId::ALL {
-        if !mine() {
-            continue;
-        }
-        let mut w = tab_window(tab, px, scale);
-        let name = format!("Main window, ribbon tab {}", tab.english_label());
-        if w.app.ui.tab != tab {
-            rows.push(Row {
-                surface: format!("{name} (not shown for this selection)"),
-                ..Row::default()
-            });
-            continue;
-        }
-        let mut row = w.audit(&name, None);
-        row.surface = name.clone();
-        rows.push(row);
-        // The tab's drop-down lists.
-        for g in tab.groups() {
-            for a in g.actions() {
-                let info = a.info();
-                if !a.is_menu() || !info.available || !crate::ribbon::enabled(&w.app, a) {
-                    continue;
-                }
-                let mut w = tab_window(tab, px, scale);
-                let before = w.layers();
-                let menu = format!("Ribbon {} > {} (list)", tab.english_label(), squash(info.label));
-                if !w.click_label(info.label) {
-                    rows.push(Row {
-                        surface: format!("{menu}: its button cannot be reached"),
-                        lost: vec![squash(info.label)],
-                        ..Row::default()
-                    });
-                    continue;
-                }
-                w.audit_new(&menu, &before, &mut rows);
-            }
+/// Closes the panes and the Assistant, as a user does to work on the canvas of a small
+/// window: docked they leave it 160 points, and folded their title bars lie over its foot.
+fn clear_canvas(w: &mut Win) {
+    let panes = &mut w.app.ui.prefs.panes;
+    panes.sewing_order.visible = false;
+    panes.attributes.visible = false;
+    panes.simulator.visible = false;
+    w.app.assistant.panel.open = false;
+    w.frames(6, Vec::new());
+}
+
+/// One walk: every surface at a window of `px` pixels and a Text size of `scale` %.
+struct Walk {
+    px: (f32, f32),
+    scale: u32,
+    /// `(n, of)`: only every `of`-th case, starting at the `n`-th. The parts together are the
+    /// whole walk, so they can run side by side.
+    part: Option<(usize, usize)>,
+    /// False to open and count only (no wheel is turned).
+    measure: bool,
+    /// By hand: audit only the surfaces whose name has this text (the expectations are not
+    /// checked then).
+    only: Option<String>,
+    count: usize,
+    rows: Vec<Row>,
+    /// What does not match the named expectations (`OPENS_NOTHING`, `COMMANDS_THAT_OPEN`,
+    /// `PINNED_AT_320X200`) or a pinned button row.
+    problems: Vec<String>,
+}
+
+impl Walk {
+    fn new(px: (f32, f32), scale: u32, part: Option<(usize, usize)>, measure: bool) -> Walk {
+        Walk {
+            px,
+            scale,
+            part,
+            measure,
+            only: None,
+            count: 0,
+            rows: Vec::new(),
+            problems: Vec::new(),
         }
     }
-    // The menus of the top bar.
-    for label in ["Options", "Help"] {
-        if !mine() {
-            continue;
-        }
-        let mut w = open(demo());
-        let before = w.layers();
-        if w.click_label(label) {
-            w.audit_new(&format!("Menu {label}"), &before, &mut rows);
+
+    /// Whether the next case belongs to this part.
+    fn mine(&mut self) -> bool {
+        let n = self.count;
+        self.count += 1;
+        self.part.is_none_or(|(at, of)| n % of == at)
+    }
+
+    fn open(&self, launch: Launch) -> Win {
+        let mut w = Win::new(launch, self.px, self.scale);
+        w.measure = self.measure;
+        w.only = self.only.clone();
+        w
+    }
+
+    /// The layout the window's width gives: the panes folded or docked.
+    fn layout(&self) -> &'static str {
+        let points = self.px.0 * 100.0 / self.scale as f32;
+        if openstitch_app::editor::workspace::narrow(points) {
+            "narrow"
         } else {
-            rows.push(Row {
-                surface: format!("Menu {label}: its button cannot be reached"),
-                lost: vec![label.to_string()],
-                ..Row::default()
-            });
+            "docked"
         }
     }
-    // The --show scenes: the application menu, dialogs, panes.
-    for show in SHOW {
-        if !mine() {
-            continue;
-        }
-        if ["bare", "large-text", "norulers"].contains(&show) {
-            continue;
-        }
-        let mut w = open(Launch {
-            show: vec![show.to_string()],
-            ..demo()
-        });
-        w.frames(4, Vec::new());
-        let full = ["creator", "sdf"].contains(&show);
-        if full {
-            rows.push(w.audit(&format!("Scene {show} (whole window)"), None));
-        } else {
-            let n = rows.len();
-            w.audit_new(&format!("Scene {show}"), &base, &mut rows);
-            if rows.len() == n {
-                rows.push(Row {
-                    surface: format!("Scene {show} (adds no surface of its own)"),
+
+    /// The rows one case of the walk gave; `why` says how it came to nothing when it gave
+    /// none with a control. Such a case has to be on `OPENS_NOTHING` for this layout with
+    /// that reason, and one on that list must give none: so a surface that stops opening
+    /// fails the walk, and so does a stale entry.
+    fn case(&mut self, name: &str, kind: &'static str, added: Vec<Row>, why: &str) {
+        let measured = added.iter().any(|r| r.controls > 0);
+        let layout = self.layout();
+        let listed = OPENS_NOTHING
+            .iter()
+            .find(|e| e.0 == name && (e.1.is_empty() || e.1 == layout));
+        if self.only.is_none() {
+            match (measured, listed) {
+                (false, Some(e)) if e.2 == why => self.rows.push(Row {
+                    surface: name.to_string(),
+                    kind,
+                    skipped: Some(e.2),
                     ..Row::default()
-                });
+                }),
+                (false, Some(e)) => self
+                    .problems
+                    .push(format!("NOTHING\t{name}\t{layout}\t{why}\t(listed as: {})", e.2)),
+                (false, None) => self.problems.push(format!("NOTHING\t{name}\t{layout}\t{why}")),
+                (true, Some(_)) => self.problems.push(format!("LISTED-BUT-OPENS\t{name}\t{layout}")),
+                (true, None) => {}
+            }
+            self.pinned_as_listed(&added);
+        }
+        for r in &added {
+            for p in &r.problems {
+                self.problems.push(format!("ROW\t{}: {p}", r.surface));
+            }
+        }
+        self.rows.extend(added.into_iter().filter(|r| r.controls > 0));
+    }
+
+    /// At the smallest window every dialog with a button row is taller than the window: which
+    /// ones keep the row in view is a named list too.
+    fn pinned_as_listed(&mut self, added: &[Row]) {
+        if !(self.px == (640.0, 400.0) && self.scale == 200) {
+            return;
+        }
+        for r in added.iter().filter(|r| r.controls > 0) {
+            let expected = PINNED_AT_320X200.contains(&r.surface.as_str());
+            if r.pinned != expected {
+                self.problems.push(format!(
+                    "{}\t{}",
+                    if r.pinned { "PINNED" } else { "NOT-PINNED" },
+                    r.surface
+                ));
             }
         }
     }
-    // Dialogs no scene or ribbon command opens directly.
-    type Opener = fn(&mut EditorApp);
-    let extras: [(&str, Opener); 30] = [
-        ("Assistant closed hint", |a| a.assistant.panel.close_hint_open = true),
-        ("Assistant still working", |a| a.turn_close = Some((Pending::Exit, false))),
-        ("Offset Lines", |a| a.edit.offset_open = true),
-        ("Floral Pattern", |a| a.edit.floral_open = true),
-        ("Floppy Image", crate::floppy_ui::open),
-        ("Ink/Stitch Fonts", |a| a.ui.inkstitch.open = true),
-        ("Job Sheet", |a| a.ui.open_job_sheet = true),
-        ("Fit Text to Outline", |a| a.lettering.fit.open = Some((1, 2))),
-        ("Machine Setup", |a| a.machine_setup.open()),
-        ("Command Palette", |a| a.palette.show()),
-        ("Recover Designs", |a| a.recovery.open = true),
-        ("Check Design", |a| crate::quality_ui::open(a, crate::quality_ui::Tab::Check)),
-        ("Check Design, Density", |a| crate::quality_ui::open(a, crate::quality_ui::Tab::Density)),
-        ("Check Design, Route", |a| crate::quality_ui::open(a, crate::quality_ui::Tab::Route)),
-        ("Test Swatches", |a| a.ui.open_swatches = true),
-        ("Calibrate Real Size", |a| a.calibration.open = true),
-        ("Open Sample", |a| a.ui.start.samples_open = true),
-        ("Startup Wizard", |a| a.startup_wizard.open = true),
-        ("Not in the browser version", |a| {
-            a.ui.limit_notice = Some(openstitch_app::editor::browser_limits::Limit::Transfer)
-        }),
-        ("Image to Embroidery", |a| a.wizard.open = true),
-        ("Modify Image", |a| a.workspace.view.image_open = true),
-        ("Realistic View Settings", |a| a.workspace.view.realistic_open = true),
-        ("Font Filter Settings", |a| a.workspace.view.fonts_open = true),
-        ("About", |a| a.ui.about_open = true),
-        ("Report a Problem", |a| a.ui.problem.open = true),
-        ("Template Wizard, step 2", |a| {
-            crate::lettering_ui::open_template_wizard(a);
-            a.lettering.templates.step = 2;
-        }),
-        ("Template Wizard, step 3", |a| {
-            crate::lettering_ui::open_template_wizard(a);
-            a.lettering.templates.step = 3;
-        }),
-        ("Design Database (whole window)", |a| a.database.show(None)),
-        ("Design Database, Search", |a| {
-            a.database.show(None);
-            a.database.dialog = openstitch_app::editor::database::Dialog::Search;
-        }),
-        ("Design Database, Catalogue", |a| {
-            a.database.show(None);
-            a.database.dialog = openstitch_app::editor::database::Dialog::Catalog;
-        }),
-    ];
-    for (name, opener) in extras {
-        if !mine() {
-            continue;
-        }
-        let mut w = open(demo());
-        opener(&mut w.app);
-        w.frames(5, Vec::new());
-        if name.ends_with("(whole window)") {
-            rows.push(w.audit(name, None));
-            continue;
-        }
-        let n = rows.len();
-        w.audit_new(&format!("Dialog {name}"), &base, &mut rows);
-        if rows.len() == n {
-            rows.push(Row {
-                surface: format!("Dialog {name} (did not open)"),
-                ..Row::default()
-            });
-        }
-    }
-    for kind in ["background", "applique", "patch", "cutwork"] {
-        if !mine() {
-            continue;
-        }
-        let Some(k) = openstitch_app::editor::pattern_wizards::WizardKind::from_key(kind) else {
-            continue;
-        };
-        let mut w = open(Launch {
-            wizard: Some(k),
-            ..demo()
+
+    /// A case the walk leaves out for a reason it knows by itself (the registry says the
+    /// command is not available yet; the action leaves the window).
+    fn left_out(&mut self, name: &str, kind: &'static str, reason: &'static str) {
+        self.rows.push(Row {
+            surface: name.to_string(),
+            kind,
+            skipped: Some(reason),
+            ..Row::default()
         });
-        w.audit_new(&format!("Wizard {kind}"), &base, &mut rows);
     }
-    for pane in ["import", "color", "attributes", "text"] {
-        if !mine() {
-            continue;
-        }
-        let mut w = open(Launch {
-            pane: crate::ribbon::PaneTab::from_key(pane),
-            ..demo()
-        });
-        rows.push(w.audit(&format!("Main window, pane tab {pane}"), None));
-    }
-    // Right clicks: on a shape and on its points with the Point tool, on the rulers.
-    for (name, tool, points) in [
-        ("Right click on a shape, Select tool", Tool::Select, false),
-        ("Right click on a shape, Point tool", Tool::Point, false),
-        ("Right click on a point, Point tool", Tool::Point, true),
-    ] {
-        if !mine() {
-            continue;
-        }
-        let mut w = open(Launch {
-            tool: Some(tool),
-            ..demo()
-        });
-        if points {
-            let _ = w.app.ui_command("ui.pointMenu", Some(&json!({ "points": [0, 1] })));
-            w.frames(3, Vec::new());
-        }
-        let before = w.layers();
-        let Some(at) = w.at_mm(50.0, 50.0).filter(|p| w.screen().contains(*p)) else {
-            rows.push(Row {
-                surface: format!("{name} (the shape is not in view)"),
-                ..Row::default()
-            });
-            continue;
-        };
-        w.right_click(at);
-        let n = rows.len();
-        w.audit_new(name, &before, &mut rows);
-        if rows.len() == n {
-            rows.push(Row {
-                surface: format!("{name} (opens no menu)"),
-                ..Row::default()
-            });
-        }
-    }
-    for (name, dx, dy) in [("Right click on the top ruler", 80.0, 6.0), ("Right click on the left ruler", 6.0, 80.0)] {
-        if !mine() {
-            continue;
-        }
-        let mut w = open(demo());
-        let before = w.layers();
-        let Some(canvas) = w.app.workspace.canvas else {
-            continue;
-        };
-        w.right_click(canvas.min + egui::vec2(dx, dy));
-        let n = rows.len();
-        w.audit_new(name, &before, &mut rows);
-        if rows.len() == n {
-            rows.push(Row {
-                surface: format!("{name} (opens no menu)"),
-                ..Row::default()
-            });
-        }
-    }
-    // The other windows of the suite: their File menu and, in the Design Database, the menu
-    // bar.
-    type Suite = fn(&mut EditorApp);
-    let suites: [(&str, Suite); 3] = [
-        ("Programmable Stitch Creator", |a| {
-            a.creator.open = true;
-            a.creator.open_app_menu = true;
-        }),
-        ("Stitch Design Factory", |a| {
-            a.sewing.open = true;
-            a.sewing.open_app_menu = true;
-        }),
-        ("Design Database", |a| a.database.show(None)),
-    ];
-    for (name, opener) in suites {
-        if !mine() {
-            continue;
-        }
-        let mut plain = open(demo());
-        opener(&mut plain.app);
-        plain.app.creator.open_app_menu = false;
-        plain.app.sewing.open_app_menu = false;
-        plain.frames(5, Vec::new());
-        let before = plain.layers();
-        let mut w = open(demo());
-        opener(&mut w.app);
-        w.frames(5, Vec::new());
-        w.audit_new(&format!("{name}, File menu"), &before, &mut rows);
-        if name == "Design Database" {
-            let bar: Vec<Control> = w
-                .controls()
-                .into_iter()
-                .filter(|c| c.role == Role::Button && c.rect.max.y < 30.0)
-                .collect();
-            for c in bar {
-                let mut w = open(demo());
-                opener(&mut w.app);
-                w.frames(5, Vec::new());
-                let before = w.layers();
-                if w.click_label(&c.label) {
-                    w.audit_new(&format!("{name}, menu {}", c.label), &before, &mut rows);
+
+    fn run(mut self) -> Walk {
+        // The main window with each ribbon tab: ribbon, panes, status bar.
+        let base = self.open(demo()).layers();
+        for tab in TabId::ALL {
+            if !self.mine() {
+                continue;
+            }
+            let mut w = tab_window(&self, tab);
+            let name = format!("Main window, ribbon tab {}", tab.english_label());
+            if w.app.ui.tab != tab {
+                self.case(&name, "main", Vec::new(), NOT_SHOWN);
+                continue;
+            }
+            let row = w.audit(&name, "main", None);
+            self.case(&name, "main", vec![row], NO_CONTROL);
+            // The tab's drop-down lists.
+            for g in tab.groups() {
+                for a in g.actions() {
+                    let info = a.info();
+                    if !a.is_menu() {
+                        continue;
+                    }
+                    let menu = format!("Ribbon {} > {} (list)", tab.english_label(), squash(info.label));
+                    if !info.available {
+                        self.left_out(&menu, "list", "not available yet in OpenStitch (the registry)");
+                        continue;
+                    }
+                    if !crate::ribbon::enabled(&w.app, a) {
+                        self.case(&menu, "list", Vec::new(), DISABLED);
+                        continue;
+                    }
+                    let mut w = tab_window(&self, tab);
+                    let before = w.layers();
+                    if !w.click_action(a) {
+                        self.problems.push(format!("BUTTON\t{menu}: its button cannot be reached"));
+                        continue;
+                    }
+                    let mut added = Vec::new();
+                    w.audit_new(&menu, "list", &before, &mut added);
+                    self.case(&menu, "list", added, NO_CONTROL);
                 }
             }
         }
+        // The menus of the top bar.
+        for label in ["Options", "Help"] {
+            if !self.mine() {
+                continue;
+            }
+            let mut w = self.open(demo());
+            let before = w.layers();
+            let name = format!("Menu {label}");
+            if !w.click_label(label) {
+                self.problems.push(format!("BUTTON\t{name}: its button cannot be reached"));
+                continue;
+            }
+            let mut added = Vec::new();
+            w.audit_new(&name, "menu", &before, &mut added);
+            self.case(&name, "menu", added, NO_CONTROL);
+        }
+        // The --show scenes: the application menu, dialogs, panes, the other windows.
+        for show in SHOW {
+            if !self.mine() {
+                continue;
+            }
+            let mut w = self.open(Launch {
+                show: vec![show.to_string()],
+                ..demo()
+            });
+            w.frames(4, Vec::new());
+            // A scene that opens something over the main window is measured as that; one that
+            // changes the window itself (another suite window, a view, a tool, the Assistant's
+            // panel) as the whole window.
+            let name = format!("Scene {show}");
+            let mut added = Vec::new();
+            w.audit_new(&name, "scene", &base, &mut added);
+            if added.is_empty() {
+                added.push(w.audit(&name, "scene", None));
+            }
+            self.case(&name, "scene", added, NO_CONTROL);
+        }
+        // Dialogs no scene or ribbon command opens directly.
+        type Opener = fn(&mut EditorApp);
+        let extras: [(&str, Opener); 30] = [
+            ("Assistant closed hint", |a| a.assistant.panel.close_hint_open = true),
+            ("Assistant still working", |a| a.turn_close = Some((Pending::Exit, false))),
+            ("Offset Lines", |a| a.edit.offset_open = true),
+            ("Floral Pattern", |a| a.edit.floral_open = true),
+            ("Floppy Image", crate::floppy_ui::open),
+            ("Ink/Stitch Fonts", |a| a.ui.inkstitch.open = true),
+            ("Job Sheet", |a| a.ui.open_job_sheet = true),
+            ("Fit Text to Outline", |a| a.lettering.fit.open = Some((1, 2))),
+            ("Machine Setup", |a| a.machine_setup.open()),
+            ("Command Palette", |a| a.palette.show()),
+            ("Recover Designs", |a| a.recovery.open = true),
+            ("Check Design", |a| crate::quality_ui::open(a, crate::quality_ui::Tab::Check)),
+            ("Check Design, Density", |a| crate::quality_ui::open(a, crate::quality_ui::Tab::Density)),
+            ("Check Design, Route", |a| crate::quality_ui::open(a, crate::quality_ui::Tab::Route)),
+            ("Test Swatches", |a| a.ui.open_swatches = true),
+            ("Calibrate Real Size", |a| a.calibration.open = true),
+            ("Open Sample", |a| a.ui.start.samples_open = true),
+            ("Startup Wizard", |a| a.startup_wizard.open = true),
+            ("Not in the browser version", |a| {
+                a.ui.limit_notice = Some(openstitch_app::editor::browser_limits::Limit::Transfer)
+            }),
+            ("Image to Embroidery", |a| a.wizard.open = true),
+            ("Modify Image", |a| a.workspace.view.image_open = true),
+            ("Realistic View Settings", |a| a.workspace.view.realistic_open = true),
+            ("Font Filter Settings", |a| a.workspace.view.fonts_open = true),
+            ("About", |a| a.ui.about_open = true),
+            ("Report a Problem", |a| a.ui.problem.open = true),
+            ("Template Wizard, step 2", |a| {
+                crate::lettering_ui::open_template_wizard(a);
+                a.lettering.templates.step = 2;
+            }),
+            ("Template Wizard, step 3", |a| {
+                crate::lettering_ui::open_template_wizard(a);
+                a.lettering.templates.step = 3;
+            }),
+            ("Design Database (whole window)", |a| a.database.show(None)),
+            ("Design Database, Search", |a| {
+                a.database.show(None);
+                a.database.dialog = openstitch_app::editor::database::Dialog::Search;
+            }),
+            ("Design Database, Catalogue", |a| {
+                a.database.show(None);
+                a.database.dialog = openstitch_app::editor::database::Dialog::Catalog;
+            }),
+        ];
+        for (name, opener) in extras {
+            if !self.mine() {
+                continue;
+            }
+            let mut w = self.open(demo());
+            opener(&mut w.app);
+            w.frames(5, Vec::new());
+            let mut added = Vec::new();
+            if name.ends_with("(whole window)") {
+                added.push(w.audit(name, "suite", None));
+                self.case(name, "suite", added, NO_CONTROL);
+            } else {
+                let name = format!("Dialog {name}");
+                w.audit_new(&name, "dialog", &base, &mut added);
+                self.case(&name, "dialog", added, NO_CONTROL);
+            }
+        }
+        for kind in ["background", "applique", "patch", "cutwork"] {
+            if !self.mine() {
+                continue;
+            }
+            let name = format!("Wizard {kind}");
+            let Some(k) = openstitch_app::editor::pattern_wizards::WizardKind::from_key(kind) else {
+                self.problems.push(format!("NOTHING\t{name}: no wizard of that key"));
+                continue;
+            };
+            let mut w = self.open(Launch {
+                wizard: Some(k),
+                ..demo()
+            });
+            let mut added = Vec::new();
+            w.audit_new(&name, "wizard", &base, &mut added);
+            self.case(&name, "wizard", added, NO_CONTROL);
+        }
+        for pane in ["import", "color", "attributes", "text"] {
+            if !self.mine() {
+                continue;
+            }
+            let mut w = self.open(Launch {
+                pane: crate::ribbon::PaneTab::from_key(pane),
+                ..demo()
+            });
+            let name = format!("Main window, pane tab {pane}");
+            let row = w.audit(&name, "pane", None);
+            self.case(&name, "pane", vec![row], NO_CONTROL);
+        }
+        // Right clicks. The Point tool has two menus: on a point of the shape whose points
+        // show, and on that shape beside its points. The Select tool has none.
+        for (name, tool, on_point) in [
+            ("Right click on a shape, Select tool", Tool::Select, false),
+            ("Right click on a shape, Point tool", Tool::Point, false),
+            ("Right click on a point, Point tool", Tool::Point, true),
+        ] {
+            if !self.mine() {
+                continue;
+            }
+            let mut w = self.open(Launch {
+                tool: Some(tool),
+                ..demo()
+            });
+            // The first point of the selected shape, where the editor says it is on screen;
+            // and a place on the shape (the demo's badge) clear of its points and of the star
+            // that lies on it.
+            clear_canvas(&mut w);
+            if tool == Tool::Point {
+                // (Selects the first point; the command is the Point tool's own.)
+                let _ = w.app.ui_command("ui.pointMenu", Some(&json!({ "points": [0] })));
+                w.frames(3, Vec::new());
+            }
+            let at = w.in_view(|w| {
+                let at = if on_point {
+                    let s = w.app.ui_command("ui.pointMenu", None).ok()?;
+                    let p = &s["selected"][0]["screen"];
+                    egui::pos2(p[0].as_f64()? as f32, p[1].as_f64()? as f32)
+                } else {
+                    w.at_mm(74.0, 48.0)?
+                };
+                // (On the canvas: a place beside it belongs to a pane.)
+                w.app.workspace.canvas.filter(|c| c.contains(at)).map(|_| at)
+            });
+            let before = w.layers();
+            let mut added = Vec::new();
+            let mut why = NO_CONTROL;
+            match at {
+                Some(at) => {
+                    w.right_click(at);
+                    w.audit_new(name, "menu", &before, &mut added);
+                }
+                None => why = OUT_OF_VIEW,
+            }
+            self.case(name, "menu", added, why);
+        }
+        for (name, dx, dy) in [
+            ("Right click on the top ruler", 80.0, 6.0),
+            ("Right click on the left ruler", 6.0, 24.0),
+        ] {
+            if !self.mine() {
+                continue;
+            }
+            let mut w = self.open(demo());
+            clear_canvas(&mut w);
+            let before = w.layers();
+            let mut added = Vec::new();
+            let mut why = NO_CONTROL;
+            let at = w.in_view(|w| w.app.workspace.canvas.map(|c| c.min + egui::vec2(dx, dy)));
+            match at {
+                Some(at) => {
+                    w.right_click(at);
+                    w.audit_new(name, "menu", &before, &mut added);
+                }
+                None => why = OUT_OF_VIEW,
+            }
+            self.case(name, "menu", added, why);
+        }
+        // The other windows of the suite: their File menu and, in the Design Database, the
+        // menu bar.
+        type Suite = fn(&mut EditorApp);
+        let suites: [(&str, Suite); 3] = [
+            ("Programmable Stitch Creator", |a| {
+                a.creator.open = true;
+                a.creator.open_app_menu = true;
+            }),
+            ("Stitch Design Factory", |a| {
+                a.sewing.open = true;
+                a.sewing.open_app_menu = true;
+            }),
+            ("Design Database", |a| a.database.show(None)),
+        ];
+        for (name, opener) in suites {
+            if !self.mine() {
+                continue;
+            }
+            let mut plain = self.open(demo());
+            opener(&mut plain.app);
+            plain.app.creator.open_app_menu = false;
+            plain.app.sewing.open_app_menu = false;
+            plain.frames(5, Vec::new());
+            let before = plain.layers();
+            let mut w = self.open(demo());
+            opener(&mut w.app);
+            w.frames(5, Vec::new());
+            if name != "Design Database" {
+                let file = format!("{name}, File menu");
+                let mut added = Vec::new();
+                w.audit_new(&file, "menu", &before, &mut added);
+                self.case(&file, "menu", added, NO_CONTROL);
+            }
+            // (The Design Database has a menu bar where the other two have a File button.)
+            if name == "Design Database" {
+                let bar: Vec<Control> = w
+                    .controls()
+                    .into_iter()
+                    .filter(|c| c.role == Role::Button && c.rect.max.y < 30.0)
+                    .collect();
+                if bar.len() < 4 {
+                    self.problems.push(format!("NOTHING\t{name}: its menu bar has {} buttons", bar.len()));
+                }
+                for c in bar {
+                    let mut w = self.open(demo());
+                    opener(&mut w.app);
+                    w.frames(5, Vec::new());
+                    let before = w.layers();
+                    let menu = format!("{name}, menu {}", c.label);
+                    if !w.click_label(&c.label) {
+                        self.problems.push(format!("BUTTON\t{menu}: its button cannot be reached"));
+                        continue;
+                    }
+                    let mut added = Vec::new();
+                    w.audit_new(&menu, "menu", &before, &mut added);
+                    self.case(&menu, "menu", added, NO_CONTROL);
+                }
+            }
+        }
+        // What each command opens. (A command that is a list is walked as a list of its tab
+        // above, or as a sub-menu of the application or Options menu.)
+        let actions: Vec<Action> = openstitch_app::editor::ribbon::ribbon_actions()
+            .into_iter()
+            .chain(APPLICATION_MENU)
+            .chain(OPTION_MENU)
+            .collect();
+        let mut done = HashSet::new();
+        for a in actions {
+            if !self.mine() {
+                continue;
+            }
+            let info = a.info();
+            if a.is_menu() || !done.insert(info.key) {
+                continue;
+            }
+            let name = format!("Command {}", squash(info.label));
+            if !info.available {
+                self.left_out(&name, "command", "not available yet in OpenStitch (the registry)");
+                continue;
+            }
+            if let Some((_, why)) = NOT_RUN.iter().find(|n| n.0 == a) {
+                self.left_out(&name, "command", why);
+                continue;
+            }
+            let mut w = self.open(demo());
+            let opens = COMMANDS_THAT_OPEN.contains(&info.key);
+            if !crate::ribbon::enabled(&w.app, a) {
+                self.case(&name, "command", Vec::new(), DISABLED);
+                continue;
+            }
+            let before = w.layers();
+            let ctx = w.ctx.clone();
+            crate::ribbon::run(&mut w.app, a, &ctx);
+            w.frames(5, Vec::new());
+            let mut added = Vec::new();
+            if w.app.database.open || w.app.creator.open || w.app.sewing.open {
+                let name = format!("{name} (whole window)");
+                added.push(w.audit(&name, "suite", None));
+            } else {
+                w.audit_new(&name, "command", &before, &mut added);
+            }
+            // Most commands act on the design or the view and open nothing: the ones that
+            // open a menu, pane or dialog are the named list.
+            let opened = added.iter().any(|r| r.controls > 0);
+            if self.only.is_none() && opened != opens {
+                self.problems.push(format!(
+                    "{}\t{}",
+                    if opened { "OPENS" } else { "DOES-NOT-OPEN" },
+                    info.key
+                ));
+            }
+            for r in &added {
+                for p in &r.problems {
+                    self.problems.push(format!("ROW\t{}: {p}", r.surface));
+                }
+            }
+            if self.only.is_none() {
+                self.pinned_as_listed(&added);
+            }
+            self.rows.extend(added.into_iter().filter(|r| r.controls > 0));
+        }
+        self
     }
-    // What each command opens.
-    let actions: Vec<Action> = openstitch_app::editor::ribbon::ribbon_actions()
-        .into_iter()
-        .chain(APPLICATION_MENU)
-        .chain(OPTION_MENU)
-        .collect();
-    let mut done = HashSet::new();
-    for a in actions {
-        if !mine() {
-            continue;
-        }
-        let info = a.info();
-        if !info.available || interactive(a) || a.is_menu() || !done.insert(info.key) {
-            continue;
-        }
-        let mut w = open(demo());
-        if !crate::ribbon::enabled(&w.app, a) {
-            continue;
-        }
-        let before = w.layers();
-        let ctx = w.ctx.clone();
-        crate::ribbon::run(&mut w.app, a, &ctx);
-        w.frames(5, Vec::new());
-        if w.app.database.open || w.app.creator.open || w.app.sewing.open {
-            rows.push(w.audit(&format!("Command {} (whole window)", squash(info.label)), None));
-        } else {
-            w.audit_new(&format!("Command {}", squash(info.label)), &before, &mut rows);
-        }
-    }
-    rows
 }
 
 fn write(px: (f32, f32), scale: u32) {
-    let rows = survey(px, scale, None);
+    let mut walk = Walk::new(px, scale, None, true);
+    walk.only = std::env::var("REACH_ONLY").ok();
+    let walk = walk.run();
     eprintln!("done {px:?} {scale}");
+    for p in &walk.problems {
+        eprintln!("PROBLEM {p}");
+    }
     let mut out = String::from("surface\tcontrols\tnot in view\tunreachable\tbeyond x\tbeyond y\twhich\n");
-    for r in &rows {
+    for r in walk.rows.iter().filter(|r| r.skipped.is_none()) {
         out += &format!(
             "{}\t{}\t{}\t{}\t{:.0}\t{:.0}\t{}\n",
             r.surface,
@@ -1061,7 +1640,7 @@ fn the_options_menu_scrolls_to_every_entry_in_a_small_window() {
         let before = w.layers();
         assert!(w.click_label("Options"), "the Options button at {px:?}, {scale} %");
         let menu: HashSet<egui::LayerId> = w.layers().difference(&before).copied().collect();
-        let row = w.audit("Options", Some(&menu));
+        let row = w.audit("Options", "menu", Some(&menu));
         assert!(row.controls >= 30, "{row:?}");
         assert!(row.hidden > 0, "the menu is taller than the window: {row:?}");
         assert!(row.lost.is_empty(), "{px:?} at {scale} %: {row:?}");
@@ -1093,7 +1672,7 @@ fn a_dialog_scrolls_its_content_and_keeps_its_buttons_in_view() {
     }
     let fields = controls.iter().filter(|c| !w.shown(c)).count();
     assert!(fields > 0, "the fields do not all fit at this size");
-    let row = w.audit("Design Property", Some(&dialog));
+    let row = w.audit("Design Property", "dialog", Some(&dialog));
     assert!(row.lost.is_empty(), "{row:?}");
     assert_eq!(row.beyond, (0.0, 0.0), "inside the window");
     // Still in view with the content scrolled to its end.
@@ -1160,13 +1739,16 @@ fn the_arrow_keys_keep_the_highlighted_options_entry_in_view() {
             break;
         }
     }
+    // Every entry that can take the focus was highlighted on the way (a greyed-out one
+    // cannot).
     let missed: Vec<String> = entries
         .iter()
-        .filter(|c| !walked.contains(&c.id))
+        .filter(|c| !c.disabled && !walked.contains(&c.id))
         .map(|c| format!("{:?} '{}'", c.role, c.label))
         .collect();
-    assert!(walked.contains(&last.id), "the keys reach the last entry; missed {missed:?}");
-    assert!(walked.len() >= 20, "walked {} entries", walked.len());
+    assert!(missed.is_empty(), "entries the keys did not reach: {missed:?}");
+    assert!(walked.contains(&last.id), "the keys reach the last entry");
+    assert!(entries.len() >= 30 && walked.len() >= 30, "walked {} of {} entries", walked.len(), entries.len());
 }
 
 /// `ui.state` says which menus and dialogs are on screen and how far each is scrolled (the
@@ -1234,7 +1816,7 @@ fn ui_state_reports_the_open_menu_and_how_far_it_is_scrolled() {
 
 /// What may be made outside `fit`, and why: (file, call, how many times).
 const MADE_OUTSIDE_FIT: &[(&str, &str, usize, &str)] = &[
-    ("app.rs", "egui::Window::new(", 1, "dialog_window builds the window its callers show through fit"),
+    ("app.rs", "Window::new(", 1, "dialog_window builds the window its callers show through fit"),
     ("pickers_ui.rs", "Popup::from_response(", 1, "a picture picker scrolls its own grid, limited by fit::room"),
     ("splash.rs", "Area::new(", 1, "the splash picture has no controls"),
     ("start_ui.rs", "Area::new(", 1, "the start cards: the reach walk checks them (scene getting-started)"),
@@ -1247,11 +1829,21 @@ const MADE_OUTSIDE_FIT: &[(&str, &str, usize, &str)] = &[
 /// call to use instead.
 #[test]
 fn every_menu_and_dialog_is_made_through_fit() {
+    const WINDOWS: &[&str] = &[
+        "crate::fit::show(",
+        "crate::fit::show_filling(",
+        "crate::fit::show_filling_at_least(",
+        "crate::fit::show_pane(",
+    ];
     // (the toolkit's call, the `fit` calls that may wrap it)
     let rules: &[(&str, &[&str])] = &[
-        ("egui::Window::new(", &["crate::fit::show(", "crate::fit::show_filling("]),
-        (".dialog_window(", &["crate::fit::show(", "crate::fit::show_filling("]),
-        ("egui::Modal::new(", &["crate::fit::modal("]),
+        // (With or without `egui::` before it: a `use` does not hide a window from this.)
+        ("Window::new(", WINDOWS),
+        (".dialog_window(", WINDOWS),
+        ("Modal::new(", &["crate::fit::modal("]),
+        // A combo box's list and a colour button's picker are pop-ups too.
+        ("ComboBox::", &["crate::fit::combo("]),
+        ("color_edit_button", &[]),
         ("Popup::menu(", &["crate::fit::popup("]),
         ("Popup::from_response(", &["crate::fit::popup("]),
         ("Popup::context_menu(", &["crate::fit::popup("]),
@@ -1273,6 +1865,8 @@ fn every_menu_and_dialog_is_made_through_fit() {
     let mut all = Vec::new();
     files(&src, &mut all);
     assert!(all.len() > 50, "the app's sources: {}", all.len());
+    // (Two slashes, written so that the icon check does not read a label made of a mark.)
+    let comment = "/".repeat(2);
     let mut found: HashMap<(String, &str), Vec<usize>> = HashMap::new();
     for path in &all {
         let name = path.strip_prefix(&src).expect("in src").to_string_lossy().replace('\\', "/");
@@ -1285,7 +1879,7 @@ fn every_menu_and_dialog_is_made_through_fit() {
                 let before = &text[..at];
                 // Text in a string or a comment is not a call.
                 let line = &before[before.rfind('\n').map_or(0, |i| i + 1)..];
-                if before.ends_with('"') || line.trim_start().starts_with("//") {
+                if before.ends_with('"') || line.trim_start().starts_with(&comment) {
                     continue;
                 }
                 // `crate::fit::show(app\n    .dialog_window(`, `crate::fit::popup(\n    egui::Popup::menu(`
@@ -1321,7 +1915,8 @@ fn every_menu_and_dialog_is_made_through_fit() {
     assert!(
         wrong.is_empty(),
         "made without crate::fit (use fit::show, fit::modal, fit::menu, fit::popup, \
-         fit::sub_menu or fit::context_menu, so it fits a small window, #1276):\n{}",
+         fit::sub_menu, fit::context_menu, fit::combo or fit::color_button, so it fits a small \
+         window, #1276):\n{}",
         wrong.join("\n")
     );
 }
@@ -1359,56 +1954,119 @@ fn the_tallest_command_tooltip_fits_the_smallest_window() {
     );
 }
 
-/// The walk of the registry at the smallest browser window (640 × 400): every ribbon tab and
-/// its lists, the top bar's menus, every `--show` scene, every dialog, wizard and pane, the
-/// right-click menus, the other windows of the suite, and whatever each ribbon, menu and
-/// Quick Access Toolbar command opens. It fails for a control that cannot be brought into
-/// view with the wheel, and for a menu or dialog that reaches beyond the window. A new
-/// command, scene or tab is walked without a change here (they come from the registries).
-fn walk(part: usize) {
-    let rows = survey((640.0, 400.0), 100, Some((part, WALK_PARTS)));
-    assert!(rows.len() > 20, "part {part} walked {} surfaces", rows.len());
-    let wrong: Vec<String> = rows
+/// The walk of the registries: every ribbon tab and its lists, the top bar's menus, every
+/// `--show` scene, every dialog, wizard and pane tab, the right-click menus, the other windows
+/// of the suite, and whatever each ribbon, menu and Quick Access Toolbar command opens, with
+/// the sub-menus, combo boxes and colour buttons of each. It fails for a control that cannot
+/// be brought into view with the wheel, for a menu or dialog that reaches beyond the window,
+/// for a pinned button row out of place, and for a case that does not match the named lists
+/// (`OPENS_NOTHING`, `COMMANDS_THAT_OPEN`, `PINNED_AT_320X200`). A new command, scene or tab
+/// is walked without a change here (they come from the registries).
+fn walk(px: (f32, f32), scale: u32, part: usize) {
+    let walk = Walk::new(px, scale, Some((part, WALK_PARTS)), true).run();
+    let measured = walk.rows.iter().filter(|r| r.controls > 0).count();
+    assert!(measured >= 20, "part {part} measured {measured} surfaces");
+    let mut wrong: Vec<String> = walk
+        .rows
         .iter()
         .filter(|r| !r.lost.is_empty() || r.beyond.0 > 1.0 || r.beyond.1 > 1.0)
         .map(|r| format!("{}: out of reach {:?}, beyond the window by {:?}", r.surface, r.lost, r.beyond))
         .collect();
-    assert!(wrong.is_empty(), "at 640 x 400 (#1276):
-{}", wrong.join("
-"));
+    wrong.extend(walk.problems.iter().cloned());
+    assert!(
+        wrong.is_empty(),
+        "at {} x {}, Text size {scale} % (#1276):\n{}",
+        px.0,
+        px.1,
+        wrong.join("\n")
+    );
 }
 
-/// The walk runs as this many tests, side by side.
+/// Each size's walk runs as this many tests, side by side.
 const WALK_PARTS: usize = 6;
 
-#[test]
-fn every_control_can_be_reached_at_640x400_part_1() {
-    walk(0);
+/// The sizes walked with every test run, chosen for what they reach: 640 × 400 is the narrow
+/// layout (panes folded, the smallest browser window); 900 × 600 the desktop's smallest
+/// window, with the panes docked, the Assistant sharing the width with them, panes that
+/// scroll sideways and the Simulator giving way; 640 × 400 at Text size 200 % (320 × 200
+/// points) the window that scrolls as a page, the dialogs' pinned rows and the menus that
+/// cannot open beside their button. The other seven sizes are the survey, by hand.
+macro_rules! walks {
+    ($($name:ident: $w:expr, $h:expr, $scale:expr, $part:expr;)*) => {
+        $(
+            #[test]
+            fn $name() {
+                walk(($w, $h), $scale, $part);
+            }
+        )*
+    };
 }
 
-#[test]
-fn every_control_can_be_reached_at_640x400_part_2() {
-    walk(1);
+walks! {
+    every_control_can_be_reached_at_640x400_part_1: 640.0, 400.0, 100, 0;
+    every_control_can_be_reached_at_640x400_part_2: 640.0, 400.0, 100, 1;
+    every_control_can_be_reached_at_640x400_part_3: 640.0, 400.0, 100, 2;
+    every_control_can_be_reached_at_640x400_part_4: 640.0, 400.0, 100, 3;
+    every_control_can_be_reached_at_640x400_part_5: 640.0, 400.0, 100, 4;
+    every_control_can_be_reached_at_640x400_part_6: 640.0, 400.0, 100, 5;
+    every_control_can_be_reached_at_900x600_part_1: 900.0, 600.0, 100, 0;
+    every_control_can_be_reached_at_900x600_part_2: 900.0, 600.0, 100, 1;
+    every_control_can_be_reached_at_900x600_part_3: 900.0, 600.0, 100, 2;
+    every_control_can_be_reached_at_900x600_part_4: 900.0, 600.0, 100, 3;
+    every_control_can_be_reached_at_900x600_part_5: 900.0, 600.0, 100, 4;
+    every_control_can_be_reached_at_900x600_part_6: 900.0, 600.0, 100, 5;
+    every_control_can_be_reached_at_640x400_text_200_part_1: 640.0, 400.0, 200, 0;
+    every_control_can_be_reached_at_640x400_text_200_part_2: 640.0, 400.0, 200, 1;
+    every_control_can_be_reached_at_640x400_text_200_part_3: 640.0, 400.0, 200, 2;
+    every_control_can_be_reached_at_640x400_text_200_part_4: 640.0, 400.0, 200, 3;
+    every_control_can_be_reached_at_640x400_text_200_part_5: 640.0, 400.0, 200, 4;
+    every_control_can_be_reached_at_640x400_text_200_part_6: 640.0, 400.0, 200, 5;
 }
 
-#[test]
-fn every_control_can_be_reached_at_640x400_part_3() {
-    walk(2);
-}
+/// How many surfaces of each kind the walk measures (ones with at least one control), as
+/// counted today at 640 × 400: the walk may find more, never fewer. With the named lists this
+/// is what keeps it from passing on nothing.
+const MEASURED_AT_LEAST: &[(&str, usize)] = &[
+    ("main", 8),
+    ("pane", 4),
+    ("list", 49),
+    ("menu", 13),
+    ("sub-menu", 16),
+    ("drop-down", 43),
+    ("scene", 41),
+    ("dialog", 29),
+    ("wizard", 4),
+    ("suite", 4),
+    ("command", 25),
+];
 
+/// The whole walk once without turning the wheel: everything opens as the named lists say,
+/// and no fewer surfaces of each kind are measured than today.
 #[test]
-fn every_control_can_be_reached_at_640x400_part_4() {
-    walk(3);
-}
-
-#[test]
-fn every_control_can_be_reached_at_640x400_part_5() {
-    walk(4);
-}
-
-#[test]
-fn every_control_can_be_reached_at_640x400_part_6() {
-    walk(5);
+fn the_walk_opens_and_measures_every_surface() {
+    assert!(
+        std::env::var_os("REACH_ONLY").is_none() || std::env::var_os("CI").is_none(),
+        "REACH_ONLY is for the survey by hand, not for a test run"
+    );
+    let walk = Walk::new((640.0, 400.0), 100, None, false).run();
+    let mut counts: std::collections::BTreeMap<&str, usize> = Default::default();
+    for r in walk.rows.iter().filter(|r| r.controls > 0) {
+        *counts.entry(r.kind).or_default() += 1;
+    }
+    let skipped = walk.rows.iter().filter(|r| r.skipped.is_some()).count();
+    eprintln!("measured {counts:?}, left out with a reason {skipped}");
+    for p in &walk.problems {
+        eprintln!("PROBLEM {p}");
+    }
+    assert!(walk.problems.is_empty(), "the walk and its named lists differ:\n{}", walk.problems.join("\n"));
+    assert!(!MEASURED_AT_LEAST.is_empty());
+    for (kind, least) in MEASURED_AT_LEAST {
+        let n = counts.get(kind).copied().unwrap_or(0);
+        assert!(n >= *least, "the walk measured {n} surfaces of kind {kind}, {least} before: {counts:?}");
+    }
+    for kind in counts.keys() {
+        assert!(MEASURED_AT_LEAST.iter().any(|m| m.0 == *kind), "a kind without a floor: {kind}");
+    }
 }
 
 /// A window with room is laid out as it was before #1276: the Sewing Order pane is as wide as
@@ -1496,11 +2154,343 @@ fn probe_scene() {
     w.frames(6, Vec::new());
     let mut rows = Vec::new();
     if w.app.database.open || w.app.creator.open || w.app.sewing.open {
-        rows.push(w.audit(&format!("Scene {scene} (whole window)"), None));
+        rows.push(w.audit(&format!("Scene {scene} (whole window)"), "scene", None));
     } else {
-        w.audit_new(&format!("Scene {scene}"), &base, &mut rows);
+        w.audit_new(&format!("Scene {scene}"), "scene", &base, &mut rows);
+        if rows.is_empty() {
+            rows.push(w.audit(&format!("Scene {scene} (whole window)"), "scene", None));
+        }
     }
     for r in rows {
         eprintln!("{r:?}");
+    }
+}
+
+/// The surfaces `ui.state` reports are the last frame's in the other windows of the suite
+/// too (their frame used to end before the surfaces were kept).
+#[test]
+fn ui_state_reports_the_open_menu_in_a_suite_window() {
+    let mut w = Win::new(demo(), (900.0, 600.0), 100);
+    w.app.database.show(None);
+    w.frames(6, Vec::new());
+    let open = |w: &mut Win| {
+        w.app.ui_command("ui.state", None).expect("ui.state")["surfaces"]["open"]
+            .as_array()
+            .expect("open")
+            .len()
+    };
+    assert_eq!(open(&mut w), 0, "no menu is open in the Design Database yet");
+    let bar: Vec<Control> = w
+        .controls()
+        .into_iter()
+        .filter(|c| c.role == Role::Button && c.rect.max.y < 30.0)
+        .collect();
+    let first = bar.first().expect("the Design Database's menu bar");
+    w.click(first.rect.center());
+    w.frames(6, Vec::new());
+    assert_eq!(open(&mut w), 1, "the menu {:?} is reported", first.label);
+    // And gone from the report once it is closed.
+    w.click(w.screen().shrink(4.0).right_bottom());
+    w.frames(6, Vec::new());
+    assert_eq!(open(&mut w), 0, "a closed menu is not reported");
+}
+
+/// The wheel turned with the pointer resting on one control, until nothing moves any more:
+/// the offsets of the menus and dialogs on screen at the end.
+fn wheel_to_the_end(w: &mut Win, at: egui::Pos2) -> Vec<crate::fit::Surface> {
+    let mut last: Vec<i32> = Vec::new();
+    for _ in 0..200 {
+        wheel_down(w, at);
+        let now: Vec<i32> = w.app.drawn.list.iter().map(|s| s.offset.round() as i32).collect();
+        let rects: Vec<i32> = w.controls().iter().map(|c| c.rect.min.y.round() as i32).collect();
+        let now: Vec<i32> = now.into_iter().chain(rects).collect();
+        if now == last {
+            break;
+        }
+        last = now;
+    }
+    w.app.drawn.list.clone()
+}
+
+/// A list inside a dialog or a menu that scrolls as well (the shortcuts of Keyboard
+/// Shortcuts, the fonts of Font Filter Settings, the Font menu's fonts): with the pointer
+/// resting on the inner list the wheel scrolls it to its end and then goes on to what it is
+/// in, so the controls below the list are reached without moving the pointer.
+#[test]
+fn the_wheel_goes_on_from_a_list_inside_a_dialog_to_the_dialog() {
+    type Opener = fn(&mut EditorApp);
+    // (With a Text size at which the dialog scrolls although its list is short already.)
+    let cases: [(&str, u32, Opener); 2] = [
+        ("Keyboard Shortcuts", 150, |a| a.ui.shortcuts_open = true),
+        ("Font Filter Settings", 200, |a| a.workspace.view.fonts_open = true),
+    ];
+    for (name, scale, opener) in cases {
+        let px = (640.0, 400.0);
+        let base = Win::new(demo(), px, scale).layers();
+        let mut w = Win::new(demo(), px, scale);
+        opener(&mut w.app);
+        w.frames(8, Vec::new());
+        let layers: HashSet<egui::LayerId> = w.layers().difference(&base).copied().collect();
+        assert!(!layers.is_empty(), "{name} opens");
+        let dialog = w.app.drawn.list.iter().find(|s| s.kind == "dialog").cloned();
+        let dialog = dialog.unwrap_or_else(|| panic!("{name} is a dialog: {:?}", w.app.drawn.list));
+        assert!(
+            dialog.content > dialog.rect.height() + 5.0,
+            "{name} is taller than its view at this size: {dialog:?}"
+        );
+        // The pointer rests in the middle of the dialog's view: on its inner list.
+        let end = wheel_to_the_end(&mut w, dialog.rect.center());
+        let d = end.iter().find(|s| s.kind == "dialog").expect("still open");
+        assert!(
+            d.offset >= d.content - d.rect.height() - 1.0,
+            "{name}: the wheel over the inner list reached the dialog's end: {d:?}"
+        );
+        let cut: Vec<String> = w
+            .controls()
+            .iter()
+            .filter(|c| layers.contains(&c.layer))
+            .filter(|c| c.rect.max.y > d.rect.bottom() + 1.0 && !d.buttons.is_some_and(|b| b.contains(c.rect.center())))
+            .map(|c| format!("{:?} '{}'", c.role, c.label))
+            .collect();
+        assert!(cut.is_empty(), "{name}: still below the view at the end: {cut:?}");
+    }
+}
+
+/// The Font menu's list of fonts scrolls inside the menu: with the pointer on it the wheel
+/// brings the last font into view.
+#[test]
+fn the_font_menu_scrolls_to_its_last_font() {
+    let walk = Walk::new((640.0, 400.0), 100, None, true);
+    let mut w = tab_window(&walk, TabId::Text);
+    let before = w.layers();
+    assert!(w.click_label("Font"), "the Font list's button");
+    w.frames(6, Vec::new());
+    let menu: HashSet<egui::LayerId> = w.layers().difference(&before).copied().collect();
+    assert!(!menu.is_empty(), "the Font menu opens");
+    let row = w.audit("Font menu", "list", Some(&menu));
+    assert!(row.controls >= 4 && row.lost.is_empty(), "{row:?}");
+    let rect = w
+        .controls()
+        .iter()
+        .filter(|c| menu.contains(&c.layer))
+        .fold(egui::Rect::NOTHING, |r, c| r.union(w.visible(c)));
+    let end = wheel_to_the_end(&mut w, rect.center());
+    let cut: Vec<String> = w
+        .controls()
+        .iter()
+        .filter(|c| menu.contains(&c.layer) && c.rect.max.y > w.screen().bottom())
+        .map(|c| c.label.clone())
+        .collect();
+    assert!(cut.is_empty(), "below the window after the wheel: {cut:?} ({end:?})");
+}
+
+/// A menu opens at its top every time, also after it was scrolled and closed, and the wheel a
+/// sub-menu passed on belongs to the menu it was passed to: it is not found by the next menu.
+#[test]
+fn a_menu_opens_at_its_top_again() {
+    let mut w = Win::new(demo(), (640.0, 400.0), 200);
+    let menu = |w: &Win| {
+        let list = &w.app.drawn.list;
+        list.iter().max_by(|a, b| a.content.total_cmp(&b.content)).cloned()
+    };
+    assert!(w.click_label("Options"));
+    w.frames(10, Vec::new());
+    let m = menu(&w).expect("the Options menu");
+    // Scrolled through its sub-menu entries (the wheel is passed on from them).
+    for _ in 0..14 {
+        wheel_down(&mut w, egui::pos2(m.rect.center().x, m.rect.top() + 12.0));
+    }
+    assert!(menu(&w).expect("open").offset > 100.0, "{:?}", menu(&w));
+    // Closed with the wheel still turning over a sub-menu, then another menu and this one.
+    w.click(egui::pos2(4.0, w.screen().bottom() - 4.0));
+    w.frames(10, Vec::new());
+    assert!(w.app.drawn.list.is_empty(), "the menu is closed: {:?}", w.app.drawn.list);
+    for label in ["Help", "Options"] {
+        assert!(w.click_label(label), "{label}");
+        w.frames(10, Vec::new());
+        let m = menu(&w).unwrap_or_else(|| panic!("the {label} menu"));
+        assert_eq!(m.offset, 0.0, "the {label} menu opens at its top: {m:?}");
+        w.click(egui::pos2(4.0, w.screen().bottom() - 4.0));
+        w.frames(10, Vec::new());
+    }
+}
+
+/// A layout at rest asks for no further frame: the sizes a dialog, a pane or a row measured
+/// are compared within half a point, so rounding cannot keep the window repainting.
+#[test]
+fn a_settled_layout_stops_asking_for_frames() {
+    type Setup = fn(&mut Win);
+    let cases: [(&str, (f32, f32), u32, Setup); 4] = [
+        ("the main window, panes docked", (900.0, 600.0), 100, |_| {}),
+        ("the main window as a page", (640.0, 400.0), 200, |_| {}),
+        ("a dialog that scrolls with a pinned row", (640.0, 400.0), 100, |w| {
+            w.app.ui.property_open = true;
+        }),
+        ("an open menu that scrolls", (640.0, 400.0), 100, |w| {
+            assert!(w.click_label("Options"));
+        }),
+    ];
+    for (name, px, scale, setup) in cases {
+        let mut w = Win::new(demo(), px, scale);
+        // (The Assistant's panel blinks a caret and the simulator may animate: away.)
+        w.app.assistant.panel.open = false;
+        setup(&mut w);
+        w.frames(40, Vec::new());
+        let mut asked = 0;
+        for _ in 0..20 {
+            w.frames(1, Vec::new());
+            asked += usize::from(w.repaint);
+        }
+        assert_eq!(asked, 0, "{name}: {asked} of 20 frames at rest asked for another at once");
+    }
+}
+
+/// In a window too low to keep a button row in view and still show `crate::fit::PIN_LEAST` points of
+/// the content, the row scrolls with the content instead of lying over it: it is reached by
+/// the wheel, and the dialog stays inside the window.
+#[test]
+fn in_a_very_low_window_the_button_row_scrolls_with_the_content() {
+    // 200 × 120 points.
+    let px = (400.0, 240.0);
+    let base = Win::new(demo(), px, 200).layers();
+    let mut w = Win::new(
+        Launch {
+            show: vec!["property".into()],
+            ..demo()
+        },
+        px,
+        200,
+    );
+    w.frames(8, Vec::new());
+    let dialog: HashSet<egui::LayerId> = w.layers().difference(&base).copied().collect();
+    let d = w.app.drawn.list.iter().find(|s| s.kind == "dialog").cloned().expect("Design Property");
+    assert!(d.buttons.is_none(), "no row is pinned in {:?} points: {d:?}", w.screen().size());
+    assert!(d.rect.height() < crate::fit::PIN_LEAST + 40.0, "{d:?}");
+    assert!(w.screen().expand(0.5).contains_rect(d.rect), "inside the window: {d:?}");
+    let row = w.audit("Design Property", "dialog", Some(&dialog));
+    assert!(row.lost.is_empty(), "Apply and Revert are reached by scrolling: {row:?}");
+    assert_eq!(row.beyond, (0.0, 0.0));
+    // With a little more room (640 × 400 at 200 %) the row is kept in view.
+    let mut w = Win::new(
+        Launch {
+            show: vec!["property".into()],
+            ..demo()
+        },
+        (640.0, 400.0),
+        200,
+    );
+    w.frames(8, Vec::new());
+    let d = w.app.drawn.list.iter().find(|s| s.kind == "dialog").cloned().expect("Design Property");
+    let b = d.buttons.expect("pinned at 320 x 200 points");
+    assert!(b.top() >= d.rect.bottom() - 0.5 && d.rect.height() >= crate::fit::PIN_LEAST - 0.5, "{d:?}");
+}
+
+/// A pane keeps the width it had when a smaller window squeezed it: the toolkit remembers the
+/// width a panel was last drawn at, so without care a pane limited at 900 points would stay
+/// narrow when the window is 1440 wide again.
+#[test]
+fn a_pane_squeezed_by_a_small_window_gets_its_width_back() {
+    let mut w = Win::new(demo(), (1440.0, 900.0), 100);
+    w.frames(10, Vec::new());
+    let wide = w.app.workspace.canvas.expect("canvas");
+    assert!(wide.min.x > 280.0, "the Sewing Order pane at its content's width: {wide:?}");
+    w.size = egui::vec2(900.0, 600.0);
+    w.frames(20, Vec::new());
+    let small = w.app.workspace.canvas.expect("canvas");
+    assert!(
+        small.min.x < wide.min.x - 20.0,
+        "with the Assistant open the pane gives way at 900 points: {small:?}"
+    );
+    assert!(small.width() >= 159.0, "the work area keeps 160 points: {small:?}");
+    w.size = egui::vec2(1440.0, 900.0);
+    w.frames(20, Vec::new());
+    let back = w.app.workspace.canvas.expect("canvas");
+    assert!(
+        (back.min.x - wide.min.x).abs() < 1.0 && (back.max.x - wide.max.x).abs() < 1.0,
+        "the panes are as wide as before: {wide:?}, then {back:?}"
+    );
+}
+
+/// Every filled rectangle the last frame painted, with its clip.
+fn filled(w: &Win) -> Vec<(egui::Rect, egui::Color32)> {
+    fn collect(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<(egui::Rect, egui::Color32)>) {
+        match shape {
+            egui::Shape::Rect(r) => out.push((r.rect.intersect(clip), r.fill)),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| collect(s, clip, out)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    for s in &w.shapes {
+        collect(&s.shape, s.clip_rect, &mut out);
+    }
+    out
+}
+
+/// An open menu is opaque once it has faded in: its panel is painted in the menu's own fill
+/// at full strength behind every row (a `--screenshot` taken six frames after the click had
+/// caught the fade and showed the pane through the menu).
+#[test]
+fn an_open_menu_is_opaque_once_it_has_settled() {
+    for (px, scale) in [((900.0, 600.0), 100), ((640.0, 400.0), 200)] {
+        let mut w = Win::new(demo(), px, scale);
+        assert!(w.click_label("Options"));
+        w.frames(60, Vec::new());
+        let m = w.app.drawn.list.iter().max_by(|a, b| a.content.total_cmp(&b.content)).cloned().expect("menu");
+        let fill = egui::Frame::menu(&w.ctx.global_style()).fill;
+        assert_eq!(fill.a(), 255, "the menu's fill is opaque");
+        let panel = filled(&w)
+            .into_iter()
+            .find(|(r, c)| *c == fill && r.expand(1.0).contains_rect(m.rect));
+        assert!(
+            panel.is_some(),
+            "at {px:?}, {scale} %: no rectangle of the menu's fill {fill:?} behind its rows {:?}",
+            m.rect
+        );
+    }
+}
+
+/// By hand: what the walk opens at REACH_PROBE's size, without turning the wheel, as lines for
+/// the named lists.
+#[test]
+#[ignore = "the survey: run by hand"]
+fn discover() {
+    let px: Vec<f32> = std::env::var("REACH_PROBE")
+        .unwrap_or_else(|_| "640,400,100".into())
+        .split(',')
+        .map(|v| v.parse().expect("number"))
+        .collect();
+    let walk = Walk::new((px[0], px[1]), px[2] as u32, None, false).run();
+    let mut counts: std::collections::BTreeMap<&str, usize> = Default::default();
+    for r in walk.rows.iter().filter(|r| r.controls > 0) {
+        *counts.entry(r.kind).or_default() += 1;
+        if r.pinned {
+            println!("IS-PINNED\t{}", r.surface);
+        }
+    }
+    println!("COUNTS\t{counts:?}");
+    for p in &walk.problems {
+        println!("PROBLEM\t{p}");
+    }
+}
+
+/// By hand: how wide each ribbon tab's groups are at Text size 100 % (the ribbon's scroll bar
+/// shows in a window narrower than that).
+#[test]
+#[ignore = "the survey: run by hand"]
+fn ribbon_widths() {
+    let walk = Walk::new((2600.0, 900.0), 100, None, false);
+    for tab in TabId::ALL {
+        let w = tab_window(&walk, tab);
+        if w.app.ui.tab != tab {
+            continue;
+        }
+        let right = w
+            .controls()
+            .iter()
+            .filter(|c| c.rect.min.y > 50.0 && c.rect.max.y < 140.0)
+            .map(|c| c.rect.max.x)
+            .fold(0.0f32, f32::max);
+        println!("RIBBON {}: {right:.0}", tab.english_label());
     }
 }
