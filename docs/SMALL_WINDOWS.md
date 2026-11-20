@@ -14,7 +14,7 @@ the window:
 
 | surface | in a window too small for it |
 |---|---|
-| Menus, drop-down lists, sub-menus, right-click menus, the application menu | Open below their button (above it when there is more room), never beyond the window, and scroll: wheel, touchpad, or the thin scroll bar at the side, which shows while at rest so a list that goes on is seen to go on. The arrow keys move the highlight and the list follows it; in a number field the arrows change the value, and Tab goes on. Sub-menus open on the side that has room; in a window too narrow for that a sub-menu lies over its menu, and the wheel over it goes on to the menu once the sub-menu has nothing more to scroll that way. |
+| Menus, drop-down lists, sub-menus, right-click menus, the application menu | Open below their button (above it when there is more room), never beyond the window, and scroll: wheel, touchpad, or the scroll bar beside the entries, which shows while at rest so a list that goes on is seen to go on, and takes its own room (it never lies over an entry). The arrow keys move the highlight and the list follows it; in a number field the arrows change the value, and Tab goes on. Sub-menus open on the side that has room; in a window too narrow for that a sub-menu lies over its menu, and the wheel over it goes on to the menu once the sub-menu has nothing more to scroll that way. |
 | Dialogs and prompts | Open over what is on screen and stay inside the window. The content scrolls; the row with OK, Cancel, Apply or Close stays in view below it, ruled off by a line. A dialog that fits is laid out as before. Every combo box's list is no higher and no wider than the window, a longer entry wrapping; a colour button's picker opens in a pop-up that scrolls. |
 | Panes (Sewing Order, Attributes, Stitch Simulator; docked, floating, or folded in the narrow layout) | The pane's content scrolls up and down once the pane is lower than it, and sideways once the pane cannot be as wide as its content. A pane with room is as wide as its content, as before. In a window too narrow for all of them (panes on both sides plus the Assistant at 900 points), the Assistant and the Sewing Order pane give way so that each docked pane keeps 200 points and the work area 160. |
 | Stitch Simulator docked above or below | Gives way so the work area and the panes beside it keep 160 points of height. |
@@ -47,29 +47,44 @@ The desktop window's smallest size stays 900 × 600 pixels.
   For each control it asks whether it is in view, and if not, turns the mouse wheel over it or
   over the containers around it, as a person would, until it is. It fails for a control that
   cannot be brought into view, for a menu or dialog that reaches beyond the window, and for a
-  dialog's pinned button row that is cut, lies over the content or moves with it.
+  dialog's pinned button row that is cut, lies over the content or moves with it. (A window
+  that moves with the page, the folded panes' title bars in a window that scrolls as a page,
+  is measured again wherever the walk has scrolled: it is beyond the window only if it stays
+  so in all those places. A menu or dialog does not move when it scrolls.)
 - **Three sizes run with the tests**, six tests each, side by side: 640 × 400 (the narrow
   layout, the smallest browser window), 900 × 600 (the desktop's smallest window: panes
   docked, the Assistant sharing the width, panes scrolling sideways, the Simulator giving
   way) and 640 × 400 at Text size 200 % (320 × 200 points: the window scrolling as a page,
   the pinned rows, menus with no room beside their button). The other seven sizes are the
   survey below, run by hand.
-- **It cannot pass on nothing.** A case that opens nothing to measure fails the walk unless
-  it is on a named list with how it comes to nothing (`OPENS_NOTHING`: lists and commands
-  disabled for the demo design, two contextual tabs, the Select tool's missing right-click
-  menu); an entry there that opens something fails too. The commands that open a surface are
-  a named list (`COMMANDS_THAT_OPEN`, 28 today): one that stops opening, or a new one that
-  starts, fails. So are the dialogs that keep their button row in view at 320 × 200 points
-  (`PINNED_AT_320X200`). `the_walk_opens_and_measures_every_surface` counts what was measured
-  per kind against today's numbers. Commands the registry marks as not available yet, and
-  the eleven that open the system's file dialog, a URL or close the window, are left out
-  with that reason.
+- **It cannot pass on nothing.** Each case has to measure the surface it is for:
+  - a menu, list, dialog, wizard or scene that opens nothing with a control fails the walk,
+    unless it is on a named list with how it comes to nothing (`OPENS_NOTHING`: lists and
+    commands disabled for the demo design, two contextual tabs, the Select tool's missing
+    right-click menu); an entry there that opens something fails too;
+  - a scene is measured as the whole window only when it is on `WHOLE_WINDOW_SCENES` (another
+    suite window, a view, a tool, the Assistant's panel), each with what it changes; any other
+    scene has to open a surface of its own;
+  - every sub-menu entry is hovered, and every combo box and colour button clicked, with the
+    walk's whole patience; a combo box or colour button that cannot be brought under the
+    pointer or opens nothing fails, a greyed-out one is listed as such in the table;
+  - the commands that open a surface are a named list (`COMMANDS_THAT_OPEN`): one that stops
+    opening, or one that starts, fails; so are the dialogs that keep their button row in view
+    at 320 × 200 points (`PINNED_AT_320X200`);
+  - `the_walk_opens_and_measures_every_surface_at_*` counts what was measured per kind of
+    surface at each of the three sizes against floors set on this code.
+  Commands the registry marks as not available yet, and the eleven that open the system's
+  file dialog, a URL or close the window, are left out with that reason.
 - **In view** means the whole control, to within one point (a rectangle and the clip it is
-  drawn in are snapped to the pixel grid separately), with nothing of another layer lying
-  over its middle. A control really larger than the view it scrolls in (a 102-point tab
-  button in a pane squeezed to 74 points) cannot be shown at once: it counts as reached when
-  both of its ends have been scrolled into view. A control smaller than its view has to be
-  in view whole.
+  drawn in are snapped to the pixel grid separately), with nothing of another window lying over
+  its middle. A covered control is reached only if moving the pointer, as a person does, uncovers
+  it (onto a part of it that shows, or onto another part of its menu, which closes a sub-menu
+  another entry opened), or if what covers it is its own sub-menu (in a window too narrow to
+  open it beside, a sub-menu opens over its entry, and a combo box's list may open over its
+  box); the walk never scrolls the page to get a
+  control out from under a window. A control really larger than the view it scrolls in (a
+  102-point tab button in a pane squeezed to 74 points) counts as reached when both of its ends
+  have been in view; any other has to be in view whole.
 - **The source check** (`every_menu_and_dialog_is_made_through_fit`) fails for a window, modal
   prompt, pop-up, menu button, right-click menu, combo box or colour button made with the
   toolkit's own call instead of the helper, and names the helper to use. Panels are not
@@ -114,7 +129,7 @@ window under about 130 points high the row scrolls with the content, below it.
 
 - The walk asks whether a control can be reached, not whether the layout is pleasant: at
   320 × 200 points most of the editor is reached by scrolling.
-- The scroll bars are the toolkit's own (thin, over the content). Touch: a list scrolls by
+- The scroll bars of menus and dialogs are solid, beside the content (a light handle); those of panes, rows and the ribbon are thin and lie over the content. Touch: a list scrolls by
   dragging it; the page-level scroll of a very low window does not take a drag that starts on
   the canvas.
 - Combo boxes use the toolkit's own drop-down, which scrolls by itself; the helper holds it
@@ -138,7 +153,7 @@ the number of surfaces that lost at least one.
 | 640 × 400, 150 % | 427 × 267 | 495 (96) | 0 (0) |
 | 640 × 400, 200 % | 320 × 200 | 703 (118) | 0 (0) |
 
-Surfaces walked: 217 before, 243 after (the walk now also opens the ribbon's
+Surfaces walked: 217 before, 264 after (the walk now also opens the ribbon's
 drop-down lists, every sub-menu, combo box and colour button, the Point tool's right-click
 menus and the other suite windows' menus; it measures a scene that changes the window itself
 as the whole window).
@@ -161,17 +176,17 @@ release before did not open.
 
 | surface | controls | before | after |
 |---|---:|---|---|
-| Main window, ribbon tab Home | 171 | 94 at 640 × 400, 100 % | ok |
-| Main window, ribbon tab Image | 147 | 94 at 640 × 400, 100 % | ok |
-| Main window, ribbon tab View | 155 | 94 at 640 × 400, 100 % | ok |
-| Main window, ribbon tab Text | 145 | 84 at 640 × 400, 100 % | ok |
-| Main window, ribbon tab Outline | 146 | 94 at 640 × 400, 100 % | ok |
-| Main window, ribbon tab Manual Punch | 147 | 94 at 640 × 400, 100 % | ok |
-| Main window, ribbon tab Shapes | 166 | 94 at 640 × 400, 100 % | ok |
-| Main window, pane tab import | 129 | 52 at 640 × 400, 100 % | ok |
-| Main window, pane tab color | 127 | 50 at 640 × 400, 100 % | ok |
-| Main window, pane tab attributes | 171 | 94 at 640 × 400, 100 % | ok |
-| Main window, pane tab text | 132 | 55 at 640 × 400, 100 % | ok |
+| Main window, ribbon tab Home | 172 | 94 at 640 × 400, 100 % | ok |
+| Main window, ribbon tab Image | 148 | 94 at 640 × 400, 100 % | ok |
+| Main window, ribbon tab View | 156 | 94 at 640 × 400, 100 % | ok |
+| Main window, ribbon tab Text | 146 | 84 at 640 × 400, 100 % | ok |
+| Main window, ribbon tab Outline | 147 | 94 at 640 × 400, 100 % | ok |
+| Main window, ribbon tab Manual Punch | 148 | 94 at 640 × 400, 100 % | ok |
+| Main window, ribbon tab Shapes | 168 | 94 at 640 × 400, 100 % | ok |
+| Main window, pane tab import | 130 | 52 at 640 × 400, 100 % | ok |
+| Main window, pane tab color | 128 | 50 at 640 × 400, 100 % | ok |
+| Main window, pane tab attributes | 172 | 94 at 640 × 400, 100 % | ok |
+| Main window, pane tab text | 133 | 55 at 640 × 400, 100 % | ok |
 
 ### Ribbon drop-down lists
 
@@ -186,6 +201,8 @@ release before did not open.
 | Ribbon Home > Rotate/Flip (list) | 5 | – | ok |
 | Ribbon Home > Size (list) | 6 | – | ok |
 | Ribbon Home > Stamp/Emboss (list) | 7 | – | ok |
+| Ribbon Home > Stamp/Emboss (list) > circle | 7 | – | ok |
+| Ribbon Home > Stamp/Emboss (list) > Engraved Line | 3 | – | ok |
 | Ribbon Home > Decorative Frame (list) | 6 | – | ok |
 | Ribbon Home > Align (list) | 11 | – | ok |
 | Ribbon Home > Sew Embroidery (list) | 5 | – | ok |
@@ -193,6 +210,8 @@ release before did not open.
 | Ribbon Home > Sew Embroidery (list) > Export > PES | 11 | – | ok |
 | Ribbon Home > Sew Embroidery (list) > Export > EXP | 2 | – | ok |
 | Ribbon Home > Sew Embroidery (list) > Export > Garment Mockup | 5 | – | ok |
+| Ribbon Home > Sew Embroidery (list) > Export > Garment Mockup > Color | 5 | – | ok |
+| Ribbon Home > Sew Embroidery (list) > Export > Thread List | 6 | – | ok |
 | Ribbon View > Show (list) | 10 | – | ok |
 | Ribbon View > Grid Spacing (list) | 6 | – | ok |
 | Ribbon View > Guides (list) | 7 | – | ok |
@@ -219,6 +238,7 @@ release before did not open.
 | Ribbon Shapes > Select Same (list) | 3 | – | ok |
 | Ribbon Shapes > Smooth tolerance (list) | 5 | – | ok |
 | Ribbon Shapes > Shape Effects (list) | 3 | – | ok |
+| Ribbon Shapes > Shape Effects (list) > Warp | 5 | – | ok |
 | Ribbon Shapes > Turning Gap (list) | 3 | – | ok |
 | Ribbon Shapes > Line color (list) | 5 | – | ok |
 | Ribbon Shapes > Line sew type (list) | 23 | – | ok |
@@ -226,7 +246,6 @@ release before did not open.
 | Ribbon Shapes > Region sew type (list) | 18 | – | ok |
 | Ribbon Shapes > Entry/Exit Points (list) | 5 | – | ok |
 | Ribbon Shapes > Center/Reference Point (list) | 2 | – | ok |
-| Ribbon Home > Sew Embroidery (list) > Export > Thread List | 6 | – | ok |
 
 ### Top bar menus (Options, Help) and their sub-menus
 
@@ -234,10 +253,14 @@ release before did not open.
 |---|---:|---|---|
 | Menu Options | 37 | 30 at 640 × 400, 200 % | ok |
 | Menu Options > Accent colour | 8 | ok | ok |
+| Menu Options > Accent colour > Color | 5 | – | ok |
+| Menu Options > Layouts | 8 | ok | ok |
+| Menu Options > Reset Preferences | 6 | ok | ok |
+| Menu Options > Text size | 5 | ok | ok |
+| Menu Options > New Objects | 7 | ok | ok |
+| Menu Options > Color | 5 | – | ok |
 | Menu Help | 9 | 1 at 640 × 400, 200 % | ok |
 | Menu Options > Language | 2 | ok | ok |
-| Menu Options > New Objects | 7 | ok | ok |
-| Menu Options > Reset Preferences | 6 | ok | ok |
 
 ### Scenes (`--show`): application menu, dialogs, panes, suite windows
 
@@ -245,25 +268,25 @@ release before did not open.
 |---|---:|---|---|
 | Scene update | 5 | 4 at 900 × 600, 200 % | ok |
 | Scene stitch-table | 52 | ok | ok |
-| Scene large-text | 171 | – | ok |
-| Scene keyboard | 147 | – | ok |
+| Scene large-text (whole window) | 172 | – | ok |
+| Scene keyboard (whole window) | 148 | – | ok |
 | Scene pickers | 18 | ok | ok |
-| Scene tabs | 176 | – | ok |
+| Scene tabs (whole window) | 177 | – | ok |
 | Scene close-prompt | 3 | 1 at 640 × 400, 200 % | ok |
-| Scene realistic | 171 | – | ok |
-| Scene solid | 171 | – | ok |
+| Scene realistic (whole window) | 172 | – | ok |
+| Scene solid (whole window) | 172 | – | ok |
 | Scene fabric | 19 | 11 at 640 × 400, 200 % | ok |
 | Scene fabric > Thread weight | 4 | ok | ok |
 | Scene reference | 2 | ok | ok |
 | Scene settings | 26 | 16 at 640 × 400, 200 % | ok |
 | Scene settings > Hoop | 68 | ok | ok |
 | Scene settings > Section size | 12 | ok | ok |
-| Scene measure | 171 | – | ok |
-| Scene norulers | 171 | – | ok |
+| Scene measure (whole window) | 172 | – | ok |
+| Scene norulers (whole window) | 172 | – | ok |
 | Scene text | 11 | 1 at 800 × 500, 200 % | ok |
 | Scene text > Font | 4 | ok | ok |
-| Scene creator | 31 | – | ok |
-| Scene sdf | 26 | – | ok |
+| Scene creator (whole window) | 32 | 5 at 640 × 400, 200 % | ok |
+| Scene sdf (whole window) | 27 | 4 at 800 × 500, 200 % | ok |
 | Scene attributes | 4 | 1 at 640 × 400, 200 % | ok |
 | Scene charts | 9 | 3 at 640 × 400, 200 % | ok |
 | Scene charts > New Brothread 100 % polyester (63-spool kit) | 12 | 12 at 900 × 600, 200 % | ok |
@@ -287,30 +310,43 @@ release before did not open.
 | Scene appmenu > Export > PES | 11 | ok | ok |
 | Scene appmenu > Export > EXP | 2 | ok | ok |
 | Scene appmenu > Export > Garment Mockup | 5 | ok | ok |
+| Scene appmenu > Export > Garment Mockup > Color | 5 | – | ok |
+| Scene appmenu > Export > Thread List | 6 | ok | ok |
+| Scene appmenu > Options | 37 | – | ok |
+| Scene appmenu > Options > Accent colour | 8 | – | ok |
+| Scene appmenu > Options > Accent colour > Color | 5 | – | ok |
+| Scene appmenu > Options > Layouts | 8 | – | ok |
+| Scene appmenu > Options > Reset Preferences | 6 | – | ok |
+| Scene appmenu > Options > Text size | 5 | – | ok |
+| Scene appmenu > Options > New Objects | 7 | – | ok |
+| Scene appmenu > Options > Color | 5 | – | ok |
 | Scene property | 9 | 6 at 900 × 600, 150 % | ok |
 | Scene shortcuts | 46 | 19 at 640 × 400, 200 % | ok |
 | Scene floating | 85 | 1 at 640 × 400, 100 % | ok |
 | Scene floating > Region sewing type | 18 | ok | ok |
+| Scene floating > Underlay style | 8 | – | ok |
+| Scene floating > Underlay density | 3 | – | ok |
+| Scene floating > Stagger | 6 | – | ok |
+| Scene floating > Texture | 14 | – | ok |
+| Scene floating > Stitch type | 2 | – | ok |
+| Scene floating > Rows (+) | 3 | – | ok |
+| Scene floating > Running stitch path | 4 | – | ok |
+| Scene floating > Line sewing type | 23 | – | ok |
+| Scene floating > Thickness profile | 7 | – | ok |
 | Scene floating > How Optimise arranges the objects; saved with the design | 2 | ok | ok |
 | Scene print | 15 | 5 at 640 × 400, 200 % | ok |
-| Scene assistant | 171 | – | ok |
-| Scene assistant-notices | 192 | – | ok |
-| Scene assistant-questions | 194 | – | ok |
-| Scene assistant-suggestions | 182 | – | ok |
-| Scene basic | 153 | – | ok |
+| Scene assistant (whole window) | 172 | – | ok |
+| Scene assistant-notices (whole window) | 193 | – | ok |
+| Scene assistant-questions (whole window) | 195 | – | ok |
+| Scene assistant-suggestions (whole window) | 183 | – | ok |
+| Scene basic (whole window) | 154 | – | ok |
 | Scene getting-started | 7 | ok | ok |
 | Scene machine-setup | 8 | 4 at 640 × 400, 200 % | ok |
 | Scene machine-setup > Brand | 9 | ok | ok |
 | Scene machine-setup > Hoop | 14 | ok | ok |
 | Scene startup-wizard | 12 | 10 at 640 × 400, 200 % | ok |
-| Scene bare | 6 | – | ok |
-| Scene appmenu > Export > Thread List | 6 | ok | ok |
-| Scene appmenu > Options | 37 | – | ok |
+| Scene bare (whole window) | 6 | – | ok |
 | Scene appmenu > Options > Language | 2 | – | ok |
-| Scene appmenu > Options > New Objects | 7 | – | ok |
-| Scene appmenu > Options > Accent colour | 8 | – | ok |
-| Scene appmenu > Options > Reset Preferences | 6 | – | ok |
-| Scene appmenu > Options > Text size | 5 | – | ok |
 
 ### Dialogs opened from other dialogs or by the editor
 
@@ -327,7 +363,7 @@ release before did not open.
 | Dialog Machine Setup | 8 | 4 at 640 × 400, 200 % | ok |
 | Dialog Machine Setup > Brand | 9 | ok | ok |
 | Dialog Machine Setup > Hoop | 14 | ok | ok |
-| Dialog Command Palette | 182 | ok | ok |
+| Dialog Command Palette | 183 | ok | ok |
 | Dialog Recover Designs | 1 | ok | ok |
 | Dialog Check Design | 10 | 1 at 800 × 500, 200 % | ok |
 | Dialog Check Design > standard | 13 | ok | ok |
@@ -438,12 +474,12 @@ release before did not open.
 | Command Select Color Palette | 9 | 3 at 640 × 400, 200 % | ok |
 | Command Select Color Palette > New Brothread 100 % polyester (63-spool kit) | 12 | 12 at 900 × 600, 200 % | ok |
 | Command Design Database (whole window) | 45 | ok | ok |
-| Command Programmable Stitch Creator (whole window) | 31 | 5 at 640 × 400, 200 % | ok |
-| Command Stitch Design Factory (whole window) | 26 | 4 at 800 × 500, 200 % | ok |
+| Command Programmable Stitch Creator (whole window) | 32 | 5 at 640 × 400, 200 % | ok |
+| Command Stitch Design Factory (whole window) | 27 | 4 at 800 × 500, 200 % | ok |
 | Command Font Creator | 23 | 18 at 640 × 400, 200 % | ok |
 | Command Sewing Attribute Sets | 4 | 1 at 640 × 400, 200 % | ok |
 | Command User Thread Charts | 9 | 3 at 640 × 400, 200 % | ok |
 | Command User Thread Charts > New Brothread 100 % polyester (63-spool kit) | 12 | 12 at 900 × 600, 200 % | ok |
 
 Surfaces of the first survey that the walk now opens under another name or as part of
-another row: Ribbon Home > Select Same (list): its button cannot be reached; Ribbon Home > Text (list): its button cannot be reached; Ribbon Home > Arrange (list): its button cannot be reached; Ribbon Home > Rotate/Flip (list): its button cannot be reached; Ribbon Home > Size (list): its button cannot be reached; Ribbon Home > Stamp/Emboss (list): its button cannot be reached; Ribbon Home > Decorative Frame (list): its button cannot be reached; Ribbon Home > Align (list): its button cannot be reached; Ribbon Home > Sew Embroidery (list): its button cannot be reached; Ribbon View > Show (list): its button cannot be reached; Ribbon View > Grid Spacing (list): its button cannot be reached; Ribbon View > Guides (list): its button cannot be reached; Ribbon Text > Select Same (list): its button cannot be reached; Ribbon Text > Font (list): its button cannot be reached; Ribbon Text > Text Size (list): its button cannot be reached; Ribbon Text > Line color (list): its button cannot be reached; Ribbon Text > Line sew type (list): its button cannot be reached; Ribbon Text > Region color (list): its button cannot be reached; Ribbon Text > Region sew type (list): its button cannot be reached; Ribbon Text > Edit Text (list): its button cannot be reached; Ribbon Text > Edit Character (list): its button cannot be reached; Ribbon Outline > Select Same (list): its button cannot be reached; Ribbon Outline > Line color (list): its button cannot be reached; Ribbon Outline > Line sew type (list): its button cannot be reached; Ribbon Outline > Region color (list): its button cannot be reached; Ribbon Outline > Region sew type (list): its button cannot be reached; Ribbon Outline > Edge radius (list): its button cannot be reached; Ribbon Manual Punch > Select Same (list): its button cannot be reached; Ribbon Manual Punch > Column width (list): its button cannot be reached; Ribbon Manual Punch > Region color (list): its button cannot be reached; Ribbon Manual Punch > Region sew type (list): its button cannot be reached; Ribbon Shapes > Select Same (list): its button cannot be reached; Ribbon Shapes > Smooth tolerance (list): its button cannot be reached; Ribbon Shapes > Shape Effects (list): its button cannot be reached; Ribbon Shapes > Turning Gap (list): its button cannot be reached; Ribbon Shapes > Line color (list): its button cannot be reached; Ribbon Shapes > Line sew type (list): its button cannot be reached; Ribbon Shapes > Region color (list): its button cannot be reached; Ribbon Shapes > Region sew type (list): its button cannot be reached; Ribbon Shapes > Entry/Exit Points (list): its button cannot be reached; Ribbon Shapes > Center/Reference Point (list): its button cannot be reached; Main window, ribbon tab Stitches (not shown for this selection); Main window, ribbon tab Hoop Settings (not shown for this selection); Menu Options > Reset Preferences > Save Layout; Menu Options > Text size; Scene keyboard (adds no surface of its own); Scene tabs (adds no surface of its own); Scene realistic (adds no surface of its own); Scene solid (adds no surface of its own); Scene measure (adds no surface of its own); Scene creator (whole window); Scene sdf (whole window); Scene assistant (adds no surface of its own); Scene assistant-notices (adds no surface of its own); Scene assistant-questions (adds no surface of its own); Scene assistant-suggestions (adds no surface of its own); Scene basic (adds no surface of its own); Menu Options > Layouts; Scene pickers (adds no surface of its own); Scene floating (adds no surface of its own); Ribbon Home > Zoom (list): its button cannot be reached.
+another row: Ribbon Home > Select Same (list): its button cannot be reached; Ribbon Home > Text (list): its button cannot be reached; Ribbon Home > Arrange (list): its button cannot be reached; Ribbon Home > Rotate/Flip (list): its button cannot be reached; Ribbon Home > Size (list): its button cannot be reached; Ribbon Home > Stamp/Emboss (list): its button cannot be reached; Ribbon Home > Decorative Frame (list): its button cannot be reached; Ribbon Home > Align (list): its button cannot be reached; Ribbon Home > Sew Embroidery (list): its button cannot be reached; Ribbon View > Show (list): its button cannot be reached; Ribbon View > Grid Spacing (list): its button cannot be reached; Ribbon View > Guides (list): its button cannot be reached; Ribbon Text > Select Same (list): its button cannot be reached; Ribbon Text > Font (list): its button cannot be reached; Ribbon Text > Text Size (list): its button cannot be reached; Ribbon Text > Line color (list): its button cannot be reached; Ribbon Text > Line sew type (list): its button cannot be reached; Ribbon Text > Region color (list): its button cannot be reached; Ribbon Text > Region sew type (list): its button cannot be reached; Ribbon Text > Edit Text (list): its button cannot be reached; Ribbon Text > Edit Character (list): its button cannot be reached; Ribbon Outline > Select Same (list): its button cannot be reached; Ribbon Outline > Line color (list): its button cannot be reached; Ribbon Outline > Line sew type (list): its button cannot be reached; Ribbon Outline > Region color (list): its button cannot be reached; Ribbon Outline > Region sew type (list): its button cannot be reached; Ribbon Outline > Edge radius (list): its button cannot be reached; Ribbon Manual Punch > Select Same (list): its button cannot be reached; Ribbon Manual Punch > Column width (list): its button cannot be reached; Ribbon Manual Punch > Region color (list): its button cannot be reached; Ribbon Manual Punch > Region sew type (list): its button cannot be reached; Ribbon Shapes > Select Same (list): its button cannot be reached; Ribbon Shapes > Smooth tolerance (list): its button cannot be reached; Ribbon Shapes > Shape Effects (list): its button cannot be reached; Ribbon Shapes > Turning Gap (list): its button cannot be reached; Ribbon Shapes > Line color (list): its button cannot be reached; Ribbon Shapes > Line sew type (list): its button cannot be reached; Ribbon Shapes > Region color (list): its button cannot be reached; Ribbon Shapes > Region sew type (list): its button cannot be reached; Ribbon Shapes > Entry/Exit Points (list): its button cannot be reached; Ribbon Shapes > Center/Reference Point (list): its button cannot be reached; Main window, ribbon tab Stitches (not shown for this selection); Main window, ribbon tab Hoop Settings (not shown for this selection); Menu Options > Reset Preferences > Save Layout; Scene keyboard (adds no surface of its own); Scene tabs (adds no surface of its own); Scene realistic (adds no surface of its own); Scene solid (adds no surface of its own); Scene measure (adds no surface of its own); Scene assistant (adds no surface of its own); Scene assistant-notices (adds no surface of its own); Scene assistant-questions (adds no surface of its own); Scene assistant-suggestions (adds no surface of its own); Scene basic (adds no surface of its own); Scene pickers (adds no surface of its own); Scene floating (adds no surface of its own); Ribbon Home > Zoom (list): its button cannot be reached.

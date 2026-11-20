@@ -121,19 +121,35 @@ fn narrow_panes(app: &mut EditorApp, ctx: &egui::Context, screen: egui::Rect) {
         }
         let mut open = true;
         // Above the status bar, one title bar over the other; an opened one grows upwards.
-        // (In a window so low that it scrolls as a page, #1276, they sit lower: 100 points
-        // up they would lie over the top bar, which the page cannot scroll out from under
-        // them.)
-        let lift = if screen.height() < PAGE_HEIGHT_LEAST { 30.0 } else { 100.0 };
         let row = (panes.len() - 1 - i) as f32;
-        crate::fit::show_pane(egui::Window::new(pane.title())
+        let window = egui::Window::new(pane.title())
             .id(egui::Id::unique(("narrow-pane", pane.title())))
             .open(&mut open)
             .default_open(false)
-            .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(4.0, -lift - 34.0 * row))
             .default_width((screen.width() - 8.0).min(360.0))
-            .resizable(true)
-            , ctx, |ui| crate::fit::pane(ui, |ui| pane.contents(app, ui)));
+            .resizable(true);
+        // In a window so low that it scrolls as a page (#1276) there is no room above the
+        // status bar that is not the top bar or the ribbon: the title bars go over the foot
+        // of the work area, which they follow as the page scrolls, and a person scrolls the
+        // page to them as to the status bar.
+        // There they keep to the work area's width too: beside the Assistant's panel they
+        // would lie over its composer.
+        let (window, width) = match app.workspace.canvas {
+            Some(c) if screen.height() < PAGE_HEIGHT_LEAST => (
+                window
+                    .pivot(egui::Align2::LEFT_BOTTOM)
+                    .fixed_pos(egui::pos2(c.left() + 4.0, c.bottom() - 4.0 - 34.0 * row))
+                    .constrain(false),
+                c.width() - 8.0,
+            ),
+            _ => (
+                window.anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(4.0, -100.0 - 34.0 * row)),
+                f32::INFINITY,
+            ),
+        };
+        crate::fit::show_pane_within(window, ctx, width, |ui| {
+            crate::fit::pane(ui, |ui| pane.contents(app, ui))
+        });
         if !open {
             pane.state(app).visible = false;
             app.ui.save_prefs();
@@ -158,6 +174,14 @@ const WORK_AREA_LEAST: f32 = 160.0;
 /// The height the main window's bars and that work area take: a window lower than this (in
 /// points, so sooner at a large Text size) scrolls as a page (`fit::page`).
 pub const PAGE_HEIGHT_LEAST: f32 = 340.0;
+
+/// The least height of the main window as a page: `PAGE_HEIGHT_LEAST` and the document tab
+/// strip's height (`tab_strip`, 0 without it), which it leaves out. With the tabs wrapped onto
+/// several rows in a narrow window the work area kept too little height for the folded panes'
+/// title bars, which then lay over the tabs.
+pub fn page_height_least(tab_strip: f32) -> f32 {
+    PAGE_HEIGHT_LEAST + tab_strip
+}
 /// The width the Sewing Order and Attributes panes lay their content out at when they are
 /// squeezed narrower (panes on both sides of a small window): they scroll sideways then. Less
 /// than either pane's content needs at its default width, so a pane that has its room grows

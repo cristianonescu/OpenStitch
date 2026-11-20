@@ -2113,18 +2113,20 @@ fn app_button(app: &mut EditorApp, ui: &mut egui::Ui) {
     } else {
         None
     };
-    crate::fit::popup(
+    crate::fit::own_menu(
             egui::Popup::menu(&resp)
-            .open_memory(cmd)
             .layout(egui::Layout::top_down(egui::Align::Min))
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
         &resp,
+        cmd,
         |ui| application_menu(app, ui));
 }
 
 /// The blue Application button at the left of the tab row (every ribbon window).
 pub fn app_button_widget(ui: &mut egui::Ui) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(64.0, 24.0), Sense::click());
+    // (Named for a screen reader and the reach walk, #1276: it is drawn, not a text button.)
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), "File"));
     let bg = if resp.hovered() {
         APP_BLUE.gamma_multiply(1.2)
     } else {

@@ -716,6 +716,10 @@ tests and the keychain round trip
   macOS's sandbox lets it start no helper ([#1182](https://github.com/cristianonescu/OpenStitch/issues/1182)).
 - (+) **Linux file-manager thumbnails** for `.osd` and `.pes`.
 - **File associations** for `.osd` and `.pes` on every OS.
+- (+) **Small windows**: in a small browser window, the desktop's smallest window or at a large
+  Text size every menu, list, pane and dialog scrolls inside the window and every control can be
+  reached; dialogs keep OK and Cancel in view, and in a very low window (under about 130
+  points) the button row scrolls with the content ([#1276](https://github.com/cristianonescu/OpenStitch/issues/1276)).
 
 ### Installation and updates
 

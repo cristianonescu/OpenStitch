@@ -62,8 +62,11 @@ fn wheel_id(list: egui::Id) -> egui::Id {
 
 fn scroll_in<R>(ui: &mut egui::Ui, max: f32, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let frame = egui::Frame::menu(ui.style()).total_margin().sum().x;
-    let wide = (ui.ctx().content_rect().width() - frame - 2.0 * EDGE).max(LEAST);
-    visible_bars(ui);
+    // (Its scroll bar takes its own room beside the list: a list as wide as the window went
+    // past it by the bar, the Manual Punch tab's Region color at 320 points.)
+    let bar = egui::style::ScrollStyle::solid().allocated_width();
+    let wide = (ui.ctx().content_rect().width() - frame - 2.0 * EDGE - bar).max(LEAST);
+    solid_bars(ui);
     // Sideways only for a list wider than the window (its last frame says so): a scroll area
     // clips at its edge, which a list that fits has no use for.
     let key = ui.scope_id().with("fit-scroll-width");
@@ -83,7 +86,10 @@ fn scroll_in<R>(ui: &mut egui::Ui, max: f32, add: impl FnOnce(&mut egui::Ui) -> 
     let drawn_at = me.with("drawn-at");
     let before: Option<u64> = ui.ctx().data(|d| d.get_temp(drawn_at));
     ui.ctx().data_mut(|d| d.insert_temp(drawn_at, frame));
-    let mut area = egui::ScrollArea::new([last > wide + 1.0, true])
+    // (A list that scrolls sideways has its bar below it too, inside the same room.)
+    let sideways = last > wide + 1.0;
+    let max = if sideways { (max - bar).max(LEAST) } else { max };
+    let mut area = egui::ScrollArea::new([sideways, true])
         .id_salt("fit-scroll")
         .max_height(max)
         .max_width(wide)
@@ -159,7 +165,50 @@ pub fn menu<R>(
     button: &egui::Response,
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> Option<egui::InnerResponse<R>> {
-    popup(egui::Popup::menu(button), button, add)
+    let cmd = button.clicked().then_some(egui::SetOpenCommand::Toggle);
+    own_menu(egui::Popup::menu(button), button, cmd, add)
+}
+
+/// Shows a menu that keeps its open state itself, opened or closed by `cmd`. The toolkit keeps
+/// one pop-up open at a time: a menu opened through it was closed by the combo box list or
+/// colour picker a control inside it opened (they are opened through it). Kept here, the menu
+/// stays open under them; a click elsewhere, Escape or a command in it close it as before.
+pub fn own_menu<R>(
+    menu: egui::Popup<'_>,
+    button: &egui::Response,
+    cmd: Option<egui::SetOpenCommand>,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> Option<egui::InnerResponse<R>> {
+    let ctx = button.ctx.clone();
+    let key = menu.get_id().with("fit-open");
+    let mut open: bool = ctx.data(|d| d.get_temp(key)).unwrap_or(false);
+    match cmd {
+        Some(egui::SetOpenCommand::Toggle) => open = !open,
+        Some(egui::SetOpenCommand::Bool(b)) => open = b,
+        None => {}
+    }
+    let shown = popup(menu.open_bool(&mut open), button, add);
+    let frame = ctx.cumulative_frame_nr();
+    ctx.data_mut(|d| {
+        d.insert_temp(key, open);
+        if open {
+            d.insert_temp(own_open_id(), frame);
+        }
+    });
+    shown
+}
+
+fn own_open_id() -> egui::Id {
+    egui::Id::unique("fit-own-menu-open")
+}
+
+/// Whether a menu shown with [`own_menu`] (the ribbon's File menu, a suite window's menus)
+/// was open in the last frame. Such a menu keeps its own open state, so
+/// `egui::Popup::is_any_open` does not see it; the editor leaves Escape to it as to any
+/// other open pop-up.
+pub fn own_menu_open(ctx: &egui::Context) -> bool {
+    let last: Option<u64> = ctx.data(|d| d.get_temp(own_open_id()));
+    last.is_some_and(|f| f + 1 >= ctx.cumulative_frame_nr())
 }
 
 /// A row of a menu that opens a sub-menu, on the side that has room.
@@ -188,10 +237,31 @@ pub fn combo<R>(
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::InnerResponse<Option<R>> {
     let height = room(ui.ctx()).min(ui.spacing().combo_height);
-    combo.height(height).show_ui(ui, |ui| {
+    let shown = combo.height(height).show_ui(ui, |ui| {
         combo_list(ui);
         add(ui)
-    })
+    });
+    // (The toolkit names a combo box's list after the box.)
+    keep_menu_open_for(
+        ui,
+        shown.response.id.with("popup"),
+        shown.inner.is_some() || shown.response.clicked(),
+    );
+    shown
+}
+
+/// A combo box's list or a colour picker opened from inside a menu: the menu takes it as its
+/// open sub-menu, so the click that opens it, and the clicks in it, do not close the menu.
+/// (A menu closes on any click in it unless a sub-menu of it is open; without this, the list
+/// of a combo box in a ribbon list or in Options never opened.)
+fn keep_menu_open_for(ui: &egui::Ui, child: egui::Id, open: bool) {
+    use egui::containers::menu::{MenuState, is_in_menu};
+    if !open || !is_in_menu(ui) {
+        return;
+    }
+    MenuState::mark_shown(ui.ctx(), child);
+    // (The menu's pop-up is named with its own id, the one its closing rule looks up.)
+    MenuState::from_id(ui.ctx(), ui.layer_id().id, |state| state.open_item = Some(child));
 }
 
 fn combo_list(ui: &mut egui::Ui) {
@@ -237,7 +307,7 @@ pub fn color_button(ui: &mut egui::Ui, rgb: &mut [u8; 3]) -> egui::Response {
     }
     let mut color = egui::Color32::from_rgb(r, g, b);
     let mut changed = false;
-    popup(
+    let picker = popup(
         egui::Popup::menu(&response)
             .id(popup_id)
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
@@ -251,6 +321,7 @@ pub fn color_button(ui: &mut egui::Ui, rgb: &mut [u8; 3]) -> egui::Response {
             );
         },
     );
+    keep_menu_open_for(ui, popup_id, picker.is_some() || response.clicked());
     if changed {
         *rgb = [color.r(), color.g(), color.b()];
         response.mark_changed();
@@ -258,8 +329,15 @@ pub fn color_button(ui: &mut egui::Ui, rgb: &mut [u8; 3]) -> egui::Response {
     response
 }
 
+/// The scroll bars of a menu or a dialog: beside the content, never over it (a floating bar
+/// over the content's last 10 points took the click meant for a control there), and shown
+/// while at rest, so a list that goes on is seen to go on.
+pub fn solid_bars(ui: &mut egui::Ui) {
+    ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
+}
+
 /// Scroll bars that show while at rest, thin and over the content, so a list that goes on is
-/// seen to go on.
+/// seen to go on (panes, rows, the ribbon: a bar beside them would take their room).
 pub fn visible_bars(ui: &mut egui::Ui) {
     let mut bars = egui::style::ScrollStyle::floating();
     bars.dormant_handle_opacity = 0.6;
@@ -403,6 +481,8 @@ struct Sizes {
     width: f32,
     /// The width of the content itself.
     content_width: f32,
+    /// Whether the button row was kept below the content.
+    pinned: bool,
 }
 
 /// The dialog being drawn, for [`buttons`].
@@ -480,7 +560,19 @@ pub fn show_pane<R>(
     ctx: &egui::Context,
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> Option<egui::InnerResponse<Option<R>>> {
-    held(window, ctx).show(ctx, |ui| {
+    show_pane_within(window, ctx, f32::INFINITY, add)
+}
+
+/// As [`show_pane`], at most `width` points wide (a folded pane that lies over the work area
+/// stays over it, clear of the Assistant's panel beside it).
+pub fn show_pane_within<R>(
+    window: egui::Window<'_>,
+    ctx: &egui::Context,
+    width: f32,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> Option<egui::InnerResponse<Option<R>>> {
+    let most = most_of(ctx).x.min(width.max(LEAST));
+    held(window, ctx).max_width(most).show(ctx, |ui| {
         visible_bars(ui);
         add(ui)
     })
@@ -529,16 +621,22 @@ fn dialog<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let above = area.map_or(32.0, |r| (top - r.top()).max(0.0));
     let margin = ui.spacing().window_margin;
     let below = f32::from(margin.bottom) + 2.0;
-    let room = (screen.height() - 2.0 * EDGE - above - below).max(LEAST);
+    // (A scroll bar of a dialog takes its own room beside the content, on either axis.)
+    let bar = egui::style::ScrollStyle::solid().allocated_width();
+    let room = (screen.height() - 2.0 * EDGE - above - below - bar).max(LEAST);
     let sides = f32::from(margin.left) + f32::from(margin.right) + 2.0;
-    let width = (screen.width() - 2.0 * EDGE - sides).max(LEAST);
+    let width = (screen.width() - 2.0 * EDGE - sides - bar).max(LEAST);
     // The buttons leave the scrolled content only when both do not fit, so a dialog that fits
-    // is laid out as it always was.
+    // is laid out as it always was. Kept below the content, the row is measured without the
+    // spacing it has in place (up to one gap): a pinned row goes back into the content only
+    // when that fits too, or a dialog within a point or two of the room would swap between
+    // the two layouts every frame and never rest (the Template Wizard at 320 × 200 points).
+    let gap = ui.spacing().item_spacing.y;
+    let slack = if last.pinned { gap } else { 0.0 };
     let pin = last.buttons > 0.0
-        && last.content + last.buttons > room + 0.5
+        && last.content + last.buttons + slack > room + 0.5
         && room - last.buttons >= PIN_LEAST;
     let view = if pin { room - last.buttons } else { room };
-    let gap = ui.spacing().item_spacing.y;
     let pinned = pin.then(|| {
         egui::Rect::from_min_size(
             egui::pos2(ui.cursor().left(), top + view.min(last.content) + gap),
@@ -556,7 +654,7 @@ fn dialog<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
             },
         )
     });
-    visible_bars(ui);
+    solid_bars(ui);
     let out = egui::ScrollArea::new([last.content_width > width + 1.0, true])
         .id_salt("fit-dialog")
         .max_height(view)
@@ -600,8 +698,10 @@ fn dialog<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
         buttons,
         width: out.inner_rect.width(),
         content_width: out.content_size.x,
+        pinned: pin,
     };
-    let settled = same(now.content, last.content)
+    let settled = now.pinned == last.pinned
+        && same(now.content, last.content)
         && same(now.buttons, last.buttons)
         && same(now.width, last.width)
         && same(now.content_width, last.content_width);

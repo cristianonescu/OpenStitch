@@ -1238,8 +1238,15 @@ async function smallWindowChecks(browser, type, label) {
     await page.mouse.move(...middle(menu.rect));
     await page.mouse.wheel(0, 6000);
     // (The pointer rests on an entry, which may open its sub-menu beside it: the Options menu
-    // is the one at the same place.)
-    const same = (s) => s.open.find((o) => o.kind === "menu" && o.rect[0] === menu.rect[0] && o.rect[2] === menu.rect[2]);
+    // is the menu with the tallest content, still at its left edge. Its width may change by
+    // the scroll bar it keeps beside its entries once it scrolls; the Rust test
+    // ui_state_reports_the_open_menu_and_how_far_it_is_scrolled matches it the same way.)
+    const same = (s) => {
+      const menus = s.open.filter((o) => o.kind === "menu");
+      if (menus.length === 0) return undefined;
+      const m = menus.reduce((a, b) => (b.contentHeight > a.contentHeight ? b : a));
+      return Math.abs(m.rect[0] - menu.rect[0]) < 1 ? m : undefined;
+    };
     const menuEnd = await when("the wheel scrolls the Options menu to its end", (s) => { const m = same(s); return m && Math.abs(m.scrolled - end(m)) < 1.5 && m; });
     inside("the Options menu, scrolled", menuEnd.rect);
     await shot("options-menu-end");

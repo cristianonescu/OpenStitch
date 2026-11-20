@@ -42,6 +42,8 @@ struct Control {
     layer: egui::LayerId,
     /// Greyed out: it cannot take the keyboard focus.
     disabled: bool,
+    /// The chosen entry of a list.
+    selected: bool,
 }
 
 struct Win {
@@ -180,6 +182,7 @@ impl Win {
                         seen: w.interact_rect,
                         layer: *layer,
                         disabled: n.is_disabled(),
+                        selected: n.is_selected().unwrap_or(false),
                     });
                 }
             }
@@ -265,7 +268,15 @@ impl Win {
     /// Scrolls with the wheel until `id` is shown in full; `ok` collects every control seen in
     /// full on the way.
     fn reach(&mut self, id: egui::Id, ok: &mut HashSet<egui::Id>) -> bool {
-        self.reach_in(id, ok, 12)
+        // Every place [`Self::other_wheel_points`] gives (the page's own come last; a panel
+        // that is a page of its own inside the page, the Assistant's, gives more than a dozen
+        // before them).
+        let places = 1 + self
+            .controls()
+            .iter()
+            .find(|c| c.id == id)
+            .map_or(0, |c| self.other_wheel_points(c).len());
+        self.reach_in(id, ok, places.max(14))
     }
 
     /// As [`Self::reach`], from at most `places` places: first with the pointer on the control
@@ -307,6 +318,16 @@ impl Win {
                 }
                 id = w.parent_id;
             }
+            // Last, as a person scrolls a window that scrolls as a page: the pointer on the
+            // top bar, and at the page's right edge (its scroll bar).
+            for p in [
+                egui::pos2(screen.center().x, screen.top() + 6.0),
+                egui::pos2(screen.right() - 3.0, screen.center().y),
+            ] {
+                if out.iter().all(|q| q.distance(p) > 4.0) {
+                    out.push(p);
+                }
+            }
             out
         })
     }
@@ -326,8 +347,8 @@ impl Win {
             self.frames(30, Vec::new());
         }
         let (mut last, mut still) = (None, 0);
-        let mut nudged = 0;
         let mut moved_to: Option<egui::Pos2> = None;
+        let mut raised = false;
         // A control larger than the view it scrolls in (a button wider than a squeezed pane)
         // cannot be shown at once: it is reached when both of its ends have been in view.
         let mut ends = [false; 4];
@@ -383,7 +404,7 @@ impl Win {
                 n => *self.other_wheel_points(c).get(n - 1)?,
             };
             if trace {
-                eprintln!("    from {from} at {at:?}: rect {:?} seen {:?} ends {ends:?}", c.rect, c.seen);
+                eprintln!("    from {from} at {at:?}: rect {:?} seen {:?} ends {ends:?} top {:?} mine {:?} view {:?}", c.rect, c.seen, self.ctx.layer_id_at(self.visible(c).center()), c.layer, self.view_of(c));
             }
             let v = self.visible(c);
             let part = v.width() > 1.0 && v.height() > 1.0;
@@ -409,14 +430,13 @@ impl Win {
                 }
             };
             let dx = axis(c.rect.min.x, c.rect.max.x, v.min.x, v.max.x, at.x, ends[1]);
-            let mut dy = axis(c.rect.min.y, c.rect.max.y, v.min.y, v.max.y, at.y, ends[3]);
+            let dy = axis(c.rect.min.y, c.rect.max.y, v.min.y, v.max.y, at.y, ends[3]);
             if covered {
-                // Under a window that lies over it (a sub-menu that opened over its own menu
-                // in a narrow window, under the resting pointer): first, as a person does,
-                // the pointer goes to a part of the control that still shows, which closes
-                // a sub-menu of another entry.
-                // (Or, when all of it is covered, to a part of its menu or window that shows:
-                // the sub-menu of the entry under the pointer closes when the pointer leaves.)
+                // Under a window that lies over it. A person moves the pointer onto a part of
+                // the control that still shows, or onto another part of its own menu: that
+                // closes a sub-menu which another entry under the resting pointer opened. The
+                // page is not scrolled to get it out from under (a window lying over it, a
+                // folded pane's title bar, stays where it is for the user too).
                 let on_mine = |p: &egui::Pos2| self.ctx.layer_id_at(*p).is_none_or(|top| top == c.layer);
                 let area = self.ctx.memory(|m| m.area_rect(c.layer.id)).unwrap_or(v);
                 let free = (1..10)
@@ -436,35 +456,27 @@ impl Win {
                     });
                 if let Some(p) = free.filter(|p| moved_to.is_none_or(|q| q.distance(*p) > 1.0)) {
                     moved_to = Some(p);
-                    let before = self.layers_on_screen();
                     self.frames(1, vec![egui::Event::PointerMoved(p)]);
                     self.frames(30, Vec::new());
-                    // An entry that opens a sub-menu under the pointer, and the sub-menu lies
-                    // over the entry itself (a window too narrow to open it beside): the
-                    // entry has done what it is for.
-                    let now = self.controls().into_iter().find(|n| n.id == c.id);
-                    if let Some(now) = now.filter(|n| self.visible(n).width() > 1.0) {
-                        let top = self.ctx.layer_id_at(self.visible(&now).center());
-                        if top.is_some_and(|t| t != now.layer && !before.contains(&t)) {
-                            return Some(true);
-                        }
-                    }
                     still = 0;
                     continue;
                 }
-                if nudged == 0 && self.covered_by_its_own_sub_menu(id) {
-                    return Some(true);
+                // A window under another window: a person clicks it (on an empty spot of it)
+                // to bring it forward. Once.
+                let cover = self.ctx.layer_id_at(v.center());
+                if !raised
+                    && c.layer.order == egui::Order::Middle
+                    && cover.is_some_and(|t| t.order == egui::Order::Middle && t != c.layer)
+                    && let Some(empty) = self.empty_spot(c.layer)
+                {
+                    raised = true;
+                    self.click(empty);
+                    still = 0;
+                    continue;
                 }
-                // (A few steps a place: what lies over it may move along, as a sub-menu
-                // does with its menu, and then no step frees it.)
-                nudged += 1;
-                if nudged > 8 {
-                    return Some(false);
-                }
-                // In view, but under a window that lies over it (a folded pane's title bar
-                // in a window that scrolls as a page): the page is moved, one way from the
-                // first places and the other way from the next.
-                dy = if from.is_multiple_of(2) { -30.0 } else { 30.0 };
+                // Still covered: reached only if what covers it is its own sub-menu (in a
+                // window too narrow to open it beside, a sub-menu opens over its own entry).
+                return Some(self.covered_by_its_own_sub_menu(id));
             }
             self.frames(1, vec![egui::Event::PointerMoved(at)]);
             self.frames(
@@ -527,22 +539,37 @@ impl Win {
         self.frames(3, vec![ev(false)]);
     }
 
-    /// The layers that have a control on screen.
-    fn layers_on_screen(&self) -> HashSet<egui::LayerId> {
-        self.layers()
+    /// A spot of `layer`'s area, in the window, on top, where no control is: a click there does
+    /// nothing but close a pop-up opened from that window.
+    fn empty_spot(&self, layer: egui::LayerId) -> Option<egui::Pos2> {
+        let area = self.ctx.memory(|m| m.area_rect(layer.id))?.intersect(self.screen().shrink(2.0));
+        let controls = self.controls();
+        (1..12)
+            .flat_map(|i| (1..12).map(move |j| (i, j)))
+            .map(|(i, j)| {
+                egui::pos2(
+                    area.left() + area.width() * i as f32 / 12.0,
+                    area.top() + area.height() * j as f32 / 12.0,
+                )
+            })
+            .find(|p| {
+                self.ctx.layer_id_at(*p) == Some(layer)
+                    && !controls.iter().any(|c| c.layer == layer && c.rect.expand(4.0).contains(*p))
+            })
     }
 
     /// Whether what lies over `id` is its own sub-menu (in a window too narrow to open it
-    /// beside, a sub-menu opens over its own entry): the toolkit names a sub-menu's layer
-    /// after its entry. The pointer rests on the entry to open it first.
+    /// beside, a sub-menu opens over its own entry) or its own list (a combo box's list that
+    /// opened over it). The pointer rests on the entry to open a sub-menu first.
     fn covered_by_its_own_sub_menu(&mut self, id: egui::Id) -> bool {
         let find = |w: &Win| w.controls().into_iter().find(|n| n.id == id);
         let Some(c) = find(self) else { return false };
         let at = self.visible(&c).center();
         self.frames(1, vec![egui::Event::PointerMoved(at)]);
         self.frames(30, Vec::new());
-        let own = egui::containers::menu::SubMenu::id_from_widget_id(id);
-        self.ctx.layer_id_at(at).is_some_and(|t| t.id == own)
+        // (The toolkit names a sub-menu after its entry, and a combo box's list after the box.)
+        let own = [egui::containers::menu::SubMenu::id_from_widget_id(id), id.with("popup")];
+        self.ctx.layer_id_at(at).is_some_and(|t| own.contains(&t.id))
     }
 
     fn layers(&self) -> HashSet<egui::LayerId> {
@@ -673,6 +700,17 @@ impl Win {
         None
     }
 
+    /// How far the window of `layer` lies outside the app's window, across and down (0 when
+    /// inside).
+    fn beyond(&self, layer: egui::LayerId) -> Option<(f32, f32)> {
+        let screen = self.screen();
+        let r = self.ctx.memory(|m| m.area_rect(layer.id))?;
+        Some((
+            (r.max.x - screen.max.x).max(screen.min.x - r.min.x).max(0.0),
+            (r.max.y - screen.max.y).max(screen.min.y - r.min.y).max(0.0),
+        ))
+    }
+
     /// Checks the controls of `layers` (all layers when `None`).
     fn audit(&mut self, surface: &str, kind: &'static str, layers: Option<&HashSet<egui::LayerId>>) -> Row {
         if self.only.as_ref().is_some_and(|only| !surface.contains(only.as_str())) {
@@ -686,15 +724,15 @@ impl Win {
         self.frames(10, Vec::new());
         let mine = |c: &Control| layers.is_none_or(|l| l.contains(&c.layer));
         let all: Vec<Control> = self.controls().into_iter().filter(mine).collect();
-        let screen = self.screen();
-        let mut beyond = (0.0f32, 0.0f32);
+        // How far each window of the surface lies outside the app's window. A window that
+        // moves with the page (the folded panes' title bars in a window that scrolls as a
+        // page) is measured again each time the walk has scrolled a control into view: it is
+        // beyond the window only if it stays so in every place the walk scrolled to. A menu
+        // or dialog does not move when its own content scrolls, so this changes nothing for
+        // them.
         let seen_layers: HashSet<egui::LayerId> = all.iter().map(|c| c.layer).collect();
-        for l in &seen_layers {
-            if let Some(r) = self.ctx.memory(|m| m.area_rect(l.id)) {
-                beyond.0 = beyond.0.max(r.max.x - screen.max.x).max(screen.min.x - r.min.x);
-                beyond.1 = beyond.1.max(r.max.y - screen.max.y).max(screen.min.y - r.min.y);
-            }
-        }
+        let mut beyond_of: HashMap<egui::LayerId, (f32, f32)> =
+            seen_layers.iter().filter_map(|l| Some((*l, self.beyond(*l)?))).collect();
         let t0 = std::time::Instant::now();
         let mut ok = HashSet::new();
         let hidden: Vec<Control> = all.iter().filter(|c| !self.shown(c)).cloned().collect();
@@ -725,8 +763,18 @@ impl Win {
                     );
                 }
                 lost.push(format!("{:?} '{}'", c.role, c.label));
+            } else {
+                // (Other controls are reached on the way, by the same scrolling.)
+                for (l, was) in beyond_of.iter_mut() {
+                    if let Some(now) = self.beyond(*l) {
+                        *was = (was.0.min(now.0), was.1.min(now.1));
+                    }
+                }
             }
         }
+        let beyond = beyond_of
+            .values()
+            .fold((0.0f32, 0.0f32), |a, b| (a.0.max(b.0), a.1.max(b.1)));
         if self.measure && !pinned.is_empty() {
             let (after, wrong) = self.pinned_rows(&mine);
             problems.extend(wrong.into_iter().map(|w| format!("{w} (after scrolling)")));
@@ -797,18 +845,57 @@ impl Win {
         for c in items {
             let menu_item = matches!(c.role, Role::Button | Role::MenuItem);
             let clicked = matches!(c.role, Role::ComboBox | Role::ColorWell);
-            if !(menu_item || clicked) || c.disabled || !done.insert(c.id) {
+            if !(menu_item || clicked) || !done.insert(c.id) {
                 continue;
             }
-            // (Whether it can be reached at all is the audit's question, asked with patience;
-            // this only brings it under the pointer to see what it opens.)
-            if !self.reach_in(c.id, &mut HashSet::new(), 3) {
+            let name_of = |names: &mut HashMap<String, usize>| {
+                // (The second of a name is told apart in the table.)
+                let nth = names.entry(c.label.clone()).or_default();
+                *nth += 1;
+                match *nth {
+                    1 => format!("{surface} > {}", c.label),
+                    n => format!("{surface} > {} ({n})", c.label),
+                }
+            };
+            let kind = if clicked { "drop-down" } else { "sub-menu" };
+            if c.disabled {
+                // A greyed-out combo box or colour button opens nothing: said so in the
+                // table. (A greyed-out menu entry is a command that cannot run now.)
+                if clicked {
+                    let name = name_of(&mut names);
+                    rows.push(Row {
+                        surface: name,
+                        kind,
+                        skipped: Some(DISABLED),
+                        ..Row::default()
+                    });
+                }
+                continue;
+            }
+            // Brought under the pointer with the audit's whole patience. One that cannot be
+            // is the audit's finding already (it is lost); a combo box or colour button that
+            // cannot is a problem of its own here.
+            if !self.reach(c.id, &mut HashSet::new()) {
+                if clicked {
+                    if std::env::var("REACH_TRACE").is_ok() {
+                        let now = self.controls().into_iter().find(|x| x.id == c.id);
+                        eprintln!("CHILD-LOST {:?} '{}' now {:?} top {:?} open {:?}", c.role, c.label, now.as_ref().map(|n| (n.rect, n.seen)), now.as_ref().and_then(|n| self.ctx.layer_id_at(self.visible(n).center())), self.app.drawn.list.iter().map(|s| s.rect).collect::<Vec<_>>());
+                    }
+                    let name = name_of(&mut names);
+                    rows.push(Row {
+                        surface: name,
+                        kind,
+                        problems: vec![format!("its {:?} '{}' cannot be brought under the pointer", c.role, c.label)],
+                        ..Row::default()
+                    });
+                }
                 continue;
             }
             let Some(c) = self.controls().into_iter().find(|x| x.id == c.id) else {
                 continue;
             };
             let before = self.layers();
+            let before_all = self.ctx.memory(|m| m.areas().visible_layer_ids());
             let at = self.visible(&c).center();
             if clicked {
                 self.click(at);
@@ -818,26 +905,86 @@ impl Win {
             }
             let opened: HashSet<egui::LayerId> =
                 self.layers().difference(&before).copied().collect();
+            // Every window or pop-up that appeared, named controls or not (a colour picker's
+            // sliders and some lists' entries have no name a screen reader reads).
+            let appeared: Vec<egui::LayerId> = self
+                .ctx
+                .memory(|m| m.areas().visible_layer_ids())
+                .difference(&before_all)
+                .copied()
+                .collect();
             if !opened.is_empty() {
-                // (The second of a name is told apart in the table.)
-                let nth = names.entry(c.label.clone()).or_default();
-                *nth += 1;
-                let name = match *nth {
-                    1 => format!("{surface} > {}", c.label),
-                    n => format!("{surface} > {} ({n})", c.label),
-                };
-                let kind = if clicked { "drop-down" } else { "sub-menu" };
+                let name = name_of(&mut names);
                 rows.push(self.audit(&name, kind, Some(&opened)));
                 if !clicked {
                     self.children(&name, &opened, rows, depth + 1);
                 }
+            } else if clicked && !appeared.is_empty() {
+                // A list or picker without a named control: there is nothing to reach in it
+                // one by one, but it has to open inside the window.
+                let name = name_of(&mut names);
+                let screen = self.screen().expand(0.5);
+                let out: Vec<String> = appeared
+                    .iter()
+                    .filter_map(|l| self.ctx.memory(|m| m.area_rect(l.id)))
+                    .filter(|r| !screen.contains_rect(*r))
+                    .map(|r| format!("its list {r:?} is not inside the window"))
+                    .collect();
+                rows.push(Row {
+                    surface: name,
+                    kind,
+                    skipped: Some(NO_NAMED_CONTROL),
+                    problems: out,
+                    ..Row::default()
+                });
+            } else if clicked {
+                let name = name_of(&mut names);
+                rows.push(Row {
+                    surface: name,
+                    kind,
+                    problems: vec![format!("its {:?} '{}' opens nothing", c.role, c.label)],
+                    ..Row::default()
+                });
             }
             if clicked {
-                self.key(egui::Key::Escape);
-                // (A colour picker closes on a click beside it.)
-                if !self.layers().difference(&before).collect::<Vec<_>>().is_empty() {
-                    let beside = self.screen().shrink(2.0).left_bottom();
-                    self.click(beside);
+                // Closed as a person closes it: a click on the same control again; when its
+                // list lies over it, a click on an empty spot of the window or menu it is in.
+                // Escape only last: it also closes the menu it is in, and in the editor it
+                // clears the selection (the Attributes pane then shows nothing).
+                let still_open = |w: &Win| {
+                    !w.ctx.memory(|m| m.areas().visible_layer_ids()).difference(&before_all).collect::<Vec<_>>().is_empty()
+                };
+                if let Some(now) = self.controls().into_iter().find(|x| x.id == c.id) {
+                    // (Or, when the list covers all of a small menu, the entry already chosen:
+                    // the list closes and nothing changes.)
+                    // (The chosen entry: marked as chosen, or named as the box shows its value.)
+                    let chosen = self.controls().into_iter().find(|x| {
+                        opened.contains(&x.layer) && (x.selected || x.label == now.label) && self.shown(x)
+                    });
+                    if self.on_top(&now) {
+                        self.click(self.visible(&now).center());
+                    } else if let Some(empty) = self.empty_spot(now.layer) {
+                        self.click(empty);
+                    } else if let Some(chosen) = chosen {
+                        self.click(self.visible(&chosen).center());
+                    }
+                }
+                // (A list with a filter field of its own: the first Escape leaves the field.)
+                for _ in 0..3 {
+                    if !still_open(self) {
+                        break;
+                    }
+                    self.key(egui::Key::Escape);
+                }
+                // The surface it is in is still open, or the rest of it cannot be walked.
+                if !self.controls().iter().any(|x| of.contains(&x.layer)) {
+                    rows.push(Row {
+                        surface: format!("{surface} (closed by its {:?} '{}')", c.role, c.label),
+                        kind,
+                        problems: vec![format!("closing the list of its {:?} '{}' closed it", c.role, c.label)],
+                        ..Row::default()
+                    });
+                    return;
                 }
             }
         }
@@ -873,7 +1020,11 @@ const OPENS_NOTHING: &[(&str, &str, &str)] = &[
     ("Right click on a shape, Select tool", "", NO_CONTROL),
     // The window without its bars: with the panes docked nothing is left but the canvas
     // (in the narrow layout the folded panes' title bars are).
-    ("Scene bare", "docked", NO_CONTROL),
+    ("Scene bare (whole window)", "docked", NO_CONTROL),
+    // In the narrow layout the panes are folded: the floating panes and the picture pickers
+    // in them do not show.
+    ("Scene floating", "narrow", NO_CONTROL),
+    ("Scene pickers", "narrow", NO_CONTROL),
     // Commands that need another selection, an image, a clipboard or a stitch pattern.
     ("Command Paste", "", DISABLED),
     ("Command Group", "", DISABLED),
@@ -925,6 +1076,7 @@ const PINNED_AT_320X200: &[&str] = &[
     "Scene print",
     "Scene machine-setup",
     "Scene startup-wizard",
+    "Scene templates",
     "Dialog Job Sheet",
     "Dialog Machine Setup",
     "Dialog Startup Wizard",
@@ -951,10 +1103,32 @@ const PINNED_AT_320X200: &[&str] = &[
     "Command Fabric Selector",
 ];
 
+/// The `--show` scenes that change the main window itself rather than open something over it,
+/// with what they change: each is measured as the whole window. Every other scene has to
+/// open a surface of its own, or it fails the walk.
+const WHOLE_WINDOW_SCENES: &[(&str, &str)] = &[
+    ("creator", "the Programmable Stitch Creator in place of the editor"),
+    ("sdf", "the Stitch Design Factory in place of the editor"),
+    ("bare", "the editor without its bars"),
+    ("large-text", "Text size 150 %"),
+    ("norulers", "the canvas without rulers"),
+    ("tabs", "a second design as a tab: the tab strip"),
+    ("realistic", "the Realistic view"),
+    ("solid", "the Solid view"),
+    ("measure", "the Measure tool"),
+    ("keyboard", "a Satin Skeleton drawn from the keyboard"),
+    ("basic", "the Attributes pane's basic properties"),
+    ("assistant", "the Assistant's panel"),
+    ("assistant-notices", "the Assistant's panel with its settings and notices"),
+    ("assistant-questions", "the Assistant's panel with questions above the composer"),
+    ("assistant-suggestions", "the Assistant's panel with suggested replies"),
+];
+
 /// How a case of the walk comes to give nothing (the third column of `OPENS_NOTHING`).
 const DISABLED: &str = "disabled for the demo design with its first shape selected";
 const NOT_SHOWN: &str = "a contextual tab the demo's selection does not bring forward";
 const NO_CONTROL: &str = "opens nothing with a control";
+const NO_NAMED_CONTROL: &str = "a list or picker whose entries have no name a screen reader reads: its place is checked";
 const OUT_OF_VIEW: &str = "the place to click is outside the window";
 
 /// Actions the walk does not run, each with the reason: they leave the app's window.
@@ -1095,7 +1269,8 @@ impl Walk {
                 self.problems.push(format!("ROW\t{}: {p}", r.surface));
             }
         }
-        self.rows.extend(added.into_iter().filter(|r| r.controls > 0));
+        self.rows
+            .extend(added.into_iter().filter(|r| r.controls > 0 || r.skipped.is_some()));
     }
 
     /// At the smallest window every dialog with a button row is taller than the window: which
@@ -1196,15 +1371,19 @@ impl Walk {
                 ..demo()
             });
             w.frames(4, Vec::new());
-            // A scene that opens something over the main window is measured as that; one that
-            // changes the window itself (another suite window, a view, a tool, the Assistant's
-            // panel) as the whole window.
-            let name = format!("Scene {show}");
+            // A scene measures the surface it opens over the main window; one that changes the
+            // window itself is on WHOLE_WINDOW_SCENES and measured as the whole window. A
+            // scene that is not on the list and opens nothing fails (through `case`).
             let mut added = Vec::new();
-            w.audit_new(&name, "scene", &base, &mut added);
-            if added.is_empty() {
+            let name = if WHOLE_WINDOW_SCENES.iter().any(|e| e.0 == show) {
+                let name = format!("Scene {show} (whole window)");
                 added.push(w.audit(&name, "scene", None));
-            }
+                name
+            } else {
+                let name = format!("Scene {show}");
+                w.audit_new(&name, "scene", &base, &mut added);
+                name
+            };
             self.case(&name, "scene", added, NO_CONTROL);
         }
         // Dialogs no scene or ribbon command opens directly.
@@ -1799,11 +1978,14 @@ fn ui_state_reports_the_open_menu_and_how_far_it_is_scrolled() {
     w.frames(8, Vec::new());
     // (The pointer now rests on an entry, which may have opened its sub-menu beside it.)
     let s = surfaces(&mut w);
+    // (The Options menu: the tallest content on screen; its width may have changed by the
+    // scroll bar it shows once it scrolls.)
     let options = s["open"]
         .as_array()
         .expect("open")
         .iter()
-        .find(|o| num(&o["rect"][0]) == rect[0] && num(&o["rect"][2]) == rect[2])
+        .max_by(|a, b| num(&a["contentHeight"]).total_cmp(&num(&b["contentHeight"])))
+        .filter(|o| (num(&o["rect"][0]) - rect[0]).abs() < 1.0)
         .unwrap_or_else(|| panic!("the Options menu is still open: {s}"));
     assert!(num(&options["scrolled"]) > 50.0, "{s}");
     let summary = openstitch_app::editor::assistant::ui_command("ui.state")
@@ -1817,6 +1999,7 @@ fn ui_state_reports_the_open_menu_and_how_far_it_is_scrolled() {
 /// What may be made outside `fit`, and why: (file, call, how many times).
 const MADE_OUTSIDE_FIT: &[(&str, &str, usize, &str)] = &[
     ("app.rs", "Window::new(", 1, "dialog_window builds the window its callers show through fit"),
+    ("panes.rs", "Window::new(", 1, "a folded pane's window, placed one of two ways, shown through fit::show_pane_within"),
     ("pickers_ui.rs", "Popup::from_response(", 1, "a picture picker scrolls its own grid, limited by fit::room"),
     ("splash.rs", "Area::new(", 1, "the splash picture has no controls"),
     ("start_ui.rs", "Area::new(", 1, "the start cards: the reach walk checks them (scene getting-started)"),
@@ -1834,6 +2017,7 @@ fn every_menu_and_dialog_is_made_through_fit() {
         "crate::fit::show_filling(",
         "crate::fit::show_filling_at_least(",
         "crate::fit::show_pane(",
+        "crate::fit::show_pane_within(",
     ];
     // (the toolkit's call, the `fit` calls that may wrap it)
     let rules: &[(&str, &[&str])] = &[
@@ -1844,7 +2028,7 @@ fn every_menu_and_dialog_is_made_through_fit() {
         // A combo box's list and a colour button's picker are pop-ups too.
         ("ComboBox::", &["crate::fit::combo("]),
         ("color_edit_button", &[]),
-        ("Popup::menu(", &["crate::fit::popup("]),
+        ("Popup::menu(", &["crate::fit::popup(", "crate::fit::own_menu("]),
         ("Popup::from_response(", &["crate::fit::popup("]),
         ("Popup::context_menu(", &["crate::fit::popup("]),
         (".menu_button(", &[]),
@@ -2026,47 +2210,106 @@ walks! {
 /// How many surfaces of each kind the walk measures (ones with at least one control), as
 /// counted today at 640 × 400: the walk may find more, never fewer. With the named lists this
 /// is what keeps it from passing on nothing.
-const MEASURED_AT_LEAST: &[(&str, usize)] = &[
+/// How many surfaces of each kind the walk measures at each size of the test run (ones with
+/// at least one control), as counted on this code: the walk may find more, never fewer. With
+/// the named lists this is what keeps it from passing on nothing.
+/// A size of the test run (pixels and Text size) and its floors per kind of surface.
+type Floors = ((f32, f32, u32), &'static [(&'static str, usize)]);
+const MEASURED_AT_LEAST: &[Floors] = &[
+    ((640.0, 400.0, 100), FLOORS_640X400),
+    ((900.0, 600.0, 100), FLOORS_900X600),
+    ((640.0, 400.0, 200), FLOORS_640X400_200),
+];
+const FLOORS_640X400: &[(&str, usize)] = &[
     ("main", 8),
     ("pane", 4),
     ("list", 49),
     ("menu", 13),
-    ("sub-menu", 16),
-    ("drop-down", 43),
-    ("scene", 41),
+    ("sub-menu", 24),
+    ("drop-down", 50),
+    ("scene", 39),
+    ("dialog", 29),
+    ("wizard", 4),
+    ("suite", 4),
+    ("command", 25),
+];
+const FLOORS_900X600: &[(&str, usize)] = &[
+    ("main", 8),
+    ("pane", 4),
+    ("list", 49),
+    ("menu", 13),
+    ("sub-menu", 28),
+    ("drop-down", 63),
+    ("scene", 40),
+    ("dialog", 29),
+    ("wizard", 4),
+    ("suite", 4),
+    ("command", 25),
+];
+const FLOORS_640X400_200: &[(&str, usize)] = &[
+    ("main", 8),
+    ("pane", 4),
+    ("list", 49),
+    ("menu", 13),
+    ("sub-menu", 13),
+    ("drop-down", 48),
+    ("scene", 39),
     ("dialog", 29),
     ("wizard", 4),
     ("suite", 4),
     ("command", 25),
 ];
 
-/// The whole walk once without turning the wheel: everything opens as the named lists say,
-/// and no fewer surfaces of each kind are measured than today.
-#[test]
-fn the_walk_opens_and_measures_every_surface() {
+/// The whole walk once at one size without turning the wheel: everything opens as the named
+/// lists say, and no fewer surfaces of each kind are measured than the floors.
+fn opens_and_measures(px: (f32, f32), scale: u32) {
     assert!(
         std::env::var_os("REACH_ONLY").is_none() || std::env::var_os("CI").is_none(),
         "REACH_ONLY is for the survey by hand, not for a test run"
     );
-    let walk = Walk::new((640.0, 400.0), 100, None, false).run();
+    let walk = Walk::new(px, scale, None, false).run();
     let mut counts: std::collections::BTreeMap<&str, usize> = Default::default();
     for r in walk.rows.iter().filter(|r| r.controls > 0) {
         *counts.entry(r.kind).or_default() += 1;
     }
     let skipped = walk.rows.iter().filter(|r| r.skipped.is_some()).count();
-    eprintln!("measured {counts:?}, left out with a reason {skipped}");
+    eprintln!("COUNTS {px:?} {scale}: {counts:?}, left out with a reason {skipped}");
     for p in &walk.problems {
         eprintln!("PROBLEM {p}");
     }
-    assert!(walk.problems.is_empty(), "the walk and its named lists differ:\n{}", walk.problems.join("\n"));
-    assert!(!MEASURED_AT_LEAST.is_empty());
-    for (kind, least) in MEASURED_AT_LEAST {
+    assert!(
+        walk.problems.is_empty(),
+        "the walk and its named lists differ:\n{}",
+        walk.problems.join("\n")
+    );
+    let floors = MEASURED_AT_LEAST
+        .iter()
+        .find(|m| m.0 == (px.0, px.1, scale))
+        .map(|m| m.1)
+        .expect("floors for this size");
+    assert!(!floors.is_empty());
+    for (kind, least) in floors {
         let n = counts.get(kind).copied().unwrap_or(0);
         assert!(n >= *least, "the walk measured {n} surfaces of kind {kind}, {least} before: {counts:?}");
     }
     for kind in counts.keys() {
-        assert!(MEASURED_AT_LEAST.iter().any(|m| m.0 == *kind), "a kind without a floor: {kind}");
+        assert!(floors.iter().any(|m| m.0 == *kind), "a kind without a floor: {kind}");
     }
+}
+
+#[test]
+fn the_walk_opens_and_measures_every_surface_at_640x400() {
+    opens_and_measures((640.0, 400.0), 100);
+}
+
+#[test]
+fn the_walk_opens_and_measures_every_surface_at_900x600() {
+    opens_and_measures((900.0, 600.0), 100);
+}
+
+#[test]
+fn the_walk_opens_and_measures_every_surface_at_640x400_text_200() {
+    opens_and_measures((640.0, 400.0), 200);
 }
 
 /// A window with room is laid out as it was before #1276: the Sewing Order pane is as wide as
@@ -2146,12 +2389,22 @@ fn probe_scene() {
     let mut w = Win::new(
         Launch {
             show: vec![scene.clone()],
+            // (REACH_SHOT: as a `--screenshot` run lays its dialogs out, at the top right.)
+            screenshot: std::env::var_os("REACH_SHOT").map(Into::into),
             ..demo()
         },
         (px[0], px[1]),
         px[2] as u32,
     );
     w.frames(6, Vec::new());
+    // With REACH_SHOT, also where its windows lie and what `ui.state` reports of them, to
+    // compare with the screenshot.
+    if std::env::var_os("REACH_SHOT").is_some() {
+        for l in w.layers().difference(&base) {
+            eprintln!("layer {l:?} area {:?}", w.ctx.memory(|m| m.area_rect(l.id)));
+        }
+        eprintln!("surfaces {:?}", w.app.drawn.list);
+    }
     let mut rows = Vec::new();
     if w.app.database.open || w.app.creator.open || w.app.sewing.open {
         rows.push(w.audit(&format!("Scene {scene} (whole window)"), "scene", None));
@@ -2168,31 +2421,38 @@ fn probe_scene() {
 
 /// The surfaces `ui.state` reports are the last frame's in the other windows of the suite
 /// too (their frame used to end before the surfaces were kept).
+/// The surfaces `ui.state` reports are the last frame's in the other windows of the suite
+/// too (their frame used to end before the surfaces were kept): the Design Database's menu bar,
+/// and the File menus of the Programmable Stitch Creator and the Stitch Design Factory.
 #[test]
 fn ui_state_reports_the_open_menu_in_a_suite_window() {
-    let mut w = Win::new(demo(), (900.0, 600.0), 100);
-    w.app.database.show(None);
-    w.frames(6, Vec::new());
-    let open = |w: &mut Win| {
-        w.app.ui_command("ui.state", None).expect("ui.state")["surfaces"]["open"]
-            .as_array()
-            .expect("open")
-            .len()
-    };
-    assert_eq!(open(&mut w), 0, "no menu is open in the Design Database yet");
-    let bar: Vec<Control> = w
-        .controls()
-        .into_iter()
-        .filter(|c| c.role == Role::Button && c.rect.max.y < 30.0)
-        .collect();
-    let first = bar.first().expect("the Design Database's menu bar");
-    w.click(first.rect.center());
-    w.frames(6, Vec::new());
-    assert_eq!(open(&mut w), 1, "the menu {:?} is reported", first.label);
-    // And gone from the report once it is closed.
-    w.click(w.screen().shrink(4.0).right_bottom());
-    w.frames(6, Vec::new());
-    assert_eq!(open(&mut w), 0, "a closed menu is not reported");
+    type Opener = fn(&mut EditorApp);
+    let suites: [(&str, Opener); 3] = [
+        ("Design Database", |a| a.database.show(None)),
+        ("Programmable Stitch Creator", |a| a.creator.open = true),
+        ("Stitch Design Factory", |a| a.sewing.open = true),
+    ];
+    for (name, opener) in suites {
+        let mut w = Win::new(demo(), (900.0, 600.0), 100);
+        opener(&mut w.app);
+        w.frames(6, Vec::new());
+        let open = |w: &mut Win| {
+            w.app.ui_command("ui.state", None).expect("ui.state")["surfaces"]["open"]
+                .as_array()
+                .expect("open")
+                .len()
+        };
+        assert_eq!(open(&mut w), 0, "{name}: no menu is open yet");
+        // Its File menu (the Database's menu bar starts with File too).
+        assert!(w.click_label("File"), "{name}: its File button");
+        w.frames(6, Vec::new());
+        assert_eq!(open(&mut w), 1, "{name}: its File menu is reported");
+        // And gone from the report once it is closed.
+        w.key(egui::Key::Escape);
+        w.click(w.screen().shrink(4.0).right_bottom());
+        w.frames(6, Vec::new());
+        assert_eq!(open(&mut w), 0, "{name}: a closed menu is not reported");
+    }
 }
 
 /// The wheel turned with the pointer resting on one control, until nothing moves any more:
@@ -2256,25 +2516,41 @@ fn the_wheel_goes_on_from_a_list_inside_a_dialog_to_the_dialog() {
     }
 }
 
-/// The Font menu's list of fonts scrolls inside the menu: with the pointer on it the wheel
-/// brings the last font into view.
+/// The Font menu's list of fonts scrolls: when it opens its first font is in view and its
+/// last is not; with the pointer on the list the wheel brings the last font into view and
+/// takes the first out, and nothing of the menu is left below the window.
 #[test]
 fn the_font_menu_scrolls_to_its_last_font() {
-    let walk = Walk::new((640.0, 400.0), 100, None, true);
+    // 320 × 80 points: the demo's fonts, about 100 points of list, are longer than that
+    // window leaves for them (at 320 × 120 points they fit).
+    let walk = Walk::new((640.0, 160.0), 200, None, true);
     let mut w = tab_window(&walk, TabId::Text);
     let before = w.layers();
     assert!(w.click_label("Font"), "the Font list's button");
     w.frames(6, Vec::new());
     let menu: HashSet<egui::LayerId> = w.layers().difference(&before).copied().collect();
     assert!(!menu.is_empty(), "the Font menu opens");
-    let row = w.audit("Font menu", "list", Some(&menu));
-    assert!(row.controls >= 4 && row.lost.is_empty(), "{row:?}");
-    let rect = w
-        .controls()
+    let fonts: Vec<Control> = w.controls().into_iter().filter(|c| menu.contains(&c.layer)).collect();
+    assert!(fonts.len() >= 4, "the Font list has its fonts: {}", fonts.len());
+    let first = fonts
         .iter()
-        .filter(|c| menu.contains(&c.layer))
-        .fold(egui::Rect::NOTHING, |r, c| r.union(w.visible(c)));
-    let end = wheel_to_the_end(&mut w, rect.center());
+        .min_by(|a, b| a.rect.min.y.total_cmp(&b.rect.min.y))
+        .expect("the fonts")
+        .clone();
+    let last = fonts
+        .iter()
+        .max_by(|a, b| a.rect.max.y.total_cmp(&b.rect.max.y))
+        .expect("the fonts")
+        .clone();
+    assert!(w.shown(&first), "the first font is in view when the menu opens: {first:?}");
+    assert!(!w.shown(&last), "the last font is not, the list is longer: {last:?}");
+    let at = w.visible(&first).center();
+    let end = wheel_to_the_end(&mut w, at);
+    let now = |w: &Win, id| w.controls().into_iter().find(|c| c.id == id);
+    let last_now = now(&w, last.id).expect("the last font");
+    let first_now = now(&w, first.id).expect("the first font");
+    assert!(w.shown(&last_now), "the wheel brings the last font into view: {last_now:?} ({end:?})");
+    assert!(!w.shown(&first_now), "and takes the first out: {first_now:?}");
     let cut: Vec<String> = w
         .controls()
         .iter()
@@ -2282,6 +2558,8 @@ fn the_font_menu_scrolls_to_its_last_font() {
         .map(|c| c.label.clone())
         .collect();
     assert!(cut.is_empty(), "below the window after the wheel: {cut:?} ({end:?})");
+    let row = w.audit("Font menu", "list", Some(&menu));
+    assert!(row.lost.is_empty(), "{row:?}");
 }
 
 /// A menu opens at its top every time, also after it was scrolled and closed, and the wheel a
@@ -2320,8 +2598,18 @@ fn a_menu_opens_at_its_top_again() {
 #[test]
 fn a_settled_layout_stops_asking_for_frames() {
     type Setup = fn(&mut Win);
-    let cases: [(&str, (f32, f32), u32, Setup); 4] = [
+    let cases: [(&str, (f32, f32), u32, Setup); 6] = [
         ("the main window, panes docked", (900.0, 600.0), 100, |_| {}),
+        // The Assistant's panel: its height follows what is open in it, and its settings
+        // form scrolls sideways when the panel is narrower than it.
+        ("the Assistant with its settings, panel squeezed", (900.0, 600.0), 100, |w| {
+            w.app.assistant.panel.open = true;
+            crate::assistant_panel::show_sample_notices(&mut w.app);
+        }),
+        ("the Assistant with its settings, as a page", (640.0, 400.0), 200, |w| {
+            w.app.assistant.panel.open = true;
+            crate::assistant_panel::show_sample_notices(&mut w.app);
+        }),
         ("the main window as a page", (640.0, 400.0), 200, |_| {}),
         ("a dialog that scrolls with a pinned row", (640.0, 400.0), 100, |w| {
             w.app.ui.property_open = true;
@@ -2332,7 +2620,8 @@ fn a_settled_layout_stops_asking_for_frames() {
     ];
     for (name, px, scale, setup) in cases {
         let mut w = Win::new(demo(), px, scale);
-        // (The Assistant's panel blinks a caret and the simulator may animate: away.)
+        // (Closed unless the case opens it: nothing in it has the keyboard focus, so no
+        // caret blinks either way.)
         w.app.assistant.panel.open = false;
         setup(&mut w);
         w.frames(40, Vec::new());
@@ -2427,25 +2716,338 @@ fn filled(w: &Win) -> Vec<(egui::Rect, egui::Color32)> {
     out
 }
 
-/// An open menu is opaque once it has faded in: its panel is painted in the menu's own fill
-/// at full strength behind every row (a `--screenshot` taken six frames after the click had
-/// caught the fade and showed the pane through the menu).
+/// An open menu is opaque once it has faded in: its frame, the rectangle of the menu's own
+/// area, is painted in the menu's fill at full strength, and that rectangle was not there
+/// before the menu opened (a panel of the same colour behind it does not count). A
+/// `--screenshot` taken six frames after the click had caught the fade and showed the pane
+/// through the menu.
 #[test]
 fn an_open_menu_is_opaque_once_it_has_settled() {
     for (px, scale) in [((900.0, 600.0), 100), ((640.0, 400.0), 200)] {
         let mut w = Win::new(demo(), px, scale);
+        let before_layers = w.layers();
+        let before = filled(&w);
         assert!(w.click_label("Options"));
         w.frames(60, Vec::new());
-        let m = w.app.drawn.list.iter().max_by(|a, b| a.content.total_cmp(&b.content)).cloned().expect("menu");
+        let layer = w
+            .layers()
+            .difference(&before_layers)
+            .copied()
+            .max_by_key(|l| w.controls().iter().filter(|c| c.layer == *l).count())
+            .expect("the menu's layer");
+        let area = w.ctx.memory(|m| m.area_rect(layer.id)).expect("the menu's area");
         let fill = egui::Frame::menu(&w.ctx.global_style()).fill;
         assert_eq!(fill.a(), 255, "the menu's fill is opaque");
-        let panel = filled(&w)
-            .into_iter()
-            .find(|(r, c)| *c == fill && r.expand(1.0).contains_rect(m.rect));
+        // Its frame: a rectangle in that fill as large as the menu's area (to within the
+        // frame's stroke), which no shape of the frame before the click was.
+        let frame = |r: &egui::Rect| {
+            (r.min - area.min).length() <= 2.0 && (r.max - area.max).length() <= 2.0
+        };
+        let panel = filled(&w).into_iter().find(|(r, c)| *c == fill && frame(r));
         assert!(
             panel.is_some(),
-            "at {px:?}, {scale} %: no rectangle of the menu's fill {fill:?} behind its rows {:?}",
-            m.rect
+            "at {px:?}, {scale} %: no rectangle of the menu's fill {fill:?} as large as its area {area:?}"
+        );
+        assert!(
+            !before.iter().any(|(r, _)| frame(r)),
+            "at {px:?}, {scale} %: a rectangle of that place was there before the menu"
+        );
+        // And the rows are painted over it: a row of the menu, in view, lies inside it.
+        let row = w
+            .controls()
+            .into_iter()
+            .find(|c| c.layer == layer && w.shown(c))
+            .expect("a row of the menu in view");
+        assert!(area.contains_rect(row.rect), "{row:?} in {area:?}");
+    }
+}
+
+/// The window a scene opens, as the layers it adds over the main window.
+fn scene(name: &str, px: (f32, f32), scale: u32) -> (Win, HashSet<egui::LayerId>) {
+    let base = Win::new(demo(), px, scale).layers();
+    let mut w = Win::new(
+        Launch {
+            show: vec![name.to_string()],
+            ..demo()
+        },
+        px,
+        scale,
+    );
+    w.frames(12, Vec::new());
+    let new = w.layers().difference(&base).copied().collect();
+    (w, new)
+}
+
+/// The Stitch Simulator docked below or above the work area gives way in a low window: the
+/// work area keeps its 160 points of height (`WORK_AREA_LEAST`, to within half a point of
+/// rounding), with or without the Assistant beside it, and the Simulator stays in view. At
+/// 900 × 600 the Simulator's own height leaves more; at 900 × 400 (still docked, not yet a
+/// page) the rule decides.
+#[test]
+fn the_simulator_docked_above_or_below_leaves_the_work_area_its_height() {
+    use openstitch_app::editor::prefs::Side;
+    let mut lowest = f32::INFINITY;
+    for px in [(900.0, 600.0), (900.0, 400.0)] {
+        for side in [Side::Bottom, Side::Top] {
+            for assistant in [false, true] {
+                let mut w = Win::new(demo(), px, 100);
+                let sim = &mut w.app.ui.prefs.panes.simulator;
+                sim.side = side;
+                sim.visible = true;
+                sim.floating = false;
+                w.app.assistant.panel.open = assistant;
+                w.frames(12, Vec::new());
+                let canvas = w.app.workspace.canvas.expect("canvas");
+                lowest = lowest.min(canvas.height());
+                assert!(
+                    canvas.height() >= 160.0 - 0.5,
+                    "{px:?}, Simulator {side:?}, Assistant {assistant}: the work area is {:.1} points high",
+                    canvas.height()
+                );
+                // And the Simulator is there, not pushed out: at 900 × 600 its Play button is in
+                // view as it is; at 900 × 400 the Simulator is squeezed to the room left over
+                // and scrolls, so Play is reached by scrolling the pane.
+                let play = w.controls().into_iter().find(|c| c.label == "Play").expect("the Simulator's Play");
+                if px.1 >= 600.0 {
+                    assert!(w.shown(&play), "{px:?}, Simulator {side:?}, Assistant {assistant}: {play:?}");
+                } else {
+                    assert!(
+                        w.reach(play.id, &mut HashSet::new()),
+                        "{px:?}, Simulator {side:?}, Assistant {assistant}: {play:?}"
+                    );
+                }
+            }
+        }
+    }
+    // The rule is what holds the work area at 900 × 400: it is 160 points there, not more.
+    assert!(lowest < 160.0 + 0.5, "the Simulator gave way at neither size: {lowest}");
+}
+
+/// A dialog that opens with the app opens over the folded panes' title bars of the narrow
+/// layout (they used to lie over Machine Setup's Save and Not now).
+#[test]
+fn a_dialog_that_opens_with_the_app_opens_over_the_folded_panes() {
+    for name in ["machine-setup", "startup-wizard", "update"] {
+        let (w, dialog) = scene(name, (640.0, 400.0), 100);
+        assert!(!dialog.is_empty(), "{name} opens");
+        let covered: Vec<String> = w
+            .controls()
+            .iter()
+            .filter(|c| dialog.contains(&c.layer))
+            .filter(|c| w.visible(c).width() > 1.0 && w.visible(c).height() > 1.0)
+            .filter(|c| !w.on_top(c))
+            .map(|c| format!("{:?} '{}' under {:?}", c.role, c.label, w.ctx.layer_id_at(w.visible(c).center())))
+            .collect();
+        assert!(covered.is_empty(), "{name}: {covered:?}");
+    }
+}
+
+/// In a window that scrolls as a page (640 × 400 at Text size 200 %: 320 × 200 points) the
+/// folded panes' title bars lie over the work area, never over the top bar or the ribbon:
+/// they follow the work area as the page scrolls.
+#[test]
+fn in_a_window_that_scrolls_as_a_page_the_folded_panes_leave_the_ribbon_free() {
+    let mut w = Win::new(demo(), (640.0, 400.0), 200);
+    w.frames(10, Vec::new());
+    let canvas = w.app.workspace.canvas.expect("canvas");
+    let bars: Vec<egui::Rect> = ["Sewing Order", "Attributes", "Stitch Simulator"]
+        .iter()
+        .filter_map(|t| w.ctx.memory(|m| m.area_rect(egui::Id::unique(("narrow-pane", *t)))))
+        .collect();
+    assert_eq!(bars.len(), 3, "the three folded panes");
+    for b in &bars {
+        assert!(b.top() >= canvas.top() - 0.5, "a title bar {b:?} above the work area {canvas:?}");
+    }
+    // Every control of the top bar and the ribbon that is in view is on top.
+    let above: Vec<Control> = w
+        .controls()
+        .into_iter()
+        .filter(|c| {
+            let v = w.visible(c);
+            c.rect.max.y <= canvas.top() && v.width() > 1.0 && v.height() > 1.0
+        })
+        .collect();
+    assert!(above.len() >= 10, "the top bar and the ribbon: {}", above.len());
+    let covered: Vec<String> =
+        above.iter().filter(|c| !w.on_top(c)).map(|c| format!("{:?} '{}'", c.role, c.label)).collect();
+    assert!(covered.is_empty(), "under a title bar: {covered:?}");
+    // The title bars are reached by scrolling the page.
+    let base = demo_base_layers(&w);
+    let row = w.audit("folded panes", "pane", Some(&base));
+    assert!(row.controls >= 6 && row.lost.is_empty(), "{row:?}");
+}
+
+/// Beside the Assistant's panel (640 × 400 at Text size 150 %: 427 × 267 points, the work
+/// area 142 points wide) the folded panes' title bars that follow the work area keep to its
+/// width: they used to reach over the Assistant's composer and its View button.
+#[test]
+fn folded_panes_beside_the_assistant_keep_to_the_work_area() {
+    let mut w = Win::new(demo(), (640.0, 400.0), 150);
+    w.app.assistant.panel.open = true;
+    w.frames(12, Vec::new());
+    let canvas = w.app.workspace.canvas.expect("canvas");
+    assert!(canvas.width() < 200.0, "the Assistant takes most of the width: {canvas:?}");
+    let bars: Vec<egui::Rect> = ["Sewing Order", "Attributes", "Stitch Simulator"]
+        .iter()
+        .filter_map(|t| w.ctx.memory(|m| m.area_rect(egui::Id::unique(("narrow-pane", *t)))))
+        .collect();
+    assert_eq!(bars.len(), 3, "the three folded panes");
+    for b in &bars {
+        assert!(b.right() <= canvas.right() + 0.5, "a title bar {b:?} beyond the work area {canvas:?}");
+    }
+    let view = w
+        .controls()
+        .into_iter()
+        .find(|c| c.label == "View" && c.tip.contains("picture"))
+        .expect("the composer's View");
+    assert!(w.reach(view.id, &mut HashSet::new()), "the composer's View is reached: {view:?}");
+}
+
+/// The layers of the folded panes' windows.
+fn demo_base_layers(w: &Win) -> HashSet<egui::LayerId> {
+    ["Sewing Order", "Attributes", "Stitch Simulator"]
+        .iter()
+        .map(|t| egui::LayerId::new(egui::Order::Middle, egui::Id::unique(("narrow-pane", *t))))
+        .filter(|l| w.controls().iter().any(|c| c.layer == *l))
+        .collect()
+}
+
+/// The Assistant's panel with its settings open: in the desktop's smallest window, where the
+/// panel gives way to the docked panes, its settings form scrolls sideways; in a window that
+/// scrolls as a page its settings, notices and composer scroll with the panel. Every control
+/// of it is reached.
+#[test]
+fn the_assistants_settings_are_reached_in_a_squeezed_or_low_panel() {
+    for (px, scale) in [((900.0, 600.0), 100), ((640.0, 400.0), 200)] {
+        let mut w = Win::new(
+            Launch {
+                show: vec!["assistant-notices".into()],
+                ..demo()
+            },
+            px,
+            scale,
+        );
+        w.frames(12, Vec::new());
+        let all = w.controls();
+        let key = all.iter().find(|c| c.label == "Remove key").expect("the settings' Remove key");
+        let panel = key.layer;
+        let row = w.audit("Assistant", "pane", Some(&HashSet::from([panel])));
+        assert!(row.lost.is_empty(), "{px:?} at {scale} %: {row:?}");
+        assert!(row.hidden > 0, "{px:?} at {scale} %: something of it is out of view at first: {row:?}");
+    }
+    // At 900 × 600 the form is wider than the panel and scrolls sideways: Remove key starts
+    // cut at the panel's right edge.
+    let mut w = Win::new(
+        Launch {
+            show: vec!["assistant-notices".into()],
+            ..demo()
+        },
+        (900.0, 600.0),
+        100,
+    );
+    w.frames(12, Vec::new());
+    let key = w.controls().into_iter().find(|c| c.label == "Remove key").expect("Remove key");
+    assert!(!w.shown(&key), "the form is wider than the squeezed panel: {key:?}");
+}
+
+/// The Template Wizard in a low window: its list of templates takes part of the window, so
+/// Next (kept in view below it) is reached.
+#[test]
+fn the_template_wizards_next_is_reached_in_a_low_window() {
+    let (mut w, dialog) = scene("templates", (640.0, 400.0), 200);
+    assert!(!dialog.is_empty(), "the Template Wizard opens");
+    let next = w.controls().into_iter().find(|c| dialog.contains(&c.layer) && c.label == "Next");
+    let next = next.expect("its Next");
+    let row = w.audit("Template Wizard", "dialog", Some(&dialog));
+    assert!(row.lost.is_empty(), "{row:?}");
+    assert!(w.reach(next.id, &mut HashSet::new()), "Next is reached");
+}
+
+/// Check Design and Getting Started are windows of their own size around a list: the list
+/// scrolls inside them and the row above it (the tabs; the steps) stays in view.
+#[test]
+fn a_window_around_a_list_keeps_its_header_in_view() {
+    type Opener = fn(&mut EditorApp);
+    let cases: [(&str, &str, Opener); 2] = [
+        ("Check Design", "Problems", |a| {
+            crate::quality_ui::open(a, crate::quality_ui::Tab::Route)
+        }),
+        ("Getting Started", "", |a| a.ui.start.page_open = true),
+    ];
+    for (name, header, opener) in cases {
+        let base = Win::new(demo(), (1440.0, 900.0), 100).layers();
+        let mut w = Win::new(demo(), (1440.0, 900.0), 100);
+        opener(&mut w.app);
+        w.frames(12, Vec::new());
+        let layers: HashSet<egui::LayerId> = w.layers().difference(&base).copied().collect();
+        assert!(!layers.is_empty(), "{name} opens");
+        let area = layers
+            .iter()
+            .filter_map(|l| w.ctx.memory(|m| m.area_rect(l.id)))
+            .next()
+            .expect("its window");
+        assert!(area.height() < 900.0 - 10.0, "{name} is a window of its own size: {area:?}");
+        // The header: the topmost control of the window.
+        let top = |w: &Win| {
+            w.controls()
+                .into_iter()
+                .filter(|c| layers.contains(&c.layer))
+                .filter(|c| header.is_empty() || c.label == header)
+                .min_by(|a, b| a.rect.min.y.total_cmp(&b.rect.min.y))
+                .expect("a header control")
+        };
+        let before = top(&w);
+        assert!(w.shown(&before), "{name}: {before:?}");
+        wheel_to_the_end(&mut w, area.center());
+        let after = w.controls().into_iter().find(|c| c.id == before.id).expect("still there");
+        assert!(w.shown(&after), "{name}: the header scrolled away: {after:?}");
+        assert!((after.rect.min.y - before.rect.min.y).abs() < 1.0, "{name}: {before:?} to {after:?}");
+    }
+}
+
+/// A combo box or a colour button inside a menu opens its list or picker and the menu stays
+/// open (a click anywhere in a menu used to close it, so these lists never opened): Stamp /
+/// Emboss's shape and Shape Effects' Warp in their ribbon lists, the guide colour in Options.
+#[test]
+fn a_combo_box_or_colour_button_in_a_menu_opens_and_keeps_the_menu() {
+    let walk = Walk::new((900.0, 600.0), 100, None, true);
+    let list = |tab: TabId, label: &str| {
+        tab.groups()
+            .iter()
+            .flat_map(|g| g.actions().collect::<Vec<_>>())
+            .find(|a| a.is_menu() && a.info().label == label)
+            .unwrap_or_else(|| panic!("the {label} list"))
+    };
+    let cases: [(&str, TabId, Option<Action>, Role); 3] = [
+        ("Stamp/Emboss", TabId::Home, Some(list(TabId::Home, "Stamp/Emboss")), Role::ComboBox),
+        ("Shape Effects", TabId::Shapes, Some(list(TabId::Shapes, "Shape Effects")), Role::ComboBox),
+        ("Options", TabId::Home, None, Role::ColorWell),
+    ];
+    for (name, tab, action, role) in cases {
+        let mut w = tab_window(&walk, tab);
+        let before = w.layers();
+        let opened = match action {
+            Some(a) => w.click_action(a),
+            None => w.click_label("Options"),
+        };
+        assert!(opened, "{name} opens");
+        w.frames(6, Vec::new());
+        let menu: HashSet<egui::LayerId> = w.layers().difference(&before).copied().collect();
+        let control = w
+            .controls()
+            .into_iter()
+            .find(|c| menu.contains(&c.layer) && c.role == role && !c.disabled)
+            .unwrap_or_else(|| panic!("{name}: a {role:?} in it"));
+        assert!(w.reach(control.id, &mut HashSet::new()), "{name}: its {role:?} is reached");
+        let control = w.controls().into_iter().find(|c| c.id == control.id).expect("still there");
+        let layers_before = w.ctx.memory(|m| m.areas().visible_layer_ids());
+        w.click(w.visible(&control).center());
+        w.frames(6, Vec::new());
+        let appeared = w.ctx.memory(|m| m.areas().visible_layer_ids()).difference(&layers_before).count();
+        assert!(appeared > 0, "{name}: its {role:?} '{}' opens its list", control.label);
+        assert!(
+            w.controls().iter().any(|c| menu.contains(&c.layer)),
+            "{name}: the menu stays open"
         );
     }
 }
@@ -2492,5 +3094,255 @@ fn ribbon_widths() {
             .map(|c| c.rect.max.x)
             .fold(0.0f32, f32::max);
         println!("RIBBON {}: {right:.0}", tab.english_label());
+    }
+}
+
+/// Escape closes an open combo box list in a dialog (the editor's own Escape used to take the
+/// key first, so the list stayed open over the dialog) and the dialog stays open.
+#[test]
+fn escape_closes_a_combo_box_list_in_a_dialog() {
+    let (mut w, dialog) = scene("settings", (640.0, 400.0), 200);
+    let hoop = w
+        .controls()
+        .into_iter()
+        .find(|c| dialog.contains(&c.layer) && c.role == Role::ComboBox)
+        .expect("a combo box in Design Settings");
+    assert!(w.reach(hoop.id, &mut HashSet::new()));
+    let hoop = w.controls().into_iter().find(|c| c.id == hoop.id).expect("still there");
+    let before = w.ctx.memory(|m| m.areas().visible_layer_ids());
+    w.click(w.visible(&hoop).center());
+    w.frames(6, Vec::new());
+    let open = |w: &Win| w.ctx.memory(|m| m.areas().visible_layer_ids()).difference(&before).count();
+    assert!(open(&w) > 0, "its list opens");
+    let selection = w.app.selection.clone();
+    w.key(egui::Key::Escape);
+    w.frames(6, Vec::new());
+    assert_eq!(open(&w), 0, "Escape closes the list");
+    assert!(w.controls().iter().any(|c| dialog.contains(&c.layer)), "the dialog stays open");
+    assert_eq!(w.app.selection, selection, "and the selection is kept");
+}
+
+/// The start cards over an empty design are a list that scrolls in place, not a pop-up:
+/// Escape under them still does the editor's Escape (here: leaves the Measure tool), as on
+/// main. (Round 3 had let every list drawn as a menu take Escape.)
+#[test]
+fn escape_leaves_the_measure_tool_under_the_start_cards() {
+    let mut w = Win::new(Launch::default(), (1440.0, 900.0), 100);
+    w.app.ui.prefs.start_cards = true;
+    w.app.ui.start.cards_dismissed = false;
+    w.frames(6, Vec::new());
+    let cards = egui::LayerId::new(egui::Order::Middle, egui::Id::unique("start-cards"));
+    assert!(
+        w.ctx.memory(|m| m.areas().visible_layer_ids()).contains(&cards),
+        "the start cards show over the empty design"
+    );
+    w.app.workspace.measure.active = true;
+    w.frames(2, Vec::new());
+    w.key(egui::Key::Escape);
+    w.frames(3, Vec::new());
+    assert!(!w.app.workspace.measure.active, "Escape leaves the Measure tool");
+}
+
+/// With a menu open, Escape closes the menu and nothing else (the selection stays); the next
+/// Escape is the editor's (it clears the selection). For a menu of the toolkit's (Options) and
+/// one that keeps its own open state (the ribbon's File menu).
+#[test]
+fn escape_closes_an_open_menu_first_then_does_the_editors_escape() {
+    for label in ["Options", "File"] {
+        let mut w = Win::new(demo(), (1440.0, 900.0), 100);
+        w.frames(4, Vec::new());
+        assert!(!w.app.selection.is_empty(), "the demo starts with a selection");
+        let before = w.layers();
+        assert!(w.click_label(label), "{label}");
+        w.frames(6, Vec::new());
+        let open = |w: &Win| w.layers().difference(&before).count();
+        assert!(open(&w) > 0, "{label}: the menu opens");
+        let selection = w.app.selection.clone();
+        w.key(egui::Key::Escape);
+        w.frames(6, Vec::new());
+        assert_eq!(open(&w), 0, "{label}: the first Escape closes the menu");
+        assert_eq!(w.app.selection, selection, "{label}: and keeps the selection");
+        w.key(egui::Key::Escape);
+        w.frames(3, Vec::new());
+        assert!(w.app.selection.is_empty(), "{label}: the second Escape clears the selection");
+    }
+}
+
+/// A dialog's scroll bar lies beside its content, not over it: a click in the last 10 points
+/// of the content's width reaches the content. In the dialogs that scroll at 320 × 200 points
+/// (their bar shows), a combo box or text field whose right end is in those 10 points opens or
+/// takes the keyboard there; a floating bar used to take that click (the Catalogue's format
+/// box, round 3). At least one such control is found.
+#[test]
+fn a_click_at_the_right_edge_of_a_scrolling_dialog_reaches_its_content() {
+    let mut tried = Vec::new();
+    for name in ["settings", "property", "text", "print", "fabric", "usb", "monogram", "arrange", "matchThreads"] {
+        let (mut w, dialog) = scene(name, (640.0, 400.0), 200);
+        let Some(view) = w.app.drawn.list.iter().find(|s| s.kind == "dialog").cloned() else {
+            continue;
+        };
+        if view.content <= view.rect.height() + 1.0 {
+            continue;
+        }
+        let edge = view.rect.right();
+        let near: Vec<Control> = w
+            .controls()
+            .into_iter()
+            .filter(|c| dialog.contains(&c.layer) && matches!(c.role, Role::ComboBox | Role::TextInput))
+            .filter(|c| c.rect.right() > edge - 10.0 && c.rect.left() < edge - 10.0)
+            .collect();
+        for c in near {
+            if !w.reach(c.id, &mut HashSet::new()) {
+                continue;
+            }
+            let Some(c) = w.controls().into_iter().find(|n| n.id == c.id) else { continue };
+            let view = w.app.drawn.list.iter().find(|s| s.kind == "dialog").expect("open").rect;
+            let at = egui::pos2(view.right() - 3.0, w.visible(&c).center().y);
+            if !w.visible(&c).contains(at) {
+                continue;
+            }
+            let before = w.layers();
+            w.click(at);
+            w.frames(6, Vec::new());
+            let reached = match c.role {
+                Role::ComboBox => w.layers().difference(&before).count() > 0,
+                _ => w.ctx.memory(|m| m.focused()) == Some(c.id),
+            };
+            assert!(reached, "{name}: a click at {at:?}, 3 points inside the content's right edge {view:?}, missed {c:?}");
+            tried.push(format!("{name}: {:?} '{}'", c.role, c.label));
+            w.key(egui::Key::Escape);
+        }
+    }
+    eprintln!("clicked at the right edge: {tried:?}");
+    assert!(!tried.is_empty(), "no control reaches the last 10 points of a scrolling dialog");
+}
+
+/// A dialog that scrolls shows its scroll bar at rest, beside its content and inside the
+/// window: Design Settings at 640 × 400, whose content is cut at its foot (a review of a
+/// screenshot asked whether the bar is drawn there; it is, a light handle by the edge).
+#[test]
+fn a_scrolling_dialog_shows_its_scroll_bar_at_rest() {
+    let (mut w, _) = scene("settings", (640.0, 400.0), 100);
+    // The pointer away from it, over the status bar's left end.
+    w.frames(1, vec![egui::Event::PointerMoved(egui::pos2(4.0, w.screen().bottom() - 4.0))]);
+    w.frames(30, Vec::new());
+    let view = w.app.drawn.list.iter().find(|s| s.kind == "dialog").cloned().expect("Design Settings");
+    assert!(view.content > view.rect.height() + 1.0, "it scrolls: {view:?}");
+    let bar_room = egui::style::ScrollStyle::solid().allocated_width() + 1.0;
+    let beside: Vec<(egui::Rect, egui::Color32)> = filled(&w)
+        .into_iter()
+        .filter(|(r, c)| {
+            c.a() > 0
+                && r.left() >= view.rect.right() - 0.5
+                && r.right() <= view.rect.right() + bar_room
+                && r.height() >= 12.0
+                && r.top() >= view.rect.top() - 0.5
+                && r.bottom() <= view.rect.bottom() + 0.5
+        })
+        .collect();
+    assert!(!beside.is_empty(), "a scroll bar painted beside the content {view:?} at rest");
+    let screen = w.screen();
+    assert!(
+        beside.iter().all(|(r, _)| screen.contains_rect(*r)),
+        "the bar is inside the window {screen:?}: {beside:?}"
+    );
+}
+
+/// A dialog a person made larger in a large app window fits inside the app window once that is
+/// made smaller (the toolkit holds a resized window to the app window, and `fit::show` caps
+/// the content's height; nothing of the dialog is left beyond the window).
+/// The resizable dialogs Keyboard Shortcuts, Match to Thread Chart and the update, dragged by
+/// their corner to 300 points more at 1440 × 900, then the app window made 640 × 400.
+#[test]
+fn a_dialog_sized_in_a_larger_window_is_held_to_a_smaller_one() {
+    for name in ["shortcuts", "matchThreads", "update"] {
+        let (mut w, dialog) = scene(name, (1440.0, 900.0), 100);
+        let area = |w: &Win| {
+            dialog
+                .iter()
+                .filter_map(|l| w.ctx.memory(|m| m.area_rect(l.id)))
+                .fold(egui::Rect::NOTHING, |a, r| a.union(r))
+        };
+        let before = area(&w);
+        assert!(before.is_positive(), "{name} opens");
+        // Its bottom-right corner dragged 300 points down and right.
+        let from = before.max - egui::vec2(3.0, 3.0);
+        let press = |at, pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        w.frames(2, vec![egui::Event::PointerMoved(from)]);
+        w.frames(1, vec![press(from, true)]);
+        for i in 1..=10 {
+            let at = from + egui::vec2(30.0, 30.0) * i as f32;
+            w.frames(1, vec![egui::Event::PointerMoved(at)]);
+        }
+        let to = from + egui::vec2(300.0, 300.0);
+        w.frames(1, vec![press(to, false)]);
+        w.frames(6, Vec::new());
+        let large = area(&w);
+        // (Its height is the dialog's own, held by the room the content may take; its width
+        // is the person's.)
+        assert!(
+            large.width() > before.width() + 100.0 || large.height() > before.height() + 100.0,
+            "{name} was made larger: {before:?} to {large:?}"
+        );
+        assert!(
+            large.width() > 640.0 || large.height() > 400.0,
+            "{name} is larger than the small window will be: {large:?}"
+        );
+        w.size = egui::vec2(640.0, 400.0);
+        w.frames(15, Vec::new());
+        let small = area(&w);
+        let screen = w.screen();
+        assert!(
+            small.min.x >= screen.min.x - 0.5
+                && small.min.y >= screen.min.y - 0.5
+                && small.max.x <= screen.max.x + 0.5
+                && small.max.y <= screen.max.y + 0.5,
+            "{name}: {large:?} at 1440 x 900, {small:?} in the 640 x 400 window {screen:?}"
+        );
+    }
+}
+
+/// The Template Wizard keeps Next (Back, the output buttons) in view once a step is taller
+/// than the window, at 320 × 200 points (on `PINNED_AT_320X200`) and 320 × 150; Floppy Image,
+/// 83 points high with its buttons, fits every window in which a row can be kept in view
+/// (below that, about 130 points, rows scroll with the content), so it has no pinned row.
+#[test]
+fn the_template_wizard_keeps_its_buttons_in_view_and_floppy_image_fits() {
+    type Opener = fn(&mut EditorApp);
+    let steps: [(&str, Opener); 2] = [
+        ("step 1", |a| crate::lettering_ui::open_template_wizard(a)),
+        ("step 2", |a| {
+            crate::lettering_ui::open_template_wizard(a);
+            a.lettering.templates.step = 2;
+        }),
+    ];
+    // 320 × 150 points: both steps; 320 × 200: step 1, the one taller than the window.
+    let sizes: [(&str, Opener, (f32, f32)); 3] = [
+        (steps[0].0, steps[0].1, (640.0, 300.0)),
+        (steps[1].0, steps[1].1, (640.0, 300.0)),
+        (steps[0].0, steps[0].1, (640.0, 400.0)),
+    ];
+    for (name, opener, px) in sizes {
+        let mut w = Win::new(demo(), px, 200);
+        opener(&mut w.app);
+        w.frames(15, Vec::new());
+        let d = w.app.drawn.list.iter().find(|s| s.kind == "dialog").cloned().expect("the wizard");
+        assert!(d.buttons.is_some(), "Template Wizard {name} at {px:?}: its buttons are kept in view: {d:?}");
+        // And it rests there: the row does not come and go from frame to frame.
+        w.frames(5, Vec::new());
+        let again = w.app.drawn.list.iter().find(|s| s.kind == "dialog").cloned().expect("the wizard");
+        assert_eq!(again.buttons, d.buttons, "Template Wizard {name} at {px:?} settles");
+    }
+    for px in [(640.0, 300.0), (640.0, 400.0)] {
+        let mut w = Win::new(demo(), px, 200);
+        crate::floppy_ui::open(&mut w.app);
+        w.frames(15, Vec::new());
+        let d = w.app.drawn.list.iter().find(|s| s.kind == "dialog").cloned().expect("Floppy Image");
+        assert!(d.content <= d.rect.height() + 0.5, "Floppy Image fits at {px:?}: {d:?}");
     }
 }
