@@ -137,7 +137,7 @@ pub fn needle_hint(selected: usize, end: bool) -> &'static str {
             "Drag the point or move it with the arrow keys · hold Alt to see the other patterns' ends it connects to, Alt+drag onto one joins the two · Delete removes it"
         }
         _ => {
-            "Drag the points (Shift: only horizontally or vertically) or move them 0.1 mm with the arrow keys · Ctrl+arrow and Shift+arrow step along the stitches · Tab selects all the pattern's points, Home and End its first and last · Delete removes them"
+            "Drag the points (Shift: only horizontally or vertically) or move them 0.1 mm with the arrow keys · Ctrl+arrow and Shift+arrow step along the stitches · Tab selects all the points of their colour, Home and End its first and last · Delete removes them"
         }
     }
 }

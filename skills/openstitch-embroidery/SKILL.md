@@ -624,9 +624,10 @@ To fix single needle points of a stitch pattern, `stitches.points {id}` lists th
 `stitches.setPoint` / `insertPoint` / `deletePoints` edit them; `ui.stitchTable {open: true,
 select: [indexes]}` shows the user the same rows and highlights them on the canvas. In the
 window the Point tool works on a selected stitch pattern as PE-DESIGN's Select Point
-(#1272): `ui.stitchPoints` selects points (`select`), all or none of the pattern's points
-(`tab: true`, as Tab), the pattern's entry and exit point (`end: "entry" | "exit" | "first"
-| "last"`, as Home, End, Ctrl+Home, Ctrl+End), steps along them (`step`, with `extend` as
+(#1272), its keys inside the selected point's colour block: `ui.stitchPoints` selects
+points (`select`), all or none of the colour block's points (`tab: true`, as Tab), its first
+and last point or the pattern's entry and exit point (`end: "entry" | "exit" | "first" |
+"last"`, as Home, End, Ctrl+Home, Ctrl+End), steps along them (`step`, with `extend` as
 Shift+arrow), runs the needle point menu (`action: "splitAtPoint" | "deletePoint"`) and
 connects the selected entry or exit point to another pattern's exit or entry point
 (`connectTo`, as Alt+drag; `stitches.connect` `{ids, first}` without the window); a point

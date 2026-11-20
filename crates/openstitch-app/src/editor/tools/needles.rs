@@ -127,6 +127,17 @@ pub fn color_groups(o: &DesignObject) -> Vec<Vec<usize>> {
     out
 }
 
+/// The needle points of the colour block that holds needle point `i`, in sewing order. A
+/// machine file's colour blocks are each a stitch pattern of their own in PE-DESIGN, so its
+/// point keys never leave one (captures k4, k6, k7); until such a file opens as one pattern
+/// per colour (#1289), the keys stay inside the colour block here.
+pub fn color_block_of(o: &DesignObject, i: usize) -> Vec<usize> {
+    color_groups(o)
+        .into_iter()
+        .find(|g| g.contains(&i))
+        .unwrap_or_default()
+}
+
 /// The pattern's entry point (its first needle point) or exit point (its last).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum End {
@@ -523,7 +534,8 @@ impl ToolController {
     /// selected, as for the points of a shape: Ctrl+arrow selects the next (`forward`) or
     /// previous needle point alone; Shift+arrow grows the selection by one point from where
     /// it started and shrinks it again the other way. The order is the sewing order, across
-    /// jumps and colour changes (not captured: PE-DESIGN capture k4). False, changing
+    /// jumps, and it stops at the ends of the colour block it starts in (PE-DESIGN capture k4:
+    /// a colour block is a stitch pattern of its own there, never left). False, changing
     /// nothing, when no needle point is selected.
     pub fn step_needles(&mut self, forward: bool, extend: bool, ctx: &ToolContext) -> bool {
         let Some(o) = ctx.needle_target() else {
@@ -533,8 +545,6 @@ impl ToolController {
         if self.tool() != super::Tool::Point || selected.is_empty() {
             return false;
         }
-        let order: Vec<usize> = needle_points(o).into_iter().map(|(i, ..)| i).collect();
-        let place = |i: usize| order.iter().position(|&k| k == i);
         let step: i64 = if forward { 1 } else { -1 };
         if !extend {
             let from = if forward {
@@ -542,6 +552,8 @@ impl ToolController {
             } else {
                 selected.first()
             };
+            let order = from.map(|&i| color_block_of(o, i)).unwrap_or_default();
+            let place = |i: usize| order.iter().position(|&k| k == i);
             let Some(at) = from.and_then(|&i| place(i)) else {
                 return false;
             };
@@ -554,6 +566,8 @@ impl ToolController {
             Some((a, s)) if selected.contains(&a) => (a, s),
             _ => (*selected.first().expect("not empty"), 0),
         };
+        let order = color_block_of(o, anchor);
+        let place = |i: usize| order.iter().position(|&k| k == i);
         let Some(base) = place(anchor) else {
             return false;
         };
@@ -570,7 +584,8 @@ impl ToolController {
     }
 
     /// Tab and Shift+Tab with the Point tool on a stitch pattern, as PE-DESIGN 11.50's (capture
-    /// k6): with points selected, every needle point of the pattern; with all of them
+    /// k6, where each colour block is a stitch pattern of its own): with points selected,
+    /// every needle point of the colour block of the first selected point; with all of those
     /// selected, none; with none selected nothing happens, unless Tab has just dropped them
     /// (then all again). Both keys do the same. True when the selection changed.
     pub fn tab_needles(&mut self, ctx: &ToolContext) -> bool {
@@ -580,17 +595,21 @@ impl ToolController {
         if self.tool() != super::Tool::Point {
             return false;
         }
-        let all: BTreeSet<usize> = needle_points(o).into_iter().map(|(i, ..)| i).collect();
         let selected = self.selected_needles(ctx);
-        let toggled_off = self.needle_tab_off == Some(o.id);
+        let block = match (selected.first(), self.needle_tab_off) {
+            (Some(&i), _) => color_block_of(o, i),
+            (None, Some((id, first))) if id == o.id => color_block_of(o, first),
+            (None, _) => return false,
+        };
+        let Some(&first) = block.first() else {
+            return false;
+        };
+        let all: BTreeSet<usize> = block.into_iter().collect();
         self.needle_owner = Some(o.id);
         self.needle_anchor = None;
-        if selected.is_empty() && !toggled_off {
-            return false;
-        }
         if selected == all {
             self.needles.clear();
-            self.needle_tab_off = Some(o.id);
+            self.needle_tab_off = Some((o.id, first));
         } else {
             self.needles = all;
             self.needle_tab_off = None;
@@ -599,10 +618,11 @@ impl ToolController {
     }
 
     /// Home and End (`exit` false / true) with the Point tool on a stitch pattern, as
-    /// PE-DESIGN 11.50's (capture k7): the pattern's entry or exit point, with a needle point
-    /// selected; with none selected nothing happens. `whole` (Ctrl+Home, Ctrl+End): the same
-    /// with none selected too (Ctrl+End's target in PE-DESIGN, perhaps the design's last
-    /// point, is not confirmed). True when the selection changed.
+    /// PE-DESIGN 11.50's (capture k7, where each colour block is a stitch pattern of its own):
+    /// the first or last point of the colour block of the first selected point; with none
+    /// selected nothing happens. `whole` (Ctrl+Home, Ctrl+End): the pattern's entry or exit
+    /// point, with none selected too (Ctrl+End's target in PE-DESIGN, perhaps the design's
+    /// last point, is not confirmed). True when the selection changed.
     pub fn select_needle_end(&mut self, exit: bool, whole: bool, ctx: &ToolContext) -> bool {
         let Some(o) = ctx.needle_target() else {
             return false;
@@ -610,11 +630,15 @@ impl ToolController {
         if self.tool() != super::Tool::Point {
             return false;
         }
-        if !whole && self.selected_needles(ctx).is_empty() {
-            return false;
-        }
-        let pts = needle_points(o);
-        let Some(point) = (if exit { pts.last() } else { pts.first() }).map(|p| p.0) else {
+        let pts: Vec<usize> = if whole {
+            needle_points(o).into_iter().map(|(i, ..)| i).collect()
+        } else {
+            match self.selected_needles(ctx).first() {
+                Some(&i) => color_block_of(o, i),
+                None => return false,
+            }
+        };
+        let Some(&point) = (if exit { pts.last() } else { pts.first() }) else {
             return false;
         };
         self.needle_owner = Some(o.id);
@@ -1012,19 +1036,26 @@ mod tests {
         assert!(t.selected_needles(&ctx).is_empty());
     }
 
-    /// PE-DESIGN captures k6 and k7: Tab and Shift+Tab toggle all / none of the pattern's
-    /// needle points (nothing selected: nothing, unless Tab has just dropped them); Home and
-    /// End select the pattern's entry and exit point (nothing selected: nothing); Ctrl+Home and
-    /// Ctrl+End do so with nothing selected too.
+    /// PE-DESIGN captures k6 and k7, where each colour block of a machine file is a stitch
+    /// pattern of its own: Tab and Shift+Tab toggle all / none of the points of the selected
+    /// point's colour block (nothing selected: nothing, unless Tab has just dropped them);
+    /// Home and End select that colour block's first and last point (nothing selected:
+    /// nothing); Ctrl+Home and Ctrl+End the pattern's entry and exit point, with nothing
+    /// selected too. k0: two red lines (one colour, a jump between), two blue lines.
     #[test]
-    fn tab_toggles_all_points_and_home_and_end_select_the_patterns_ends() {
+    fn tab_home_and_end_stay_in_the_colour_block() {
         let (s, id) = two_colours();
         let f = Fixture::new(&s, id);
         let ctx = f.ctx();
         let o = ctx.needle_target().expect("pattern");
+        let groups = color_groups(o);
+        assert_eq!(groups.len(), 2, "red and blue");
+        let red: BTreeSet<usize> = groups[0].iter().copied().collect();
+        let blue: BTreeSet<usize> = groups[1].iter().copied().collect();
         let all: BTreeSet<usize> = needle_points(o).into_iter().map(|(i, ..)| i).collect();
         let (first, last) = (*all.first().expect("entry"), *all.last().expect("exit"));
-        let middle = *all.iter().nth(4).expect("a point");
+        let in_red = groups[0][4];
+        let in_blue = groups[1][4];
         let mut t = ToolController::default();
         t.set_tool(Tool::Point);
         assert!(!t.tab_needles(&ctx), "nothing selected: Tab does nothing");
@@ -1034,26 +1065,52 @@ mod tests {
             "nothing selected: Home does nothing"
         );
         assert!(t.selected_needles(&ctx).is_empty());
-        t.set_needle_selection(id, BTreeSet::from([middle]));
-        assert!(t.tab_needles(&ctx), "one selected: all");
-        assert_eq!(t.selected_needles(&ctx), all);
-        assert!(t.tab_needles(&ctx), "all selected: none");
+        // Tab: the colour block's points (both red lines, across their jump), never blue.
+        t.set_needle_selection(id, BTreeSet::from([in_red]));
+        assert!(t.tab_needles(&ctx), "one red point: every red point");
+        assert_eq!(t.selected_needles(&ctx), red);
+        assert!(t.tab_needles(&ctx), "all red selected: none");
         assert!(t.selected_needles(&ctx).is_empty());
-        assert!(t.tab_needles(&ctx), "Shift+Tab right after: all again");
-        assert_eq!(t.selected_needles(&ctx), all);
-        t.set_needle_selection(id, BTreeSet::from([middle]));
+        assert!(
+            t.tab_needles(&ctx),
+            "Shift+Tab right after: every red point again"
+        );
+        assert_eq!(t.selected_needles(&ctx), red);
+        t.set_needle_selection(id, BTreeSet::from([in_blue]));
+        assert!(t.tab_needles(&ctx));
+        assert_eq!(
+            t.selected_needles(&ctx),
+            blue,
+            "one blue point: every blue point"
+        );
+        // Home and End: the colour block's first and last point.
+        t.set_needle_selection(id, BTreeSet::from([in_red]));
         assert!(t.select_needle_end(true, false, &ctx));
         assert_eq!(
             t.selected_needles(&ctx),
-            BTreeSet::from([last]),
-            "End: the exit point"
+            BTreeSet::from([*groups[0].last().expect("red")]),
+            "End: the last red point (end of the second red line)"
         );
         assert!(t.select_needle_end(false, false, &ctx));
         assert_eq!(
             t.selected_needles(&ctx),
             BTreeSet::from([first]),
-            "Home: the entry point"
+            "Home: the first red point, the entry"
         );
+        t.set_needle_selection(id, BTreeSet::from([in_blue]));
+        assert!(t.select_needle_end(false, false, &ctx));
+        assert_eq!(
+            t.selected_needles(&ctx),
+            BTreeSet::from([groups[1][0]]),
+            "Home on blue: the first blue point, not the entry"
+        );
+        assert_ne!(groups[1][0], first);
+        assert!(t.select_needle_end(true, false, &ctx));
+        assert_eq!(t.selected_needles(&ctx), BTreeSet::from([last]));
+        // Ctrl+Home and Ctrl+End: the pattern's ends, with nothing selected too.
+        t.set_needle_selection(id, BTreeSet::from([in_red]));
+        assert!(t.select_needle_end(true, true, &ctx), "Ctrl+End from red");
+        assert_eq!(t.selected_needles(&ctx), BTreeSet::from([last]));
         t.set_needle_selection(id, BTreeSet::new());
         assert!(
             t.select_needle_end(true, true, &ctx),
@@ -1137,6 +1194,65 @@ mod tests {
         assert_eq!(r[0].command, "stitches.movePoints");
         assert_eq!(r[0].params["indexes"], json!([order[4], order[5]]));
         assert_eq!(r[0].params["dx"], json!(0.5));
+    }
+
+    /// Ctrl+arrow and Shift+arrow cross a jump inside a colour block (PE-DESIGN capture k4:
+    /// from the end of the first red line to the start of the second) and stop at the colour
+    /// block's ends (k4: they never reached blue, another stitch pattern in PE-DESIGN).
+    #[test]
+    fn ctrl_and_shift_arrows_stop_at_the_colour_blocks_ends() {
+        let (s, id) = two_colours();
+        let f = Fixture::new(&s, id);
+        let ctx = f.ctx();
+        let o = ctx.needle_target().expect("pattern");
+        let groups = color_groups(o);
+        let pts = needle_points(o);
+        let mut t = ToolController::default();
+        t.set_tool(Tool::Point);
+        // Across the jump between the two red lines: the point before it to its landing.
+        let k = (1..pts.len())
+            .find(|&k| {
+                pts[k].2
+                    && groups[0].contains(&pts[k].0)
+                    && groups[0].contains(&pts[k - 1].0)
+                    && !pts[k - 1].2
+            })
+            .expect("a jump inside red");
+        t.set_needle_selection(id, BTreeSet::from([pts[k - 1].0]));
+        assert!(t.step_needles(true, false, &ctx));
+        assert_eq!(
+            t.selected_needles(&ctx),
+            BTreeSet::from([pts[k].0]),
+            "over the jump"
+        );
+        // The last red point: Ctrl+Right stays there.
+        let last_red = *groups[0].last().expect("red");
+        t.set_needle_selection(id, BTreeSet::from([last_red]));
+        t.step_needles(true, false, &ctx);
+        assert_eq!(
+            t.selected_needles(&ctx),
+            BTreeSet::from([last_red]),
+            "not into blue"
+        );
+        // The first blue point: Ctrl+Left stays there.
+        let first_blue = groups[1][0];
+        t.set_needle_selection(id, BTreeSet::from([first_blue]));
+        t.step_needles(false, false, &ctx);
+        assert_eq!(
+            t.selected_needles(&ctx),
+            BTreeSet::from([first_blue]),
+            "not into red"
+        );
+        // Shift+Right from the point before the last red one: two red points, then no more.
+        let before = groups[0][groups[0].len() - 2];
+        t.set_needle_selection(id, BTreeSet::from([before]));
+        t.step_needles(true, true, &ctx);
+        t.step_needles(true, true, &ctx);
+        assert_eq!(
+            t.selected_needles(&ctx),
+            BTreeSet::from([before, last_red]),
+            "Shift+Right stops at the last red point"
+        );
     }
 
     /// With the pattern's entry or exit point selected and Alt held, the other patterns'

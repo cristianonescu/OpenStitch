@@ -4924,12 +4924,13 @@ keys with a mouse click reliably.
 | Ctrl+click, Shift+click | Ctrl+click toggles a point, Shift+click adds it. | **not verified**: PE-DESIGN showed no toggling, but the modifiers may not have reached it (k3) |
 | Arrow keys | The selected points move 0.1 mm a press. | measured (k5) |
 | Shift+drag | Keeps a drag horizontal or vertical (as a shape's points). | **not verified** (k5) |
-| Ctrl+arrow, Shift+arrow | Ctrl+arrow selects the next or previous needle point alone, across jumps; Shift+arrow grows the selection by one point from where it started and shrinks it the other way. | measured (k4) |
-| Tab, Shift+Tab | With points selected: every point of the pattern; again: none; with none selected: nothing. Not while a text field has the focus. | measured (k6) |
-| Home, End, Ctrl+Home | The pattern's entry and exit point; with none selected Home and End do nothing, Ctrl+Home selects the entry point. The Stitch Simulator keeps Home and End while it is open. | measured (k7) |
+| Colour block = stitch pattern | The point keys stay inside the colour block of the selected point: PE-DESIGN opens each colour of a machine file as a stitch pattern of its own, and its keys never left one (k4, k6, k7). Opening a file that way is #1289. | measured (finding before the rows) |
+| Ctrl+arrow, Shift+arrow | Ctrl+arrow selects the next or previous needle point alone, across jumps; Shift+arrow grows the selection by one point from where it started and shrinks it the other way; both stop at the colour block's ends. | measured (k4) |
+| Tab, Shift+Tab | With points selected: every point of the first selected point's colour block; again: none; with none selected: nothing. Not while a text field has the focus. | measured (k6) |
+| Home, End, Ctrl+Home | Home and End: the colour block's first and last point; with none selected they do nothing. Ctrl+Home: the pattern's entry point, with none selected too. The Stitch Simulator keeps Home and End while it is open. | measured (k7) |
 | Ctrl+End | The pattern's exit point. | **not verified**: PE-DESIGN probably selected the last point of the design (k7) |
 | Ctrl+Shift+click on a stitch | Inserts a point there and the stitch up to it becomes a jump. | **not verified**: PE-DESIGN added a normal point, the modifiers may not have reached it (k8) |
-| A click on a jump | Selects the needle points at both its ends, inserts nothing (a jump a file stores in several steps, as DST's of over 12.1 mm, counts as one). | measured (k9) |
+| A click on a jump | Selects the needle points at both its ends, inserts nothing (a jump a file stores in several steps, as DST's of over 12.1 mm, counts as one); selected points are painted over unselected ones, so the landing shows filled. | measured (k9) |
 | A click on the empty page | Drops the selected points and the pattern's selection. | measured (k10) |
 | Delete on the end of a jump | The jump stays: deleting the point it lands on makes it land on the next point, which is selected; deleting the point it starts from makes it start from the point before, which is selected. | measured (k11) |
 | Delete on the entry or exit point, or any point | Deleted (at least one stitch must remain); the next point is selected, at the exit the point before. | measured (k14) |

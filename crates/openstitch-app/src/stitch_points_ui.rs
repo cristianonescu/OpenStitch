@@ -161,7 +161,7 @@ pub fn command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, Str
             "exit" => (true, false),
             "first" => (false, true),
             "last" => (true, true),
-            _ => return Err("end: entry (Home), exit (End), first (Ctrl+Home) or last (Ctrl+End)".into()),
+            _ => return Err("end: entry (Home: the colour block's first point), exit (End: its last), first (Ctrl+Home: the pattern's entry point) or last (Ctrl+End: its exit point)".into()),
         };
         app.with_tools(|tools, ctx| {
             tools.select_needle_end(exit, whole, ctx);

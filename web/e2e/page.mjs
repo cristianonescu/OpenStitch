@@ -631,11 +631,12 @@ async function extraChecks(browser, type, label) {
       await stitch({ select: [pts[k - 1].index] });
       await clickWith("Control", box.x + a2[0], box.y + a2[1]);
       await until("Ctrl+click adds a needle point", () => (window.openstitch.run({ command: "ui.stitchPoints" }).result?.selected?.length ?? 0) === 2);
-      // Tab selects every needle point of the pattern (PE-DESIGN capture k6), and stays with
-      // the editor; Tab again selects none.
+      // Tab selects every needle point of the selected point's colour block (PE-DESIGN capture
+      // k6), and stays with the editor; Tab again selects none.
+      const held = pts[k - 1].index;
       await page.keyboard.press("Tab");
       const tab = await stitch({});
-      const every = tab.colors.reduce((n, c) => n + c.points, 0);
+      const every = tab.colors.find((c) => c.entry <= held && held <= c.exit)?.points;
       if (tab.selected.length !== every) throw new Error(`Tab: ${JSON.stringify(tab).slice(0, 300)}`);
       await page.keyboard.press("Tab");
       await until("Tab again selects none", () => (window.openstitch.run({ command: "ui.stitchPoints" }).result?.selected?.length ?? -1) === 0);

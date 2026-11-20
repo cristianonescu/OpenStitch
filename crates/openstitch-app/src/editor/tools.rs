@@ -563,9 +563,10 @@ pub struct ToolController {
     /// marks stay shown while it lasts, whatever a frame does with the gesture), and the end
     /// of another pattern it lies on now.
     needle_alt_drag: bool,
-    /// Point tool on a stitch pattern: the pattern whose points Tab has just dropped (the next
-    /// Tab selects them all again, PE-DESIGN capture k6).
-    needle_tab_off: Option<u64>,
+    /// Point tool on a stitch pattern: the pattern and colour block (its first needle point)
+    /// whose points Tab has just dropped (the next Tab selects them all again, PE-DESIGN
+    /// capture k6).
+    needle_tab_off: Option<(u64, usize)>,
     needle_connect_hover: Option<(u64, Vec2)>,
     /// Point tool on a Manual Punch column: the selected rung (column id, rung index).
     rung: Option<(u64, usize)>,

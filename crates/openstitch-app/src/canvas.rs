@@ -865,8 +865,11 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
     }
     if let Some(needles) = app.tools.needle_overlay(&ctx) {
         // Stitch pattern: needle points as small squares (jump ends as circles), selected
-        // ones filled.
-        for (_, p, selected, jump) in needles.points {
+        // ones filled and painted last, so a selected jump landing is not hidden under the
+        // stitch on the same spot (PE-DESIGN capture k9 shows both ends of a clicked jump).
+        let mut points = needles.points;
+        points.sort_by_key(|q| q.2);
+        for (_, p, selected, jump) in points {
             let at = pos(vp.to_screen(p));
             let fill = if selected {
                 crate::theme::accent()

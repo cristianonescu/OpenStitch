@@ -1105,23 +1105,42 @@ fn the_point_tools_keys_on_a_stitch_pattern() {
     press(&ctx, &mut app, Key::Tab, Modifiers::NONE);
     press(&ctx, &mut app, Key::Home, Modifiers::NONE);
     assert!(needles(&app).0.is_empty());
-    // One point: Tab selects all of the pattern's, again none, Shift+Tab all again.
+    // One red point: Tab selects every point of its colour block (both red lines; in
+    // PE-DESIGN each colour of a machine file is a stitch pattern of its own), again none,
+    // Shift+Tab all again; one blue point: every blue point.
     app.tools.set_needle_selection(id, BTreeSet::from([red[3]]));
     press(&ctx, &mut app, Key::Tab, Modifiers::NONE);
-    assert_eq!(needles(&app).0, all, "Tab: all");
+    assert_eq!(needles(&app).0, set(&red), "Tab: every red point");
     press(&ctx, &mut app, Key::Tab, Modifiers::NONE);
     assert!(needles(&app).0.is_empty(), "Tab: none");
     press(&ctx, &mut app, Key::Tab, Modifiers::SHIFT);
-    assert_eq!(needles(&app).0, all, "Shift+Tab: all again");
+    assert_eq!(needles(&app).0, set(&red), "Shift+Tab: every red point again");
+    app.tools.set_needle_selection(id, BTreeSet::from([blue[3]]));
+    press(&ctx, &mut app, Key::Tab, Modifiers::NONE);
+    assert_eq!(needles(&app).0, set(&blue), "Tab on blue: every blue point");
+    // Home and End: the colour block's first and last point.
+    app.tools.set_needle_selection(id, BTreeSet::from([red[3]]));
     press(&ctx, &mut app, Key::End, Modifiers::NONE);
-    assert_eq!(needles(&app).0, BTreeSet::from([last]), "End: the exit point");
+    let last_red = *red.last().expect("red");
+    assert_eq!(needles(&app).0, BTreeSet::from([last_red]), "End: the last red point");
     press(&ctx, &mut app, Key::Home, Modifiers::NONE);
-    assert_eq!(needles(&app).0, BTreeSet::from([first]), "Home: the entry point");
+    assert_eq!(needles(&app).0, BTreeSet::from([first]), "Home: the first red point");
+    app.tools.set_needle_selection(id, BTreeSet::from([blue[3]]));
+    press(&ctx, &mut app, Key::Home, Modifiers::NONE);
+    assert_eq!(needles(&app).0, BTreeSet::from([blue[0]]), "Home: the first blue point");
+    press(&ctx, &mut app, Key::End, Modifiers::NONE);
+    assert_eq!(needles(&app).0, BTreeSet::from([last]), "End: the last blue point");
+    // Ctrl+Home and Ctrl+End: the pattern's entry and exit point.
+    app.tools.set_needle_selection(id, BTreeSet::from([red[3]]));
     press(&ctx, &mut app, Key::End, Modifiers::COMMAND);
     assert_eq!(needles(&app).0, BTreeSet::from([last]), "Ctrl+End");
     press(&ctx, &mut app, Key::Home, Modifiers::COMMAND);
     assert_eq!(needles(&app).0, BTreeSet::from([first]), "Ctrl+Home");
-    let _ = (set(&red), blue.len());
+    // Ctrl+Right stops at the colour block's end (PE-DESIGN capture k4 never reached blue).
+    app.tools.set_needle_selection(id, BTreeSet::from([last_red]));
+    press(&ctx, &mut app, Key::ArrowRight, Modifiers::COMMAND);
+    assert_eq!(needles(&app).0, BTreeSet::from([last_red]), "Ctrl+Right: not into blue");
+    app.tools.set_needle_selection(id, BTreeSet::from([first]));
     // Ctrl+arrow steps, Shift+arrow grows; nothing moves.
     let before = app.session.design().clone();
     press(&ctx, &mut app, Key::ArrowRight, Modifiers::COMMAND);
@@ -1274,11 +1293,8 @@ fn split_at_point_ui_stitch_points_and_the_hint_on_a_stitch_pattern() {
         .expect("Tab");
     assert_eq!(
         s["selected"].as_array().expect("selected").len() as u64,
-        colors
-            .iter()
-            .map(|c| c["points"].as_u64().expect("count"))
-            .sum::<u64>(),
-        "Tab: every point of the pattern"
+        colors[0]["points"].as_u64().expect("count"),
+        "Tab: every point of the selected point's colour block"
     );
     // The needle point menu's Delete, as a click on it: one point fewer, the neighbour
     // selected.
