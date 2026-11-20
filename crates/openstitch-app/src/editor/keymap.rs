@@ -436,7 +436,9 @@ mod tests {
                     assert!(!RESERVED.iter().any(|(k, _)| *k == c), "{c} is reserved");
                     if mac {
                         assert!(!MAC_SYSTEM_KEYS.iter().any(|(k, _)| *k == c), "{c}: macOS");
-                    } else {
+                    } else if a != Action::New {
+                        // New keeps Ctrl+N on the desktop; in the browser it is in the File
+                        // menu instead (#834). No other default is a key the browser keeps.
                         assert!(!BROWSER_KEYS.iter().any(|(k, _)| *k == c), "{c}: browser");
                     }
                 }

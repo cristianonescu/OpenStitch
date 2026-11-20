@@ -170,8 +170,8 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         return;
     };
     let title = match n.kind {
-        Kind::Size => t("numeric-size-title"),
-        Kind::Rotate => t("numeric-rotate-title"),
+        Kind::Size => t("ui-numeric-size-title"),
+        Kind::Rotate => t("ui-numeric-rotate-title"),
     };
     let (mut ok, mut preview, mut cancel) = (false, false, false);
     let mut open = true;
@@ -190,7 +190,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                                 .range(-360.0..=360.0)
                                 .speed(1.0),
                         );
-                        ui.label(t("numeric-degree"));
+                        ui.label(t("ui-numeric-degree"));
                     });
                 }
             }
@@ -199,7 +199,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 ok = ui.add_enabled(n.changed(), egui::Button::new(t("ui-ok"))).clicked();
                 preview = ui
-                    .add_enabled(fresh, egui::Button::new(t("numeric-preview")))
+                    .add_enabled(fresh, egui::Button::new(t("ui-numeric-preview")))
                     .clicked();
                 cancel = ui.button(t("ui-cancel")).clicked();
             });
@@ -223,7 +223,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
 /// The Size dialog's rows: % or mm, Maintain aspect ratio, Keep density and fill pattern.
 fn size_body(ui: &mut egui::Ui, n: &mut Numeric) {
     let ratio = n.base.1 / n.base.0.max(1e-9);
-    egui::Grid::new("numeric-size").num_columns(5).show(ui, |ui| {
+    egui::Grid::new("ui-numeric-size").num_columns(5).show(ui, |ui| {
         ui.radio_value(&mut n.percent, true, "");
         let w = ui.add_enabled(
             n.percent,
@@ -278,9 +278,9 @@ fn size_body(ui: &mut egui::Ui, n: &mut Numeric) {
     let mut kept = true;
     ui.add_enabled(
         false,
-        egui::Checkbox::new(&mut kept, t("numeric-keep-density")),
+        egui::Checkbox::new(&mut kept, t("ui-numeric-keep-density")),
     )
-    .on_disabled_hover_text(t("numeric-keep-density-tip"));
+    .on_disabled_hover_text(t("ui-numeric-keep-density-tip"));
 }
 
 /// The open dialog as `ui.objectMenu` reports it: kind, the values it holds and whether a

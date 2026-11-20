@@ -119,23 +119,18 @@ fn sew_bar(
         .same()
         .and_then(|k| region_types().into_iter().find(|(t, _)| t == k))
         .map_or("", |(_, label)| openstitch_app::editor::ui_texts::tr(label));
-    let colour = |t: Option<&openstitch_core::Thread>| {
-        t.map(|t| egui::Color32::from_rgb(t.red, t.green, t.blue))
-    };
     // A colour shows only when every selected object has it; with several colours the swatch
     // is the pane's Mixed one (grey), and the button still opens the list to set one for all.
-    let line_colour = colour(
-        m.line
-            .as_ref()
-            .filter(|_| crate::panels::all_same_line_thread(app, &m))
-            .map(|l| &l.thread),
-    );
-    let region_colour = colour(
-        m.region
-            .as_ref()
-            .filter(|_| crate::panels::all_same_region_thread(app, &m))
-            .map(|r| &r.thread),
-    );
+    let line_thread = m
+        .line
+        .as_ref()
+        .filter(|_| crate::panels::all_same_line_thread(app, &m))
+        .map(|l| l.thread.clone());
+    let region_thread = m
+        .region
+        .as_ref()
+        .filter(|_| crate::panels::all_same_region_thread(app, &m))
+        .map(|r| r.thread.clone());
     let (has_line, has_region) = (m.line.is_some(), m.region.is_some());
     let height = 30.0;
     let at = if below {
@@ -150,12 +145,12 @@ fn sew_bar(
         .show(ctx, |ui| {
             egui::Frame::menu(ui.style()).show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    for (a, text, swatch, ca, has) in [
-                        (Action::LineSewType, line, line_colour, Action::LineColor, has_line),
+                    for (a, text, thread, ca, has) in [
+                        (Action::LineSewType, line, &line_thread, Action::LineColor, has_line),
                         (
                             Action::RegionSewType,
                             region,
-                            region_colour,
+                            &region_thread,
                             Action::RegionColor,
                             has_region,
                         ),
@@ -172,7 +167,19 @@ fn sew_bar(
                         });
                         // The thread's colour, or the pane's Mixed swatch (grey 128) when the
                         // selected objects have several; the same size and border either way.
-                        let fill = swatch.unwrap_or(egui::Color32::from_gray(128));
+                        let fill = thread.as_ref().map_or(egui::Color32::from_gray(128), |t| {
+                            // bare-swatch: PE-DESIGN's bar shows the colour alone; brand, code
+                            // and name are on the button's tooltip (#798).
+                            egui::Color32::from_rgb(t.red, t.green, t.blue)
+                        });
+                        let tip = match thread {
+                            Some(t) => format!(
+                                "{}: {}",
+                                ca.info().label,
+                                crate::panels::thread_text(t)
+                            ),
+                            None => format!("{}: Mixed", ca.info().label),
+                        };
                         let button = egui::Button::new("")
                             .fill(fill)
                             .stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(90)))
@@ -181,7 +188,7 @@ fn sew_bar(
                             let r = egui::containers::menu::MenuButton::from_button(button)
                                 .ui(ui, |ui| crate::ribbon::menu(app, ca, ui))
                                 .0
-                                .on_hover_text(ca.info().label);
+                                .on_hover_text(tip);
                             controls.push(r.rect);
                         });
                     }
