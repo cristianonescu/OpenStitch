@@ -415,6 +415,13 @@ fn glyph(a: Action) -> Glyph {
         SnapToObjects => G::Magnet,
         PrecisionBar => G::Size,
         RotateFlip => G::Rotate,
+        // PE-DESIGN's Rotate/Flip list and object menu (#1288): the existing turn and mirror
+        // icons (Higgsfield, 2026-10-30); Center has the Arrange icon, whose list opens with it.
+        RotateRight => G::Own("image_rotate_right"),
+        RotateLeft => G::Own("image_rotate_left"),
+        FlipVertical => G::Own("flip_v"),
+        FlipHorizontal => G::Own("flip_h"),
+        CenterObjects => G::Align,
         ImageRotateRight => G::Own("image_rotate_right"),
         ImageRotateLeft => G::Own("image_rotate_left"),
         Size => G::Size,

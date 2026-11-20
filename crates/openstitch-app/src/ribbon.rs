@@ -88,6 +88,9 @@ pub struct RibbonState {
     /// Objects Copy or Cut put on the clipboard (#500), kept here too: Paste falls back to
     /// them when the system clipboard holds no OpenStitch objects.
     pub copied: Option<Envelope>,
+    /// When Ctrl/Cmd+V was last pressed as a key (the browser, #1288): the paste event the
+    /// browser may send after it is that key's.
+    pub paste_key_at: Option<f64>,
     /// Copy, Cut and Paste use the system clipboard (off in tests, screenshots and `ui.run`).
     pub system_clipboard: bool,
     /// The system clipboard held OpenStitch objects at the last check (another window's Copy).
@@ -143,6 +146,7 @@ impl Default for RibbonState {
             open_job_sheet: false,
             last_tool: Tool::Select,
             copied: None,
+            paste_key_at: None,
             system_clipboard: false,
             clipboard_objects: false,
             clipboard_checked: f64::NEG_INFINITY,
@@ -317,6 +321,7 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         Undo => app.session.can_undo(),
         Redo => app.session.can_redo(),
         Cut | Copy | Duplicate | Delete | ArrangeCopy | Arrange | RotateFlip | Size
+        | RotateRight | RotateLeft | FlipVertical | FlipHorizontal | CenterObjects
         | DecorativeFrame | Align | SelectSame | SelectSameColor | SelectSameType
         | SelectSameBoth => any,
         AlignLeft | AlignCenter | AlignRight | AlignTop | AlignMiddle | AlignBottom
@@ -515,16 +520,27 @@ fn copy(app: &mut EditorApp) {
 /// Paste: the system clipboard's OpenStitch objects, else the ones copied in this window,
 /// added in one Undo step.
 fn paste(app: &mut EditorApp) {
-    let system = app
-        .ui
-        .system_clipboard
-        .then(|| {
-            os_clipboard()
-                .and_then(|()| openstitch_app::platform::clipboard_text())
-                .ok()
-        })
-        .flatten()
-        .and_then(|t| Envelope::parse(&t));
+    paste_from(app, None);
+}
+
+/// Paste with the text the system handed over with the key (`clipboard`, the browser's paste
+/// event: the page cannot read the clipboard itself), else as [`paste`] (#1288).
+pub fn paste_from(app: &mut EditorApp, clipboard: Option<&str>) {
+    if !enabled(app, Action::Paste) && clipboard.is_none_or(|t| Envelope::parse(t).is_none()) {
+        return;
+    }
+    let handed = clipboard.and_then(Envelope::parse);
+    let system = handed.or_else(|| {
+        app.ui
+            .system_clipboard
+            .then(|| {
+                os_clipboard()
+                    .and_then(|()| openstitch_app::platform::clipboard_text())
+                    .ok()
+            })
+            .flatten()
+            .and_then(|t| Envelope::parse(&t))
+    });
     let Some(env) = system.or_else(|| app.ui.copied.clone()) else {
         return;
     };
@@ -607,6 +623,15 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         Paste => paste(app),
         Duplicate => app.on_selection(CommandRequest::duplicate),
         Delete => delete(app),
+        // PE-DESIGN's Rotate Right / Left and Flip, about the selection's centre, and Center on
+        // the Design Page (#1288); each one undo step.
+        RotateRight => app.on_selection(|s| CommandRequest::rotate(s, 90.0)),
+        RotateLeft => app.on_selection(|s| CommandRequest::rotate(s, -90.0)),
+        FlipVertical => app.on_selection(|s| CommandRequest::flip(s, false)),
+        FlipHorizontal => app.on_selection(|s| CommandRequest::flip(s, true)),
+        CenterObjects => app.on_selection(|s| {
+            CommandRequest::new("object.center", json!({ "ids": CommandRequest::ids(s) }))
+        }),
         ArrangeCopy => {
             app.edit.arrange_open = true;
             app.edit.arrange.center = None;
@@ -1092,21 +1117,21 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             }
         }
         RotateFlip => {
-            for (label, deg) in [
-                ("Rotate Right 90°", 90.0),
-                ("Rotate Left 90°", -90.0),
-                ("Rotate 180°", 180.0),
-            ] {
-                if ui.button(openstitch_app::editor::ui_texts::tr(label)).clicked() {
-                    app.on_selection(|s| CommandRequest::rotate(s, deg));
-                }
+            // PE-DESIGN's list (#1288): Rotate Right, Rotate Left, then Flip Vertically and Flip
+            // Horizontally, with their shortcuts; Rotate 180° is OpenStitch's own, after them.
+            use openstitch_app::editor::ribbon::ROTATE_FLIP_MENU;
+            for a in &ROTATE_FLIP_MENU[..2] {
+                menu_item(app, ui, *a);
+            }
+            if ui
+                .button(openstitch_app::editor::ui_texts::tr("Rotate 180°"))
+                .clicked()
+            {
+                app.on_selection(|s| CommandRequest::rotate(s, 180.0));
             }
             ui.separator();
-            if ui.button(t("menu-flip-horizontal")).clicked() {
-                app.on_selection(|s| CommandRequest::flip(s, true));
-            }
-            if ui.button(t("menu-flip-vertical")).clicked() {
-                app.on_selection(|s| CommandRequest::flip(s, false));
+            for a in &ROTATE_FLIP_MENU[2..] {
+                menu_item(app, ui, *a);
             }
         }
         Size => {

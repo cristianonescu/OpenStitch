@@ -155,13 +155,18 @@ actions! {
     DistributeVertical => "distributeVertical", "Distribute Vertically", "Equal gaps between three or more objects from top to bottom; the outermost two stay put.", None, Some("object.distribute"), true;
     Arrange => "arrange", "Arrange", "Centre the selection or change where it sews in the order.", None, Some("order.move"), true;
     RotateFlip => "rotateFlip", "Rotate/Flip", "Rotate by 90° or mirror the selection.", None, Some("object.rotate"), true;
+    RotateRight => "rotateRight", "Rotate Right", "Turn the selection 90° clockwise about its centre.", None, Some("object.rotate"), true;
+    RotateLeft => "rotateLeft", "Rotate Left", "Turn the selection 90° anticlockwise about its centre.", None, Some("object.rotate"), true;
+    FlipVertical => "flipVertical", "Flip Vertical", "Mirror the selection top to bottom about its centre.", Some("Ctrl+H"), Some("object.flip"), true;
+    FlipHorizontal => "flipHorizontal", "Flip Horizontal", "Mirror the selection left to right about its centre.", Some("Ctrl+J"), Some("object.flip"), true;
+    CenterObjects => "center", "Center", "Move the selection to the centre of the Design Page.", Some("Ctrl+M"), Some("object.center"), true;
     Size => "size", "Size", "Scale the selection by a percentage.", None, Some("object.scale"), true;
     Group => "group", "Group", "Group the selection so it moves together.", Some("Ctrl+G"), Some("object.group"), true;
     Ungroup => "ungroup", "Ungroup", "Take the selected groups apart.", Some("Ctrl+Shift+G"), Some("object.ungroup"), true;
     StampEmboss => "stampEmboss", "Stamp/Emboss", "Emboss or engrave a shape, or place stamps in it.", None, Some("shape.emboss"), true;
     ModifyOverlap => "modifyOverlap", "Modify Overlap", "Merge, remove overlap or combine outlines.", None, Some("shape.combine"), true;
     DecorativeFrame => "decorativeFrame", "Decorative Frame", "Add a frame around the selection.", None, Some("shape.decorative"), true;
-    JoinLines => "joinLines", "Join Lines", "Make two or more open lines, satin skeletons or Manual Punch columns whose ends meet (within 1 mm) one object, sewn as one path with no trim between them; the first-sewn one keeps its attributes and place.", Some("Ctrl+J"), Some("shape.joinLines"), true;
+    JoinLines => "joinLines", "Join Lines", "Make two or more open lines, satin skeletons or Manual Punch columns whose ends meet (within 1 mm) one object, sewn as one path with no trim between them; the first-sewn one keeps its attributes and place.", Some("Ctrl+Shift+J"), Some("shape.joinLines"), true;
     BreakApart => "breakApart", "Break Apart", "Split the selection into pieces: text into one text per letter in place, a fill with islands into one object per piece (holes stay with theirs), a line object into its outlines, and groups such as copies along a line into separate objects.", Some("Ctrl+Shift+K"), Some("object.breakApart"), true;
     FitTextToOutline => "fitText", "Fit Text", "Fit Text to Outline: select a text and a shape, and the text follows the shape's outline. Release Text from Outline takes it off again.", None, Some("text.setPath"), true;
     // Home ▸ Wizards.
@@ -831,6 +836,71 @@ pub const POINT_OBJECT_MENU: [Action; 5] = [
     A::CloseOutline,
 ];
 
+/// One row of the object menu (a right-click on selected objects with the Select tool), in
+/// PE-DESIGN 11.50's order (#1288).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MenuRow {
+    /// A command, with its ribbon label and shortcut.
+    Entry(Action),
+    /// A sub-menu: its key, its text id and its entries.
+    Sub(&'static str, &'static str, &'static [Action]),
+    Separator,
+}
+
+/// PE-DESIGN's object menu, the entries OpenStitch has a feature for. Left out: Paste Selected
+/// Attributes... and Export Cutting Data (ScanNCut cutting files are not supported).
+pub const OBJECT_MENU: &[MenuRow] = &[
+    MenuRow::Entry(A::Cut),
+    MenuRow::Entry(A::Copy),
+    MenuRow::Entry(A::Duplicate),
+    MenuRow::Sub(
+        "paste",
+        "menu-object-paste",
+        &[A::Paste, A::PasteAttributes],
+    ),
+    MenuRow::Entry(A::Delete),
+    MenuRow::Separator,
+    MenuRow::Sub(
+        "flip",
+        "menu-object-flip",
+        &[A::FlipVertical, A::FlipHorizontal],
+    ),
+    MenuRow::Entry(A::CenterObjects),
+    MenuRow::Separator,
+    MenuRow::Entry(A::OpenOutline),
+    MenuRow::Entry(A::CloseOutline),
+    MenuRow::Separator,
+    MenuRow::Entry(A::OffsetLines),
+    MenuRow::Entry(A::ConvertToStitches),
+    MenuRow::Entry(A::FloralPattern),
+    MenuRow::Separator,
+    MenuRow::Sub(
+        "cutAndSew",
+        "menu-object-cut-and-sew",
+        &[A::Applique, A::Patch, A::Cutwork],
+    ),
+];
+
+/// The ribbon's Rotate/Flip list, PE-DESIGN's: Rotate, then Flip.
+pub const ROTATE_FLIP_MENU: [Action; 4] = [
+    A::RotateRight,
+    A::RotateLeft,
+    A::FlipVertical,
+    A::FlipHorizontal,
+];
+
+/// Every command of the object menu, sub-menus included, in menu order.
+pub fn object_menu_actions() -> Vec<Action> {
+    OBJECT_MENU
+        .iter()
+        .flat_map(|r| match r {
+            MenuRow::Entry(a) => vec![*a],
+            MenuRow::Sub(_, _, list) => list.to_vec(),
+            MenuRow::Separator => vec![],
+        })
+        .collect()
+}
+
 /// The Option button: other applications and settings.
 pub const OPTION_MENU: [Action; 6] = [
     A::DesignDatabase,
@@ -1067,6 +1137,8 @@ mod tests {
                 || SUBMENU_ACTIONS.contains(&a)
                 || EDIT_POINT_MENU.contains(&a)
                 || POINT_OBJECT_MENU.contains(&a)
+                || ROTATE_FLIP_MENU.contains(&a)
+                || object_menu_actions().contains(&a)
                 || help.contains(&a)
                 || ALIGN_MENU.contains(&a)
                 || SELECT_SAME_MENU.contains(&a)

@@ -355,6 +355,19 @@ struct Screenshot {
     done: Arc<AtomicBool>,
 }
 
+/// Ctrl/Cmd+V as a key press (the browser sends it so; the window sends a paste event instead).
+fn is_paste_key(e: &egui::Event) -> bool {
+    matches!(
+        e,
+        egui::Event::Key {
+            key: Key::V,
+            pressed: true,
+            modifiers,
+            ..
+        } if modifiers.command && !modifiers.shift && !modifiers.alt
+    )
+}
+
 impl EditorApp {
     pub fn new(launch: Launch) -> Self {
         let base = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -1185,6 +1198,19 @@ impl EditorApp {
             self.status = openstitch_app::editor::ui_texts::t("ui-status-locked-unlock-it-in-the-sewing").into();
         }
         locked
+    }
+
+    /// Whether the editor has `chord` ("Ctrl+D", as a key press writes it) for a command, so the
+    /// browser must not act on it as well (#1288: Ctrl+D is the browser's bookmark, Ctrl+H its
+    /// history, Ctrl+J its downloads). Never Ctrl+C, X or V, which must reach the browser as
+    /// its copy, cut and paste events; never a chord without Ctrl.
+    pub fn takes_browser_key(&self, chord: &str) -> bool {
+        let Ok(c) = openstitch_app::editor::keymap::normalize(chord) else {
+            return false;
+        };
+        c.starts_with("Ctrl+")
+            && !matches!(c.as_str(), "Ctrl+C" | "Ctrl+X" | "Ctrl+V")
+            && self.ui.prefs.keymap.bindings().iter().any(|(_, b)| *b == c)
     }
 
     pub fn on_selection(&mut self, make: impl Fn(&BTreeSet<u64>) -> CommandRequest) {
@@ -2029,11 +2055,16 @@ impl EditorApp {
         }
         let take = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
         // Cut, Copy and Paste arrive as clipboard events, not key presses.
-        let (cut, copy, paste) = ctx.input(|i| {
+        let (cut, copy, paste_text, paste_key, now) = ctx.input(|i| {
             (
                 i.events.iter().any(|e| matches!(e, egui::Event::Cut)),
                 i.events.iter().any(|e| matches!(e, egui::Event::Copy)),
-                i.events.iter().any(|e| matches!(e, egui::Event::Paste(_))),
+                i.events.iter().find_map(|e| match e {
+                    egui::Event::Paste(text) => Some(text.clone()),
+                    _ => None,
+                }),
+                i.events.iter().any(is_paste_key),
+                i.time,
             )
         });
         if cut {
@@ -2042,14 +2073,31 @@ impl EditorApp {
         if copy {
             crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Copy, ctx);
         }
-        if paste {
-            crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Paste, ctx);
+        // In the browser Ctrl/Cmd+V comes as a key press, and the browser's paste event follows
+        // only when the system clipboard holds text: the page cannot write it, so after a Copy in
+        // the page the event never comes and the key alone pastes the page's copy (#1288). The
+        // window turns the key into the paste event itself and never sends the key. A paste
+        // event within a second of a key press is that key's, already pasted.
+        if paste_key {
+            self.ui.paste_key_at = Some(now);
+            crate::ribbon::paste_from(self, paste_text.as_deref());
+        } else if let Some(text) = paste_text
+            && self.ui.paste_key_at.is_none_or(|at| now - at > 1.0)
+        {
+            crate::ribbon::paste_from(self, Some(&text));
         }
         if hit(A::SelectAll) {
             self.select_all();
         }
         if hit(A::Duplicate) {
             self.on_selection(CommandRequest::duplicate);
+        }
+        // PE-DESIGN's Flip Vertical (Ctrl+H), Flip Horizontal (Ctrl+J) and Center (Ctrl+M) on
+        // the selected objects (#1288).
+        for a in [A::FlipVertical, A::FlipHorizontal, A::CenterObjects] {
+            if hit(a) {
+                crate::ribbon::run(self, a, ctx);
+            }
         }
         if hit(A::Ungroup) {
             crate::edit_ui::ungroup(self);

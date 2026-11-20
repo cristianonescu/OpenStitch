@@ -85,6 +85,7 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
         .and_then(|d| d.get_element_by_id(&canvas_id))
         .ok_or_else(|| JsValue::from_str(&format!("no element #{canvas_id}")))?
         .dyn_into::<web_sys::HtmlCanvasElement>()?;
+    keep_editor_keys(&canvas)?;
     let options = eframe::WebOptions {
         // WebGL 2 everywhere the page runs (the desktop uses wgpu).
         renderer: eframe::Renderer::Glow,
@@ -131,6 +132,44 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
             }),
         )
         .await
+}
+
+/// The editor's Ctrl shortcuts are the editor's (#1288): while the canvas has the keyboard, a
+/// chord the editor has for a command (its keymap) does not also run the browser's own action
+/// (Ctrl+D bookmarks the page, Ctrl+H opens the history, Ctrl+J the downloads). eframe cancels
+/// only a few of them itself. Ctrl+C, X and V are left alone: the browser's copy, cut and paste
+/// events are how they reach the editor.
+fn keep_editor_keys(canvas: &web_sys::HtmlCanvasElement) -> Result<(), JsValue> {
+    let listener =
+        Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(|e: web_sys::KeyboardEvent| {
+            if !(e.ctrl_key() || e.meta_key()) {
+                return;
+            }
+            let key = e.key();
+            let named = if key.chars().count() == 1 {
+                key.to_uppercase()
+            } else {
+                key
+            };
+            let mut chord = String::from("Ctrl+");
+            if e.alt_key() {
+                chord.push_str("Alt+");
+            }
+            if e.shift_key() {
+                chord.push_str("Shift+");
+            }
+            chord.push_str(&named);
+            // Never while a frame holds the editor (a key event comes between frames).
+            if editor()
+                .is_some_and(|ed| ed.try_borrow().is_ok_and(|ed| ed.takes_browser_key(&chord)))
+            {
+                e.prevent_default();
+            }
+        });
+    canvas.add_event_listener_with_callback("keydown", listener.as_ref().unchecked_ref())?;
+    // The page lives as long as the editor: the listener is never removed.
+    listener.forget();
+    Ok(())
 }
 
 #[wasm_bindgen(module = "/js/recovery.js")]

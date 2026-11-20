@@ -1684,4 +1684,283 @@ fn the_alt_marks_of_a_stitch_pattern_are_painted_and_connect() {
         .count();
     assert_eq!(patterns, 1, "connected into one");
     assert_eq!(painted(&mut app), (0, 0));
+/// Whole editor frames in a 1440 x 900 window, as the window or the page runs them (#1288).
+struct Window {
+    ctx: egui::Context,
+    frame: eframe::Frame,
+}
+
+impl Window {
+    fn new() -> Self {
+        Window {
+            ctx: egui::Context::default(),
+            frame: eframe::Frame::_new_kittest(),
+        }
+    }
+
+    fn run(&mut self, app: &mut EditorApp, events: Vec<egui::Event>, modifiers: Modifiers) {
+        let mut raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1440.0, 900.0),
+            )),
+            ..Default::default()
+        };
+        raw.events.push(egui::Event::ModifiersChanged(modifiers));
+        raw.events.extend(events);
+        let frame = &mut self.frame;
+        let mut out = self
+            .ctx
+            .run_ui(raw, |ui| eframe::App::ui(app, ui, frame));
+        out.textures_delta.clear();
+    }
+
+    /// A left click at `at`, then a frame without input.
+    fn click(&mut self, app: &mut EditorApp, at: egui::Pos2) {
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        self.run(
+            app,
+            vec![egui::Event::PointerMoved(at), button(true), button(false)],
+            Modifiers::NONE,
+        );
+        self.run(app, vec![], Modifiers::NONE);
+    }
+
+    /// Ctrl/Cmd + `k` as a key press (the window sends Ctrl+D, H, J and M so).
+    fn ctrl(&mut self, app: &mut EditorApp, k: Key) {
+        self.run(app, vec![key(k, Modifiers::COMMAND)], Modifiers::COMMAND);
+    }
+}
+
+/// A started editor without the splash (whose first key press or click only closes it): its
+/// first frames have run before a test builds anything.
+fn started(w: &mut Window) -> EditorApp {
+    let mut app = EditorApp::new(Launch {
+        no_splash: true,
+        ..Launch::default()
+    });
+    for _ in 0..3 {
+        w.run(&mut app, vec![], Modifiers::NONE);
+    }
+    assert!(
+        !w.ctx.egui_wants_keyboard_input(),
+        "no field has the keyboard at start"
+    );
+    app
+}
+
+/// Filled 20 mm squares at x = 10, 40 (and 70) mm: one, two, or two grouped.
+fn squares(app: &mut EditorApp, how: &str) -> BTreeSet<u64> {
+    let mut ids = BTreeSet::new();
+    for x in [10.0, 40.0] {
+        let r = app
+            .execute(&CommandRequest::new(
+                "shape.rectangle",
+                json!({ "x": x, "y": 10, "width": 20, "height": 20, "fill": "Red" }),
+            ))
+            .expect("rectangle");
+        ids.extend(CommandRequest::created_ids(&r));
+        if how == "one" {
+            break;
+        }
+    }
+    app.selection = ids.clone();
+    if how == "group" {
+        crate::edit_ui::group(app);
+        assert!(
+            crate::edit_ui::can_ungroup(app),
+            "the two squares are a group"
+        );
+    }
+    ids
+}
+
+fn bounds_of(app: &EditorApp, ids: &BTreeSet<u64>) -> openstitch_design::Rect {
+    let d = app.session.design();
+    openstitch_design::Rect::enclosing(
+        d.objects
+            .iter()
+            .filter(|o| ids.contains(&o.id))
+            .filter_map(|o| o.bounds())
+            .flat_map(|b| {
+                [
+                    openstitch_design::v2(b.min_x, b.min_y),
+                    openstitch_design::v2(b.max_x, b.max_y),
+                ]
+            }),
+    )
+    .expect("bounds")
+}
+
+/// #1288: Ctrl/Cmd+C, X, V and D on the selection through the editor's whole frame, with the
+/// events the window sends (Copy, Cut and Paste events; Ctrl+D as a key), for one object, two
+/// and a group; also after a click on the selected object on the canvas. Each paste and each
+/// duplicate adds the selection's objects as one undo step and selects them.
+#[test]
+fn ctrl_c_x_v_and_d_work_on_the_canvas_for_one_several_and_a_group() {
+    for how in ["one", "two", "group"] {
+        let mut w = Window::new();
+        let mut app = started(&mut w);
+        let ids = squares(&mut app, how);
+        let n = ids.len();
+        for _ in 0..3 {
+            w.run(&mut app, vec![], Modifiers::NONE);
+        }
+        // A click on the first square on the canvas keeps it (and its group) selected.
+        let vp = app.viewport.expect("viewport");
+        let first = app.session.design().objects[0].bounds().expect("bounds");
+        let s = vp.to_screen(first.center());
+        w.click(&mut app, egui::pos2(s.x as f32, s.y as f32));
+        if how != "two" {
+            assert_eq!(app.selection, ids, "{how}: a click on it selects it");
+        } else {
+            app.selection = ids.clone();
+        }
+        let count = |app: &EditorApp| app.session.design().objects.len();
+        w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+        assert_eq!(
+            app.ui.copied.as_ref().map(|e| e.objects.len()),
+            Some(n),
+            "{how}: Ctrl+C copies the selection"
+        );
+        w.run(&mut app, vec![egui::Event::Paste(String::new())], Modifiers::COMMAND);
+        assert_eq!(count(&app), 2 * n, "{how}: Ctrl+V adds the copy");
+        assert_eq!(app.selection.len(), n, "{how}: the copy is selected");
+        assert!(app.selection.is_disjoint(&ids), "{how}: new objects");
+        app.undo();
+        assert_eq!(count(&app), n, "{how}: one undo step");
+        app.selection = ids.clone();
+        w.ctrl(&mut app, Key::D);
+        assert_eq!(count(&app), 2 * n, "{how}: Ctrl+D duplicates");
+        let dup = app.selection.clone();
+        assert!(dup.len() == n && dup.is_disjoint(&ids), "{how}: the duplicate is selected");
+        app.undo();
+        app.selection = ids.clone();
+        w.run(&mut app, vec![egui::Event::Cut], Modifiers::COMMAND);
+        assert_eq!(count(&app), 0, "{how}: Ctrl+X takes the selection out");
+        w.run(&mut app, vec![egui::Event::Paste(String::new())], Modifiers::COMMAND);
+        assert_eq!(count(&app), n, "{how}: and Ctrl+V puts it back");
+    }
+}
+
+/// #1288, the browser: Ctrl/Cmd+V comes as a key press; the browser's paste event follows only
+/// when the system clipboard holds text, which the page cannot write. The key alone pastes the
+/// page's own copy, and a paste event the browser sends after it does not paste again; a paste
+/// event without the key (the browser's Edit ▸ Paste) pastes once.
+#[test]
+fn in_the_browser_ctrl_v_pastes_the_pages_copy_once() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+    let count = |app: &EditorApp| app.session.design().objects.len();
+    // The key alone: nothing on the system clipboard, no paste event.
+    w.ctrl(&mut app, Key::V);
+    assert_eq!(count(&app), 2, "the key pastes the page's copy");
+    // The browser's paste event for the same key, a frame later: no second paste.
+    w.run(
+        &mut app,
+        vec![egui::Event::Paste("some text".into())],
+        Modifiers::COMMAND,
+    );
+    assert_eq!(count(&app), 2, "the key's paste event does not paste again");
+    // Key and event in the same frame: one paste.
+    w.run(
+        &mut app,
+        vec![
+            key(Key::V, Modifiers::COMMAND),
+            egui::Event::Paste("some text".into()),
+        ],
+        Modifiers::COMMAND,
+    );
+    assert_eq!(count(&app), 3, "key and event together paste once");
+    app.selection = ids;
+}
+
+/// #1288: Flip Vertical (Ctrl+H), Flip Horizontal (Ctrl+J) and Center (Ctrl+M) as keys, for one
+/// object, two and a group: each one undo step, about the selection's centre (the flips keep
+/// its bounds; Center moves them to the Design Page's centre). Join Lines moved to
+/// Ctrl+Shift+J.
+#[test]
+fn flip_and_center_keys_act_on_one_several_and_a_group() {
+    use openstitch_app::editor::ribbon::Action as A;
+    for how in ["one", "two", "group"] {
+        let mut w = Window::new();
+        let mut app = started(&mut w);
+        // An L-shaped pair of squares tells a flip from nothing: one square sits lower.
+        let ids = squares(&mut app, how);
+        if how != "one" {
+            let second = *ids.iter().last().expect("second");
+            app.execute(&CommandRequest::new(
+                "object.move",
+                json!({ "ids": [second], "dx": 0, "dy": 15 }),
+            ))
+            .expect("move");
+            app.selection = ids.clone();
+        }
+        w.run(&mut app, vec![], Modifiers::NONE);
+        let before = bounds_of(&app, &ids);
+        let first = |app: &EditorApp| {
+            app.session.design().objects[0]
+                .bounds()
+                .expect("bounds")
+        };
+        for (k, a) in [(Key::H, A::FlipVertical), (Key::J, A::FlipHorizontal)] {
+            let was = first(&app);
+            w.ctrl(&mut app, k);
+            let after = bounds_of(&app, &ids);
+            assert!(
+                (after.min_x - before.min_x).abs() < 1e-6
+                    && (after.max_y - before.max_y).abs() < 1e-6,
+                "{how} {a:?}: about the selection's centre"
+            );
+            if how != "one" {
+                assert_ne!(first(&app), was, "{how} {a:?}: the first square moved");
+            }
+            app.undo();
+            assert_eq!(first(&app), was, "{how} {a:?}: one undo step undoes it");
+            assert_eq!(bounds_of(&app, &ids), before, "{how} {a:?}");
+        }
+        w.ctrl(&mut app, Key::M);
+        let page = app.session.design().page.center();
+        let c = bounds_of(&app, &ids).center();
+        assert!(
+            (c.x - page.x).abs() < 1e-6 && (c.y - page.y).abs() < 1e-6,
+            "{how}: Ctrl+M centres the selection on the Design Page"
+        );
+        app.undo();
+        assert_eq!(bounds_of(&app, &ids), before, "{how}: Center is one undo step");
+    }
+    // Ctrl+J is no longer Join Lines; Ctrl+Shift+J is.
+    let k = openstitch_app::editor::keymap::Keymap::default();
+    let of = |chord: &str| {
+        k.bindings()
+            .into_iter()
+            .filter(|(_, c)| c == chord)
+            .map(|(a, _)| a)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(of("Ctrl+J"), [A::FlipHorizontal]);
+    assert_eq!(of("Ctrl+Shift+J"), [A::JoinLines]);
+    assert_eq!(of("Ctrl+H"), [A::FlipVertical]);
+    assert_eq!(of("Ctrl+M"), [A::CenterObjects]);
+}
+
+/// #1288: the browser must not act on the editor's Ctrl shortcuts (Ctrl+D bookmarks the page);
+/// the clipboard keys stay the browser's, which turns them into its copy, cut and paste events.
+#[test]
+fn the_editor_keeps_its_ctrl_shortcuts_from_the_browser() {
+    let app = EditorApp::new(Launch::default());
+    for chord in ["Ctrl+D", "Ctrl+H", "Ctrl+J", "Ctrl+M", "Ctrl+A", "Ctrl+G", "Ctrl+Shift+J"] {
+        assert!(app.takes_browser_key(chord), "{chord}");
+    }
+    for chord in ["Ctrl+C", "Ctrl+X", "Ctrl+V", "Ctrl+T", "D", "Ctrl+F5"] {
+        assert!(!app.takes_browser_key(chord), "{chord}");
+    }
 }

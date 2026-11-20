@@ -31,7 +31,12 @@ pub const DEFAULTS: &[(Action, &[&str])] = &[
     (Action::Duplicate, &["Ctrl+D"]),
     (Action::Group, &["Ctrl+G"]),
     (Action::Ungroup, &["Ctrl+Shift+G"]),
-    (Action::JoinLines, &["Ctrl+J"]),
+    (Action::JoinLines, &["Ctrl+Shift+J"]),
+    // PE-DESIGN's object menu (#1288): Flip Vertical Ctrl+H, Flip Horizontal Ctrl+J (Join
+    // Lines, OpenStitch's own, moved to Ctrl+Shift+J), Center Ctrl+M.
+    (Action::FlipVertical, &["Ctrl+H"]),
+    (Action::FlipHorizontal, &["Ctrl+J"]),
+    (Action::CenterObjects, &["Ctrl+M"]),
     (Action::BreakApart, &["Ctrl+Shift+K"]),
     (Action::Delete, &["Delete", "Backspace"]),
 ];
