@@ -2102,6 +2102,11 @@ impl EditorApp {
             self.apply_effects(effects);
         }
         let player_t = self.player_keys(&take);
+        // The Point tool on a stitch pattern (#1272): Tab and Shift+Tab select all or none of
+        // the pattern's needle points, Home, End, Ctrl+Home and Ctrl+End its entry and exit
+        // point. The Stitch Simulator keeps Home and End while it is open, and Tab is left to
+        // a text field that has focus.
+        crate::stitch_points_ui::keys(self, ctx, &take);
         // Keyboard drawing (#499): with a drawing tool the arrows move the drawing cursor.
         crate::keyboard_ui::keys(self, ctx);
         for (key, dx, dy) in [
@@ -2120,11 +2125,14 @@ impl EditorApp {
             // With points selected, Ctrl+arrow moves the selection to the next or previous
             // point of the outline (Right and Down: next) and no point moves (#1260, PE-DESIGN
             // capture f). Without selected points the key is left alone.
-            if crate::point_menu_ui::states(self).is_some()
+            let needles = crate::stitch_points_ui::has_selection(self);
+            if (crate::point_menu_ui::states(self).is_some() || needles)
                 && take(KeyboardShortcut::new(Modifiers::COMMAND, key))
             {
                 self.with_tools(|tools, ctx| {
-                    tools.step_points(dx + dy > 0.0, false, ctx);
+                    if !tools.step_needles(dx + dy > 0.0, false, ctx) {
+                        tools.step_points(dx + dy > 0.0, false, ctx);
+                    }
                     vec![]
                 });
             }
@@ -2138,10 +2146,16 @@ impl EditorApp {
                     let mut moved = false;
                     self.with_tools(|tools, ctx| {
                         if !plain {
-                            moved = tools.step_points(dx + dy > 0.0, true, ctx);
+                            moved = tools.step_needles(dx + dy > 0.0, true, ctx)
+                                || tools.step_points(dx + dy > 0.0, true, ctx);
                             return vec![];
                         }
-                        let effects = tools.nudge_points(dx * points, dy * points, ctx);
+                        // Needle points of a stitch pattern move 0.1 mm a press (#1272,
+                        // PE-DESIGN capture k5), a shape's 0.5 mm.
+                        let needle = crate::stitch_points_ui::NEEDLE_NUDGE;
+                        let effects = tools
+                            .nudge_needles(dx * needle, dy * needle, ctx)
+                            .or_else(|| tools.nudge_points(dx * points, dy * points, ctx));
                         moved = effects.is_some();
                         effects.unwrap_or_default()
                     });

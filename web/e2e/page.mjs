@@ -589,6 +589,67 @@ async function extraChecks(browser, type, label) {
       const lines = (await ok({ command: "object.list" })).filter((o) => o.id === lineA.id || o.id === lineB.id);
       if (lines.length !== 1 || lines[0].id !== lineA.id) throw new Error(`Alt + drag: ${JSON.stringify(lines).slice(0, 300)}`);
       if (new URL(page.url()).pathname !== "/") throw new Error(`the page went elsewhere: ${page.url()}`);
+      // #1272: the Point tool on a stitch pattern. Two running lines in two colours are made
+      // into one stitch pattern (object.toStitches of a group), and split at a point of the
+      // second colour so that there are two patterns to connect.
+      const redLine = await ok({ command: "shape.polygon", params: { points: [[20, 70], [40, 70]], closed: false, outline: "#d32f2f" } });
+      const blueLine = await ok({ command: "shape.polygon", params: { points: [[20, 80], [40, 80]], closed: false, outline: "#1f3a93" } });
+      for (const id of [redLine.id, blueLine.id]) await ok({ command: "object.setLine", params: { id, type: "running", pitch: 2.0 } });
+      await ok({ command: "object.group", params: { ids: [redLine.id, blueLine.id] } });
+      const converted = await ok({ command: "object.toStitches", params: { ids: [redLine.id] } });
+      const patterns = (await ok({ command: "object.list" })).filter((o) => o.kind === "stitches");
+      if (patterns.length < 1) throw new Error(`no stitch pattern: ${JSON.stringify(converted).slice(0, 300)}`);
+      const pattern = patterns[patterns.length - 1];
+      await ok({ command: "ui.select", params: { ids: [pattern.id] } });
+      await page.evaluate((id) => { window.__pattern = id; }, pattern.id);
+      const stitch = (params) => ok({ command: "ui.stitchPoints", params });
+      const st = await stitch({ end: "first" });
+      if (!st.selectedAt?.[0]?.screen) throw new Error(`ui.stitchPoints: ${JSON.stringify(st).slice(0, 300)}`);
+      // One click on a stitch inserts a needle point: between the first two points 2 mm apart.
+      const points = await ok({ command: "stitches.points", params: { id: pattern.id } });
+      const pts = points.points.filter((p) => p.command === "stitch");
+      const k = pts.findIndex((p, i) => i > 0 && Math.abs(p.x - pts[i - 1].x) > 1.5 && Math.abs(p.y - pts[i - 1].y) < 0.01);
+      if (k < 1) throw new Error(`no 2 mm stitch: ${JSON.stringify(pts.slice(0, 8))}`);
+      await stitch({ select: [pts[k - 1].index] });
+      const a1 = (await stitch({})).selectedAt[0].screen;
+      await stitch({ select: [pts[k].index] });
+      const a2 = (await stitch({})).selectedAt[0].screen;
+      const entries = async () => (await ok({ command: "stitches.points", params: { id: pattern.id } })).points.length;
+      const n0 = await entries();
+      await page.mouse.click(box.x + (a1[0] + a2[0]) / 2, box.y + (a1[1] + a2[1]) / 2);
+      await until("one click on a stitch inserts a needle point", (n) => window.openstitch.run({ command: "stitches.points", params: { id: window.__pattern } }).result?.points?.length === n + 1, n0).catch(async () => {
+        throw new Error(`stitch pattern click-insert: ${n0} -> ${await entries()}`);
+      });
+      await ok({ command: "history.undo" });
+      // Ctrl+click adds a needle point to the selection.
+      await stitch({ select: [pts[k - 1].index] });
+      await clickWith("Control", box.x + a2[0], box.y + a2[1]);
+      await until("Ctrl+click adds a needle point", () => (window.openstitch.run({ command: "ui.stitchPoints" }).result?.selected?.length ?? 0) === 2);
+      // Tab selects every needle point of the pattern (PE-DESIGN capture k6), and stays with
+      // the editor; Tab again selects none.
+      await page.keyboard.press("Tab");
+      const tab = await stitch({});
+      const every = tab.colors.reduce((n, c) => n + c.points, 0);
+      if (tab.selected.length !== every) throw new Error(`Tab: ${JSON.stringify(tab).slice(0, 300)}`);
+      await page.keyboard.press("Tab");
+      await until("Tab again selects none", () => (window.openstitch.run({ command: "ui.stitchPoints" }).result?.selected?.length ?? -1) === 0);
+      // Alt + drag of the exit point onto another pattern's entry point connects the two.
+      const lastColour = tab.colors[tab.colors.length - 1];
+      const cutAt = (await ok({ command: "stitches.points", params: { id: pattern.id } })).points.filter((p) => p.color === tab.colors.length - 1 && p.command === "stitch")[4].index;
+      await ok({ command: "stitches.splitAt", params: { id: pattern.id, index: cutAt } });
+      await ok({ command: "ui.select", params: { ids: [pattern.id] } });
+      const ex = await stitch({ end: "last" });
+      if (ex.connectable?.length !== 1 || !ex.connectable[0].screen) throw new Error(`connectable: ${JSON.stringify(ex).slice(0, 300)} (${lastColour.points})`);
+      const exitAt = ex.selectedAt[0].screen;
+      const onto = ex.connectable[0].screen;
+      await page.keyboard.down("Alt");
+      await page.mouse.move(box.x + exitAt[0], box.y + exitAt[1]);
+      await page.mouse.down();
+      await page.mouse.move(box.x + onto[0], box.y + onto[1], { steps: 8 });
+      await until("the Alt-dragged exit point lies on the other pattern's entry", () => window.openstitch.run({ command: "ui.stitchPoints" }).result?.connectOverlap != null);
+      await page.mouse.up();
+      await page.keyboard.up("Alt");
+      await until("Alt + drag connects the two stitch patterns", () => (window.openstitch.run({ command: "object.list" }).result ?? []).filter((o) => o.kind === "stitches").length === 1);
       noErrors("point tool", errors);
     } finally {
       await context.close();

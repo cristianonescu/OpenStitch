@@ -424,6 +424,23 @@ enum Gesture {
         delta: Option<Vec2>,
         marquee: bool,
     },
+    /// Point tool on a stitch pattern: a press on a stitch line (not on a needle point).
+    /// Released where it was pressed it inserts a needle point there (into point `index`,
+    /// at `at`; with `jump`, Ctrl+Shift held, the stitch up to it becomes a jump); dragged it
+    /// is a drag box.
+    NeedleLine {
+        start: Vec2,
+        index: usize,
+        at: Vec2,
+        jump: bool,
+    },
+    /// Point tool on a stitch pattern: the entry or exit point being Alt-dragged onto an
+    /// exit or entry point of another stitch pattern, to connect the two (`onto` is the
+    /// pattern and position it lies on now).
+    NeedleConnect {
+        index: usize,
+        onto: Option<(u64, Vec2)>,
+    },
     /// Point tool on a satin line: one edge (`side`) of width key `index` being dragged.
     Width {
         id: u64,
@@ -539,6 +556,17 @@ pub struct ToolController {
     /// Point tool on a stitch pattern: selected needle point indexes, and whose they are.
     needles: BTreeSet<usize>,
     needle_owner: Option<u64>,
+    /// Point tool on a stitch pattern: the needle point Shift+arrow grows the selection from,
+    /// and how far it reaches (needle points, signed: forward or back).
+    needle_anchor: Option<(usize, i64)>,
+    /// Point tool on a stitch pattern: an Alt-drag of its entry or exit point is on (the
+    /// marks stay shown while it lasts, whatever a frame does with the gesture), and the end
+    /// of another pattern it lies on now.
+    needle_alt_drag: bool,
+    /// Point tool on a stitch pattern: the pattern whose points Tab has just dropped (the next
+    /// Tab selects them all again, PE-DESIGN capture k6).
+    needle_tab_off: Option<u64>,
+    needle_connect_hover: Option<(u64, Vec2)>,
     /// Point tool on a Manual Punch column: the selected rung (column id, rung index).
     rung: Option<(u64, usize)>,
     /// Point tool on a satin line: the selected width key (line id, key index).
@@ -724,6 +752,8 @@ impl ToolController {
         self.adding_line = None;
         self.connect_hover = None;
         self.alt_drag = false;
+        self.needle_alt_drag = false;
+        self.needle_connect_hover = None;
         self.snap_lines = None;
         self.guides.clear();
         self.polygon.clear();
@@ -2843,6 +2873,8 @@ fn finish_select(
         | Gesture::SkeletonPoint { .. }
         | Gesture::Character { .. }
         | Gesture::Needles { .. }
+        | Gesture::NeedleLine { .. }
+        | Gesture::NeedleConnect { .. }
         | Gesture::Rung { .. }
         | Gesture::Width { .. } => vec![],
     }

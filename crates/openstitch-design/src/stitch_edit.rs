@@ -286,8 +286,11 @@ pub fn insert_point(
     }
 }
 
-/// Deletes needle points. Deleting the end of a jump removes the jump (and the trim before
-/// it), so the stitches on either side are joined. At least one stitch must remain.
+/// Deletes needle points, as PE-DESIGN 11.50's Select Point does (#1272, captures k11 and
+/// k14): deleting the point a jump lands on keeps the jump and lands it on the next needle
+/// point (that point becomes the jump's end; nothing is sewn from the point before); deleting
+/// the point a jump starts from makes the jump start from the point before. At least one
+/// stitch must remain.
 pub fn delete_points(b: &mut StitchBlock, indexes: &[usize]) -> Result<(), EditError> {
     for &i in indexes {
         check(b, i)?;
@@ -295,12 +298,14 @@ pub fn delete_points(b: &mut StitchBlock, indexes: &[usize]) -> Result<(), EditE
     let mut remove = vec![false; b.stitches.len()];
     for &i in indexes {
         remove[i] = true;
-        if b.stitches[i].command == Command::Jump {
-            let mut j = i;
-            while j > 0 && b.stitches[j - 1].command == Command::Trim {
-                j -= 1;
-                remove[j] = true;
-            }
+    }
+    // A deleted jump's landing moves to the next needle point that stays.
+    for &i in indexes {
+        if b.stitches[i].command == Command::Jump
+            && let Some(j) =
+                (i + 1..b.stitches.len()).find(|&j| is_point(b.stitches[j].command) && !remove[j])
+        {
+            b.stitches[j].command = Command::Jump;
         }
     }
     let kept: Vec<Stitch> = b
@@ -359,14 +364,35 @@ pub fn filter(b: &StitchBlock, keep: impl Fn(usize) -> bool) -> StitchBlock {
     out
 }
 
-/// Splits at needle point `i`: the first part ends there, the second starts there. Not at the
-/// pattern's first or last needle point.
+/// Splits at needle point `i`: the first part ends there, the second starts there. At the
+/// pattern's entry point the first part is that point alone, at its exit point the second part
+/// is: a piece that sews nothing, so the design sews exactly as before, as PE-DESIGN's Split
+/// at Point on the entry point does (capture k12 of #1272: a group of an empty-looking piece
+/// and the pattern, same stitches). The piece is a jump to where the needle first goes in (at
+/// the exit: last comes out), so the moves before and after the pattern stay as they were: a
+/// file's opening jumps, which no needle lands on, are not sewn to.
 pub fn split_at(b: &StitchBlock, i: usize) -> Result<(StitchBlock, StitchBlock), EditError> {
     check(b, i)?;
     let first = b.stitches.iter().position(|s| is_point(s.command));
     let last = b.stitches.iter().rposition(|s| is_point(s.command));
-    if Some(i) == first || Some(i) == last {
-        return err("cannot split at the entry or exit point");
+    let lone = |at: Option<usize>, k: usize| {
+        let s = b.stitches[at.unwrap_or(i)];
+        StitchBlock {
+            stitches: vec![Stitch::new(s.x, s.y, Command::Jump)],
+            threads: vec![thread_for(b, k)],
+        }
+    };
+    if Some(i) == first {
+        let sewn = b.stitches.iter().position(|s| s.command == Command::Stitch);
+        return Ok((lone(sewn, 0), b.clone()));
+    }
+    if Some(i) == last {
+        let sewn = b
+            .stitches
+            .iter()
+            .rposition(|s| s.command == Command::Stitch);
+        let k = colors(b)[i];
+        return Ok((b.clone(), lone(sewn, k)));
     }
     let (a, c) = (filter(b, |j| j <= i), filter(b, |j| j >= i));
     if !sews(&a) || !sews(&c) {
@@ -567,12 +593,13 @@ mod tests {
 
         let mut b = sample();
         delete_points(&mut b, &[6]).expect("deletes the jump end");
-        // The trim before the jump goes too: 30 is now sewn straight to 50.
+        // The jump and its trim stay: the jump lands on the next point (PE-DESIGN, k11).
         assert_eq!(
-            xs(&b)[4..7],
+            xs(&b)[4..8],
             [
                 (30.0, Command::Stitch),
-                (50.0, Command::Stitch),
+                (30.0, Command::Trim),
+                (50.0, Command::Jump),
                 (60.0, Command::Stitch)
             ]
         );
@@ -587,8 +614,15 @@ mod tests {
     #[test]
     fn split_connect_divide() {
         let b = sample();
-        assert!(split_at(&b, 0).is_err());
-        assert!(split_at(&b, 12).is_err());
+        // At the entry or the exit point: that point alone, which sews nothing (k12).
+        let (a, c) = split_at(&b, 0).expect("splits at the entry");
+        assert_eq!(xs(&a), [(0.0, Command::Jump)]);
+        assert_eq!(a.threads, vec![Thread::rgb(0xff0000)]);
+        assert_eq!(c, b);
+        let (a, c) = split_at(&b, 12).expect("splits at the exit");
+        assert_eq!(a, b);
+        assert_eq!(xs(&c), [(80.0, Command::Jump)]);
+        assert_eq!(c.threads, vec![Thread::rgb(0x0000ff)]);
         let (a, c) = split_at(&b, 3).expect("splits");
         assert_eq!(a.stitches.last().map(|s| s.x), Some(20.0));
         assert_eq!(a.threads.len(), 1);

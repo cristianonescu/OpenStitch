@@ -1031,3 +1031,391 @@ fn esc_closes_an_open_point_menu_and_keeps_the_selection_and_the_tool() {
         assert!(app.selection.is_empty());
     }
 }
+
+/// #1272: an editor with one stitch pattern in two colours (red lines at y = 20 and 30 mm,
+/// blue at 50 and 60, from x = 20 to 40, a jump between each two lines), read from a DST file
+/// as a machine file is imported, selected, with the Point tool. Returns the editor and the
+/// pattern's id.
+fn two_colour_pattern() -> (EditorApp, u64) {
+    let dir = std::env::temp_dir().join(format!(
+        "openstitch-app-two-colours-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    std::fs::create_dir_all(&dir).expect("scratch folder");
+    let mut s = openstitch_engine::Session::new(dir.clone());
+    for (k, (y, colour)) in [(20, "#d32f2f"), (30, "#d32f2f"), (50, "#1f3a93"), (60, "#1f3a93")]
+        .into_iter()
+        .enumerate()
+    {
+        s.execute(
+            "shape.path",
+            Some(&json!({ "points": [[20, y], [40, y]], "closed": false, "outline": colour })),
+        )
+        .expect("line");
+        s.execute(
+            "object.setLine",
+            Some(&json!({ "id": k + 1, "type": "running", "pitch": 2.0 })),
+        )
+        .expect("running");
+    }
+    s.execute("design.export", Some(&json!({ "path": "k0.dst" })))
+        .expect("export");
+    let mut app = EditorApp::new(Launch::default());
+    let r = app
+        .execute(&CommandRequest::new(
+            "stitches.import",
+            json!({ "path": dir.join("k0.dst").display().to_string() }),
+        ))
+        .expect("import");
+    let _ = std::fs::remove_dir_all(&dir);
+    let id = r["id"]
+        .as_u64()
+        .or_else(|| r["ids"][0].as_u64())
+        .expect("id");
+    app.selection = BTreeSet::from([id]);
+    app.tools.set_tool(Tool::Point);
+    (app, id)
+}
+
+/// The needle points selected with the Point tool, and each colour's points.
+fn needles(app: &EditorApp) -> (BTreeSet<usize>, Vec<Vec<usize>>) {
+    let ctx = app.tool_context(app.session.design());
+    let o = ctx.needle_target().expect("the stitch pattern");
+    (
+        app.tools.selected_needles(&ctx),
+        openstitch_app::editor::tools::needles::color_groups(o),
+    )
+}
+
+/// Tab, Shift+Tab, Home, End, Ctrl+Home, Ctrl+End, Ctrl+arrow, Shift+arrow and the arrows on
+/// a stitch pattern with the Point tool, as real key events (#1272, PE-DESIGN captures k4 to
+/// k7: the arrows move the points 0.1 mm).
+#[test]
+fn the_point_tools_keys_on_a_stitch_pattern() {
+    let ctx = egui::Context::default();
+    let (mut app, id) = two_colour_pattern();
+    let (none, groups) = needles(&app);
+    assert!(none.is_empty());
+    let set = |g: &Vec<usize>| g.iter().copied().collect::<BTreeSet<usize>>();
+    let (red, blue) = (groups[0].clone(), groups[1].clone());
+    let all: BTreeSet<usize> = groups.iter().flatten().copied().collect();
+    let (first, last) = (*all.first().expect("entry"), *all.last().expect("exit"));
+    // Nothing selected: Tab and Home do nothing (PE-DESIGN capture k6, k7).
+    press(&ctx, &mut app, Key::Tab, Modifiers::NONE);
+    press(&ctx, &mut app, Key::Home, Modifiers::NONE);
+    assert!(needles(&app).0.is_empty());
+    // One point: Tab selects all of the pattern's, again none, Shift+Tab all again.
+    app.tools.set_needle_selection(id, BTreeSet::from([red[3]]));
+    press(&ctx, &mut app, Key::Tab, Modifiers::NONE);
+    assert_eq!(needles(&app).0, all, "Tab: all");
+    press(&ctx, &mut app, Key::Tab, Modifiers::NONE);
+    assert!(needles(&app).0.is_empty(), "Tab: none");
+    press(&ctx, &mut app, Key::Tab, Modifiers::SHIFT);
+    assert_eq!(needles(&app).0, all, "Shift+Tab: all again");
+    press(&ctx, &mut app, Key::End, Modifiers::NONE);
+    assert_eq!(needles(&app).0, BTreeSet::from([last]), "End: the exit point");
+    press(&ctx, &mut app, Key::Home, Modifiers::NONE);
+    assert_eq!(needles(&app).0, BTreeSet::from([first]), "Home: the entry point");
+    press(&ctx, &mut app, Key::End, Modifiers::COMMAND);
+    assert_eq!(needles(&app).0, BTreeSet::from([last]), "Ctrl+End");
+    press(&ctx, &mut app, Key::Home, Modifiers::COMMAND);
+    assert_eq!(needles(&app).0, BTreeSet::from([first]), "Ctrl+Home");
+    let _ = (set(&red), blue.len());
+    // Ctrl+arrow steps, Shift+arrow grows; nothing moves.
+    let before = app.session.design().clone();
+    press(&ctx, &mut app, Key::ArrowRight, Modifiers::COMMAND);
+    assert_eq!(needles(&app).0, BTreeSet::from([red[1]]), "Ctrl+Right: the next point");
+    press(&ctx, &mut app, Key::ArrowRight, Modifiers::SHIFT);
+    press(&ctx, &mut app, Key::ArrowRight, Modifiers::SHIFT);
+    assert_eq!(
+        needles(&app).0,
+        BTreeSet::from([red[1], red[2], red[3]]),
+        "Shift+Right twice: two more"
+    );
+    assert_eq!(*app.session.design(), before, "stepping moves nothing");
+    // The arrows move the selected points: one undo step.
+    press(&ctx, &mut app, Key::ArrowDown, Modifiers::NONE);
+    let moved = app.session.design().clone();
+    assert_ne!(moved, before);
+    let block = |d: &openstitch_design::Design| {
+        d.objects[d.index_of(id).expect("pattern")]
+            .stitch_block
+            .clone()
+            .expect("block")
+    };
+    let (b0, b1) = (block(&before), block(&moved));
+    let step = crate::stitch_points_ui::NEEDLE_NUDGE;
+    for k in [red[1], red[2], red[3]] {
+        assert!((b1.stitches[k].y - b0.stitches[k].y - step).abs() < 1e-9, "{k}");
+    }
+    assert_eq!(b1.stitches[red[0]], b0.stitches[red[0]], "an unselected point stays");
+    app.undo();
+    assert_eq!(*app.session.design(), before, "one Undo");
+}
+
+/// Home and End belong to the Stitch Simulator while it is open (it steps to the start and
+/// the end), to the Point tool otherwise; Tab is left to a text field that has the focus.
+#[test]
+fn the_simulator_keeps_home_and_end_and_a_text_field_keeps_tab() {
+    let ctx = egui::Context::default();
+    let (mut app, _) = two_colour_pattern();
+    app.refresh();
+    app.simulate = Some(5);
+    press(&ctx, &mut app, Key::End, Modifiers::NONE);
+    assert!(needles(&app).0.is_empty(), "the Point tool did not take End");
+    assert_ne!(app.simulate, Some(5), "the simulator stepped");
+    // End took the simulator to the end, which closes it: open it again.
+    app.simulate = Some(5);
+    press(&ctx, &mut app, Key::End, Modifiers::COMMAND);
+    assert!(needles(&app).0.is_empty(), "the Point tool did not take Ctrl+End");
+    app.simulate = None;
+    press(&ctx, &mut app, Key::End, Modifiers::COMMAND);
+    assert_eq!(needles(&app).0.len(), 1, "with the simulator closed Ctrl+End selects");
+    // A text field with the focus keeps Tab.
+    let (mut app, id) = two_colour_pattern();
+    let one = needles(&app).1[0][3];
+    app.tools.set_needle_selection(id, BTreeSet::from([one]));
+    let field = egui::Id::unique("a text field");
+    let mut text = String::new();
+    for k in 0..2 {
+        let events = if k == 1 {
+            vec![key(Key::Tab, Modifiers::NONE)]
+        } else {
+            vec![]
+        };
+        frame(&ctx, &mut app, events, Modifiers::NONE, 1.0 / 60.0, |app, ctx| {
+            egui::Area::new(egui::Id::unique("area")).show(ctx, |ui| {
+                let r = ui.add(egui::TextEdit::singleline(&mut text).id(field));
+                r.request_focus();
+            });
+            app.shortcuts(ctx);
+        });
+    }
+    assert_eq!(
+        needles(&app).0,
+        BTreeSet::from([one]),
+        "Tab went to the text field"
+    );
+}
+
+/// Split at Point on a stitch pattern is available on every point, the entry and exit point
+/// too, where it makes a group of the point alone and the pattern that sews exactly as before
+/// (PE-DESIGN capture k12); `ui.stitchPoints` drives the keys and reports the colours, and
+/// the hint line follows the selection.
+#[test]
+fn split_at_point_ui_stitch_points_and_the_hint_on_a_stitch_pattern() {
+    use openstitch_app::editor::ribbon::Action;
+    let (mut app, id) = two_colour_pattern();
+    let s = app.ui_command("ui.stitchPoints", None).expect("state");
+    assert_eq!(s["id"], json!(id));
+    let colors = s["colors"].as_array().expect("colors").clone();
+    assert_eq!(colors.len(), 2);
+    let entry = colors[0]["entry"].as_u64().expect("entry") as usize;
+    let exit = colors[1]["exit"].as_u64().expect("exit") as usize;
+    assert!(
+        s["hint"].as_str().expect("hint").contains("Split at Point"),
+        "{s}"
+    );
+    // Split at Point is not grey on the entry and exit point, as PE-DESIGN shows it (capture
+    // k12): it makes a group of the point alone and the pattern, and the stitches the design
+    // sews stay the same.
+    let sewn = |app: &EditorApp| {
+        let d = app.session.design();
+        openstitch_design::Compiler::for_design(d).compile(d).stitches
+    };
+    let k0 = sewn(&app);
+    for (end, name) in [(entry, "entry"), (exit, "exit")] {
+        let s = app
+            .ui_command("ui.stitchPoints", Some(&json!({ "select": [end] })))
+            .expect("select");
+        assert!(
+            crate::ribbon::enabled(&app, Action::SplitAtPoint),
+            "Split at Point on the {name} point"
+        );
+        assert_eq!(
+            s["menu"],
+            json!([
+                { "key": "splitAtPoint", "label": "Split at Point", "enabled": true },
+                { "key": "deletePoint", "label": "Delete", "enabled": true },
+            ]),
+            "the needle point menu"
+        );
+        let before = app.session.design().clone();
+        app.ui_command("ui.stitchPoints", Some(&json!({ "action": "splitAtPoint" })))
+            .expect("Split at Point");
+        let d = app.session.design();
+        assert_eq!(d.objects.len(), 2, "{name}: two pieces");
+        assert!(d.objects[0].group.is_some(), "{name}: a group");
+        assert_eq!(d.objects[0].group, d.objects[1].group, "{name}");
+        let lone = usize::from(end == exit);
+        assert_eq!(
+            d.objects[lone].stitch_block.as_ref().map(|b| b.stitches.len()),
+            Some(1),
+            "{name}: the point alone"
+        );
+        assert_eq!(sewn(&app), k0, "{name}: the same stitches as before the split");
+        app.undo();
+        assert_eq!(*app.session.design(), before, "{name}: one undo step");
+        app.selection = BTreeSet::from([id]);
+    }
+    let s = app
+        .ui_command("ui.stitchPoints", Some(&json!({ "select": [entry] })))
+        .expect("select");
+    assert!(s["hint"].as_str().expect("hint").contains("Alt"), "{s}");
+    let s = app
+        .ui_command("ui.stitchPoints", Some(&json!({ "step": "next" })))
+        .expect("step");
+    let middle = s["selected"][0].as_u64().expect("one") as usize;
+    assert_ne!(middle, entry);
+    assert!(crate::ribbon::enabled(&app, Action::SplitAtPoint), "available between");
+    let s = app
+        .ui_command("ui.stitchPoints", Some(&json!({ "tab": true })))
+        .expect("Tab");
+    assert_eq!(
+        s["selected"].as_array().expect("selected").len() as u64,
+        colors
+            .iter()
+            .map(|c| c["points"].as_u64().expect("count"))
+            .sum::<u64>(),
+        "Tab: every point of the pattern"
+    );
+    // The needle point menu's Delete, as a click on it: one point fewer, the neighbour
+    // selected.
+    let one = app
+        .ui_command("ui.stitchPoints", Some(&json!({ "select": [middle] })))
+        .expect("select");
+    let n = one["points"].as_u64().expect("points");
+    let s = app
+        .ui_command("ui.stitchPoints", Some(&json!({ "action": "deletePoint" })))
+        .expect("Delete");
+    assert_eq!(s["points"].as_u64(), Some(n - 1));
+    assert_eq!(s["selected"].as_array().map(Vec::len), Some(1));
+    app.undo();
+    let s = app
+        .ui_command("ui.stitchPoints", Some(&json!({ "end": "first" })))
+        .expect("Ctrl+Home");
+    assert_eq!(s["selected"], json!([entry]));
+    assert!(
+        app.ui_command("ui.stitchPoints", Some(&json!({ "end": "middle" })))
+            .is_err()
+    );
+    assert!(
+        app.ui_command("ui.stitchPoints", Some(&json!({ "select": [99999] })))
+            .is_err()
+    );
+    let spec = openstitch_app::editor::assistant::UI_COMMANDS
+        .iter()
+        .find(|c| c.id == "ui.stitchPoints")
+        .expect("ui.stitchPoints");
+    for words in ["Tab", "Ctrl+Home", "Shift+arrow", "stitches.connect", "jump: true", "Split at Point"] {
+        assert!(spec.summary.contains(words), "{words}");
+    }
+}
+
+/// With the pattern's exit point selected and Alt held, the other pattern's entry point is
+/// marked with an x; Alt+drag onto it shows the red square, and releasing connects the two
+/// into one pattern (#1272).
+#[test]
+fn the_alt_marks_of_a_stitch_pattern_are_painted_and_connect() {
+    use openstitch_app::editor::Phase;
+    fn flat(shape: &egui::Shape, out: &mut Vec<egui::Shape>) {
+        match shape {
+            egui::Shape::Vec(list) => list.iter().for_each(|s| flat(s, out)),
+            other => out.push(other.clone()),
+        }
+    }
+    let ctx = egui::Context::default();
+    let mut frame = eframe::Frame::_new_kittest();
+    let mut painted = |app: &mut EditorApp| {
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let raw = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1440.0, 900.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(raw, |ui| eframe::App::ui(app, ui, &mut frame));
+            out.textures_delta.clear();
+            shapes.clear();
+            for clipped in &out.shapes {
+                flat(&clipped.shape, &mut shapes);
+            }
+        }
+        let ink = egui::Color32::from_gray(16);
+        let red = egui::Color32::from_rgb(0xe0, 0x20, 0x20);
+        let strokes = shapes
+            .iter()
+            .filter(|s| {
+                matches!(s, egui::Shape::LineSegment { stroke, .. } if stroke.width == 1.5 && stroke.color == ink)
+            })
+            .count();
+        let squares = shapes
+            .iter()
+            .filter(|s| matches!(s, egui::Shape::Rect(r) if r.stroke.color == red && r.stroke.width == 2.0))
+            .count();
+        (strokes, squares)
+    };
+    let (mut app, id) = two_colour_pattern();
+    // A second pattern: the pattern split at a point of its second colour.
+    let (_, groups) = needles(&app);
+    let cut = groups[1][4];
+    let r = app
+        .execute(&CommandRequest::new(
+            "stitches.splitAt",
+            json!({ "id": id, "index": cut }),
+        ))
+        .expect("split");
+    let second = r["ids"][1].as_u64().expect("second part");
+    app.selection = BTreeSet::from([id]);
+    app.tools.set_tool(Tool::Point);
+    let s = app
+        .ui_command("ui.stitchPoints", Some(&json!({ "end": "last" })))
+        .expect("the exit point");
+    let connectable = s["connectable"].as_array().expect("connectable").clone();
+    assert_eq!(connectable.len(), 1, "{s}");
+    assert_eq!(connectable[0]["id"], json!(second));
+    assert_eq!(painted(&mut app), (0, 0), "no marks without Alt");
+    let exit_at = {
+        let c = app.tool_context(app.session.design());
+        let o = c.needle_target().expect("pattern");
+        openstitch_app::editor::tools::needles::needle_points(o)
+            .last()
+            .expect("exit")
+            .1
+    };
+    let to = openstitch_design::v2(
+        connectable[0]["x"].as_f64().expect("x") * 10.0,
+        connectable[0]["y"].as_f64().expect("y") * 10.0,
+    );
+    let event = |phase, at| {
+        let mut e = openstitch_app::editor::PointerEvent::new(phase, at);
+        e.alt = true;
+        e
+    };
+    app.with_tools(|t, c| t.handle(event(Phase::Down, exit_at), c));
+    {
+        let c = app.tool_context(app.session.design());
+        assert!(
+            !app.tools.needle_connect_marks(false, &c).is_empty(),
+            "the Alt-drag started: selected {:?}, exit at {exit_at:?}",
+            app.tools.selected_needles(&c)
+        );
+    }
+    app.with_tools(|t, c| t.handle(event(Phase::Dragged, exit_at + openstitch_design::v2(30.0, 0.0)), c));
+    assert_eq!(painted(&mut app), (2, 0), "an x of two strokes on the one end");
+    app.with_tools(|t, c| t.handle(event(Phase::Dragged, to), c));
+    assert_eq!(painted(&mut app), (2, 1), "and the red square on it");
+    app.with_tools(|t, c| t.handle(event(Phase::Up, to), c));
+    let patterns = app
+        .session
+        .design()
+        .objects
+        .iter()
+        .filter(|o| o.kind == openstitch_design::ObjectKind::Stitches)
+        .count();
+    assert_eq!(patterns, 1, "connected into one");
+    assert_eq!(painted(&mut app), (0, 0));
+}

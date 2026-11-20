@@ -239,8 +239,7 @@ fn bad_stitch_edit_parameters_fail_cleanly() {
             "stitches.deletePoints",
             json!({"id": 1, "indexes": (0..n).collect::<Vec<_>>()}),
         ),
-        ("stitches.splitAt", json!({"id": 1, "index": 0})),
-        ("stitches.splitAt", json!({"id": 1, "index": n - 1})),
+        ("stitches.splitAt", json!({"id": 1, "index": n})),
         ("stitches.connect", json!({"ids": [1]})),
         ("stitches.connect", json!({"ids": [1, 1]})),
         ("stitches.connect", json!({"ids": [1, 3]})),
@@ -269,4 +268,191 @@ fn bad_stitch_edit_parameters_fail_cleanly() {
         assert!(s.execute(id, Some(&params)).is_err(), "{id} {params}");
         assert_eq!(s.design(), &before, "{id} {params} changed the design");
     }
+}
+
+/// Select Point on a stitch pattern (#1272): Ctrl+Shift+click inserts a point with the stitch
+/// up to it as a jump; deleting either end of a jump keeps the jump on the neighbour
+/// (PE-DESIGN captures k11, k14).
+#[test]
+fn insert_as_a_jump_and_delete_a_jump_end() {
+    let mut s = session();
+    let pts = points(&mut s, 1);
+    let k = pts
+        .iter()
+        .enumerate()
+        .skip(5)
+        .find(|(_, p)| p["command"] == "stitch")
+        .map(|(k, _)| k)
+        .expect("a stitch");
+    let jumps = |s: &mut Session| {
+        points(s, 1)
+            .iter()
+            .filter(|p| p["command"] == "jump")
+            .count()
+    };
+    let before = jumps(&mut s);
+    let r = run(
+        &mut s,
+        "stitches.insertPoint",
+        json!({"id": 1, "index": k, "jump": true}),
+    );
+    let new = r["index"].as_u64().expect("index") as usize;
+    assert_eq!(new, k + 1, "the stitch after the new jump entry");
+    assert_eq!(jumps(&mut s), before + 1);
+    let now = points(&mut s, 1);
+    assert_eq!(now[k]["command"], "jump");
+    assert_eq!(
+        (now[k]["x"].clone(), now[k]["y"].clone()),
+        (now[new]["x"].clone(), now[new]["y"].clone())
+    );
+    // Deleting the point the jump lands on keeps the jump: it lands on the next point now
+    // (PE-DESIGN captures k11, k14), and nothing is sewn from the point before.
+    run(
+        &mut s,
+        "stitches.deletePoints",
+        json!({"id": 1, "indexes": [k]}),
+    );
+    assert_eq!(jumps(&mut s), before + 1, "the jump is kept");
+    assert_eq!(points(&mut s, 1)[k]["command"], "jump", "on the next point");
+    run(&mut s, "history.undo", json!({}));
+    // Deleting the point a jump starts from: the jump starts from the point before.
+    let start = k - 1;
+    let was = points(&mut s, 1)[start - 1].clone();
+    run(
+        &mut s,
+        "stitches.deletePoints",
+        json!({"id": 1, "indexes": [start]}),
+    );
+    let now = points(&mut s, 1);
+    assert_eq!(
+        now[start]["command"], "jump",
+        "the jump follows the point before"
+    );
+    assert_eq!(now[start - 1], was);
+    assert_eq!(jumps(&mut s), before + 1);
+}
+
+/// Split at Point on the entry or the exit point (#1272, PE-DESIGN capture k12): the entry
+/// (or exit) point alone becomes a piece that sews nothing, the two pieces form a group, and
+/// the exported stitches are the same bytes as before the split.
+#[test]
+fn split_at_the_entry_or_exit_point_groups_and_sews_the_same() {
+    let dir = openstitch_testutil::TempDir::new("split-ends");
+    let mut s = Session::new(dir.path());
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 20, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 50, "y": 10, "width": 20, "height": 20, "fill": "Blue"}),
+    );
+    run(&mut s, "object.toStitches", json!({"ids": [1, 2]}));
+    run(&mut s, "design.export", json!({"path": "k0.dst"}));
+    let k0 = std::fs::read(dir.join("k0.dst")).expect("dst");
+    let is_point = |p: &Value| p["command"] == "stitch" || p["command"] == "jump";
+    let all = points(&mut s, 1);
+    let first = all.iter().position(is_point).expect("entry");
+    let last = all.iter().rposition(is_point).expect("exit");
+    for (at, name) in [(first, "entry"), (last, "exit")] {
+        let before = s.design().clone();
+        let r = run(&mut s, "stitches.splitAt", json!({"id": 1, "index": at}));
+        let new = r["ids"][1].as_u64().expect("id");
+        let d = s.design();
+        assert_eq!(d.objects.len(), 3, "{name}");
+        assert_eq!((d.objects[0].id, d.objects[1].id), (1, new), "{name}");
+        assert!(d.objects[0].group.is_some(), "{name}: grouped");
+        assert_eq!(d.objects[0].group, d.objects[1].group, "{name}");
+        assert_eq!(
+            d.objects[2].group, None,
+            "{name}: the other pattern stays out"
+        );
+        let lone = if at == first { 0 } else { 1 };
+        let piece = d.objects[lone].stitch_block.as_ref().expect("block");
+        assert_eq!(piece.stitches.len(), 1, "{name}: the point alone");
+        assert_eq!(
+            piece.stitches[0].command,
+            Command::Jump,
+            "{name}: sews nothing"
+        );
+        // Where the needle first goes in (at the exit: last comes out), in mm.
+        let sewn: Vec<&Value> = all.iter().filter(|p| p["command"] == "stitch").collect();
+        let at_needle = if at == first {
+            sewn[0]
+        } else {
+            sewn[sewn.len() - 1]
+        };
+        assert_eq!(
+            (piece.stitches[0].x / 10.0, piece.stitches[0].y / 10.0),
+            (
+                at_needle["x"].as_f64().expect("x"),
+                at_needle["y"].as_f64().expect("y")
+            ),
+            "{name}: the point, in mm"
+        );
+        assert_eq!(
+            d.objects[1 - lone].stitch_block,
+            before.objects[0].stitch_block,
+            "{name}: the pattern is unchanged"
+        );
+        let file = format!("k12-{name}.dst");
+        run(&mut s, "design.export", json!({"path": file}));
+        // Byte for byte after the header's label (DST's first 20 bytes: the file name).
+        assert_eq!(
+            std::fs::read(dir.join(&file)).expect("dst")[20..],
+            k0[20..],
+            "{name}: the file's stitches are the same as before the split"
+        );
+        run(&mut s, "history.undo", json!({}));
+        assert_eq!(s.design(), &before, "{name}: one undo step");
+    }
+}
+
+/// `first` says which pattern comes first, as the Point tool's Alt+drag of an exit point onto
+/// another pattern's entry point gives it; the joined pattern keeps that one's id and takes
+/// the earlier place in the sewing order.
+#[test]
+fn connect_with_first_sews_that_pattern_first() {
+    let mut s = session();
+    let entry_of = |s: &mut Session, id: u64| {
+        let pts = points(s, id);
+        let p = pts
+            .iter()
+            .find(|p| p["command"] == "stitch" || p["command"] == "jump")
+            .expect("entry")
+            .clone();
+        (p["x"].as_f64().expect("x"), p["y"].as_f64().expect("y"))
+    };
+    let (red, blue) = (entry_of(&mut s, 1), entry_of(&mut s, 2));
+    // Blue (sewn second) first: the joined pattern starts with blue, keeps blue's id, and is
+    // where red was in the sewing order.
+    let r = run(
+        &mut s,
+        "stitches.connect",
+        json!({"ids": [1, 2], "first": 2}),
+    );
+    assert_eq!(r["id"], json!(2));
+    let d = s.design();
+    assert_eq!(d.objects.len(), 1);
+    assert_eq!(d.objects[0].id, 2);
+    assert_eq!(entry_of(&mut s, 2), blue);
+    assert_ne!(blue, red);
+    run(&mut s, "history.undo", json!({}));
+    // Without first: the one sewn earlier.
+    let r = run(&mut s, "stitches.connect", json!({"ids": [2, 1]}));
+    assert_eq!(r["id"], json!(1));
+    assert_eq!(entry_of(&mut s, 1), red);
+    run(&mut s, "history.undo", json!({}));
+    // first must be one of the two.
+    let e = s
+        .execute(
+            "stitches.connect",
+            Some(&json!({"ids": [1, 2], "first": 9})),
+        )
+        .expect_err("not one of them")
+        .to_string();
+    assert!(e.contains("not one of ids"), "{e}");
 }

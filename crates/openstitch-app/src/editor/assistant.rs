@@ -620,6 +620,44 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.stitchPoints",
+        summary: "The Select Point tool on the one selected stitch pattern (#1272), as PE-DESIGN's: needle points are the pattern's stitch and jump entries, by index (stitches.points lists them with their colour block). select sets the selected points; tab: true is Tab (or Shift+Tab, the same): with points selected every point of the pattern, with all selected none, with none selected nothing unless Tab has just dropped them (PE-DESIGN capture k6); end entry / exit selects the pattern's entry or exit point (Home, End; nothing with none selected), first / last the same with none selected too (Ctrl+Home, Ctrl+End); step next / previous selects the next or previous point alone (Ctrl+arrow), with extend: true it grows the selection by one point from where it started and shrinks it the other way (Shift+arrow). connectTo {id} connects the pattern to another stitch pattern as Alt+drag of the selected entry or exit point onto that pattern's exit or entry point does (stitches.connect with first: the exit's pattern is sewn first), one undo step. Delete (the Delete key, and the menu's Delete) selects the deleted point's neighbour, as PE-DESIGN's. action splitAtPoint or deletePoint runs the needle point menu's Split at Point or Delete; Split at Point on the entry or exit point makes a group of that point alone and the pattern, which sews the same stitches (PE-DESIGN capture k12). Answers with menu (the needle point menu's entries: key, label, enabled), menuOpen, selected, selectedAt (each selected point's index, x and y in mm and screen: where it is in the window), colors (each colour's entry and exit index and point count), connectable (the patterns the one selected entry or exit point can connect to, with the end's x, y and screen), connectOverlap (the end the Alt-dragged point lies on now, where the red square is drawn; null otherwise) and the hint line. Insert a point with stitches.insertPoint (jump: true as Ctrl+Shift+click), move with stitches.movePoints, delete with stitches.deletePoints. Selecting runs the Point tool",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "select",
+                "[int]",
+                false,
+                "Needle point indexes to select (replacing the selection)",
+            ),
+            p(
+                "color",
+                "string",
+                false,
+                "next (Tab) or previous (Shift+Tab)",
+            ),
+            p(
+                "end",
+                "string",
+                false,
+                "entry (Home), exit (End), first (Ctrl+Home) or last (Ctrl+End)",
+            ),
+            p("step", "string", false, "next or previous (Ctrl+arrow)"),
+            p(
+                "extend",
+                "bool",
+                false,
+                "With step: grow or shrink the selection (Shift+arrow)",
+            ),
+            p(
+                "connectTo",
+                "int",
+                false,
+                "Another stitch pattern's id (from connectable)",
+            ),
+        ],
+    },
+    UiCommand {
         id: "ui.notesClear",
         summary: "Forget everything: clear the Assistant's notes (Assistant settings, Memory, Forget everything). Always asks the user first",
         effect: Effect::Settings,

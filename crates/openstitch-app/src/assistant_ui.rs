@@ -504,6 +504,7 @@ impl EditorApp {
             "ui.pointMenu" => crate::point_menu_ui::command(self, params),
             "ui.preview" => self.preview_command(params),
             "ui.stitchTable" => self.stitch_table_command(params),
+            "ui.stitchPoints" => crate::stitch_points_ui::command(self, params),
             "ui.recoveryList" => Ok(crate::recovery_ui::list(self)),
             "ui.recoveryRestore" => {
                 let id = p.string("id", None).map_err(err)?;

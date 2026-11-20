@@ -25,6 +25,16 @@ pub struct PointMenu {
     /// Where the menu's panel was painted, and in which colour; `None` until a frame has
     /// drawn it (a menu's first frame only measures it, and paints nothing).
     drawn: Option<(egui::Rect, egui::Color32)>,
+    /// The needle point menu (a right-click on a stitch pattern's needle point, #1272):
+    /// PE-DESIGN's two entries, Split at Point and Delete.
+    needle: bool,
+}
+
+impl PointMenu {
+    /// Whether this is the needle point menu.
+    pub fn is_needle(&self) -> bool {
+        self.needle
+    }
 }
 
 /// What an arrow key moves the selected points by, 0.1 mm units: 0.5 mm, PE-DESIGN 11.50's
@@ -68,6 +78,7 @@ pub(crate) fn open_for_test(app: &mut EditorApp, at: Pos2, object: bool) {
         object,
         sub: false,
         drawn: None,
+        needle: false,
     });
 }
 
@@ -110,6 +121,16 @@ pub fn action_of(a: Action) -> Option<PointAction> {
 /// (`editor::hints::point_hint`); `None` with another tool or target.
 pub fn hint(app: &EditorApp) -> Option<&'static str> {
     let ctx = app.tool_context(app.session.design());
+    // On a stitch pattern (#1272): what its needle points can do.
+    if let Some(o) = ctx.needle_target().filter(|_| app.tools.needle_overlay(&ctx).is_some()) {
+        let selected = app.tools.selected_needles(&ctx);
+        let end = selected.len() == 1
+            && selected
+                .first()
+                .and_then(|&i| openstitch_app::editor::tools::needles::end_of(o, i))
+                .is_some();
+        return Some(openstitch_app::editor::hints::needle_hint(selected.len(), end));
+    }
     app.tools
         .point_selection(&ctx)
         .map(openstitch_app::editor::hints::point_hint)
@@ -138,21 +159,24 @@ pub fn pointer(app: &mut EditorApp, response: &egui::Response, vp: &Viewport) ->
         return false;
     };
     let model = vp.to_model(v2(f64::from(at.x), f64::from(at.y)));
-    let (mut hit, mut object) = (false, false);
+    let (mut hit, mut object, mut needle) = (false, false, false);
     app.with_tools(|tools, ctx| {
-        hit = tools.select_point_at(model, ctx);
+        // A stitch pattern's needle point: its menu, Split at Point and Delete (#1272).
+        needle = tools.select_needle_at(model, ctx);
+        hit = !needle && tools.select_point_at(model, ctx);
         // Not on a point: the object's menu, as PE-DESIGN opens it.
-        object = !hit && tools.object_menu_at(model, ctx);
+        object = !hit && !needle && tools.object_menu_at(model, ctx);
         vec![]
     });
-    app.workspace.view.point_menu = (hit || object).then_some(PointMenu {
+    app.workspace.view.point_menu = (hit || object || needle).then_some(PointMenu {
         at,
         fresh: true,
         object,
         sub: false,
         drawn: None,
+        needle,
     });
-    hit || object
+    hit || object || needle
 }
 
 /// The icon in front of a point-menu entry: PE-DESIGN's menu has one on Split at Point and on
@@ -382,6 +406,10 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         object_window(app, ctx, m);
         return;
     }
+    if m.needle {
+        needle_window(app, ctx, m);
+        return;
+    }
     let Some(enabled) = states(app) else {
         return;
     };
@@ -398,6 +426,36 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     });
     if let Some(a) = chosen {
         run(app, a);
+        return;
+    }
+    m.drawn = painted.or(m.drawn);
+    let (pressed, esc) = ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));
+    let outside = pressed && !r.response.contains_pointer();
+    if !esc && (m.fresh || !outside) {
+        m.fresh = false;
+        app.workspace.view.point_menu = Some(m);
+    }
+}
+
+/// The needle point menu (#1272): PE-DESIGN's two entries, Split at Point and Delete, with
+/// their icons (capture k12: neither is grey on the entry or exit point).
+fn needle_window(app: &mut EditorApp, ctx: &egui::Context, mut m: PointMenu) {
+    let entries = crate::stitch_points_ui::needle_menu(app);
+    let mut chosen = None;
+    let (r, painted) = panel(ctx, "needle-point-menu", m.at, 170.0, |ui| {
+        for (key, text, enabled) in entries {
+            let icon = if key == "splitAtPoint" {
+                entry_icon(PointAction::Split)
+            } else {
+                entry_icon(PointAction::Delete)
+            };
+            if row(ui, icon, text, enabled, false).clicked() {
+                chosen = Some(key);
+            }
+        }
+    });
+    if let Some(key) = chosen {
+        let _ = crate::stitch_points_ui::menu_entry(app, key);
         return;
     }
     m.drawn = painted.or(m.drawn);
@@ -1088,6 +1146,7 @@ mod tests {
                 object,
                 sub: false,
                 drawn: None,
+                needle: false,
             });
             let measured = frame(&mut app);
             assert_eq!(
@@ -1388,6 +1447,7 @@ mod tests {
                 object,
                 sub: false,
                 drawn: None,
+                needle: false,
             });
         };
         let state = |app: &mut EditorApp| {
