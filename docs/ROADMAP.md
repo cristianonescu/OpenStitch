@@ -294,7 +294,8 @@ written to their own PES 0110 fields since 2026-11-17 (#1160), and `import.pes` 
 values of a damaged or hand-made file to the ranges their commands accept (#1125). A stem
 line's Width, Spacing, Angle and Stitch Type and a chain line's Stitch Type, Size, Time and Arrange
 are read from and written to their own fields too (#1237), and a candlewick knot has PE-DESIGN's
-number of points at every Size (#1236).
+number of points at every Size (#1236). A right-click on objects opens PE-DESIGN's object menu, with its Flip,
+Center and clipboard shortcuts in the window and the browser (#1288).
 
 Done 2026-11-05 (#460-#464): the stitch-engine follow-ups of the review. Narrow Auto satin no
 longer starts with a 39.5 mm stitch, Auto Punch sews regions whose satin would cross more than

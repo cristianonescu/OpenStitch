@@ -5326,3 +5326,40 @@ page stays where it is and the keyboard focus stays on the editor (a browser doe
 its own with Delete on a canvas, and the editor does not cancel that key); Open runs through the ribbon command. A screenshot of each menu per browser is kept
 with the job's artifacts. `ui.pointMenu` reports each selected point's place in the window
 (`selected[].screen`), which is how the test finds where to click.
+
+### Object menu, clipboard keys, Flip, Rotate and Center, 2026-11-20 (#1288)
+
+**Reported** by the owner: no way to copy an object with Ctrl/Cmd+C, to duplicate or mirror it,
+and no right-click menu. **Found** (whole editor frames with the window's own events, and the
+browser build): on the desktop Ctrl+C did copy and Ctrl+V did paste, but the paste lands exactly
+on the original (as in PE-DESIGN, below), so nothing visibly changed; a text field in a pane that
+had the keyboard took Ctrl+C for its text (right while typing); in the browser the page cannot
+write the system clipboard, and the browser sends Ctrl+V on as its paste event only when that
+clipboard holds text, so after a Copy in the page Ctrl+V did nothing; and the Select tool had no
+right-click menu (eframe already keeps the browser's own menu shut over the canvas). The browser
+also acted on the editor's Ctrl+D (its bookmark dialog), which eframe does not cancel.
+
+**Measured** on PE-DESIGN 11.50 (coordinator captures, black-box): Ctrl+C, Ctrl+V pastes exactly
+in place (an L line: the design size unchanged, its stitches doubled); Ctrl+D's copy lies 5 mm right
+and 5 mm down, selected; Ctrl+H (Flip Vertical) on two objects mirrors the pair top to bottom about
+its common centre; Ctrl+M (Center) moves the pair as one unit so its bounding box's centre is the
+Design Page's; Rotate Right turns 90° clockwise about the object's centre and Rotate Right, Left
+and Rotate… show no shortcut. The object menu for one object and for two (docs/UI_LAYOUT.md
+"Object menu"); no menu on empty canvas. The Size and Rotate dialogs: a % row and a mm row,
+Maintain aspect ratio, Keep density and fill pattern; a dial and degrees; OK and Preview grey
+until a value changes, Cancel.
+
+**Now:** the menu with those entries in that order (left out: Paste Selected Attributes… and
+Export Cutting Data, which OpenStitch has no feature for), Flip Vertical `Ctrl+H`, Flip
+Horizontal `Ctrl+J`, Center `Ctrl+M` (macOS: `Cmd+Shift+H`, `Cmd+J`, `Cmd+Shift+M`, the system
+keeping Cmd+H and Cmd+M), Rotate Right / Left, Size… and Rotate…, each one undo step, for one
+object, several and a group. Join Lines (OpenStitch's own, #744) moved from `Ctrl+J` to
+`Ctrl+Shift+J`; a user's own key for it stays theirs. Paste stays in place and the status line
+says "Pasted N objects in place (on top of the originals)". In the browser Ctrl+V pastes the page's
+copy when no paste event comes (and a paste event a key press brings does not paste again), the
+status after a Copy says the copy is kept in the page, and the page cancels the browser's own
+action on every Ctrl shortcut the editor has, never on Ctrl+C, X or V. Only a focused text field
+keeps Ctrl+C, X and V from the selection. **Not done:** PE-DESIGN's small bar of sew types and
+colours beside the menu; the menu on a text (not captured: the shape's menu is used); the Rotate
+dial's direction for a positive angle (not captured: clockwise, as Rotate Right). Keep density and
+fill pattern is shown ticked and grey (OpenStitch sews a shape again after every resize).
