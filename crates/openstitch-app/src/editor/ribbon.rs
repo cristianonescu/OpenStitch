@@ -26,9 +26,15 @@ pub struct Info {
 }
 
 impl Info {
-    /// The shortcut as shown on this platform (Cmd on macOS).
+    /// The shortcut as shown on this platform (Cmd on macOS; there Flip Vertical and Center
+    /// have Cmd+Shift+H and Cmd+Shift+M, the system keeping Cmd+H and Cmd+M, #1288).
     pub fn shortcut_for(&self, mac: bool) -> Option<String> {
-        self.shortcut.map(|s| {
+        let shortcut = match (mac, self.key) {
+            (true, "flipVertical") => Some("Ctrl+Shift+H"),
+            (true, "center") => Some("Ctrl+Shift+M"),
+            _ => self.shortcut,
+        };
+        shortcut.map(|s| {
             if mac {
                 s.replace("Ctrl+", "Cmd+")
             } else {
@@ -155,13 +161,29 @@ actions! {
     DistributeVertical => "distributeVertical", "Distribute Vertically", "Equal gaps between three or more objects from top to bottom; the outermost two stay put.", None, Some("object.distribute"), true;
     Arrange => "arrange", "Arrange", "Centre the selection or change where it sews in the order.", None, Some("order.move"), true;
     RotateFlip => "rotateFlip", "Rotate/Flip", "Rotate by 90° or mirror the selection.", None, Some("object.rotate"), true;
+    RotateRight => "rotateRight", "Rotate Right", "Turn the selection 90° clockwise about its centre.", None, Some("object.rotate"), true;
+    RotateLeft => "rotateLeft", "Rotate Left", "Turn the selection 90° anticlockwise about its centre.", None, Some("object.rotate"), true;
+    FlipVertical => "flipVertical", "Flip Vertical", "Mirror the selection top to bottom about its centre.", Some("Ctrl+H"), Some("object.flip"), true;
+    FlipHorizontal => "flipHorizontal", "Flip Horizontal", "Mirror the selection left to right about its centre.", Some("Ctrl+J"), Some("object.flip"), true;
+    CenterObjects => "center", "Center", "Move the selection to the centre of the Design Page.", Some("Ctrl+M"), Some("object.center"), true;
+    // The object menu's own entries (#1288).
+    SizeNumeric => "sizeNumeric", "Size...", "Set the selection's size as a percentage or in millimetres.", None, Some("object.scale"), true;
+    RotateNumeric => "rotateNumeric", "Rotate...", "Turn the selection by an angle you type or set on the dial.", None, Some("object.rotate"), true;
+    SewingAttributes => "sewingAttributes", "Sewing Attributes...", "Show the Sewing Attributes pane for the selection.", None, None, true;
+    RemoveOverlaps => "removeOverlaps", "Remove Overlaps", "Cut the parts of the selected shapes that lie under the ones sewn after them.", None, Some("shape.removeOverlap"), true;
+    MergeShapes => "merge", "Merge", "Join the selected shapes into one shape.", None, Some("shape.merge"), true;
+    SetHoleSewing => "setHoleSewing", "Set hole sewing", "The selected shapes skip the parts that shapes sewn on top of them cover.", None, Some("object.setHoleSewing"), true;
+    CancelHoleSewing => "cancelHoleSewing", "Cancel hole sewing", "The selected shapes are sewn whole again.", None, Some("object.setHoleSewing"), true;
+    EngravedLine => "engravedLine", "Engraved Line", "Engrave the top shape's outline into the shape under it (select both).", None, Some("shape.emboss"), true;
+    EngravedRegion => "engravedRegion", "Engraved Region", "Engrave the top shape's region into the shape under it (select both).", None, Some("shape.emboss"), true;
+    EmbossedRegion => "embossedRegion", "Embossed Region", "Emboss the top shape's region on the shape under it (select both).", None, Some("shape.emboss"), true;
     Size => "size", "Size", "Scale the selection by a percentage.", None, Some("object.scale"), true;
     Group => "group", "Group", "Group the selection so it moves together.", Some("Ctrl+G"), Some("object.group"), true;
     Ungroup => "ungroup", "Ungroup", "Take the selected groups apart.", Some("Ctrl+Shift+G"), Some("object.ungroup"), true;
     StampEmboss => "stampEmboss", "Stamp/Emboss", "Emboss or engrave a shape, or place stamps in it.", None, Some("shape.emboss"), true;
     ModifyOverlap => "modifyOverlap", "Modify Overlap", "Merge, remove overlap or combine outlines.", None, Some("shape.combine"), true;
     DecorativeFrame => "decorativeFrame", "Decorative Frame", "Add a frame around the selection.", None, Some("shape.decorative"), true;
-    JoinLines => "joinLines", "Join Lines", "Make two or more open lines, satin skeletons or Manual Punch columns whose ends meet (within 1 mm) one object, sewn as one path with no trim between them; the first-sewn one keeps its attributes and place.", Some("Ctrl+J"), Some("shape.joinLines"), true;
+    JoinLines => "joinLines", "Join Lines", "Make two or more open lines, satin skeletons or Manual Punch columns whose ends meet (within 1 mm) one object, sewn as one path with no trim between them; the first-sewn one keeps its attributes and place.", Some("Ctrl+Shift+J"), Some("shape.joinLines"), true;
     BreakApart => "breakApart", "Break Apart", "Split the selection into pieces: text into one text per letter in place, a fill with islands into one object per piece (holes stay with theirs), a line object into its outlines, and groups such as copies along a line into separate objects.", Some("Ctrl+Shift+K"), Some("object.breakApart"), true;
     FitTextToOutline => "fitText", "Fit Text", "Fit Text to Outline: select a text and a shape, and the text follows the shape's outline. Release Text from Outline takes it off again.", None, Some("text.setPath"), true;
     // Home ▸ Wizards.
@@ -831,6 +853,162 @@ pub const POINT_OBJECT_MENU: [Action; 5] = [
     A::CloseOutline,
 ];
 
+/// One row of the object menu (a right-click on selected objects with the Select tool), in
+/// PE-DESIGN 11.50's order (#1288).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MenuRow {
+    /// A command, with its ribbon label and shortcut.
+    Entry(Action),
+    /// A sub-menu: its key, its text id and its entries.
+    Sub(&'static str, &'static str, &'static [Action]),
+    Separator,
+}
+
+const PASTE: MenuRow = MenuRow::Sub(
+    "paste",
+    "menu-object-paste",
+    &[A::Paste, A::PasteAttributes],
+);
+const FLIP: MenuRow = MenuRow::Sub(
+    "flip",
+    "menu-object-flip",
+    &[A::FlipVertical, A::FlipHorizontal],
+);
+const NUMERICAL: MenuRow = MenuRow::Sub(
+    "numericalSetting",
+    "menu-object-numerical-setting",
+    &[A::SizeNumeric, A::RotateNumeric],
+);
+const CUT_AND_SEW: MenuRow = MenuRow::Sub(
+    "cutAndSew",
+    "menu-object-cut-and-sew",
+    &[A::Applique, A::Patch, A::Cutwork],
+);
+
+/// PE-DESIGN's object menu for one selected object (capture of 2026-11-20), the entries
+/// OpenStitch has a feature for. Left out: Paste Selected Attributes... and Export Cutting Data
+/// (ScanNCut cutting files are not supported).
+pub const OBJECT_MENU: &[MenuRow] = &[
+    MenuRow::Entry(A::Cut),
+    MenuRow::Entry(A::Copy),
+    MenuRow::Entry(A::Duplicate),
+    PASTE,
+    MenuRow::Entry(A::Delete),
+    MenuRow::Separator,
+    FLIP,
+    NUMERICAL,
+    MenuRow::Entry(A::CenterObjects),
+    MenuRow::Separator,
+    MenuRow::Entry(A::OpenOutline),
+    MenuRow::Entry(A::CloseOutline),
+    MenuRow::Separator,
+    MenuRow::Entry(A::OffsetLines),
+    MenuRow::Entry(A::ConvertToStitches),
+    MenuRow::Entry(A::FloralPattern),
+    MenuRow::Separator,
+    CUT_AND_SEW,
+    MenuRow::Separator,
+    MenuRow::Entry(A::SewingAttributes),
+];
+
+/// PE-DESIGN's object menu for two or more selected objects (a group too): Group and Ungroup
+/// first, Align, Modify Overlap and Emboss/Engrave added, Create Offset Lines and Create Floral
+/// Pattern absent (capture of 2026-11-20). Left out as in [`OBJECT_MENU`].
+pub const OBJECTS_MENU: &[MenuRow] = &[
+    MenuRow::Entry(A::Group),
+    MenuRow::Entry(A::Ungroup),
+    MenuRow::Separator,
+    MenuRow::Entry(A::Cut),
+    MenuRow::Entry(A::Copy),
+    MenuRow::Entry(A::Duplicate),
+    PASTE,
+    MenuRow::Entry(A::Delete),
+    MenuRow::Separator,
+    FLIP,
+    NUMERICAL,
+    MenuRow::Entry(A::CenterObjects),
+    MenuRow::Sub(
+        "align",
+        "menu-object-align",
+        &[
+            A::AlignLeft,
+            A::AlignCenter,
+            A::AlignRight,
+            A::AlignTop,
+            A::AlignMiddle,
+            A::AlignBottom,
+        ],
+    ),
+    MenuRow::Separator,
+    MenuRow::Entry(A::OpenOutline),
+    MenuRow::Entry(A::CloseOutline),
+    MenuRow::Separator,
+    MenuRow::Sub(
+        "modifyOverlap",
+        "menu-object-modify-overlap",
+        &[
+            A::RemoveOverlaps,
+            A::MergeShapes,
+            A::SetHoleSewing,
+            A::CancelHoleSewing,
+        ],
+    ),
+    MenuRow::Sub(
+        "embossEngrave",
+        "menu-object-emboss-engrave",
+        &[A::EngravedLine, A::EngravedRegion, A::EmbossedRegion],
+    ),
+    MenuRow::Separator,
+    MenuRow::Entry(A::ConvertToStitches),
+    MenuRow::Separator,
+    CUT_AND_SEW,
+    MenuRow::Separator,
+    MenuRow::Entry(A::SewingAttributes),
+];
+
+/// The object menu for a selection of `count` objects.
+pub fn object_menu(count: usize) -> &'static [MenuRow] {
+    if count >= 2 {
+        OBJECTS_MENU
+    } else {
+        OBJECT_MENU
+    }
+}
+
+/// The ribbon's Rotate/Flip list, PE-DESIGN's: Rotate Right, Rotate Left, Rotate..., then
+/// Flip Vertically and Flip Horizontally.
+pub const ROTATE_FLIP_MENU: [Action; 5] = [
+    A::RotateRight,
+    A::RotateLeft,
+    A::RotateNumeric,
+    A::FlipVertical,
+    A::FlipHorizontal,
+];
+
+/// Every command of both object menus, sub-menus included, each once.
+pub fn object_menu_actions() -> Vec<Action> {
+    let mut all: Vec<Action> = Vec::new();
+    for a in OBJECT_MENU
+        .iter()
+        .chain(OBJECTS_MENU)
+        .flat_map(menu_row_actions)
+    {
+        if !all.contains(&a) {
+            all.push(a);
+        }
+    }
+    all
+}
+
+/// The commands of one row of the object menu.
+fn menu_row_actions(row: &MenuRow) -> Vec<Action> {
+    match row {
+        MenuRow::Entry(a) => vec![*a],
+        MenuRow::Sub(_, _, list) => list.to_vec(),
+        MenuRow::Separator => vec![],
+    }
+}
+
 /// The Option button: other applications and settings.
 pub const OPTION_MENU: [Action; 6] = [
     A::DesignDatabase,
@@ -1067,6 +1245,8 @@ mod tests {
                 || SUBMENU_ACTIONS.contains(&a)
                 || EDIT_POINT_MENU.contains(&a)
                 || POINT_OBJECT_MENU.contains(&a)
+                || ROTATE_FLIP_MENU.contains(&a)
+                || object_menu_actions().contains(&a)
                 || help.contains(&a)
                 || ALIGN_MENU.contains(&a)
                 || SELECT_SAME_MENU.contains(&a)

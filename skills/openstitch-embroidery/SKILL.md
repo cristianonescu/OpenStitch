@@ -414,7 +414,7 @@ then style them in the next.
   islands into one object per piece (holes stay with theirs), a line object into its outlines,
   and groups (copies along a line, a monogram) into separate objects; every piece keeps the
   whole's sewing attributes and thread and sews where the whole did. Each is one undo step;
-  Ctrl+J and Ctrl+Shift+K in the editor (`ui.run joinLines` / `ui.run breakApart`).
+  Ctrl+Shift+J and Ctrl+Shift+K in the editor (`ui.run joinLines` / `ui.run breakApart`).
 - Points of an outline (the Select Point tool's right-click menu): `object.setPointKind`
   `{id, contour, index | indexes, kind}` is To Straight (`straight`: the point loses its
   handles; a side to another straight point becomes a straight line, a side to a curve point
@@ -608,6 +608,13 @@ These act on the editor window, not the design file: `ui.state`, `ui.select`, `u
 and `ui.notesClear` (what `notes_read` and `notes_write` use; see Memory). To find a command
 by words ("where is arrange copy?"), `ui.searchCommands {query}` gives the same list as the
 user's Ctrl+K palette, with each command's ribbon place and shortcut; run it with `ui.run`.
+The right-click menu on selected objects (PE-DESIGN's object menu, #1288) is `ui.objectMenu`:
+its rows for this selection with their shortcuts, `{at: [x, y]}` opens it as a right-click
+there does, `{action}` runs an entry (flipVertical, flipHorizontal, center, sizeNumeric,
+rotateNumeric, setHoleSewing, alignTop, ...), `{numeric}` fills in the Size or Rotate dialog.
+Flip Vertical is Ctrl+H, Flip Horizontal Ctrl+J and Center Ctrl+M (Cmd+Shift+H, Cmd+J and
+Cmd+Shift+M on macOS); Join Lines is Ctrl+Shift+J. A paste lies exactly on the originals, as in
+PE-DESIGN: tell the user so, or move the copy with `object.move`.
 After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
 opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
 deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`.

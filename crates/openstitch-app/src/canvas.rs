@@ -145,6 +145,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     if !app.ui.pan
         && !crate::view_ui::guide_pointer(app, ui, &response, rect, &vp)
         && !crate::point_menu_ui::pointer(app, &response, &vp)
+        && !crate::object_menu_ui::pointer(app, &response, &vp)
         && !crate::zoom_ui::pointer(app, &response, rect, vp)
     {
         pointer(app, ui, &response, vp);

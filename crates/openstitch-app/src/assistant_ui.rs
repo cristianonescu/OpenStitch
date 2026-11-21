@@ -522,6 +522,7 @@ impl EditorApp {
             "ui.cursor" => self.cursor_command(params),
             "ui.guides" => crate::view_ui::guides_command(self, params),
             "ui.pointMenu" => crate::point_menu_ui::command(self, params),
+            "ui.objectMenu" => crate::object_menu_ui::command(self, params),
             "ui.preview" => self.preview_command(params),
             "ui.stitchTable" => self.stitch_table_command(params),
             "ui.stitchPoints" => crate::stitch_points_ui::command(self, params),

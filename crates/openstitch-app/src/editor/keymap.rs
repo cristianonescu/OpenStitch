@@ -31,9 +31,27 @@ pub const DEFAULTS: &[(Action, &[&str])] = &[
     (Action::Duplicate, &["Ctrl+D"]),
     (Action::Group, &["Ctrl+G"]),
     (Action::Ungroup, &["Ctrl+Shift+G"]),
-    (Action::JoinLines, &["Ctrl+J"]),
+    (Action::JoinLines, &["Ctrl+Shift+J"]),
+    // PE-DESIGN's object menu (#1288): Flip Vertical Ctrl+H, Flip Horizontal Ctrl+J (Join
+    // Lines, OpenStitch's own, moved to Ctrl+Shift+J), Center Ctrl+M.
+    (Action::FlipVertical, &["Ctrl+H"]),
+    (Action::FlipHorizontal, &["Ctrl+J"]),
+    (Action::CenterObjects, &["Ctrl+M"]),
     (Action::BreakApart, &["Ctrl+Shift+K"]),
     (Action::Delete, &["Delete", "Backspace"]),
+];
+
+/// macOS keeps Cmd+H (Hide) and Cmd+M (Minimize) for the system (#1288), so there Flip Vertical
+/// and Center, PE-DESIGN's Ctrl+H and Ctrl+M, have Cmd+Shift+H and Cmd+Shift+M instead.
+pub const MAC_DEFAULTS: &[(Action, &[&str])] = &[
+    (Action::FlipVertical, &["Ctrl+Shift+H"]),
+    (Action::CenterObjects, &["Ctrl+Shift+M"]),
+];
+
+/// The system's keys on macOS a command cannot have (Cmd is written Ctrl here).
+pub const MAC_SYSTEM_KEYS: &[(&str, &str)] = &[
+    ("Ctrl+H", "the system's Hide"),
+    ("Ctrl+M", "the system's Minimize"),
 ];
 
 /// Keys that keep their meaning: the clipboard (the system sends them as clipboard events), the
@@ -102,11 +120,16 @@ const PUNCTUATION: &[(&str, &str)] = &[
     ("Semicolon", ";"),
 ];
 
-/// The default shortcuts of `a`.
+/// The default shortcuts of `a` on this platform.
 pub fn defaults(a: Action) -> &'static [&'static str] {
-    DEFAULTS
-        .iter()
-        .find(|(d, _)| *d == a)
+    defaults_on(a, cfg!(target_os = "macos"))
+}
+
+/// The default shortcuts of `a` on macOS (`mac`) or on Windows, Linux and in the browser.
+pub fn defaults_on(a: Action, mac: bool) -> &'static [&'static str] {
+    mac.then(|| MAC_DEFAULTS.iter().find(|(d, _)| *d == a))
+        .flatten()
+        .or_else(|| DEFAULTS.iter().find(|(d, _)| *d == a))
         .map_or(&[], |(_, k)| k)
 }
 
@@ -182,6 +205,10 @@ pub fn allowed(chord: &str) -> bool {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Keymap {
     custom: BTreeMap<Action, Vec<String>>,
+    /// Defaults given up when the map was read because the user had already given that key to
+    /// another command (#1288): (the command that lost it, the key, the command that keeps it).
+    /// For a one-time message; not saved.
+    pub given_up: Vec<(Action, String, Action)>,
 }
 
 impl Keymap {
@@ -219,6 +246,11 @@ impl Keymap {
             return Some((*what).to_string());
         }
         if let Some((_, what)) = RESERVED.iter().find(|(k, _)| *k == chord) {
+            return Some((*what).to_string());
+        }
+        if cfg!(target_os = "macos")
+            && let Some((_, what)) = MAC_SYSTEM_KEYS.iter().find(|(k, _)| *k == chord)
+        {
             return Some((*what).to_string());
         }
         self.bindings()
@@ -304,6 +336,12 @@ impl Keymap {
     /// A keymap from `{ commandKey: [shortcut…] }` (Import, `ui.set shortcuts`): every entry is
     /// checked as [`Keymap::set`] does; the first problem refuses the whole map.
     pub fn from_json(v: &Value) -> Result<Keymap, String> {
+        Self::read(v, false)
+    }
+
+    /// [`Keymap::from_json`]; with `keep_users` (preferences saved by an earlier version) a key
+    /// the user gave to a command that is now another command's default stays the user's.
+    fn read(v: &Value, keep_users: bool) -> Result<Keymap, String> {
         let obj = v
             .as_object()
             .ok_or("shortcuts take an object { commandKey: [shortcut, …] }")?;
@@ -313,13 +351,48 @@ impl Keymap {
             let a = Action::from_key(key).ok_or_else(|| format!("no command '{key}'"))?;
             k.custom.insert(a, Vec::new());
         }
+        // A key the user gave to a command that a later version made another command's default
+        // (#1288: Ctrl+H, Ctrl+J, Ctrl+M, Ctrl+Shift+J) stays the user's: that other command
+        // gives the default up, so no key does two things and the user's map is not refused.
+        for (key, list) in obj.iter().filter(|_| keep_users) {
+            let a = Action::from_key(key).expect("checked above");
+            for chord in list
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                let Ok(chord) = normalize(chord) else {
+                    continue;
+                };
+                for &b in Action::ALL {
+                    if b != a
+                        && !obj.contains_key(b.info().key)
+                        && defaults(b).contains(&chord.as_str())
+                    {
+                        let left: Vec<String> =
+                            k.chords(b).into_iter().filter(|c| *c != chord).collect();
+                        k.custom.insert(b, left);
+                        k.given_up.push((b, chord.clone(), a));
+                    }
+                }
+            }
+        }
         for (key, list) in obj {
             let a = Action::from_key(key).expect("checked above");
-            let chords: Vec<String> = serde_json::from_value(list.clone())
+            let mut chords: Vec<String> = serde_json::from_value(list.clone())
                 .map_err(|_| format!("{key}: give a list of shortcuts"))?;
+            // On macOS Cmd+H and Cmd+M are the system's (#1288): a saved map that gave one to a
+            // command loses that key (the system took it anyway), not the whole map.
+            if keep_users && cfg!(target_os = "macos") {
+                chords.retain(|c| {
+                    normalize(c).is_ok_and(|c| !MAC_SYSTEM_KEYS.iter().any(|(k, _)| *k == c))
+                });
+            }
             k.set(a, &chords)?;
         }
-        // Commands left with exactly their defaults are not kept as changes.
+        // Commands left with exactly their defaults are not kept as changes (a command that gave
+        // a default up keeps that change, so the message comes once).
         k.custom.retain(|a, list| {
             !list
                 .iter()
@@ -329,12 +402,13 @@ impl Keymap {
         Ok(k)
     }
 
-    /// Like [`Keymap::from_json`], but for `ui.json`: a bad file gives the defaults.
+    /// Like [`Keymap::from_json`], but for `ui.json`: a bad file gives the defaults, and a key
+    /// the user gave a command before it became another's default stays the user's (#1288).
     pub fn load(v: &Value) -> Keymap {
         if v.is_null() {
             return Keymap::default();
         }
-        Keymap::from_json(v).unwrap_or_default()
+        Keymap::read(v, true).unwrap_or_default()
     }
 }
 
@@ -367,7 +441,15 @@ mod tests {
             if !s.starts_with("Ctrl+") || matches!(a, Action::Cut | Action::Copy | Action::Paste) {
                 continue;
             }
-            assert_eq!(defaults(a).first(), Some(&s), "{a:?}");
+            // On macOS Flip Vertical and Center differ (#1288); the ribbon shows that platform's.
+            assert_eq!(defaults_on(a, false).first(), Some(&s), "{a:?}");
+            assert_eq!(
+                defaults_on(a, true)
+                    .first()
+                    .map(|c| c.replace("Ctrl+", "Cmd+")),
+                a.info().shortcut_for(true),
+                "{a:?}"
+            );
         }
         assert_eq!(defaults(Action::Delete), ["Delete", "Backspace"]);
         let k = Keymap::default();
@@ -381,6 +463,111 @@ mod tests {
             seen.len(),
             DEFAULTS.iter().map(|d| d.1.len()).sum::<usize>()
         );
+    }
+
+    /// #1288: on Windows, Linux and in the browser, and on macOS, no two commands share a
+    /// default key, none takes a reserved key or one the browser or macOS keeps for itself, and
+    /// PE-DESIGN's object keys are where the coordinator's decision put them.
+    #[test]
+    fn no_two_defaults_collide_on_any_platform() {
+        for mac in [false, true] {
+            let mut seen: Vec<(&str, Action)> = Vec::new();
+            for &a in Action::ALL {
+                for &c in defaults_on(a, mac) {
+                    assert_eq!(normalize(c).as_deref(), Ok(c), "{a:?} {c}");
+                    if let Some((_, other)) = seen.iter().find(|(s, _)| *s == c) {
+                        panic!("mac {mac}: {c} is {other:?}'s and {a:?}'s");
+                    }
+                    seen.push((c, a));
+                    assert!(!RESERVED.iter().any(|(k, _)| *k == c), "{c} is reserved");
+                    if mac {
+                        assert!(!MAC_SYSTEM_KEYS.iter().any(|(k, _)| *k == c), "{c}: macOS");
+                    } else if a != Action::New {
+                        // New keeps Ctrl+N on the desktop; in the browser it is in the File
+                        // menu instead (#834). No other default is a key the browser keeps.
+                        assert!(!BROWSER_KEYS.iter().any(|(k, _)| *k == c), "{c}: browser");
+                    }
+                }
+            }
+            let of = |a| defaults_on(a, mac);
+            assert_eq!(of(Action::FlipHorizontal), ["Ctrl+J"]);
+            assert_eq!(of(Action::JoinLines), ["Ctrl+Shift+J"]);
+            assert_eq!(
+                (of(Action::FlipVertical), of(Action::CenterObjects)),
+                if mac {
+                    (&["Ctrl+Shift+H"][..], &["Ctrl+Shift+M"][..])
+                } else {
+                    (&["Ctrl+H"][..], &["Ctrl+M"][..])
+                }
+            );
+            // PE-DESIGN has no shortcut for Rotate Right and Left: none is made up.
+            assert!(of(Action::RotateRight).is_empty() && of(Action::RotateLeft).is_empty());
+        }
+    }
+
+    /// A saved map that gave Ctrl+H to Rectangle (and F2 to Save).
+    fn saved_with_ctrl_h() -> Value {
+        json!({ "rectangle": ["Ctrl+H"], "save": ["F2"] })
+    }
+
+    /// #1288: a key the user had given to another command before it became a default (Ctrl+H to
+    /// Rectangle, saved in ui.json) stays theirs when the map is read: the rest of their map is
+    /// kept, the new default's command gives that key up (once: saved, it is a change), and no
+    /// key belongs to two commands.
+    #[test]
+    fn a_users_key_that_became_a_default_stays_theirs() {
+        // Ctrl+J (Cmd+J) is Flip Horizontal's default on every platform now.
+        let saved = json!({ "rectangle": ["Ctrl+J"], "save": ["F2"] });
+        let k = Keymap::load(&saved);
+        assert_eq!(k.chords(Action::Rectangle), ["Ctrl+J"]);
+        assert_eq!(
+            k.chords(Action::Save),
+            ["F2"],
+            "the rest of the map is kept"
+        );
+        assert!(k.chords(Action::FlipHorizontal).is_empty());
+        assert_eq!(
+            k.given_up,
+            [(
+                Action::FlipHorizontal,
+                "Ctrl+J".to_string(),
+                Action::Rectangle
+            )]
+        );
+        let mut seen = Vec::new();
+        for (_, c) in k.bindings() {
+            assert!(!seen.contains(&c), "{c} does two things");
+            seen.push(c);
+        }
+        // Saved again and read back: no second message.
+        let again = Keymap::load(&k.to_json());
+        assert!(again.given_up.is_empty());
+        assert_eq!(again.chords(Action::Rectangle), ["Ctrl+J"]);
+        // Ctrl+H (Cmd+H): Flip Vertical's default outside macOS, which gives it up to the user's
+        // command; on macOS the system's Hide, which no command can have, so the saved map
+        // loses that key and keeps the rest (Flip Vertical keeps its Cmd+Shift+H).
+        let mac = cfg!(target_os = "macos");
+        let k = Keymap::load(&saved_with_ctrl_h());
+        assert_eq!(k.chords(Action::Save), ["F2"], "the map is not refused");
+        if mac {
+            assert!(k.chords(Action::Rectangle).is_empty());
+            assert_eq!(k.chords(Action::FlipVertical), ["Ctrl+Shift+H"]);
+        } else {
+            assert_eq!(k.chords(Action::Rectangle), ["Ctrl+H"]);
+            assert!(k.chords(Action::FlipVertical).is_empty());
+        }
+        assert_eq!(
+            k.chords(Action::FlipVertical),
+            defaults_on(Action::FlipVertical, mac)
+                .iter()
+                .filter(|c| **c != "Ctrl+H")
+                .map(|c| c.to_string())
+                .collect::<Vec<_>>()
+        );
+        // Join Lines' old key given to another command stays with it; Join Lines keeps its own.
+        let k = Keymap::load(&json!({ "ellipse": ["Ctrl+Shift+J"] }));
+        assert_eq!(k.chords(Action::Ellipse), ["Ctrl+Shift+J"]);
+        assert!(k.chords(Action::JoinLines).is_empty());
     }
 
     #[test]

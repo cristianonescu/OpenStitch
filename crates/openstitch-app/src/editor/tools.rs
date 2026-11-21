@@ -2141,6 +2141,22 @@ impl ToolController {
         }])
     }
 
+    /// The selection a right-click at `at` with the Select tool opens the object menu for
+    /// (#1288): the selection itself on a selected object, else the object under the pointer
+    /// alone, as a click selects it; `None` on empty canvas, with another tool, or while a
+    /// gesture is under way.
+    pub fn object_menu_selection(&self, at: Vec2, ctx: &ToolContext) -> Option<BTreeSet<u64>> {
+        if self.tool() != Tool::Select || self.gesture.is_some() {
+            return None;
+        }
+        let id = object_at_opts(ctx.design, at, ctx.tolerance(), self.click_inside)?;
+        Some(if ctx.selection.contains(&id) {
+            ctx.selection.clone()
+        } else {
+            BTreeSet::from([id])
+        })
+    }
+
     /// Whether a right-click at `at` with the Point tool opens the object's menu (Add,
     /// Delete and Reverse Direction Line, Open, Close): on the shape whose points show, but
     /// not on one of its points (that opens the point menu).

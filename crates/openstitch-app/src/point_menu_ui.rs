@@ -296,6 +296,19 @@ fn row(
     enabled: bool,
     submenu: bool,
 ) -> egui::Response {
+    menu_row(ui, icon, text, None, enabled, submenu)
+}
+
+/// [`row`] with the entry's shortcut at the right edge, as PE-DESIGN's object menu shows it
+/// (#1288).
+pub(crate) fn menu_row(
+    ui: &mut egui::Ui,
+    icon: Option<Action>,
+    text: &str,
+    shortcut: Option<&str>,
+    enabled: bool,
+    submenu: bool,
+) -> egui::Response {
     let width = ui.available_width();
     let sense = if enabled {
         egui::Sense::click()
@@ -332,6 +345,15 @@ fn row(
             font.clone(),
             fg,
         );
+        if let Some(keys) = shortcut {
+            ui.painter().text(
+                egui::pos2(rect.right() - 8.0, rect.center().y),
+                egui::Align2::RIGHT_CENTER,
+                keys,
+                font.clone(),
+                fg,
+            );
+        }
         if submenu {
             ui.painter().text(
                 egui::pos2(rect.right() - 6.0, rect.center().y),
@@ -355,7 +377,7 @@ pub fn delete_direction_lines(app: &mut EditorApp) {
 
 /// A menu panel at `at` (the pointer: the menu opens to the right of and below it, as
 /// PE-DESIGN's), opaque from its first frame.
-fn panel<R>(
+pub(crate) fn panel<R>(
     ctx: &egui::Context,
     id: &'static str,
     at: Pos2,
@@ -395,7 +417,7 @@ fn panel<R>(
 }
 
 /// A separator between groups of rows, with a little air round it.
-fn rule(ui: &mut egui::Ui) {
+pub(crate) fn rule(ui: &mut egui::Ui) {
     ui.add_space(3.0);
     ui.separator();
     ui.add_space(3.0);

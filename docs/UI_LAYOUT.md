@@ -194,11 +194,15 @@ Behaviour follows the guide's pages
 | Import | Import PE-DESIGN Objects (a PE-DESIGN 11 file's shapes, texts and stitch groups as editable objects) |  | `Action::ImportPesObjects` | `import.pes` | yes |
 | Edit | Arrange |  | `Action::Arrange` | `order.move` | yes |
 | Edit | Align ▾ (Relative to Selection / Last Selected / Design Page; Align Left, Centre, Right, Top, Middle, Bottom; Distribute Horizontally, Vertically; beyond PE-DESIGN, #472) |  | `Action::Align`, `AlignLeft` … `AlignBottom`, `DistributeHorizontal`, `DistributeVertical` | `object.align`, `object.distribute` | yes |
-| Edit | Rotate/Flip |  | `Action::RotateFlip` | `object.rotate` | yes |
+| Edit | Rotate/Flip ▾ (PE-DESIGN's list, #1288: Rotate Right, Rotate Left, Rotate…; then Flip Vertically, Flip Horizontally; Rotate 180° is OpenStitch's own, after the rotations) |  | `Action::RotateFlip` | `object.rotate`, `object.flip` | yes |
+| Edit | Rotate Right, Rotate Left (90° about the selection's centre; no shortcut, as in PE-DESIGN) |  | `Action::RotateRight`, `RotateLeft` | `object.rotate` | yes |
+| Edit | Rotate… (PE-DESIGN's Rotate dialog: a dial and the angle in degrees; OK, Preview, Cancel) |  | `Action::RotateNumeric` | `object.rotate` | yes |
+| Edit | Flip Vertical, Flip Horizontal (about the selection's centre; a pair mirrors as one) | `Ctrl+H`, `Ctrl+J` (macOS: `Cmd+Shift+H`, `Cmd+J`) | `Action::FlipVertical`, `FlipHorizontal` | `object.flip` | yes |
+| Edit | Center (the selection as one unit to the Design Page's centre) | `Ctrl+M` (macOS: `Cmd+Shift+M`) | `Action::CenterObjects` | `object.center` | yes |
 | Edit | Size |  | `Action::Size` | `object.scale` | yes |
 | Edit | Group | `Ctrl+G` | `Action::Group` | `object.group` | yes |
 | Edit | Ungroup | `Ctrl+Shift+G` | `Action::Ungroup` | `object.ungroup` | yes |
-| Edit | Join Lines (beyond PE-DESIGN, #744) | `Ctrl+J` | `Action::JoinLines` | `shape.joinLines` | yes |
+| Edit | Join Lines (beyond PE-DESIGN, #744; `Ctrl+J` until #1288, now PE-DESIGN's Flip Horizontal) | `Ctrl+Shift+J` | `Action::JoinLines` | `shape.joinLines` | yes |
 | Edit | Break Apart (beyond PE-DESIGN, #744) | `Ctrl+Shift+K` | `Action::BreakApart` | `object.breakApart` | yes |
 | Edit | Fit Text ▾ (Fit Text to Outline…, Release Text from Outline) |  | `Action::FitTextToOutline` | `text.setPath` | yes |
 | Edit | Stamp/Emboss |  | `Action::StampEmboss` | `shape.emboss` | yes |
@@ -664,6 +668,31 @@ pictures brings the design back, and a click makes the change as one undo step. 
 previews the same way with `ui.preview`.
 
 ![Picture picker with a hover preview](images/rust-editor-pickers.png)
+
+### Object menu (#1288)
+
+A right-click on an object with the Select tool opens PE-DESIGN 11.50's object menu (coordinator
+captures of 2026-11-20); an object that is not selected is selected first, a selected one keeps
+the others selected. On empty canvas no menu opens, and the browser's own menu stays shut over
+the canvas. The Point tool keeps its own menus (#1258, #1260). Each entry is the ribbon's command
+(`ui.objectMenu` reports the rows, `action` runs one).
+
+| Selection | Rows, top to bottom (`|` a separator, `▸` a sub-menu) |
+|---|---|
+| One object | Cut Ctrl+X, Copy Ctrl+C, Duplicate Ctrl+D, Paste ▸ (Paste Ctrl+V, Paste Attributes), Delete \| Flip ▸ (Vertical Ctrl+H, Horizontal Ctrl+J), Numerical Setting ▸ (Size…, Rotate…), Center Ctrl+M \| Open, Close \| Create Offset Lines, Convert to Stitches, Create Floral Pattern \| Cut and Sew ▸ (Applique Wizard, Embroidered Patch Wizard, Cutwork Wizard) \| Sewing Attributes… |
+| Two or more, or a group | Group Ctrl+G, Ungroup Ctrl+Shift+G \| Cut, Copy, Duplicate, Paste ▸, Delete \| Flip ▸, Numerical Setting ▸, Center, Align ▸ (Left, Center, Right, Top, Middle, Bottom) \| Open, Close \| Modify Overlap ▸ (Remove Overlaps, Merge, Set hole sewing, Cancel hole sewing), Emboss/Engrave ▸ (Engraved Line, Engraved Region, Embossed Region) \| Convert to Stitches \| Cut and Sew ▸ \| Sewing Attributes… |
+
+Left out, OpenStitch having no such feature: Paste Selected Attributes… and Export Cutting Data
+(ScanNCut). PE-DESIGN's small bar of sew types and colours sits above the menu (one object) or below
+it (several): the line sew type and its colour, the region sew type and its colour, each opening
+the ribbon's own list. In a window too small for that place it goes to the other side of the menu or
+beside it, and where it fits nowhere without covering the menu it is left out (#1276: every
+control within reach). The menu and its lists scroll in a small window (#1276). A text gets the shape's menu (PE-DESIGN's menu on a text was not captured).
+Size… is PE-DESIGN's Size dialog (a % row and a mm row, Maintain aspect ratio, Keep density and
+fill pattern shown ticked and grey: OpenStitch sews a shape again after every resize); Rotate… its
+Rotate dialog (a dial, the angle in degrees). Both have OK, Preview and Cancel; Preview applies,
+Cancel takes a preview back, OK is one undo step. Sewing Attributes… brings the Sewing
+Attributes pane forward, as PE-DESIGN does.
 
 ### Option button
 

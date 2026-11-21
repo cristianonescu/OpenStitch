@@ -355,6 +355,19 @@ struct Screenshot {
     done: Arc<AtomicBool>,
 }
 
+/// Ctrl/Cmd+V as a key press (the browser sends it so; the window sends a paste event instead).
+fn is_paste_key(e: &egui::Event) -> bool {
+    matches!(
+        e,
+        egui::Event::Key {
+            key: Key::V,
+            pressed: true,
+            modifiers,
+            ..
+        } if modifiers.command && !modifiers.shift && !modifiers.alt
+    )
+}
+
 impl EditorApp {
     pub fn new(launch: Launch) -> Self {
         let base = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -496,6 +509,8 @@ impl EditorApp {
                 self.recovery.start(folder, l.script.is_empty());
             }
             self.ui.prefs_path = Some(ui);
+            // Saved where it was read from, so the message comes once (#1288).
+            self.tell_given_up_keys();
         } else if l.screenshot.is_none()
             && let Some(store) = openstitch_app::platform::user_store()
         {
@@ -516,6 +531,7 @@ impl EditorApp {
         {
             // No ui.json: the browser page's storage, when it registered one (#797).
             self.ui.prefs = openstitch_app::editor::prefs::UiPrefs::from_json(&v);
+            self.tell_given_up_keys();
             self.workspace.guides = self.ui.prefs.editing.show_guides;
         }
         self.database.units = self.ui.prefs.units;
@@ -1185,6 +1201,57 @@ impl EditorApp {
             self.status = openstitch_app::editor::ui_texts::t("ui-status-locked-unlock-it-in-the-sewing").into();
         }
         locked
+    }
+
+    /// Once, after preferences saved by an earlier version are read: a key the user had given to
+    /// a command that is now another command's default stays theirs (#1288); the status line
+    /// says which command gave it up, and the preferences are saved so it is said once.
+    fn tell_given_up_keys(&mut self) {
+        let given_up = std::mem::take(&mut self.ui.prefs.keymap.given_up);
+        self.status = match &given_up[..] {
+            [] => return,
+            [(lost, chord, keeps)] => openstitch_app::tf!(
+                "ui-status-shortcut-kept",
+                key = crate::keymap_ui::shown(chord),
+                keeps = keeps.info().label,
+                lost = lost.info().label,
+            ),
+            // Every key named: "Ctrl+H stays with Rectangle, Ctrl+M stays with Ellipse".
+            many => {
+                let kept = many
+                    .iter()
+                    .map(|(_, chord, keeps)| {
+                        openstitch_app::tf!(
+                            "ui-status-shortcut-stays",
+                            key = crate::keymap_ui::shown(chord),
+                            keeps = keeps.info().label,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let lost = many
+                    .iter()
+                    .map(|(lost, ..)| lost.info().label)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                openstitch_app::tf!("ui-status-shortcuts-kept", kept = kept, lost = lost)
+            }
+        };
+        self.ui.save_prefs();
+    }
+
+    /// Whether the editor has `chord` ("Ctrl+D", as a key press writes it) for a command, so the
+    /// browser must not act on it as well (#1288: Ctrl+D is the browser's bookmark, Ctrl+H its
+    /// history, Ctrl+J its downloads). Never Ctrl+C, X or V, which must reach the browser as
+    /// its copy, cut and paste events; never a chord without Ctrl.
+    #[cfg_attr(not(any(test, target_arch = "wasm32")), allow(dead_code))]
+    pub fn takes_browser_key(&self, chord: &str) -> bool {
+        let Ok(c) = openstitch_app::editor::keymap::normalize(chord) else {
+            return false;
+        };
+        c.starts_with("Ctrl+")
+            && !matches!(c.as_str(), "Ctrl+C" | "Ctrl+X" | "Ctrl+V")
+            && self.ui.prefs.keymap.bindings().iter().any(|(_, b)| *b == c)
     }
 
     pub fn on_selection(&mut self, make: impl Fn(&BTreeSet<u64>) -> CommandRequest) {
@@ -2024,32 +2091,74 @@ impl EditorApp {
                 crate::ribbon::run(self, a, ctx);
             }
         }
+        if !ctx.text_edit_focused() {
+            // Cut, Copy and Paste arrive as clipboard events, not key presses. Only a text field
+            // that has the keyboard takes them for its text (#1288): a button or a list that kept
+            // the focus after a click does not keep them from the selection.
+            let (cut, copy, paste_text, paste_key, now) = ctx.input(|i| {
+                (
+                    i.events.iter().any(|e| matches!(e, egui::Event::Cut)),
+                    i.events.iter().any(|e| matches!(e, egui::Event::Copy)),
+                    i.events.iter().find_map(|e| match e {
+                        egui::Event::Paste(text) => Some(text.clone()),
+                        _ => None,
+                    }),
+                    i.events.iter().any(is_paste_key),
+                    i.time,
+                )
+            });
+            if cut {
+                crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Cut, ctx);
+            }
+            if copy {
+                crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Copy, ctx);
+            }
+            // In the browser Ctrl/Cmd+V comes as a key press, and the browser's paste event follows
+            // only when the system clipboard holds text: the page cannot write it, so after a Copy in
+            // the page the event never comes and the key alone pastes the page's copy (#1288). The
+            // window turns the key into the paste event itself and never sends the key.
+            if paste_key {
+                // Only a key that pasted counts: a paste event after a key that pasted
+                // nothing is pasted as it comes.
+                self.ui.paste_key = crate::ribbon::paste_from(self, paste_text.as_deref())
+                    .map(|env| (now, env));
+            } else if let Some(text) = paste_text {
+                match self.ui.paste_key.take() {
+                    // The key's own paste event: what it pasted is what the event hands over
+                    // (or the event hands over no objects): nothing more.
+                    Some((at, pasted))
+                        if now - at <= 1.0
+                            && openstitch_app::editor::clipboard::Envelope::parse(&text)
+                                .is_none_or(|env| env == pasted) => {}
+                    // The event hands over other objects (copied in another window or tab):
+                    // the newer clipboard wins, and the key's paste of the page's older copy is
+                    // taken back first, so one undo step is left.
+                    Some((at, _)) if now - at <= 1.0 => {
+                        self.undo();
+                        let _ = crate::ribbon::paste_from(self, Some(&text));
+                    }
+                    _ => {
+                        let _ = crate::ribbon::paste_from(self, Some(&text));
+                    }
+                }
+            }
+        }
         if ctx.egui_wants_keyboard_input() {
             return;
         }
         let take = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
-        // Cut, Copy and Paste arrive as clipboard events, not key presses.
-        let (cut, copy, paste) = ctx.input(|i| {
-            (
-                i.events.iter().any(|e| matches!(e, egui::Event::Cut)),
-                i.events.iter().any(|e| matches!(e, egui::Event::Copy)),
-                i.events.iter().any(|e| matches!(e, egui::Event::Paste(_))),
-            )
-        });
-        if cut {
-            crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Cut, ctx);
-        }
-        if copy {
-            crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Copy, ctx);
-        }
-        if paste {
-            crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Paste, ctx);
-        }
         if hit(A::SelectAll) {
             self.select_all();
         }
         if hit(A::Duplicate) {
             self.on_selection(CommandRequest::duplicate);
+        }
+        // PE-DESIGN's Flip Vertical (Ctrl+H), Flip Horizontal (Ctrl+J) and Center (Ctrl+M) on
+        // the selected objects (#1288).
+        for a in [A::FlipVertical, A::FlipHorizontal, A::CenterObjects] {
+            if hit(a) {
+                crate::ribbon::run(self, a, ctx);
+            }
         }
         if hit(A::Ungroup) {
             crate::edit_ui::ungroup(self);
@@ -2091,6 +2200,9 @@ impl EditorApp {
                 // does in PE-DESIGN: the selection, the selected points and the tool stay
                 // (it used to drop the selection as well, #1260).
                 self.workspace.view.point_menu = None;
+            } else if self.workspace.view.object_menu.is_some() {
+                // The Select tool's object menu too (#1288).
+                self.workspace.view.object_menu = None;
             } else if self.zoom_box.active {
                 self.zoom_box = Default::default();
             } else if self.edit.cancel() {
@@ -2221,6 +2333,11 @@ impl EditorApp {
     /// `update` calls it on macOS only.
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     fn macos_app_shortcuts(&mut self, ctx: &egui::Context) {
+        // Exactly Cmd+key: egui also matches Cmd+Shift+M on Cmd+M, which is Center there
+        // (#1288).
+        if ctx.input(|i| i.modifiers.shift || i.modifiers.alt) {
+            return;
+        }
         let take = |k| {
             ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, k)))
         };

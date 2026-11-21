@@ -262,6 +262,10 @@ feature is done and the rest is under [Planned](#planned).
 - (+) **Zoom box and true real size:** drag a box to zoom, and calibrate 100 % to your monitor
   with a ruler ([#518]).
 - **Undo and redo**, one step per gesture.
+- **Object menu and shortcuts:** a right-click on an object, several or a group opens PE-DESIGN's
+  object menu (cut, copy, paste, duplicate, flip, Size and Rotate by numbers, centre, align, modify
+  overlap and more, with its bar of sew types and colours); Flip Vertical Ctrl+H, Flip Horizontal
+  Ctrl+J, Center Ctrl+M; copy and paste in the browser too ([#1288]).
 - **Unsaved changes** are flagged in the title and asked about before closing, New or Open.
 - (+) **Autosave and recovery:** snapshots of every open design, offered back after a crash; your
   own file is never overwritten ([#549]).
@@ -764,6 +768,7 @@ tests and the keychain round trip
 [#478]: https://github.com/cristianonescu/OpenStitch/issues/478
 [#479]: https://github.com/cristianonescu/OpenStitch/issues/479
 [#744]: https://github.com/cristianonescu/OpenStitch/issues/744
+[#1288]: https://github.com/cristianonescu/OpenStitch/issues/1288
 [#480]: https://github.com/cristianonescu/OpenStitch/issues/480
 [#481]: https://github.com/cristianonescu/OpenStitch/issues/481
 [#482]: https://github.com/cristianonescu/OpenStitch/issues/482

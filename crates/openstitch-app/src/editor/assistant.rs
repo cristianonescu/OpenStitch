@@ -535,6 +535,37 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.objectMenu",
+        summary: "The Select tool's right-click menu on objects (#1288), PE-DESIGN 11.50's object menu: rows in order, each an entry (key, label, shortcut as this platform writes it, icon, enabled for the selection), a sub-menu (key, label, submenu: its entries) or a separator: for one selected object cut, copy, duplicate, paste (sub-menu: paste, pasteAttributes), delete; flip (sub-menu: flipVertical Ctrl+H, flipHorizontal Ctrl+J; Cmd+Shift+H for Flip Vertical on macOS), numericalSetting (sub-menu: sizeNumeric, rotateNumeric), center Ctrl+M (Cmd+Shift+M on macOS); openOutline, closeOutline; offsetLines, toStitches, floral; cutAndSew (sub-menu: applique, patch, cutwork); sewingAttributes (shows the Sewing Attributes pane). For two or more (a group too): group, ungroup; cut, copy, duplicate, paste, delete; flip, numericalSetting, center, align (sub-menu: alignLeft, alignCenter, alignRight, alignTop, alignMiddle, alignBottom); openOutline, closeOutline; modifyOverlap (sub-menu: removeOverlaps, merge, setHoleSewing, cancelHoleSewing), embossEngrave (sub-menu: engravedLine, engravedRegion, embossedRegion); toStitches; cutAndSew; sewingAttributes. PE-DESIGN's Paste Selected Attributes... and Export Cutting Data are not in it (OpenStitch has neither); a text is treated as a shape (PE-DESIGN's menu on text was not captured). sizeNumeric and rotateNumeric open PE-DESIGN's Size and Rotate dialogs (dialog reports the open one: kind, percent, widthPercent, heightPercent, widthMm, heightMm, maintainAspectRatio, degrees, previewed); numeric sets their fields (percent: true for the % row, width, height, maintainAspectRatio, degrees clockwise) and presses button ok, preview or cancel: Preview applies the setting, Cancel takes a preview back, OK applies it as one undo step. open tells whether it is open, at where it opened (window points), submenuOpen the key of the open sub-menu, menuRect [x, y, width, height] and menuFill (#rrggbb) where it was painted (null until a frame has painted it: its first frame only measures it), bar PE-DESIGN's small bar beside the menu (above it for one object, below for several): line and region (the selection's sew types, null when it has none or mixed ones), lineColor and regionColor (#rrggbb; null when the selected objects have several, then lineColorMixed or regionColorMixed is true and the swatch is the pane's Mixed one), below and rect; its buttons open the ribbon's Line Sew Type, Line Color, Region Sew Type and Region Color lists (object.setLine, object.setRegion do the same). selection the selected object ids and selectionRect where they are in the window ([x, y, width, height] in points; a right-click inside opens the menu for them); every entry and sub-menu row carries rect, where it was painted last (null until then; a sub-menu's entries only while it is open), so a script can point at it. at [x, y] opens it as a right-click there does: the object under the pointer is selected first unless it is already selected (several selected objects or a group stay selected), refused on empty canvas or with another tool than Select. action runs an entry (a row's key or a sub-menu entry's key) on the selection as a click on it does, each one undo step, refused while the entry is greyed out; close: true closes the menu. Any other parameter is refused. The same commands run from the ribbon (ui.run) and the shortcuts; the engine commands are object.flip, object.center, object.duplicate, object.paste, object.delete and the others the ribbon names",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "at",
+                "[x, y]",
+                false,
+                "Open the menu as a right-click at this window point does (points from the window's top-left corner): selects the object there first when it is not selected. Refused on empty canvas or with another tool than Select",
+            ),
+            p(
+                "action",
+                "string",
+                false,
+                "Run this entry on the selection (a key from rows or a sub-menu), as a click on it does; refused while it is greyed out",
+            ),
+            p(
+                "close",
+                "bool",
+                false,
+                "true: close the menu, as Esc or a click elsewhere does; the selection stays",
+            ),
+            p(
+                "numeric",
+                "{percent, width, height, maintainAspectRatio, degrees, button}",
+                false,
+                "Fill in the open Size or Rotate dialog and press a button (ok, preview, cancel); width and height are % with percent: true, else mm; with maintainAspectRatio the height follows the width. Values outside the dialog's fields (1-1000 %, 0.1-2000 mm, -360 to 360 degrees) are kept to them; another field, a value of the wrong kind or another button is refused",
+            ),
+        ],
+    },
+    UiCommand {
         id: "ui.guides",
         summary: "The guidelines as the canvas shows them (#799): each one's index, position (mm from the ruler origin, as its label reads) and label, whether they show, are locked and snap, the selected one and an open Set Position… dialog. orientation + index select one as a click does; then position (a length as typed in Set Position…: 12.5, \"12.5 mm\", \"1/2\\\"\"; from the ruler origin), turn (Alt-click) or delete (the Delete key) act on it, one undo step each; newGuide {orientation, position} is New Guide… (from the ruler origin). It also gives the guideline colour and an open right-click menu. Engine commands view.* do the same in page coordinates",
         effect: Effect::Edit,

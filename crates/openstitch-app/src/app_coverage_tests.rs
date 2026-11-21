@@ -1685,3 +1685,1367 @@ fn the_alt_marks_of_a_stitch_pattern_are_painted_and_connect() {
     assert_eq!(patterns, 1, "connected into one");
     assert_eq!(painted(&mut app), (0, 0));
 }
+
+/// Whole editor frames in a 1440 x 900 window, as the window or the page runs them (#1288).
+struct Window {
+    ctx: egui::Context,
+    frame: eframe::Frame,
+    size: egui::Vec2,
+}
+
+impl Window {
+    fn new() -> Self {
+        Self::sized(1440.0, 900.0)
+    }
+
+    fn sized(width: f32, height: f32) -> Self {
+        Window {
+            ctx: egui::Context::default(),
+            frame: eframe::Frame::_new_kittest(),
+            size: egui::vec2(width, height),
+        }
+    }
+
+    fn run(&mut self, app: &mut EditorApp, events: Vec<egui::Event>, modifiers: Modifiers) {
+        let mut raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, self.size)),
+            ..Default::default()
+        };
+        raw.events.push(egui::Event::ModifiersChanged(modifiers));
+        raw.events.extend(events);
+        let frame = &mut self.frame;
+        let mut out = self
+            .ctx
+            .run_ui(raw, |ui| eframe::App::ui(app, ui, frame));
+        out.textures_delta.clear();
+    }
+
+    /// A left click at `at`, then a frame without input.
+    fn click(&mut self, app: &mut EditorApp, at: egui::Pos2) {
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        self.run(
+            app,
+            vec![egui::Event::PointerMoved(at), button(true), button(false)],
+            Modifiers::NONE,
+        );
+        self.run(app, vec![], Modifiers::NONE);
+    }
+
+    /// Ctrl/Cmd + `k` as a key press (the window sends Ctrl+D and Ctrl+V so).
+    fn ctrl(&mut self, app: &mut EditorApp, k: Key) {
+        self.run(app, vec![key(k, Modifiers::COMMAND)], Modifiers::COMMAND);
+    }
+
+    /// The default key of `a` on this platform, pressed as the window sends it (on macOS Flip
+    /// Vertical is Cmd+Shift+H and Center Cmd+Shift+M, #1288).
+    fn press_action(&mut self, app: &mut EditorApp, a: openstitch_app::editor::ribbon::Action) {
+        let chord = platform_key(a);
+        let k = crate::keymap_ui::parse(&chord).unwrap_or_else(|| panic!("{a:?}: {chord}"));
+        self.run(
+            app,
+            vec![key(k.logical_key, k.modifiers)],
+            k.modifiers,
+        );
+    }
+}
+
+/// The default key of `a` on the platform the test runs on, as the keymap writes it.
+fn platform_key(a: openstitch_app::editor::ribbon::Action) -> String {
+    openstitch_app::editor::keymap::defaults_on(a, cfg!(target_os = "macos"))
+        .first()
+        .unwrap_or_else(|| panic!("{a:?} has a default key"))
+        .to_string()
+}
+
+/// A started editor without the splash (whose first key press or click only closes it): its
+/// first frames have run before a test builds anything.
+fn started(w: &mut Window) -> EditorApp {
+    let mut app = EditorApp::new(Launch {
+        no_splash: true,
+        ..Launch::default()
+    });
+    for _ in 0..3 {
+        w.run(&mut app, vec![], Modifiers::NONE);
+    }
+    assert!(
+        !w.ctx.egui_wants_keyboard_input(),
+        "no field has the keyboard at start"
+    );
+    app
+}
+
+/// Filled 20 mm squares at x = 10, 40 (and 70) mm: one, two, or two grouped.
+fn squares(app: &mut EditorApp, how: &str) -> BTreeSet<u64> {
+    let mut ids = BTreeSet::new();
+    for x in [10.0, 40.0] {
+        let r = app
+            .execute(&CommandRequest::new(
+                "shape.rectangle",
+                json!({ "x": x, "y": 10, "width": 20, "height": 20, "fill": "Red" }),
+            ))
+            .expect("rectangle");
+        ids.extend(CommandRequest::created_ids(&r));
+        if how == "one" {
+            break;
+        }
+    }
+    app.selection = ids.clone();
+    if how == "group" {
+        crate::edit_ui::group(app);
+        assert!(
+            crate::edit_ui::can_ungroup(app),
+            "the two squares are a group"
+        );
+    }
+    ids
+}
+
+fn bounds_of(app: &EditorApp, ids: &BTreeSet<u64>) -> openstitch_design::Rect {
+    let d = app.session.design();
+    openstitch_design::Rect::enclosing(
+        d.objects
+            .iter()
+            .filter(|o| ids.contains(&o.id))
+            .filter_map(|o| o.bounds())
+            .flat_map(|b| {
+                [
+                    openstitch_design::v2(b.min_x, b.min_y),
+                    openstitch_design::v2(b.max_x, b.max_y),
+                ]
+            }),
+    )
+    .expect("bounds")
+}
+
+/// #1288: Ctrl/Cmd+C, X, V and D on the selection through the editor's whole frame, with the
+/// events the window sends (Copy, Cut and Paste events; Ctrl+D as a key), for one object, two
+/// and a group; also after a click on the selected object on the canvas. Each paste and each
+/// duplicate adds the selection's objects as one undo step and selects them.
+#[test]
+fn ctrl_c_x_v_and_d_work_on_the_canvas_for_one_several_and_a_group() {
+    for how in ["one", "two", "group"] {
+        let mut w = Window::new();
+        let mut app = started(&mut w);
+        let ids = squares(&mut app, how);
+        let n = ids.len();
+        for _ in 0..3 {
+            w.run(&mut app, vec![], Modifiers::NONE);
+        }
+        // A click on the first square on the canvas keeps it (and its group) selected.
+        let vp = app.viewport.expect("viewport");
+        let first = app.session.design().objects[0].bounds().expect("bounds");
+        let s = vp.to_screen(first.center());
+        w.click(&mut app, egui::pos2(s.x as f32, s.y as f32));
+        if how != "two" {
+            assert_eq!(app.selection, ids, "{how}: a click on it selects it");
+        } else {
+            app.selection = ids.clone();
+        }
+        let count = |app: &EditorApp| app.session.design().objects.len();
+        w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+        assert_eq!(
+            app.ui.copied.as_ref().map(|e| e.objects.len()),
+            Some(n),
+            "{how}: Ctrl+C copies the selection"
+        );
+        w.run(&mut app, vec![egui::Event::Paste(String::new())], Modifiers::COMMAND);
+        assert_eq!(count(&app), 2 * n, "{how}: Ctrl+V adds the copy");
+        assert_eq!(app.selection.len(), n, "{how}: the copy is selected");
+        assert!(app.selection.is_disjoint(&ids), "{how}: new objects");
+        app.undo();
+        assert_eq!(count(&app), n, "{how}: one undo step");
+        app.selection = ids.clone();
+        w.ctrl(&mut app, Key::D);
+        assert_eq!(count(&app), 2 * n, "{how}: Ctrl+D duplicates");
+        let dup = app.selection.clone();
+        assert!(dup.len() == n && dup.is_disjoint(&ids), "{how}: the duplicate is selected");
+        app.undo();
+        app.selection = ids.clone();
+        w.run(&mut app, vec![egui::Event::Cut], Modifiers::COMMAND);
+        assert_eq!(count(&app), 0, "{how}: Ctrl+X takes the selection out");
+        w.run(&mut app, vec![egui::Event::Paste(String::new())], Modifiers::COMMAND);
+        assert_eq!(count(&app), n, "{how}: and Ctrl+V puts it back");
+    }
+}
+
+/// #1288, the browser: Ctrl/Cmd+V comes as a key press; the browser's paste event follows only
+/// when the system clipboard holds text, which the page cannot write. The key alone pastes the
+/// page's own copy, and a paste event the browser sends after it does not paste again; a paste
+/// event without the key (the browser's Edit ▸ Paste) pastes once.
+#[test]
+fn in_the_browser_ctrl_v_pastes_the_pages_copy_once() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+    let count = |app: &EditorApp| app.session.design().objects.len();
+    // The key alone: nothing on the system clipboard, no paste event.
+    w.ctrl(&mut app, Key::V);
+    assert_eq!(count(&app), 2, "the key pastes the page's copy");
+    // The browser's paste event for the same key, a frame later: no second paste.
+    w.run(
+        &mut app,
+        vec![egui::Event::Paste("some text".into())],
+        Modifiers::COMMAND,
+    );
+    assert_eq!(count(&app), 2, "the key's paste event does not paste again");
+    // Key and event in the same frame: one paste.
+    w.run(
+        &mut app,
+        vec![
+            key(Key::V, Modifiers::COMMAND),
+            egui::Event::Paste("some text".into()),
+        ],
+        Modifiers::COMMAND,
+    );
+    assert_eq!(count(&app), 3, "key and event together paste once");
+    app.selection = ids;
+}
+
+/// #1288: Flip Vertical (Ctrl+H), Flip Horizontal (Ctrl+J) and Center (Ctrl+M) as keys, for one
+/// object, two and a group: each one undo step, about the selection's centre (the flips keep
+/// its bounds; Center moves them to the Design Page's centre). Join Lines moved to
+/// Ctrl+Shift+J.
+#[test]
+fn flip_and_center_keys_act_on_one_several_and_a_group() {
+    use openstitch_app::editor::ribbon::Action as A;
+    for how in ["one", "two", "group"] {
+        let mut w = Window::new();
+        let mut app = started(&mut w);
+        // An L-shaped pair of squares tells a flip from nothing: one square sits lower.
+        let ids = squares(&mut app, how);
+        if how != "one" {
+            let second = *ids.iter().last().expect("second");
+            app.execute(&CommandRequest::new(
+                "object.move",
+                json!({ "ids": [second], "dx": 0, "dy": 15 }),
+            ))
+            .expect("move");
+            app.selection = ids.clone();
+        }
+        w.run(&mut app, vec![], Modifiers::NONE);
+        let before = bounds_of(&app, &ids);
+        let first = |app: &EditorApp| {
+            app.session
+                .design()
+                .objects
+                .first()
+                .unwrap_or_else(|| panic!("{how}: the design has its squares (a key undid them?)"))
+                .bounds()
+                .expect("bounds")
+        };
+        for a in [A::FlipVertical, A::FlipHorizontal] {
+            let was = first(&app);
+            w.press_action(&mut app, a);
+            let after = bounds_of(&app, &ids);
+            assert!(
+                (after.min_x - before.min_x).abs() < 1e-6
+                    && (after.max_y - before.max_y).abs() < 1e-6,
+                "{how} {a:?}: about the selection's centre"
+            );
+            if how != "one" {
+                assert_ne!(first(&app), was, "{how} {a:?}: the first square moved");
+            }
+            app.undo();
+            assert_eq!(first(&app), was, "{how} {a:?}: one undo step undoes it");
+            assert_eq!(bounds_of(&app, &ids), before, "{how} {a:?}");
+        }
+        w.press_action(&mut app, A::CenterObjects);
+        let page = app.session.design().page.center();
+        let c = bounds_of(&app, &ids).center();
+        assert!(
+            (c.x - page.x).abs() < 1e-6 && (c.y - page.y).abs() < 1e-6,
+            "{how}: Ctrl+M centres the selection on the Design Page"
+        );
+        app.undo();
+        assert_eq!(bounds_of(&app, &ids), before, "{how}: Center is one undo step");
+    }
+    // Ctrl+J is no longer Join Lines; Ctrl+Shift+J is. Flip Vertical and Center have Ctrl+H
+    // and Ctrl+M, on macOS Cmd+Shift+H and Cmd+Shift+M (the system keeps Cmd+H and Cmd+M).
+    let mac = cfg!(target_os = "macos");
+    let k = openstitch_app::editor::keymap::Keymap::default();
+    let of = |chord: &str| {
+        k.bindings()
+            .into_iter()
+            .filter(|(_, c)| c == chord)
+            .map(|(a, _)| a)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(of("Ctrl+J"), [A::FlipHorizontal]);
+    assert_eq!(of("Ctrl+Shift+J"), [A::JoinLines]);
+    let (flip_v, center) = if mac {
+        ("Ctrl+Shift+H", "Ctrl+Shift+M")
+    } else {
+        ("Ctrl+H", "Ctrl+M")
+    };
+    assert_eq!(of(flip_v), [A::FlipVertical]);
+    assert_eq!(of(center), [A::CenterObjects]);
+    assert_eq!(platform_key(A::FlipVertical), flip_v);
+    assert_eq!(platform_key(A::CenterObjects), center);
+}
+
+/// #1288: the browser must not act on the editor's Ctrl shortcuts (Ctrl+D bookmarks the page);
+/// the clipboard keys stay the browser's, which turns them into its copy, cut and paste events.
+#[test]
+fn the_editor_keeps_its_ctrl_shortcuts_from_the_browser() {
+    let app = EditorApp::new(Launch::default());
+    // This platform's default keys of the object commands (the test runs natively; on macOS
+    // Flip Vertical and Center are Cmd+Shift+H and Cmd+Shift+M).
+    use openstitch_app::editor::ribbon::Action as A;
+    let chords: Vec<String> = [
+        A::Duplicate,
+        A::FlipVertical,
+        A::FlipHorizontal,
+        A::CenterObjects,
+        A::SelectAll,
+        A::Group,
+        A::JoinLines,
+    ]
+    .into_iter()
+    .map(platform_key)
+    .collect();
+    for chord in chords.iter().map(String::as_str) {
+        assert!(app.takes_browser_key(chord), "{chord}");
+    }
+    for chord in ["Ctrl+C", "Ctrl+X", "Ctrl+V", "Ctrl+T", "D", "Ctrl+F5"] {
+        assert!(!app.takes_browser_key(chord), "{chord}");
+    }
+}
+
+impl Window {
+    /// A right click at `at` as the window sends it, then two frames (the menu's first frame
+    /// only measures it).
+    fn right_click(&mut self, app: &mut EditorApp, at: egui::Pos2) {
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        self.run(
+            app,
+            vec![egui::Event::PointerMoved(at), button(true), button(false)],
+            Modifiers::NONE,
+        );
+        self.run(app, vec![], Modifiers::NONE);
+        self.run(app, vec![], Modifiers::NONE);
+    }
+}
+
+/// Where object `i` (in design order) is on screen, inside its fill.
+fn on_screen(app: &EditorApp, i: usize) -> egui::Pos2 {
+    let vp = app.viewport.expect("viewport");
+    let b = app.session.design().objects[i].bounds().expect("bounds");
+    let s = vp.to_screen(b.center());
+    egui::pos2(s.x as f32, s.y as f32)
+}
+
+fn menu(app: &mut EditorApp) -> Value {
+    app.ui_command("ui.objectMenu", None).expect("state")
+}
+
+/// #1288: a right-click on an object with the Select tool opens the object menu, PE-DESIGN
+/// 11.50's entries in its order with its separators, sub-menus and shortcuts, painted at the
+/// pointer: on one unselected object (selected first), on one of two selected objects and on a
+/// group (the selection stays); not on empty canvas; Esc closes it and keeps the selection.
+#[test]
+fn a_right_click_opens_pe_designs_object_menu_for_one_several_and_a_group() {
+    for how in ["one", "two", "group"] {
+        let mut w = Window::new();
+        let mut app = started(&mut w);
+        let ids = squares(&mut app, how);
+        if how == "one" {
+            app.selection.clear();
+        }
+        w.run(&mut app, vec![], Modifiers::NONE);
+        let at = on_screen(&app, 0);
+        w.right_click(&mut app, at);
+        let m = menu(&mut app);
+        assert_eq!(m["open"], true, "{how}: open");
+        assert_eq!(app.selection, ids, "{how}: the selection the menu is for");
+        let rect = m["menuRect"].as_array().expect("painted");
+        let x = rect[0].as_f64().expect("x") as f32;
+        let y = rect[1].as_f64().expect("y") as f32;
+        assert!(
+            (x - at.x).abs() < 2.0 && (y - at.y).abs() < 2.0,
+            "{how}: at the pointer: {rect:?} vs {at:?}"
+        );
+        // PE-DESIGN's sew-type bar: above the menu for one object, below it for several,
+        // with the selection's region sew type and colour.
+        let bar = &m["bar"];
+        assert_eq!(bar["region"], "fill", "{how}");
+        assert_eq!(bar["regionColor"], "#ed171f", "{how}: Red, the chart's thread");
+        let b = bar["rect"].as_array().expect("bar painted");
+        let (by, bh) = (
+            b[1].as_f64().expect("y") as f32,
+            b[3].as_f64().expect("h") as f32,
+        );
+        let menu_bottom = y + rect[3].as_f64().expect("h") as f32;
+        if how == "one" {
+            assert!(by + bh <= y + 1.0, "one: the bar is above the menu");
+        } else {
+            assert!(by >= menu_bottom - 1.0, "{how}: the bar is below the menu");
+        }
+        // The rows: PE-DESIGN's order, separators where its menu has them.
+        let keys: Vec<String> = m["rows"]
+            .as_array()
+            .expect("rows")
+            .iter()
+            .map(|r| {
+                if r["separator"] == true {
+                    "-".to_string()
+                } else {
+                    r["key"].as_str().expect("key").to_string()
+                }
+            })
+            .collect();
+        // One object: PE-DESIGN's first capture; two or a group: its second (Group and
+        // Ungroup first, Align, Modify Overlap and Emboss/Engrave; no Offset Lines or Floral).
+        let expected: &[&str] = if how == "one" {
+            &[
+                "cut", "copy", "duplicate", "paste", "delete", "-", "flip", "numericalSetting",
+                "center", "-", "openOutline", "closeOutline", "-", "offsetLines", "toStitches",
+                "floral", "-", "cutAndSew", "-", "sewingAttributes",
+            ]
+        } else {
+            &[
+                "group", "ungroup", "-", "cut", "copy", "duplicate", "paste", "delete", "-",
+                "flip", "numericalSetting", "center", "align", "-", "openOutline",
+                "closeOutline", "-", "modifyOverlap", "embossEngrave", "-", "toStitches", "-",
+                "cutAndSew", "-", "sewingAttributes",
+            ]
+        };
+        assert_eq!(keys, expected, "{how}");
+        let row = |key: &str| {
+            m["rows"]
+                .as_array()
+                .expect("rows")
+                .iter()
+                .find(|r| r["key"] == key)
+                .cloned()
+                .expect(key)
+        };
+        let ctrl = if cfg!(target_os = "macos") { "Cmd" } else { "Ctrl" };
+        for (key, keys) in [("cut", "X"), ("copy", "C"), ("duplicate", "D")] {
+            assert_eq!(row(key)["shortcut"], format!("{ctrl}+{keys}"), "{key}");
+            assert_eq!(row(key)["enabled"], true, "{how}: {key}");
+        }
+        assert_eq!(row("delete")["shortcut"], "Delete");
+        let flips: Vec<(String, String)> = row("flip")["submenu"]
+            .as_array()
+            .expect("flip")
+            .iter()
+            .map(|e| {
+                (
+                    e["key"].as_str().expect("key").to_string(),
+                    e["shortcut"].as_str().expect("shortcut").to_string(),
+                )
+            })
+            .collect();
+        // The menu shows this platform's default key from the keymap (macOS: Cmd+Shift+H and
+        // Cmd+Shift+M, the system keeping Cmd+H and Cmd+M), so menu and keymap agree.
+        let mac = cfg!(target_os = "macos");
+        let keymap = |a: openstitch_app::editor::ribbon::Action| {
+            let chord = openstitch_app::editor::keymap::defaults_on(a, mac)
+                .first()
+                .copied()
+                .expect("a default key");
+            if mac {
+                chord.replace("Ctrl+", "Cmd+")
+            } else {
+                chord.to_string()
+            }
+        };
+        use openstitch_app::editor::ribbon::Action as A;
+        assert_eq!(
+            flips,
+            [
+                ("flipVertical".to_string(), keymap(A::FlipVertical)),
+                ("flipHorizontal".to_string(), keymap(A::FlipHorizontal))
+            ]
+        );
+        assert_eq!(row("center")["shortcut"], keymap(A::CenterObjects));
+        assert_eq!(row("duplicate")["shortcut"], keymap(A::Duplicate));
+        let paste_row = row("paste");
+        let paste: Vec<&str> = paste_row["submenu"]
+            .as_array()
+            .expect("paste")
+            .iter()
+            .map(|e| e["key"].as_str().expect("key"))
+            .collect();
+        assert_eq!(paste, ["paste", "pasteAttributes"]);
+        let wizards_row = row("cutAndSew");
+        let wizards: Vec<&str> = wizards_row["submenu"]
+            .as_array()
+            .expect("cut and sew")
+            .iter()
+            .map(|e| e["key"].as_str().expect("key"))
+            .collect();
+        assert_eq!(wizards, ["applique", "patch", "cutwork"]);
+        // A closed shape: Open is offered, Close is grey, as in PE-DESIGN's capture.
+        if how == "one" {
+            assert_eq!(
+                (row("openOutline")["enabled"].clone(), row("closeOutline")["enabled"].clone()),
+                (json!(true), json!(false))
+            );
+        }
+        // Esc closes it and keeps the selection.
+        w.run(
+            &mut app,
+            vec![key(Key::Escape, Modifiers::NONE)],
+            Modifiers::NONE,
+        );
+        assert_eq!(menu(&mut app)["open"], false, "{how}: Esc closes it");
+        assert_eq!(app.selection, ids, "{how}: and keeps the selection");
+    }
+    // Empty canvas: no menu, and the selection stays.
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let vp = app.viewport.expect("viewport");
+    let empty = vp.to_screen(openstitch_design::v2(900.0, 900.0));
+    w.right_click(&mut app, egui::pos2(empty.x as f32, empty.y as f32));
+    assert_eq!(menu(&mut app)["open"], false, "no menu on empty canvas");
+    assert_eq!(app.selection, ids);
+}
+
+/// #1288: the menu's entries run on the selection, each one undo step: Flip Vertical and Flip
+/// Horizontal mirror it about its centre, Center moves it to the Design Page's centre,
+/// Duplicate and Copy then Paste add copies; an entry that is grey is refused. A click
+/// outside the menu closes it.
+#[test]
+fn the_object_menus_entries_run_on_the_selection() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "two");
+    let second = *ids.iter().last().expect("second");
+    app.execute(&CommandRequest::new(
+        "object.move",
+        json!({ "ids": [second], "dy": 15 }),
+    ))
+    .expect("move");
+    app.selection = ids.clone();
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let at = on_screen(&app, 0);
+    let before = bounds_of(&app, &ids);
+    let first = |app: &EditorApp| app.session.design().objects[0].bounds().expect("bounds");
+    for action in ["flipVertical", "flipHorizontal"] {
+        w.right_click(&mut app, at);
+        let was = first(&app);
+        app.ui_command("ui.objectMenu", Some(&json!({ "action": action })))
+            .expect(action);
+        assert_eq!(menu(&mut app)["open"], false, "{action}: the menu closes");
+        assert_ne!(first(&app), was, "{action}: mirrored");
+        assert_eq!(bounds_of(&app, &ids), before, "{action}: about the centre");
+        app.undo();
+        assert_eq!(first(&app), was, "{action}: one undo step");
+    }
+    w.right_click(&mut app, at);
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "center" })))
+        .expect("center");
+    let page = app.session.design().page.center();
+    let c = bounds_of(&app, &ids).center();
+    assert!((c.x - page.x).abs() < 1e-6 && (c.y - page.y).abs() < 1e-6);
+    app.undo();
+    let count = |app: &EditorApp| app.session.design().objects.len();
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "duplicate" })))
+        .expect("duplicate");
+    assert_eq!(count(&app), 4);
+    app.undo();
+    app.selection = ids.clone();
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "copy" })))
+        .expect("copy");
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "paste" })))
+        .expect("paste");
+    assert_eq!(count(&app), 4);
+    app.undo();
+    app.selection = ids.clone();
+    let e = app
+        .ui_command("ui.objectMenu", Some(&json!({ "action": "closeOutline" })))
+        .expect_err("grey");
+    assert!(e.contains("not available"), "{e}");
+    let e = app
+        .ui_command("ui.objectMenu", Some(&json!({ "action": "bend" })))
+        .expect_err("unknown");
+    assert!(e.contains("flipVertical"), "{e}");
+    // With the pointer: on the Flip row its sub-menu opens beside it; a click on Flip
+    // Horizontal there runs it and closes the menu.
+    app.selection = ids.clone();
+    w.right_click(&mut app, at);
+    let centre = |r: &Value| {
+        let r = r.as_array().expect("rect");
+        let f = |i: usize| r[i].as_f64().expect("number") as f32;
+        egui::pos2(f(0) + f(2) / 2.0, f(1) + f(3) / 2.0)
+    };
+    let m = menu(&mut app);
+    let flip = m["rows"]
+        .as_array()
+        .expect("rows")
+        .iter()
+        .find(|r| r["key"] == "flip")
+        .expect("flip")["rect"]
+        .clone();
+    w.run(
+        &mut app,
+        vec![egui::Event::PointerMoved(centre(&flip))],
+        Modifiers::NONE,
+    );
+    w.run(&mut app, vec![], Modifiers::NONE);
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let m = menu(&mut app);
+    assert_eq!(m["submenuOpen"], "flip", "the Flip sub-menu opens on hover");
+    let entries = m["rows"]
+        .as_array()
+        .expect("rows")
+        .iter()
+        .find(|r| r["key"] == "flip")
+        .expect("flip")["submenu"]
+        .clone();
+    let horizontal = entries
+        .as_array()
+        .expect("entries")
+        .iter()
+        .find(|e| e["key"] == "flipHorizontal")
+        .expect("flipHorizontal")["rect"]
+        .clone();
+    let was = first(&app);
+    w.click(&mut app, centre(&horizontal));
+    assert_ne!(first(&app), was, "Flip Horizontal ran from the sub-menu");
+    assert_eq!(bounds_of(&app, &ids), before, "about the selection's centre");
+    assert_eq!(menu(&mut app)["open"], false, "and the menu closed");
+    app.undo();
+    // A left click on empty canvas closes an open menu.
+    w.right_click(&mut app, at);
+    assert_eq!(menu(&mut app)["open"], true);
+    let vp = app.viewport.expect("viewport");
+    let empty = vp.to_screen(openstitch_design::v2(900.0, 900.0));
+    w.click(&mut app, egui::pos2(empty.x as f32, empty.y as f32));
+    assert_eq!(menu(&mut app)["open"], false, "a click outside closes it");
+}
+
+/// #1288: with the Point tool a right-click still opens the Point tool's own menus (#1258,
+/// #1260), never the Select tool's object menu.
+#[test]
+fn the_point_tool_keeps_its_own_menus() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    app.tools.set_tool(Tool::Point);
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let at = on_screen(&app, 0);
+    w.right_click(&mut app, at);
+    assert_eq!(menu(&mut app)["open"], false, "no object menu");
+    let point = app.ui_command("ui.pointMenu", None).expect("point menu");
+    assert_eq!(point["objectMenuOpen"], true, "the Point tool's object menu");
+}
+
+/// #1288: every default shortcut of this platform, pressed as the window sends it, reaches its
+/// own command and no other.
+#[test]
+fn every_default_shortcut_reaches_its_command() {
+    let ctx = egui::Context::default();
+    let app = EditorApp::new(Launch::default());
+    let bindings = app.ui.prefs.keymap.bindings();
+    assert!(!bindings.is_empty());
+    for (a, chord) in bindings {
+        let k = crate::keymap_ui::parse(&chord).unwrap_or_else(|| panic!("{chord}"));
+        let mut raw = egui::RawInput::default();
+        raw.events
+            .push(egui::Event::ModifiersChanged(k.modifiers));
+        raw.events.push(key(k.logical_key, k.modifiers));
+        let mut hits = Vec::new();
+        let mut out = ctx.run_ui(raw, |ui| hits = crate::keymap_ui::pressed(&app, ui.ctx()));
+        out.textures_delta.clear();
+        assert_eq!(hits, [a], "{chord}");
+    }
+}
+
+/// #1288: the entries the object menu added. Size... and Rotate... open PE-DESIGN's dialogs:
+/// Preview applies, Cancel takes it back, OK is one undo step; Rotate... by 90 is Rotate Right.
+/// With two objects Ungroup is grey until they are grouped; Set and Cancel hole sewing, Align
+/// and Sewing Attributes... run; a paste in place says so; Ctrl+D's copy lies 5 mm right and
+/// 5 mm down, as PE-DESIGN's.
+#[test]
+fn the_object_menus_dialogs_and_entries_for_several_objects() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let before = bounds_of(&app, &ids);
+    let menu_cmd = |app: &mut EditorApp, p: Value| {
+        app.ui_command("ui.objectMenu", Some(&p))
+            .unwrap_or_else(|e| panic!("{p}: {e}"))
+    };
+    // Size... at 200 %: Preview doubles it, Cancel takes it back.
+    menu_cmd(&mut app, json!({ "action": "sizeNumeric" }));
+    let s = menu_cmd(&mut app, json!({ "numeric": { "width": 200, "button": "preview" } }));
+    assert_eq!(s["dialog"]["previewed"], true);
+    assert!((bounds_of(&app, &ids).width() - 2.0 * before.width()).abs() < 1e-6);
+    menu_cmd(&mut app, json!({ "numeric": { "button": "cancel" } }));
+    assert_eq!(bounds_of(&app, &ids), before, "Cancel takes the preview back");
+    // In millimetres, the aspect kept: 30 mm wide is 30 mm high for the square; OK; one undo.
+    menu_cmd(&mut app, json!({ "action": "sizeNumeric" }));
+    let s = menu_cmd(
+        &mut app,
+        json!({ "numeric": { "percent": false, "width": 30, "button": "ok" } }),
+    );
+    assert!(s["dialog"].is_null(), "OK closes the dialog");
+    let b = bounds_of(&app, &ids);
+    assert!((b.width() - 300.0).abs() < 1e-6 && (b.height() - 300.0).abs() < 1e-6, "{b:?}");
+    assert!(
+        (b.center().x - before.center().x).abs() < 1e-6,
+        "about the selection's centre"
+    );
+    app.undo();
+    assert_eq!(bounds_of(&app, &ids), before, "one undo step");
+    // OK without a change is refused (grey, as PE-DESIGN's).
+    menu_cmd(&mut app, json!({ "action": "sizeNumeric" }));
+    assert!(
+        app.ui_command("ui.objectMenu", Some(&json!({ "numeric": { "button": "ok" } })))
+            .is_err()
+    );
+    menu_cmd(&mut app, json!({ "numeric": { "button": "cancel" } }));
+    // Rotate... 90 degrees is Rotate Right.
+    let shape = |app: &EditorApp| app.session.design().objects[0].clone();
+    let original = shape(&app);
+    crate::ribbon::run(
+        &mut app,
+        openstitch_app::editor::ribbon::Action::RotateRight,
+        &w.ctx,
+    );
+    let right = shape(&app);
+    app.undo();
+    menu_cmd(&mut app, json!({ "action": "rotateNumeric" }));
+    menu_cmd(&mut app, json!({ "numeric": { "degrees": 90, "button": "ok" } }));
+    assert_eq!(shape(&app).bounds(), right.bounds(), "Rotate... 90 is Rotate Right");
+    app.undo();
+    assert_eq!(shape(&app), original);
+    // Sewing Attributes... shows the pane on its Sewing Attributes tab.
+    app.ui.prefs.panes.attributes.visible = false;
+    menu_cmd(&mut app, json!({ "action": "sewingAttributes" }));
+    assert!(app.ui.prefs.panes.attributes.visible);
+    assert_eq!(app.ui.pane_tab, crate::ribbon::PaneTab::Sewing);
+    // Paste in place says so.
+    menu_cmd(&mut app, json!({ "action": "copy" }));
+    menu_cmd(&mut app, json!({ "action": "paste" }));
+    assert_eq!(app.status, "Pasted 1 objects in place (on top of the originals)");
+    app.undo();
+    // Ctrl+D: 5 mm right and 5 mm down, the duplicate selected.
+    app.selection = ids.clone();
+    w.ctrl(&mut app, Key::D);
+    let dup = bounds_of(&app, &app.selection.clone());
+    assert!(
+        (dup.min_x - before.min_x - 50.0).abs() < 1e-6 && (dup.min_y - before.min_y - 50.0).abs() < 1e-6,
+        "{dup:?} vs {before:?}"
+    );
+    app.undo();
+
+    // Two objects: Ungroup grey until grouped; hole sewing; Align.
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "two");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let row = |app: &mut EditorApp, key: &str| {
+        let m = app.ui_command("ui.objectMenu", None).expect("menu");
+        m["rows"]
+            .as_array()
+            .expect("rows")
+            .iter()
+            .flat_map(|r| {
+                std::iter::once(r.clone()).chain(r["submenu"].as_array().cloned().unwrap_or_default())
+            })
+            .find(|r| r["key"] == key)
+            .unwrap_or_else(|| panic!("{key}"))
+    };
+    assert_eq!(row(&mut app, "ungroup")["enabled"], false);
+    assert_eq!(row(&mut app, "group")["enabled"], true);
+    // Side by side, neither holds the other: no hole sewing.
+    assert_eq!(row(&mut app, "setHoleSewing")["enabled"], false);
+    assert_eq!(row(&mut app, "cancelHoleSewing")["enabled"], false);
+    // A small square inside a large one: Set hole sewing sews the large one round it.
+    let big = app
+        .execute(&CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 10, "y": 50, "width": 40, "height": 40, "fill": "Red" }),
+        ))
+        .expect("big");
+    let small = app
+        .execute(&CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 20, "y": 60, "width": 10, "height": 10, "fill": "Blue" }),
+        ))
+        .expect("small");
+    let pair: BTreeSet<u64> = CommandRequest::created_ids(&big)
+        .into_iter()
+        .chain(CommandRequest::created_ids(&small))
+        .collect();
+    app.selection = pair.clone();
+    assert_eq!(row(&mut app, "setHoleSewing")["enabled"], true);
+    menu_cmd(&mut app, json!({ "action": "setHoleSewing" }));
+    let holed = |app: &EditorApp| {
+        app.session
+            .design()
+            .objects
+            .iter()
+            .filter(|o| o.hole_sewing)
+            .count()
+    };
+    assert_eq!(holed(&app), 1, "the outer one is sewn round the inner one");
+    assert_eq!(row(&mut app, "setHoleSewing")["enabled"], false);
+    menu_cmd(&mut app, json!({ "action": "cancelHoleSewing" }));
+    assert_eq!(holed(&app), 0);
+    app.undo();
+    app.undo();
+    for id in &pair {
+        app.execute(&CommandRequest::new("object.delete", json!({ "ids": [id] })))
+            .expect("delete");
+    }
+    let second = *ids.iter().last().expect("second");
+    app.execute(&CommandRequest::new(
+        "object.move",
+        json!({ "ids": [second], "dy": 15 }),
+    ))
+    .expect("move");
+    app.selection = ids.clone();
+    menu_cmd(&mut app, json!({ "action": "alignTop" }));
+    let tops: Vec<f64> = app
+        .session
+        .design()
+        .objects
+        .iter()
+        .map(|o| o.bounds().expect("bounds").min_y)
+        .collect();
+    assert!((tops[0] - tops[1]).abs() < 1e-6, "{tops:?}");
+    menu_cmd(&mut app, json!({ "action": "group" }));
+    assert_eq!(row(&mut app, "ungroup")["enabled"], true, "a group: Ungroup is on");
+}
+
+/// #1288, both paths after a click in a pane: a text field that keeps the keyboard takes
+/// Ctrl+C for its own text (the selection is not copied); any other widget that kept the
+/// focus (a button, a list) does not keep Ctrl+C from the selection. Found by clicking across
+/// the right-hand pane, as a user does.
+#[test]
+fn after_a_pane_click_only_a_text_field_keeps_ctrl_c_from_the_selection() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let (mut text, mut other) = (0, 0);
+    for x in (1000..1440).step_by(40) {
+        for y in (120..880).step_by(20) {
+            app.ui.copied = None;
+            app.selection = ids.clone();
+            w.click(&mut app, egui::pos2(x as f32, y as f32));
+            app.selection = ids.clone();
+            let focused = w.ctx.memory(|m| m.focused()).is_some();
+            let typing = w.ctx.text_edit_focused();
+            w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+            if typing {
+                text += 1;
+                assert!(app.ui.copied.is_none(), "({x}, {y}): the field takes Ctrl+C");
+            } else if focused {
+                other += 1;
+                assert!(app.ui.copied.is_some(), "({x}, {y}): a focused widget does not");
+            }
+            // Leave the field or widget as a user does: Esc, then a frame.
+            w.run(&mut app, vec![key(Key::Escape, Modifiers::NONE)], Modifiers::NONE);
+            app.tools.set_tool(Tool::Select);
+            app.workspace.view.object_menu = None;
+            app.workspace.view.numeric = None;
+        }
+    }
+    assert!(text > 0, "a text field was found in the pane");
+    assert_eq!(other, 0, "a click leaves no button focused (egui's buttons do not keep it)");
+    // Tab moves the keyboard focus onto a button (egui's keyboard navigation): Ctrl+C still
+    // copies the selection then. Before #1288 any focused widget kept it.
+    let mut tabbed = 0;
+    for _ in 0..40 {
+        w.run(&mut app, vec![key(Key::Tab, Modifiers::NONE)], Modifiers::NONE);
+        w.run(&mut app, vec![], Modifiers::NONE);
+        if w.ctx.memory(|m| m.focused()).is_some() && !w.ctx.text_edit_focused() {
+            app.ui.copied = None;
+            app.selection = ids.clone();
+            w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+            assert!(app.ui.copied.is_some(), "a focused button does not keep Ctrl+C");
+            tabbed += 1;
+        }
+    }
+    assert!(tabbed > 0, "Tab focused a button");
+}
+
+/// #1288: the sew-type bar agrees with the Sewing Attributes pane for a mixed selection: two
+/// objects of different region colours show no colour (the pane's Mixed), two of the same
+/// colour show it.
+#[test]
+fn the_sew_type_bar_shows_mixed_colours_as_the_pane_does() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "two");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let bar = |app: &mut EditorApp| {
+        app.ui_command("ui.objectMenu", None).expect("menu")["bar"].clone()
+    };
+    let same = bar(&mut app);
+    assert_eq!(same["regionColor"], "#ed171f");
+    assert_eq!(same["regionColorMixed"], false);
+    let second = *ids.iter().last().expect("second");
+    app.execute(&CommandRequest::new(
+        "object.setRegion",
+        json!({ "ids": [second], "color": "Green" }),
+    ))
+    .expect("green");
+    app.selection = ids.clone();
+    let mixed = bar(&mut app);
+    assert!(mixed["regionColor"].is_null(), "{mixed}");
+    assert_eq!(mixed["regionColorMixed"], true);
+    assert_eq!(mixed["region"], "fill", "the same sew type still shows");
+    // Open on screen: the bar holds its four controls (line type, line colour, region type,
+    // region colour), each drawn inside it with a width, the Mixed swatch as wide as the other.
+    let at = on_screen(&app, 0);
+    w.right_click(&mut app, at);
+    let painted = bar(&mut app);
+    let r = |v: &Value| -> [f32; 4] {
+        let a = v.as_array().expect("rect");
+        [0, 1, 2, 3].map(|i| a[i].as_f64().expect("number") as f32)
+    };
+    let outer = r(&painted["rect"]);
+    let controls: Vec<[f32; 4]> = painted["controls"]
+        .as_array()
+        .expect("controls")
+        .iter()
+        .map(r)
+        .collect();
+    assert_eq!(controls.len(), 4, "{painted}");
+    for c in &controls {
+        assert!(c[2] > 10.0 && c[3] > 10.0, "a visible control: {c:?}");
+        assert!(
+            c[0] >= outer[0] - 0.5
+                && c[0] + c[2] <= outer[0] + outer[2] + 0.5
+                && c[1] >= outer[1] - 0.5
+                && c[1] + c[3] <= outer[1] + outer[3] + 0.5,
+            "inside the bar: {c:?} in {outer:?}"
+        );
+    }
+    assert!(
+        (controls[1][2] - controls[3][2]).abs() < 0.5,
+        "the Mixed swatch is as wide as the line's colour swatch"
+    );
+}
+
+/// Objects copied in another window or tab, as the browser's paste event hands them over: an
+/// ellipse.
+fn other_tabs_objects() -> String {
+    let mut other = EditorApp::new(Launch::default());
+    let r = other
+        .execute(&CommandRequest::new(
+            "shape.ellipse",
+            json!({ "cx": 70, "cy": 65, "rx": 10, "ry": 5 }),
+        ))
+        .expect("ellipse");
+    let ids = CommandRequest::created_ids(&r);
+    openstitch_app::editor::clipboard::Envelope::copy(other.session.design(), &ids)
+        .expect("envelope")
+        .to_text()
+}
+
+/// #1288, the browser, both paths of a paste event that follows Ctrl+V within a second: after a
+/// key that pasted nothing (nothing copied in the page) the event's objects are pasted; after a
+/// key that pasted the page's own older copy, the event's objects from another window or tab
+/// win: the key's paste is taken back and theirs pasted, one undo step in all.
+#[test]
+fn in_the_browser_a_paste_event_with_other_objects_wins_over_the_key() {
+    let ellipse = other_tabs_objects();
+    let kinds = |app: &EditorApp| {
+        app.session
+            .design()
+            .objects
+            .iter()
+            .map(|o| o.bounds().map(|b| (b.width() / 10.0).round() as i64))
+            .collect::<Vec<_>>()
+    };
+    // Nothing copied in the page: the key pastes nothing, the event that follows pastes.
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    w.ctrl(&mut app, Key::V);
+    assert_eq!(app.session.design().objects.len(), 1, "the key alone pastes nothing");
+    w.run(
+        &mut app,
+        vec![egui::Event::Paste(ellipse.clone())],
+        Modifiers::COMMAND,
+    );
+    assert_eq!(kinds(&app), [Some(20), Some(20)], "the event's ellipse is pasted");
+    // The page holds an older copy (a square): the key pastes it, then the event hands over the
+    // ellipse from another tab, which wins.
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+    w.ctrl(&mut app, Key::V);
+    assert_eq!(app.session.design().objects.len(), 2, "the key pastes the page's copy");
+    w.run(
+        &mut app,
+        vec![egui::Event::Paste(ellipse.clone())],
+        Modifiers::COMMAND,
+    );
+    let d = app.session.design();
+    assert_eq!(d.objects.len(), 2, "the square's paste is taken back");
+    let last = d.objects[1].bounds().expect("bounds");
+    assert!(
+        (last.width() - 200.0).abs() < 1e-6 && (last.height() - 100.0).abs() < 1e-6,
+        "the ellipse from the other tab is what was pasted: {last:?}"
+    );
+    app.undo();
+    assert_eq!(
+        app.session.design().objects.len(),
+        1,
+        "one undo step takes the paste back"
+    );
+    // The same objects as the key pasted: the event is the key's own, no second paste.
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    w.run(&mut app, vec![egui::Event::Copy], Modifiers::COMMAND);
+    let own = openstitch_app::editor::clipboard::Envelope::copy(app.session.design(), &ids)
+        .expect("envelope")
+        .to_text();
+    w.ctrl(&mut app, Key::V);
+    w.run(&mut app, vec![egui::Event::Paste(own)], Modifiers::COMMAND);
+    assert_eq!(app.session.design().objects.len(), 2, "one paste");
+}
+
+
+/// #1288: `ui.objectMenu` reads only the parameters it declares, and `numeric` only its own
+/// fields and buttons: anything else is refused and changes nothing.
+#[test]
+fn ui_object_menu_declares_the_parameters_it_reads() {
+    let spec = openstitch_app::editor::assistant::UI_COMMANDS
+        .iter()
+        .find(|c| c.id == "ui.objectMenu")
+        .expect("ui.objectMenu");
+    let declared: BTreeSet<&str> = spec.params.iter().map(|p| p.name).collect();
+    let read: BTreeSet<&str> = crate::object_menu_ui::PARAMS.into_iter().collect();
+    assert_eq!(declared, read);
+    for p in spec.params.iter() {
+        assert!(p.summary.len() > 20, "{} says what it does", p.name);
+    }
+    let numeric = spec
+        .params
+        .iter()
+        .find(|p| p.name == "numeric")
+        .expect("numeric");
+    for field in crate::numeric_ui::PARAMS {
+        assert!(numeric.kind.contains(field), "numeric names {field}");
+    }
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let before = app.session.design().clone();
+    for (params, says) in [
+        (json!({ "colour": "red" }), "unknown parameter colour"),
+        (json!({ "numeric": { "angle": 30 } }), "unknown field angle"),
+        (json!({ "numeric": { "button": "apply" } }), "button must be"),
+        (json!({ "numeric": { "width": "big" } }), "width must be a number"),
+        (json!({ "numeric": { "percent": 1 } }), "percent must be true or false"),
+    ] {
+        app.ui_command("ui.objectMenu", Some(&json!({ "action": "sizeNumeric" })))
+            .ok();
+        let e = app
+            .ui_command("ui.objectMenu", Some(&params))
+            .expect_err("refused");
+        assert!(e.contains(says), "{params}: {e}");
+        assert_eq!(*app.session.design(), before, "{params}: nothing changed");
+    }
+}
+
+/// #1288: values outside the Size and Rotate dialogs' fields, sent through `ui.objectMenu
+/// {numeric}`, are kept to them (1-1000 %, 0.1-2000 mm, -360 to 360 degrees), as the
+/// description says; the dialog reports the stored value.
+#[test]
+fn ui_object_menu_keeps_numeric_values_to_the_dialogs_fields() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let set = |app: &mut EditorApp, numeric: Value| {
+        app.ui_command("ui.objectMenu", Some(&json!({ "numeric": numeric })))
+            .expect("numeric")["dialog"]
+            .clone()
+    };
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "sizeNumeric" })))
+        .expect("size");
+    assert_eq!(set(&mut app, json!({ "width": 5000 }))["widthPercent"], 1000.0);
+    assert_eq!(set(&mut app, json!({ "width": -3 }))["widthPercent"], 1.0);
+    let d = set(
+        &mut app,
+        json!({ "percent": false, "maintainAspectRatio": false, "width": 0.01, "height": 9999 }),
+    );
+    assert_eq!((d["widthMm"].clone(), d["heightMm"].clone()), (json!(0.1), json!(2000.0)));
+    set(&mut app, json!({ "button": "cancel" }));
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "rotateNumeric" })))
+        .expect("rotate");
+    assert_eq!(set(&mut app, json!({ "degrees": 900 }))["degrees"], 360.0);
+    assert_eq!(set(&mut app, json!({ "degrees": -720 }))["degrees"], -360.0);
+    set(&mut app, json!({ "button": "cancel" }));
+}
+
+fn rect_of(v: &Value) -> Option<egui::Rect> {
+    let a = v.as_array()?;
+    let f = |i: usize| a.get(i)?.as_f64().map(|x| x as f32);
+    Some(egui::Rect::from_min_size(
+        egui::pos2(f(0)?, f(1)?),
+        egui::vec2(f(2)?, f(3)?),
+    ))
+}
+
+/// #1288 with #1276: at every window size the sew-type bar sits inside the window and never
+/// over a row of the menu: above the menu for one object and below it for two where there is
+/// room; in a small window on the other side or beside it, or left out.
+#[test]
+fn the_sew_type_bar_never_covers_the_menu_in_a_small_window() {
+    let mut checked = 0;
+    let mut sizes = 0;
+    // The window sizes where the object can be right-clicked on the canvas. Smaller rooms (640 x
+    // 400 at 200 % text) leave no canvas beside the folded panes: #1285's reach walk opens the
+    // menu there through the editor and checks every control of it, the bar's included.
+    for (width, height) in [(1440.0, 900.0), (900.0, 600.0), (640.0, 400.0)] {
+        sizes += 1;
+        for how in ["one", "two"] {
+            let mut w = Window::sized(width, height);
+            let mut app = started(&mut w);
+            let ids = squares(&mut app, how);
+            for _ in 0..3 {
+                w.run(&mut app, vec![], Modifiers::NONE);
+            }
+            let case = format!("{width}x{height}, {how}");
+            // A point of the first object that the canvas shows. In the narrow layout the folded
+            // panes lie over part of the canvas, and a click there is theirs: the view is fitted
+            // to the page, then to the selection, and as a user would, the panes are put away
+            // when they still cover it.
+            let visible = |w: &mut Window, app: &mut EditorApp| {
+                for _ in 0..3 {
+                    w.run(app, vec![], Modifiers::NONE);
+                }
+                let canvas = app.workspace.canvas?;
+                let vp = app.viewport?;
+                let b = app.session.design().objects[0].bounds()?;
+                (1..8)
+                    .flat_map(|i| (1..8).map(move |j| (i, j)))
+                    .map(|(i, j)| {
+                        let p = openstitch_design::v2(
+                            b.min_x + b.width() * f64::from(i) / 8.0,
+                            b.min_y + b.height() * f64::from(j) / 8.0,
+                        );
+                        let s = vp.to_screen(p);
+                        egui::pos2(s.x as f32, s.y as f32)
+                    })
+                    .find(|p| {
+                        canvas.contains(*p)
+                            && w.ctx
+                                .layer_id_at(*p)
+                                .is_some_and(|l| l.order == egui::Order::Background)
+                    })
+            };
+            let mut at = None;
+            for step in ["page", "selection", "panes"] {
+                if step == "panes" {
+                    let panes = &mut app.ui.prefs.panes;
+                    panes.sewing_order.visible = false;
+                    panes.simulator.visible = false;
+                    panes.attributes.visible = false;
+                    app.ui_command("ui.zoom", Some(&json!({ "fit": "selection" })))
+                        .expect("fit");
+                } else {
+                    app.ui_command("ui.zoom", Some(&json!({ "fit": step })))
+                        .expect("fit");
+                }
+                at = visible(&mut w, &mut app);
+                if at.is_some() {
+                    break;
+                }
+            }
+            let at = at.unwrap_or_else(|| panic!("{case}: no part of the object shows on the canvas"));
+            w.right_click(&mut app, at);
+            w.run(&mut app, vec![], Modifiers::NONE);
+            let m = menu(&mut app);
+            assert_eq!(m["open"], true, "{case}: the right-click opened the menu");
+            assert_eq!(app.selection, ids, "{case}");
+            let window = w.ctx.content_rect();
+            let menu_rect = rect_of(&m["menuRect"]).expect("menu painted");
+            checked += 1;
+            match rect_of(&m["bar"]["rect"]) {
+                None => {} // left out: no room anywhere
+                Some(bar) => {
+                    let inner = bar.shrink(1.0);
+                    assert!(!inner.intersects(menu_rect.shrink(1.0)), "{case}: the bar covers the menu: {bar:?} {menu_rect:?}");
+                    assert!(window.expand(1.0).contains_rect(bar), "{case}: the bar is inside the window: {bar:?} in {window:?}; menu {menu_rect:?}");
+                    // PE-DESIGN's side wherever it fits: above for one object, below for two.
+                    let above_fits = menu_rect.min.y - bar.height() - 4.0 >= window.min.y - 0.5;
+                    let below_fits = menu_rect.max.y + 4.0 + bar.height() <= window.max.y + 0.5;
+                    if how == "one" && above_fits {
+                        assert!(bar.max.y <= menu_rect.min.y + 1.0, "{case}: above");
+                    } else if how == "two" && below_fits {
+                        assert!(bar.min.y >= menu_rect.max.y - 1.0, "{case}: below");
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(sizes, 3);
+    assert_eq!(checked, 6, "every size and selection was checked")
+}
+
+/// #1288: Size... and Rotate... on a group: the group scales and turns as one unit about its
+/// centre, each one undo step; a right-click on a member of an unselected group selects the
+/// whole group, as a click does.
+#[test]
+fn size_rotate_and_the_right_click_on_a_group() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    let ids = squares(&mut app, "group");
+    app.selection.clear();
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let at = on_screen(&app, 0);
+    w.right_click(&mut app, at);
+    assert_eq!(app.selection, ids, "the whole group is selected");
+    assert_eq!(menu(&mut app)["open"], true);
+    let before = bounds_of(&app, &ids);
+    let shapes = |app: &EditorApp| app.session.design().objects.clone();
+    let original = shapes(&app);
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "sizeNumeric" })))
+        .expect("size");
+    app.ui_command(
+        "ui.objectMenu",
+        Some(&json!({ "numeric": { "width": 50, "button": "ok" } })),
+    )
+    .expect("ok");
+    let half = bounds_of(&app, &ids);
+    assert!((half.width() - before.width() / 2.0).abs() < 1e-6, "{half:?}");
+    assert!(
+        (half.center().x - before.center().x).abs() < 1e-6
+            && (half.center().y - before.center().y).abs() < 1e-6,
+        "about the group's centre"
+    );
+    app.undo();
+    assert_eq!(shapes(&app), original, "one undo step");
+    crate::ribbon::run(
+        &mut app,
+        openstitch_app::editor::ribbon::Action::RotateRight,
+        &w.ctx,
+    );
+    let right = shapes(&app);
+    app.undo();
+    app.ui_command("ui.objectMenu", Some(&json!({ "action": "rotateNumeric" })))
+        .expect("rotate");
+    app.ui_command(
+        "ui.objectMenu",
+        Some(&json!({ "numeric": { "degrees": 90, "button": "ok" } })),
+    )
+    .expect("ok");
+    let turned = shapes(&app);
+    for (a, b) in turned.iter().zip(&right) {
+        assert_eq!(a.bounds(), b.bounds(), "Rotate... 90 turns the group as Rotate Right");
+    }
+    app.undo();
+    assert_eq!(shapes(&app), original, "one undo step");
+}
+
+/// #1288: the sub-menu's rows are not reported in its first frame, which only measures it (the
+/// window may still move it into view), and are reported once it has been painted: a script
+/// that clicks at a reported row hits it.
+#[test]
+fn a_sub_menus_rows_are_reported_once_it_is_painted() {
+    let mut w = Window::new();
+    let mut app = started(&mut w);
+    squares(&mut app, "one");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let at = on_screen(&app, 0);
+    w.right_click(&mut app, at);
+    let flip_rows = |app: &mut EditorApp| {
+        let m = menu(app);
+        m["rows"]
+            .as_array()
+            .expect("rows")
+            .iter()
+            .find(|r| r["key"] == "flip")
+            .expect("flip")["submenu"]
+            .as_array()
+            .expect("entries")
+            .iter()
+            .map(|e| e["rect"].clone())
+            .collect::<Vec<_>>()
+    };
+    assert!(flip_rows(&mut app).iter().all(Value::is_null), "closed: nothing");
+    crate::object_menu_ui::open_sub_for_test(&mut app, "flip");
+    w.run(&mut app, vec![], Modifiers::NONE);
+    assert!(
+        flip_rows(&mut app).iter().all(Value::is_null),
+        "the measuring frame reports no row"
+    );
+    w.run(&mut app, vec![], Modifiers::NONE);
+    let rows = flip_rows(&mut app);
+    assert!(rows.iter().all(|r| !r.is_null()), "painted: every row: {rows:?}");
+}
+
+/// #1288 through the editor: a saved map (ui.json beside the user settings) with keys the user
+/// had given to other commands before they became defaults (Ctrl+J, now Flip Horizontal;
+/// Ctrl+Shift+J, now Join Lines) loads with those keys kept, the status line naming every one
+/// of them once; saved and read again, no message comes. A saved map without such a key loads
+/// as it was saved, with no message.
+#[test]
+fn saved_keys_that_became_defaults_are_told_once() {
+    use openstitch_app::editor::keymap::Keymap;
+    use openstitch_app::editor::ribbon::Action as A;
+    let dir = openstitch_testutil::TempDir::new("app-keys-kept");
+    let user = dir.path().join("user.json");
+    std::fs::write(&user, "{}").expect("user settings");
+    let ui = openstitch_app::editor::prefs::path_beside(&user);
+    let launch = || Launch {
+        user_settings: Some(user.clone()),
+        no_splash: true,
+        ..Launch::default()
+    };
+    let saved = json!({ "rectangle": ["Ctrl+J"], "ellipse": ["Ctrl+Shift+J"] });
+    std::fs::write(&ui, json!({ "shortcuts": saved }).to_string()).expect("ui.json");
+    let app = EditorApp::new(launch());
+    let k = &app.ui.prefs.keymap;
+    assert_eq!(k.chords(A::Rectangle), ["Ctrl+J"]);
+    assert_eq!(k.chords(A::Ellipse), ["Ctrl+Shift+J"]);
+    assert!(k.chords(A::FlipHorizontal).is_empty() && k.chords(A::JoinLines).is_empty());
+    let ctrl = if cfg!(target_os = "macos") { "Cmd" } else { "Ctrl" };
+    for words in [
+        format!("{ctrl}+J stays with Rectangle"),
+        format!("{ctrl}+Shift+J stays with Circle / Ellipse"),
+        "Flip Horizontal".to_string(),
+        "Join Lines".to_string(),
+    ] {
+        assert!(app.status.contains(&words), "{words}: {}", app.status);
+    }
+    drop(app);
+    let again = EditorApp::new(launch());
+    assert!(!again.status.contains("stays with"), "once: {}", again.status);
+    assert_eq!(again.ui.prefs.keymap.chords(A::Rectangle), ["Ctrl+J"]);
+    drop(again);
+    // A map without such a key: loaded as saved, no message.
+    let clean = json!({ "rectangle": ["Alt+R"] });
+    std::fs::write(&ui, json!({ "shortcuts": clean }).to_string()).expect("ui.json");
+    let app = EditorApp::new(launch());
+    assert!(!app.status.contains("stays with"), "{}", app.status);
+    assert_eq!(
+        app.ui.prefs.keymap,
+        Keymap::from_json(&clean).expect("clean map"),
+        "the map is the saved one"
+    );
+    assert_eq!(app.ui.prefs.keymap.to_json(), clean);
+}
