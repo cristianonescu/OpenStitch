@@ -128,12 +128,22 @@ harness. The details per item are in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDI
   Summary in [BACKLOG.md](BACKLOG.md#shipped-in-alpha17-2026-11-16), changes in
   [releases/v0.1.0-alpha.17.md](releases/v0.1.0-alpha.17.md).
 
-Development is paused after alpha.17 until the owner says to resume. No further alpha is
-planned. The open work below and the open issues stay in the Future milestone.
+## Released: alpha.18 (2026-11-21)
 
-alpha.18, the Assistant: commands that drive its panel for tests and scripts (#1180), and a
-coding agent that continues its own session when a project's chat is reopened on the same PC
-(#1170).
+- **alpha.18** (2026-11-21), the owner's scope after alpha.17:
+  - stitches closer to PE-DESIGN 11.50: fill rows (#1131, #1088, #1144), Satin A and W (#938,
+    part of #1064), nets and the zigzag net's under sewing (#1043, #1071, #1163, #1239),
+    candlewick knots (#1236, #1237), satin on Closed Straight Line shapes (#1154);
+  - Select Point as PE-DESIGN's, on shapes and on stitch patterns, with direction lines (#1258,
+    #1260, #1271, #1272, #1273);
+  - the object right-click menu and PE-DESIGN's object keys (#1288);
+  - every menu, pane and dialog within reach in a small window (#1276);
+  - the browser version's Assistant, crash recovery and phone layout (#766, #831, #833, #834).
+  Designs sew differently than in alpha.17; every changed output was traced to one of these
+  fixes before the tag. Summary in [BACKLOG.md](BACKLOG.md#shipped-in-alpha18-2026-11-21),
+  changes in [releases/v0.1.0-alpha.18.md](releases/v0.1.0-alpha.18.md).
+
+The next work is in the alpha.19 milestone; the rest of the open issues stay in Future.
 
 ## Still to do
 

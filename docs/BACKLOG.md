@@ -15,9 +15,37 @@ The coordinators (Mac: image digitizing, the AI assistant, the kit and calibrati
 tooling, tests; Windows: the stitch engine, formats, lettering and the release gate) refresh
 this file at each day's close-out.
 
-Updated 2026-11-16: alpha.13 to alpha.17 have shipped their plans (summaries below).
-Development is paused after alpha.17 until the owner says to resume. The open work is the
-Future milestone. The sections after the summaries are the 2026-11-04 round, kept for history.
+Updated 2026-11-21: alpha.13 to alpha.18 have shipped their plans (summaries below).
+The next work is the alpha.19 milestone; the rest is the Future milestone. The sections after
+the summaries are the 2026-11-04 round, kept for history.
+
+## Shipped in alpha.18 (2026-11-21)
+
+34 pull requests merged after `v0.1.0-alpha.17`, from 2026-11-17 to 2026-11-21:
+
+- **Stitches closer to PE-DESIGN 11.50:** fill rows (#1131, #1088, #1144); Satin A (#938) and
+  W (part of #1064); nets in PE-DESIGN's order and the zigzag net's under sewing (#1043, #1071,
+  #1163, #1239); candlewick knots (#1236, #1237); satin on Closed Straight Line shapes (#1154).
+- **Select Point:** PE-DESIGN's point menu and point kinds (#1258), editing (#1260), Split at
+  Point and Open with hole sewing and text (#1271), direction lines with several straight lines
+  (#1273), and needle points of stitch patterns (#1272).
+- **Editing:** the object right-click menu and PE-DESIGN's object keys, with Ctrl+C/V working
+  visibly (#1288); Join Lines and Break Apart (#744); every control within reach in a small
+  window (#1276); the page kept in view on a resize (#1266).
+- **Files and image tools:** PES 0110 candlewick, stem and chain fields (#1160, #1237), import
+  ranges (#1125), floppy images (#876), Auto Punch and Cross Stitch fixes (#1137, #994, #832).
+- **Browser:** the Assistant (#766), crash recovery, samples, phone layout, smaller download
+  (#831, #833, #834, #696).
+- **No regression:** every example design and kit file was run through alpha.17's and this
+  release's stitchtool; each changed output traces to one of the stitch fixes above.
+- **Tested:** automatic tests and CI on the three systems, the browser page tests in Chromium,
+  Firefox and WebKit, PE-DESIGN captures for Select Point and the object menu. The macOS release
+  build was not checked by hand (the Mac was off).
+
+Known: #1287 (direction-line zones outside tolerance, accepted), #1289 (machine files import as
+one pattern with colour blocks), #1292 (browser on a Mac: two keys taken by the system).
+
+What shipped, by area: [releases/v0.1.0-alpha.18.md](releases/v0.1.0-alpha.18.md).
 
 ## Shipped in alpha.17 (2026-11-16)
 
@@ -41,7 +69,7 @@ go-ahead for after alpha 16:
 Still open and in the Future milestone: #1180 and #1170 (the Assistant panel), #1192 (laying out
 only the Sewing Order rows on screen), and the parked #1043/#1071 and #1131/#1088.
 
-Development is paused after alpha.17 until the owner says to resume.
+Development was paused after alpha.17, then resumed for alpha.18 by the owner's word.
 
 What shipped, by area: [releases/v0.1.0-alpha.17.md](releases/v0.1.0-alpha.17.md).
 
