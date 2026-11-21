@@ -14,3 +14,4 @@ crates/openstitch-update/src/install.rs	/home/me	test placeholder: an AppImage i
 THIRD_PARTY_NOTICES.md	team@latofonts.com	the Lato font's licence notice (OFL), quoted as required
 crates/openstitch-design/fonts/Lato-OFL.txt	team@latofonts.com	the Lato font's licence file (OFL), kept unchanged as required
 compat/reference/image/photostitch1-p01-portrait-100mm.pes	examples\images\p01-portrait.jpg	the source image's path inside this repository, as rewritten in #1213 (PE-DESIGN stores an image's path)
+docs/images/rust-editor-ornaments.png	xFX\Qa.VH	random bytes inside the PNG's compressed IDAT pixel data (byte 35730), not a path (alpha.18 gate)
